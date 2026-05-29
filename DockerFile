@@ -1,0 +1,51 @@
+# Base image with deep native C++20 support
+FROM ubuntu:24.04
+
+# Prevent interactive tzdata prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 1. Install Core HPC & C++20 Toolchain
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    g++-13 \
+    gcc-13 \
+    cmake \
+    ninja-build \
+    git \
+    wget \
+    curl \
+    openmpi-bin \
+    libopenmpi-dev \
+    libgtest-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set GCC-13 as the default compiler
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+
+# 2. Compile and Install Google Test globally
+RUN cd /usr/src/gtest \
+    && cmake CMakeLists.txt \
+    && make \
+    && cp lib/*.a /usr/lib/ \
+    && mkdir -p /usr/local/lib/gtest/ \
+    && ln -s /usr/lib/libgtest.a /usr/local/lib/gtest/libgtest.a \
+    && ln -s /usr/lib/libgtest_main.a /usr/local/lib/gtest/libgtest_main.a
+
+# 3. Clone and install Kokkos (OpenMP backend for local CPU testing)
+# We install this globally so CMake's find_package(Kokkos) works out of the box
+RUN git clone -b 4.3.00 https://github.com/kokkos/kokkos.git /tmp/kokkos \
+    && cd /tmp/kokkos \
+    && cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DKokkos_ENABLE_OPENMP=ON \
+    -DKokkos_ENABLE_SERIAL=ON \
+    && cmake --build build --parallel $(nproc) \
+    && cmake --install build \
+    && rm -rf /tmp/kokkos
+
+# 4. Workspace Setup
+WORKDIR /workspace/helm-project
+
+# Default command to keep the container alive if run detached
+CMD ["/bin/bash"]

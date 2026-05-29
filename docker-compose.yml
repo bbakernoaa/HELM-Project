@@ -1,0 +1,11 @@
+services:
+  helm-dev:
+    build:
+      context: .
+      dockerfile: DockerFile
+    container_name: helm-dev-env
+    # Maps your current local directory to the workspace inside the container
+    volumes:
+      - .:/workspace/helm-project
+    # Keeps the container running indefinitely in the background
+    command: tail -f /dev/null
