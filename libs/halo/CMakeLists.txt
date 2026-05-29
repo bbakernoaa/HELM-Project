@@ -62,7 +62,52 @@ endif()
 # ─── Fortran Interop Layer ───────────────────────────────────────────────────
 if(BUILD_FORTRAN)
     enable_language(Fortran)
-    # Fortran targets will be added in task 16.2
+
+    # C interop layer (C++ compiled with extern "C"). Links the core halo
+    # library PUBLIC so it inherits MPI, Kokkos, and the public include paths.
+    add_library(halo_c_interop STATIC
+        src/fortran/halo_c_interop.cpp
+    )
+
+    target_include_directories(halo_c_interop PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/fortran
+    )
+
+    target_link_libraries(halo_c_interop
+        PUBLIC
+            halo
+    )
+
+    target_compile_features(halo_c_interop PUBLIC cxx_std_20)
+
+    set_target_properties(halo_c_interop PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+    )
+
+    # Fortran module library wrapping the extern "C" symbols. Linking
+    # halo_c_interop PUBLIC resolves those symbols at link time.
+    add_library(halo_fortran
+        fortran/halo_mod.f90
+    )
+    add_library(HELM::HALO_Fortran ALIAS halo_fortran)
+
+    target_link_libraries(halo_fortran
+        PUBLIC
+            halo_c_interop
+    )
+
+    # Emit the generated halo_mod.mod into a dedicated module directory and
+    # expose it on the target's interface so downstream Fortran consumers can
+    # locate the module file.
+    set_target_properties(halo_fortran PROPERTIES
+        Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fortran_modules
+    )
+
+    target_include_directories(halo_fortran
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/fortran_modules>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/fortran>
+    )
 endif()
 
 # ─── Install and Export Configuration ────────────────────────────────────────
@@ -83,6 +128,23 @@ install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp"
 )
+
+# Install the Fortran interop targets and generated module files. These targets
+# join the same HALOTargets export set so they are exported alongside halo.
+if(BUILD_FORTRAN)
+    install(TARGETS halo_c_interop halo_fortran
+        EXPORT HALOTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+
+    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fortran_modules/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fortran
+        FILES_MATCHING PATTERN "*.mod"
+    )
+endif()
 
 # Export targets with HELM:: namespace
 install(EXPORT HALOTargets
@@ -111,9 +173,41 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HALO
 )
 
+# ─── Tier 1 Isolation Compliance (Requirement 13) ────────────────────────────
+# HALO must have ZERO compile-time dependencies on any other HELM component
+# (TICK, LOGS, AXIS, AMIO, SPAN, DAGR). The static scan below fails if any
+# forbidden #include / Fortran `use` reference is found in the shipping sources.
+set(HALO_ISOLATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_tier1_isolation.sh")
+find_program(HALO_SH_EXECUTABLE NAMES sh)
+
+if(HALO_SH_EXECUTABLE)
+    # Always-available custom target: `cmake --build . --target check_isolation`.
+    add_custom_target(check_isolation
+        COMMAND ${HALO_SH_EXECUTABLE} ${HALO_ISOLATION_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Scanning HALO sources for forbidden HELM component includes (Tier 1 isolation)"
+        VERBATIM
+    )
+else()
+    message(WARNING "POSIX 'sh' not found; the Tier 1 isolation check (check_isolation) will be unavailable.")
+endif()
+
 # ─── Testing ─────────────────────────────────────────────────────────────────
 if(BUILD_TESTING)
     enable_testing()
+
+    # Register the Tier 1 isolation scan as a CTest so it runs with the suite.
+    if(HALO_SH_EXECUTABLE)
+        add_test(
+            NAME tier1_isolation
+            COMMAND ${HALO_SH_EXECUTABLE} ${HALO_ISOLATION_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        set_tests_properties(tier1_isolation PROPERTIES
+            TIMEOUT 30
+            LABELS "static;isolation"
+        )
+    endif()
+
     add_subdirectory(tests)
 
     if(BUILD_FORTRAN)

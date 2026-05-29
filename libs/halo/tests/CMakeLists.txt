@@ -8,42 +8,29 @@
 find_package(GTest REQUIRED)
 
 # ─── Locate RapidCheck (property-based testing) ──────────────────────────────
-find_package(rapidcheck QUIET
-    PATHS /tmp/halo-build/_deps/rapidcheck-build
-    NO_DEFAULT_PATH
-)
+# RapidCheck is installed globally in the HELM Docker container (see DockerFile),
+# which provides both the `rapidcheck` and `rapidcheck_gtest` targets.
+find_package(rapidcheck QUIET)
 if(NOT rapidcheck_FOUND)
-    # Use the pre-built RapidCheck from the container build cache
-    if(EXISTS "/tmp/halo-build/_deps/rapidcheck-build/librapidcheck.a")
-        add_library(rapidcheck STATIC IMPORTED)
-        set_target_properties(rapidcheck PROPERTIES
-            IMPORTED_LOCATION "/tmp/halo-build/_deps/rapidcheck-build/librapidcheck.a"
-            INTERFACE_INCLUDE_DIRECTORIES "/tmp/halo-build/_deps/rapidcheck-src/include;/tmp/halo-build/_deps/rapidcheck-src/extras/gtest/include"
-        )
-        message(STATUS "Using pre-built RapidCheck from /tmp/halo-build/_deps/")
-    else()
-        # Fall back to FetchContent if not found
-        include(FetchContent)
-        FetchContent_Declare(
-            rapidcheck
-            GIT_REPOSITORY https://github.com/emil-e/rapidcheck.git
-            GIT_TAG        master
-            GIT_SHALLOW    TRUE
-            GIT_SUBMODULES ""
-        )
-        FetchContent_MakeAvailable(rapidcheck)
-    endif()
+    # Fall back to FetchContent for environments without a global install.
+    include(FetchContent)
+    FetchContent_Declare(
+        rapidcheck
+        GIT_REPOSITORY https://github.com/emil-e/rapidcheck.git
+        GIT_TAG        master
+        GIT_SHALLOW    TRUE
+        GIT_SUBMODULES ""
+    )
+    set(RC_ENABLE_GTEST ON CACHE BOOL "Build RapidCheck GTest integration" FORCE)
+    FetchContent_MakeAvailable(rapidcheck)
 endif()
 
 # ─── RapidCheck GTest extras ─────────────────────────────────────────────────
-# Build the rapidcheck_gtest library if not already available
+# The global RapidCheck install (RC_ENABLE_GTEST=ON) already provides the
+# rapidcheck_gtest target via find_package. If it is missing (e.g. an older
+# install), build it from the FetchContent source tree.
 if(NOT TARGET rapidcheck_gtest)
-    if(EXISTS "/tmp/halo-build/_deps/rapidcheck-src/extras/gtest")
-        add_subdirectory(
-            /tmp/halo-build/_deps/rapidcheck-src/extras/gtest
-            ${CMAKE_CURRENT_BINARY_DIR}/rapidcheck_gtest
-        )
-    elseif(EXISTS "${CMAKE_BINARY_DIR}/_deps/rapidcheck-src/extras/gtest")
+    if(EXISTS "${CMAKE_BINARY_DIR}/_deps/rapidcheck-src/extras/gtest")
         add_subdirectory(
             ${CMAKE_BINARY_DIR}/_deps/rapidcheck-src/extras/gtest
             ${CMAKE_CURRENT_BINARY_DIR}/rapidcheck_gtest
@@ -154,6 +141,15 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_window_guard.cpp")
     halo_add_mpi_test(test_window_guard
         SOURCES test_window_guard.cpp
     )
+    # test_window_guard exercises real MPI_Win one-sided RMA (MPI_Win_create +
+    # MPI_Put). In this container's Open MPI 4.1 build, the default one-sided
+    # (osc) component selection fails MPI_Win_create with MPI_ERR_WIN on
+    # MPI_COMM_SELF; the pt2pt component handles it correctly. Pin osc=pt2pt for
+    # just this test so the RMA window lifecycle can be validated. This is an
+    # MPI-runtime configuration detail, not a HALO requirement.
+    set_property(TEST test_window_guard APPEND PROPERTY
+        ENVIRONMENT "OMPI_MCA_osc=pt2pt"
+    )
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_halo_plan.cpp")
@@ -225,6 +221,70 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_gpu_dispatch.cpp")
     )
 endif()
 
+# ─── C-Interop Exception Boundary Property Test ──────────────────────────────
+# Exercises the extern "C" interop layer (src/fortran/halo_c_interop.cpp), which
+# is NOT compiled into the `halo` library target, so the interop translation
+# unit is added directly to this test target's sources. The src/fortran include
+# directory is added so the test can reach handle_registry.hpp.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exception_boundary.cpp")
+    halo_add_property_test(prop_exception_boundary
+        SOURCES
+            prop_exception_boundary.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran/halo_c_interop.cpp
+    )
+    target_include_directories(prop_exception_boundary
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran
+    )
+endif()
+
+# ─── C-Interop Destroy Invalidates Handle Property Test ──────────────────────
+# Exercises the extern "C" interop layer (src/fortran/halo_c_interop.cpp), which
+# is NOT compiled into the `halo` library target, so the interop translation
+# unit is added directly to this test target's sources. The src/fortran include
+# directory is added so the test can reach handle_registry.hpp.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_destroy_handle.cpp")
+    halo_add_property_test(prop_destroy_handle
+        SOURCES
+            prop_destroy_handle.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran/halo_c_interop.cpp
+    )
+    target_include_directories(prop_destroy_handle
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran
+    )
+endif()
+
+# ─── C-Interop Plan Creation Validates Neighbor Arrays Property Test ──────────
+# Exercises the extern "C" interop layer (src/fortran/halo_c_interop.cpp), which
+# is NOT compiled into the `halo` library target, so the interop translation
+# unit is added directly to this test target's sources. The src/fortran include
+# directory is added so the test can reach handle_registry.hpp.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_plan_validation.cpp")
+    halo_add_property_test(prop_plan_validation
+        SOURCES
+            prop_plan_validation.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran/halo_c_interop.cpp
+    )
+    target_include_directories(prop_plan_validation
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran
+    )
+endif()
+
+# ─── C-Interop Exchange Forwarding Preserves Pointer and Size Property Test ───
+# Exercises the extern "C" interop layer (src/fortran/halo_c_interop.cpp), which
+# is NOT compiled into the `halo` library target, so the interop translation
+# unit is added directly to this test target's sources. The src/fortran include
+# directory is added so the test can reach handle_registry.hpp.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange_forwarding.cpp")
+    halo_add_property_test(prop_exchange_forwarding
+        SOURCES
+            prop_exchange_forwarding.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran/halo_c_interop.cpp
+    )
+    target_include_directories(prop_exchange_forwarding
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran
+    )
+endif()
+
 # ─── Handle Registry Unit Test (no MPI needed, single-rank) ──────────────────
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_handle_registry.cpp")
     add_executable(test_handle_registry test_handle_registry.cpp)
@@ -243,5 +303,33 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_handle_registry.cpp")
     set_tests_properties(test_handle_registry PROPERTIES
         TIMEOUT 30
         LABELS "unit"
+    )
+endif()
+
+# ─── Handle Registry Property Test (no MPI needed, single-rank) ──────────────
+# The registry is header-only (src/fortran/handle_registry.hpp), so this target
+# does not link the halo library or MPI -- only GTest plus the RapidCheck
+# property framework.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_handle_registry.cpp")
+    add_executable(prop_handle_registry prop_handle_registry.cpp)
+    target_link_libraries(prop_handle_registry
+        PRIVATE
+            GTest::gtest
+            GTest::gtest_main
+            rapidcheck
+    )
+    if(TARGET rapidcheck_gtest)
+        target_link_libraries(prop_handle_registry PRIVATE rapidcheck_gtest)
+    endif()
+    target_include_directories(prop_handle_registry
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran
+    )
+    target_compile_features(prop_handle_registry PUBLIC cxx_std_20)
+    add_test(NAME prop_handle_registry COMMAND $<TARGET_FILE:prop_handle_registry>)
+    set_tests_properties(prop_handle_registry PROPERTIES
+        TIMEOUT 120
+        LABELS "property"
     )
 endif()

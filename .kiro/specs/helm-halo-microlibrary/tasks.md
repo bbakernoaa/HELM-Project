@@ -200,8 +200,8 @@ Incremental implementation of the HALO Tier 1 C++20 micro-library providing RAII
 - [x] 13. Checkpoint — Core C++ library complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14. RAII destructor exception-path test suite
-  - [-] 14.1 Write RAII exception-path unit tests
+- [x] 14. RAII destructor exception-path test suite
+  - [x] 14.1 Write RAII exception-path unit tests
     - Test: Communicator destroyed during exception unwinding verifies handle == MPI_COMM_NULL after catch
     - Test: Request_Guard with pending op destroyed during unwinding verifies cancel+free via spy
     - Test: Nested scopes (outer Communicator, inner Request_Guard) verify reverse destruction order
@@ -211,63 +211,63 @@ Incremental implementation of the HALO Tier 1 C++20 micro-library providing RAII
     - All tests use MPI interposition spy for deterministic verification
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
 
-  - [-] 14.2 Write property tests for GPU-aware dispatch paths
+  - [x] 14.2 Write property tests for GPU-aware dispatch paths
     - **Property 14: GPU-Aware MPI Uses Device Pointers Directly**
     - **Property 15: Non-GPU-Aware MPI Stages Through Host**
     - Verify compile-time dispatch selects correct path based on HALO_GPU_AWARE_MPI flag and view memory space
     - **Validates: Requirements 6.4, 6.5, 7.6, 7.7**
 
-  - [-] 14.3 Write property test: MPI Errors During Exchange Throw With Context
+  - [x] 14.3 Write property test: MPI Errors During Exchange Throw With Context
     - **Property 16: MPI Errors During Exchange Throw With Context**
     - Inject MPI errors via spy, verify std::runtime_error thrown containing error string and failing rank
     - **Validates: Requirements 6.6, 7.8**
 
-  - [-] 14.4 Write property test: Completion Triggers Post-Receive Deep-Copy When Staged
+  - [x] 14.4 Write property test: Completion Triggers Post-Receive Deep-Copy When Staged
     - **Property 18: Completion Triggers Post-Receive Deep-Copy When Staged**
     - Verify that test()==true or wait() on staged Halo_Handle triggers deep_copy before returning
     - **Validates: Requirements 7.3, 7.4**
 
-- [ ] 15. Fortran C-interop layer
-  - [-] 15.1 Implement opaque handle registry
+- [x] 15. Fortran C-interop layer
+  - [x] 15.1 Implement opaque handle registry
     - Create `src/fortran/handle_registry.hpp` with `halo::fortran::Handle_Registry` singleton
     - Implement thread-safe register_handle, lookup, release, valid methods
     - Use monotonically increasing integer tokens (0 reserved as invalid)
     - _Requirements: 14.3, 14.4, 14.13_
 
-  - [-] 15.2 Implement extern "C" interop functions
+  - [x] 15.2 Implement extern "C" interop functions
     - Create `src/fortran/halo_c_interop.cpp` with all extern "C" functions: halo_init_c, halo_comm_create_c, halo_plan_create_c, halo_exchange_blocking_c, halo_exchange_async_c, halo_wait_c, halo_test_c, halo_destroy_plan_c, halo_destroy_comm_c
     - Implement HALO_C_TRY macro for exception-to-error-code translation
     - Use MPI_Comm_f2c for Fortran integer communicator conversion
     - Construct non-owning Kokkos::View over Fortran contiguous arrays
     - _Requirements: 14.1, 14.5, 14.6, 14.7, 14.8, 14.9, 14.10, 14.13_
 
-  - [ ] 15.3 Write property test: Handle Registry Round-Trip
+  - [x] 15.3 Write property test: Handle Registry Round-Trip
     - **Property 21: Handle Registry Round-Trip**
     - Generate random create/destroy sequences, verify handle uniqueness and lookup correctness
     - **Validates: Requirements 14.3, 14.4, 14.16**
 
-  - [ ] 15.4 Write property test: Exception Boundary Returns Error Code
+  - [x] 15.4 Write property test: Exception Boundary Returns Error Code
     - **Property 22: Exception Boundary Returns Error Code**
     - Inject various exception types, verify all caught and mapped to non-zero error codes; verify success returns 0
     - **Validates: Requirements 14.9, 14.10**
 
-  - [ ] 15.5 Write property test: Destroy Invalidates Handle
+  - [x] 15.5 Write property test: Destroy Invalidates Handle
     - **Property 23: Destroy Invalidates Handle**
     - Create handle, destroy it, attempt reuse, verify HALO_ERR_BAD_HANDLE returned
     - **Validates: Requirements 14.13**
 
-  - [ ] 15.6 Write property test: Plan Creation Validates Neighbor Arrays
+  - [x] 15.6 Write property test: Plan Creation Validates Neighbor Arrays
     - **Property 24: Plan Creation Validates Neighbor Arrays**
     - Generate valid and invalid neighbor arrays via C interop, verify correct error codes
     - **Validates: Requirements 14.12**
 
-  - [ ] 15.7 Write property test: Exchange Forwarding Preserves Pointer and Size
+  - [x] 15.7 Write property test: Exchange Forwarding Preserves Pointer and Size
     - **Property 25: Exchange Forwarding Preserves Pointer and Size**
     - Verify non-owning view constructed over exactly num_elements * element_size bytes at provided pointer
     - **Validates: Requirements 14.5, 14.6**
 
-- [ ] 16. Fortran halo_mod module
-  - [ ] 16.1 Implement halo_mod.f90 Fortran module
+- [x] 16. Fortran halo_mod module
+  - [x] 16.1 Implement halo_mod.f90 Fortran module
     - Create `fortran/halo_mod.f90` with iso_c_binding interfaces for all C interop functions
     - Implement public subroutines: halo_init, halo_comm_create, halo_plan_create, halo_exchange_blocking, halo_exchange_async, halo_wait, halo_test, halo_destroy_plan, halo_destroy_comm
     - Define public error code constants (HALO_SUCCESS, HALO_ERR_INVALID_ARG, etc.)
@@ -275,18 +275,18 @@ Incremental implementation of the HALO Tier 1 C++20 micro-library providing RAII
     - Use c_loc for contiguous array passing, bind(c) on all interfaces
     - _Requirements: 14.2, 14.4, 14.5, 14.6, 14.7, 14.8, 14.11, 14.12, 14.15_
 
-  - [ ] 16.2 Add Fortran build targets to CMakeLists.txt
+  - [x] 16.2 Add Fortran build targets to CMakeLists.txt
     - Enable Fortran language, add halo_c_interop and halo_fortran library targets
     - Create HELM::HALO_Fortran alias, configure Fortran module directory
     - Add install rules for .mod files and Fortran libraries
     - Add tests_fortran subdirectory when BUILD_TESTING and BUILD_FORTRAN are ON
     - _Requirements: 14.14_
 
-- [ ] 17. Checkpoint — Fortran interop layer complete
+- [x] 17. Checkpoint — Fortran interop layer complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 18. Fortran integration tests
-  - [ ] 18.1 Write Fortran integration test suite
+- [x] 18. Fortran integration tests
+  - [x] 18.1 Write Fortran integration test suite
     - Create `tests_fortran/CMakeLists.txt` and `tests_fortran/test_halo_mod.f90`
     - Test full lifecycle: halo_init → halo_plan_create → halo_exchange_blocking → halo_destroy_plan → halo_destroy_comm
     - Test async path: halo_exchange_async → halo_wait
@@ -296,19 +296,19 @@ Incremental implementation of the HALO Tier 1 C++20 micro-library providing RAII
     - Run with `mpirun -np 4`
     - _Requirements: 14.2, 14.5, 14.6, 14.7, 14.8, 14.11, 14.12, 14.14_
 
-- [ ] 19. CI pipeline and isolation compliance
-  - [ ] 19.1 Create static isolation verification script
+- [x] 19. CI pipeline and isolation compliance
+  - [x] 19.1 Create static isolation verification script
     - Write a script (shell or CMake custom target) that scans all HALO source and header files for `#include` directives matching other HELM component header paths (TICK, LOGS, AXIS, AMIO, SPAN, DAGR)
     - Fail the build if any forbidden includes are found
     - Integrate as a CMake custom target or CTest test
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
 
-  - [ ] 19.2 Configure CI pipeline steps
+  - [x] 19.2 Configure CI pipeline steps
     - Document CI pipeline stages: static analysis (isolation scan), standalone CMake build inside Docker, unit tests (mpirun -np 4), property tests (single-rank mocked MPI), ASan + UBSan sanitizer builds
     - Verify standalone build produces HELM::HALO without other HELM source trees present
     - _Requirements: 12.2, 12.3, 12.5, 13.5_
 
-- [ ] 20. Final checkpoint — All components integrated
+- [x] 20. Final checkpoint — All components integrated
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
