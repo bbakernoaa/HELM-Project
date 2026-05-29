@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     g++-13 \
     gcc-13 \
+    gfortran-13 \
     cmake \
     ninja-build \
     git \
@@ -19,9 +20,10 @@ RUN apt-get update && apt-get install -y \
     libgtest-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Set GCC-13 as the default compiler
+# Set GCC-13 as the default compiler (C, C++, and Fortran)
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
-    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100 \
+    && update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-13 100
 
 # 2. Compile and Install Google Test globally
 RUN cd /usr/src/gtest \
@@ -44,7 +46,21 @@ RUN git clone -b 4.3.00 https://github.com/kokkos/kokkos.git /tmp/kokkos \
     && cmake --install build \
     && rm -rf /tmp/kokkos
 
-# 4. Workspace Setup
+# 4. Clone and install RapidCheck (property-based testing) globally
+# Includes the GTest integration extra so CMake's find_package(rapidcheck)
+# exposes both the rapidcheck and rapidcheck_gtest targets out of the box.
+RUN git clone https://github.com/emil-e/rapidcheck.git /tmp/rapidcheck \
+    && cd /tmp/rapidcheck \
+    && cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DRC_ENABLE_GTEST=ON \
+    -DRC_INSTALL_ALL_EXTRAS=ON \
+    && cmake --build build --parallel $(nproc) \
+    && cmake --install build \
+    && rm -rf /tmp/rapidcheck
+
+# 5. Workspace Setup
 WORKDIR /workspace/helm-project
 
 # Default command to keep the container alive if run detached

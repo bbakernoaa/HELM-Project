@@ -4,6 +4,11 @@ services:
       context: .
       dockerfile: DockerFile
     container_name: helm-dev-env
+    # OpenMPI refuses to run as root by default. The dev/CI container runs as
+    # root, so explicitly opt in to allow mpirun-launched tests to execute.
+    environment:
+      OMPI_ALLOW_RUN_AS_ROOT: "1"
+      OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: "1"
     # Maps your current local directory to the workspace inside the container
     volumes:
       - .:/workspace/helm-project

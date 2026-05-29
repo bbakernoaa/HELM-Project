@@ -1,0 +1,159 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# HALO CI Pipeline (GitHub Actions)
+#
+# Executable encoding of libs/halo/docs/CI_PIPELINE.md. Every stage runs INSIDE
+# the HELM project Docker container (built from ./DockerFile via docker compose),
+# so the toolchain matches local development exactly (Requirement 12.2).
+#
+# Stages:
+#   1. Static analysis / Tier 1 isolation scan ............ Requirement 13.5
+#   2. Standalone CMake build inside Docker (HELM::HALO) ... Requirements 12.2, 12.3
+#   3. Unit tests           (mpirun -np 4, label "unit") .. Requirement 12.2
+#   4. Property tests       (single-rank, label "property") Requirement 12.2
+#   5. Fortran integration  (mpirun -np 4, label "fortran") Requirement 12.2
+#   6. Sanitizer builds     (ASan + UBSan) ................ Requirement 12.2
+#
+# Submodules are checked out recursively so the pinned HALO commit is present
+# without manual steps (Requirement 12.5).
+# ─────────────────────────────────────────────────────────────────────────────
+name: HALO CI
+
+on:
+  push:
+    paths:
+      - "libs/halo/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/halo-ci.yml"
+  pull_request:
+    paths:
+      - "libs/halo/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/halo-ci.yml"
+  workflow_dispatch: {}
+
+# A single job: the stages share one container instance, so we bring the
+# container up once and exec each stage into it (cheaper than rebuilding the
+# image per stage, and matches how a developer works locally).
+jobs:
+  halo:
+    name: HALO build, test, sanitize
+    runs-on: ubuntu-latest
+    steps:
+      # Requirement 12.5: pinned HALO submodule must be present.
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Requirement 12.2: build + start the HELM container from ./DockerFile.
+      # The compose service is `helm-dev`; it sets OMPI_ALLOW_RUN_AS_ROOT so
+      # mpirun-launched tests run under the root CI user.
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # Stage 1 — Static analysis: Tier 1 isolation scan (Requirement 13.5).
+      # Runs the scanner directly (no compiler needed) so an architectural
+      # breach fails fast, before any build time is spent.
+      - name: "Stage 1: Tier 1 isolation scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/halo && sh cmake/check_tier1_isolation.sh .
+          '
+
+      # Stage 2 — Standalone CMake build inside Docker (Requirements 12.2, 12.3).
+      # Configure + build ONLY libs/halo (no other HELM source trees present),
+      # producing the halo library and the HELM::HALO alias, plus tests/Fortran.
+      - name: "Stage 2: Standalone build (produces HELM::HALO)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/halo
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DBUILD_FORTRAN=ON
+            cmake --build build-ci --parallel $(nproc)
+          '
+
+      # Stage 2b — Prove the exported alias is consumable by a downstream
+      # project that pulls in ONLY libs/halo and links HELM::HALO. If the alias
+      # were missing or carried a hidden HELM dependency, this would fail.
+      - name: "Stage 2b: Downstream HELM::HALO consumer"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            rm -rf /tmp/halo_consumer && mkdir -p /tmp/halo_consumer
+            cat > /tmp/halo_consumer/CMakeLists.txt <<EOF
+          cmake_minimum_required(VERSION 3.21)
+          project(halo_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          add_subdirectory(/workspace/helm-project/libs/halo \${CMAKE_BINARY_DIR}/halo_build)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE HELM::HALO)
+          EOF
+            printf "#include <halo/halo.hpp>\nint main() { return 0; }\n" > /tmp/halo_consumer/main.cpp
+            cd /tmp/halo_consumer
+            cmake -B build -G Ninja -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF
+            cmake --build build --target consumer
+          '
+
+      # Stage 3 — Unit tests: MPI-based GTest suite, launched mpirun -np 4 by
+      # ctest (label "unit"). (Requirement 12.2)
+      - name: "Stage 3: Unit tests (mpirun -np 4)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/halo/build-ci && ctest -L unit --output-on-failure
+          '
+
+      # Stage 4 — Property tests: single-rank, mocked MPI via the interposition
+      # spy (RapidCheck, label "property"). (Requirement 12.2)
+      - name: "Stage 4: Property tests (single-rank, mocked MPI)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/halo/build-ci && ctest -L property --output-on-failure
+          '
+
+      # Stage 5 — Fortran integration test (test_halo_mod), mpirun -np 4
+      # (label "fortran"). (Requirement 12.2)
+      - name: "Stage 5: Fortran integration test (mpirun -np 4)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/halo/build-ci && ctest -L fortran --output-on-failure
+          '
+
+      # Stage 6 — Sanitizer builds: ASan + UBSan over the property/unit suite.
+      # detect_leaks=0 suppresses the BY-DESIGN process-global Communicator
+      # leak in the C-interop boundary tests (see valid_comm_handle() in
+      # tests/prop_destroy_handle.cpp); ASan still catches use-after-free /
+      # overflow and UBSan still catches undefined behavior. (Requirement 12.2)
+      - name: "Stage 6: Sanitizer build (ASan + UBSan)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/halo
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DBUILD_FORTRAN=OFF \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+            cd build-asan
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+              ctest -L property --output-on-failure
+          '
+
+      # Always clean up throwaway build trees; leave the normal build/ intact.
+      - name: Cleanup scratch build trees
+        if: always()
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/halo && rm -rf build-ci build-asan
+          ' || true
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true

@@ -57,9 +57,12 @@ enum Halo_Error : int {
 ///       )
 ///   }
 /// @endcode
-#define HALO_C_TRY(body)                                    \
+// Variadic so that bodies containing top-level commas (e.g. Kokkos::View
+// template argument lists or brace-init lists) are passed through intact
+// instead of being parsed as multiple macro arguments.
+#define HALO_C_TRY(...)                                     \
     try {                                                   \
-        body;                                               \
+        __VA_ARGS__;                                        \
         return HALO_SUCCESS;                                \
     } catch (const std::invalid_argument&) {                \
         return HALO_ERR_INVALID_ARG;                        \
