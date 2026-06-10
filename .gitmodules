@@ -1,0 +1,4 @@
+[submodule "libs/amio"]
+	path = libs/amio
+	url = https://github.com/bbakernoaa/amio
+	branch = develop
