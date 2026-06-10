@@ -1,0 +1,15 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Kokkos is a transitive PUBLIC dependency of HELM::AXIS.
+find_dependency(Kokkos)
+
+# PROJ is an optional PRIVATE dependency (not transitive).
+if(@AXIS_ENABLE_PROJ@)
+    find_dependency(PROJ QUIET)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/AXISTargets.cmake")
+
+check_required_components(AXIS)

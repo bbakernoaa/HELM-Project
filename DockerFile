@@ -34,12 +34,13 @@ RUN cd /usr/src/gtest \
     && ln -s /usr/lib/libgtest.a /usr/local/lib/gtest/libgtest.a \
     && ln -s /usr/lib/libgtest_main.a /usr/local/lib/gtest/libgtest_main.a
 
-# 3. Clone and install Kokkos (OpenMP backend for local CPU testing)
+# 3. Clone and install Kokkos 5.1 (C++20 minimum, OpenMP backend for local CPU testing)
 # We install this globally so CMake's find_package(Kokkos) works out of the box
-RUN git clone -b 4.3.00 https://github.com/kokkos/kokkos.git /tmp/kokkos \
+RUN git clone -b 5.1.1 https://github.com/kokkos/kokkos.git /tmp/kokkos \
     && cd /tmp/kokkos \
     && cmake -B build \
     -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DCMAKE_CXX_STANDARD=20 \
     -DKokkos_ENABLE_OPENMP=ON \
     -DKokkos_ENABLE_SERIAL=ON \
     && cmake --build build --parallel $(nproc) \

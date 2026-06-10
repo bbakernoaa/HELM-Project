@@ -1,0 +1,248 @@
+# ##############################################################################
+# AXIS - Arbitrary eXgrid Interpolation Solver
+#
+# Tier 1 C++20 micro-library providing stateless spatial interpolation
+# (regridding) for Earth-system fields via Kokkos.
+#
+# AXIS opens no files, links no file-format libraries, and performs no MPI
+# communication. All byte-level I/O is delegated to AMIO via the plain-data
+# GridDescriptor ingest contract, and all distributed communication is delegated
+# to HALO via the neutral HaloPattern exchange-plan descriptor.
+#
+# Dependencies:
+#   REQUIRED : Kokkos (parallelism + memory spaces)
+#   OPTIONAL : PROJ   (coordinate projection transforms, guarded by AXIS_ENABLE_PROJ)
+#
+# Explicitly NOT linked (HELM Law #4 / Requirement 22.7):
+#   NetCDF, HDF5, ecCodes, yaml-cpp, TensorStore, g2c, eckit, AMIO, HALO
+# ##############################################################################
+
+cmake_minimum_required(VERSION 3.21)
+
+project(
+    AXIS
+    VERSION 0.1.0
+    LANGUAGES CXX
+    DESCRIPTION "Arbitrary eXgrid Interpolation Solver — stateless spatial regridding for HELM"
+)
+
+# ##############################################################################
+# Global build settings
+# ##############################################################################
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+# ##############################################################################
+# Options
+# ##############################################################################
+
+option(AXIS_ENABLE_PROJ "Enable PROJ (libproj) for coordinate projection transforms" ON)
+option(BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"              OFF)
+option(BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"               OFF)
+
+# ##############################################################################
+# Dependency discovery
+# ##############################################################################
+
+# Kokkos — the ONLY required third-party dependency (HELM Law #2).
+find_package(Kokkos REQUIRED)
+
+# PROJ — the single OPTIONAL third-party dependency for projection-string
+# coordinate transforms (pure math, no equivalent in AMIO's stack).
+if(AXIS_ENABLE_PROJ)
+    find_package(PROJ QUIET)
+    if(NOT PROJ_FOUND)
+        # Fallback: try pkg-config for older PROJ installations.
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(PROJ QUIET IMPORTED_TARGET proj)
+        endif()
+    endif()
+    if(PROJ_FOUND)
+        message(STATUS "AXIS: PROJ found — projection_builder enabled")
+    else()
+        message(WARNING "AXIS: AXIS_ENABLE_PROJ=ON but PROJ not found — projection_builder disabled")
+        set(AXIS_ENABLE_PROJ OFF)
+    endif()
+endif()
+
+# ##############################################################################
+# Library sources
+# ##############################################################################
+
+# projection_builder.cpp is always compiled; the AXIS_ENABLE_PROJ preprocessor
+# guard inside selects the real PROJ implementation or a stub that throws.
+set(AXIS_SOURCES
+    src/detail/raii_handles.cpp
+    src/topology/unstructured_mesh.cpp
+    src/topology/structured_grid.cpp
+    src/topology/mesh_factory.cpp
+    src/topology/named_grid_registry.cpp
+    src/topology/rule_generator.cpp
+    src/topology/projection_builder.cpp
+    src/topology/gmsh_writer.cpp
+    src/solver/weight_generator.cpp
+    src/solver/interpolation_matrix.cpp
+    src/solver/halo_pattern.cpp
+    src/solver/conservation.cpp
+)
+
+# ##############################################################################
+# Target: axis (STATIC library)
+# ##############################################################################
+
+add_library(axis STATIC ${AXIS_SOURCES})
+add_library(HELM::AXIS ALIAS axis)
+
+set_target_properties(axis PROPERTIES
+    EXPORT_NAME AXIS
+    OUTPUT_NAME axis
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
+target_include_directories(axis
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_compile_features(axis PUBLIC cxx_std_20)
+
+# ##############################################################################
+# Link dependencies
+# ##############################################################################
+
+# Kokkos — PUBLIC so downstream consumers get Kokkos transitively.
+target_link_libraries(axis PUBLIC Kokkos::kokkos)
+
+# PROJ — PRIVATE so downstream consumers do NOT link PROJ.
+if(AXIS_ENABLE_PROJ)
+    if(TARGET PROJ::proj)
+        target_link_libraries(axis PRIVATE PROJ::proj)
+    elseif(TARGET PkgConfig::PROJ)
+        target_link_libraries(axis PRIVATE PkgConfig::PROJ)
+    endif()
+    target_compile_definitions(axis PRIVATE AXIS_ENABLE_PROJ=1)
+endif()
+
+# ##############################################################################
+# Fortran interop (optional)
+# ##############################################################################
+
+if(BUILD_FORTRAN)
+    enable_language(Fortran)
+
+    add_library(axis_fortran STATIC
+        src/fortran/axis_c_interop.cpp
+        fortran/axis_mod.f90
+    )
+    add_library(HELM::AXIS_Fortran ALIAS axis_fortran)
+
+    set_target_properties(axis_fortran PROPERTIES
+        EXPORT_NAME AXIS_Fortran
+        POSITION_INDEPENDENT_CODE ON
+        Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fortran/modules
+    )
+
+    target_include_directories(axis_fortran
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/fortran/modules>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/axis/fortran>
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(axis_fortran PUBLIC axis)
+endif()
+
+# ##############################################################################
+# Testing
+# ##############################################################################
+
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
+# ##############################################################################
+# Install + export
+# ##############################################################################
+
+install(
+    DIRECTORY include/axis
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+set(AXIS_INSTALL_TARGETS axis)
+if(BUILD_FORTRAN)
+    list(APPEND AXIS_INSTALL_TARGETS axis_fortran)
+endif()
+
+install(
+    TARGETS ${AXIS_INSTALL_TARGETS}
+    EXPORT AXISTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+    EXPORT AXISTargets
+    FILE AXISTargets.cmake
+    NAMESPACE HELM::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AXIS
+)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/AXISConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/AXISConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AXIS
+)
+
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/AXISConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(
+    FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/AXISConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/AXISConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AXIS
+)
+
+if(BUILD_FORTRAN)
+    install(
+        DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fortran/modules/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/axis/fortran
+        FILES_MATCHING PATTERN "*.mod"
+    )
+endif()
+
+# ##############################################################################
+# Configure-time summary
+# ##############################################################################
+
+message(STATUS "")
+message(STATUS "AXIS ${PROJECT_VERSION} configuration summary")
+message(STATUS "  C++ standard    : C++${CMAKE_CXX_STANDARD}")
+message(STATUS "  PROJ enabled    : ${AXIS_ENABLE_PROJ}")
+message(STATUS "  Build testing   : ${BUILD_TESTING}")
+message(STATUS "  Build Fortran   : ${BUILD_FORTRAN}")
+message(STATUS "  Install prefix  : ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "")

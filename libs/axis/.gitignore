@@ -1,0 +1,64 @@
+# ===================================================================
+# AXIS .gitignore
+# ===================================================================
+
+# --- Editor / OS ---
+*~
+.sw[a-p]
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.kate-swp
+
+# --- Kiro ---
+.kiro/
+
+# --- CMake build directories ---
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# --- Compiled objects / libraries / executables ---
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# --- Fortran module files ---
+*.mod
+*.smod
+
+# --- Coverage / profiling ---
+*.gcda
+*.gcno
+*.gcov
+coverage/
+lcov.info
+
+# --- Test artifacts ---
+*.msh
+
+# --- Misc ---
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+core
+core.*
