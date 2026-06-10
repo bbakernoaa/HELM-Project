@@ -1,0 +1,19 @@
+@PACKAGE_INIT@
+
+# ─── HALOConfig.cmake ────────────────────────────────────────────────────────
+# CMake package configuration file for HALO (Hardware-Abstracted Link Operations)
+#
+# This file is included by find_package(HALO) and ensures transitive
+# dependencies (MPI, Kokkos) are available before importing HALO targets.
+# ─────────────────────────────────────────────────────────────────────────────
+
+include(CMakeFindDependencyMacro)
+
+# Transitive PUBLIC dependencies must be found before importing targets
+find_dependency(MPI REQUIRED COMPONENTS CXX)
+find_dependency(Kokkos REQUIRED)
+
+# Import the exported targets (HELM::HALO, etc.)
+include("${CMAKE_CURRENT_LIST_DIR}/HALOTargets.cmake")
+
+check_required_components(HALO)
