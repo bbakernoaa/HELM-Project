@@ -1,0 +1,41 @@
+# TICKConfigVersion.cmake — SameMajorVersion compatibility
+#
+# This file is configured by CMake's write_basic_package_version_file()
+# or used as a manual template implementing SameMajorVersion semantics.
+#
+# Variables set on exit:
+#   PACKAGE_VERSION              — the installed version
+#   PACKAGE_VERSION_COMPATIBLE   — TRUE if compatible
+#   PACKAGE_VERSION_EXACT        — TRUE if exact match
+
+set(PACKAGE_VERSION "@PROJECT_VERSION@")
+
+# Extract requested version components
+if(PACKAGE_FIND_VERSION)
+    # Parse the installed version
+    string(REGEX MATCH "^([0-9]+)" _tick_version_major "@PROJECT_VERSION@")
+
+    # Parse the requested version
+    string(REGEX MATCH "^([0-9]+)" _tick_requested_major "${PACKAGE_FIND_VERSION}")
+
+    # SameMajorVersion: compatible if major versions match and installed >= requested
+    if("${_tick_version_major}" STREQUAL "${_tick_requested_major}")
+        if("@PROJECT_VERSION@" VERSION_GREATER_EQUAL "${PACKAGE_FIND_VERSION}")
+            set(PACKAGE_VERSION_COMPATIBLE TRUE)
+        else()
+            set(PACKAGE_VERSION_COMPATIBLE FALSE)
+        endif()
+    else()
+        set(PACKAGE_VERSION_COMPATIBLE FALSE)
+    endif()
+
+    # Exact match
+    if("@PROJECT_VERSION@" VERSION_EQUAL "${PACKAGE_FIND_VERSION}")
+        set(PACKAGE_VERSION_EXACT TRUE)
+    else()
+        set(PACKAGE_VERSION_EXACT FALSE)
+    endif()
+else()
+    # No version requested — always compatible
+    set(PACKAGE_VERSION_COMPATIBLE TRUE)
+endif()

@@ -1,0 +1,25 @@
+@PACKAGE_INIT@
+
+####################################################################
+# TICKConfig.cmake
+#
+# Provides the imported target for downstream consumers:
+#
+#   HELM::TICK  - STATIC library; C++20 fixed-point time arithmetic.
+#
+# Consumers should write:
+#
+#   find_package(TICK REQUIRED)
+#   target_link_libraries(my_app PRIVATE HELM::TICK)
+#
+# No external dependencies are required beyond the C++20 standard
+# library (Requirement 12.3).
+####################################################################
+
+include(CMakeFindDependencyMacro)
+
+# TICK has no external runtime dependencies — only C++20 standard library.
+
+include("${CMAKE_CURRENT_LIST_DIR}/TICKTargets.cmake")
+
+check_required_components(TICK)
