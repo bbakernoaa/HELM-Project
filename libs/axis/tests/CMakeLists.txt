@@ -62,6 +62,7 @@ set(AXIS_UNIT_TEST_SOURCES
     test_distributed_apply.cpp
     test_conservation_norm.cpp
     test_raii_handles.cpp
+    test_spherical_geometry.cpp
 )
 
 add_executable(axis_unit_tests ${AXIS_UNIT_TEST_SOURCES})

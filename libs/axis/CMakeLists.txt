@@ -48,6 +48,7 @@ include(CMakePackageConfigHelpers)
 option(AXIS_ENABLE_PROJ "Enable PROJ (libproj) for coordinate projection transforms" ON)
 option(BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"              OFF)
 option(BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"               OFF)
+option(BUILD_PYTHON     "Build the nanobind Python bindings"                          OFF)
 
 # ##############################################################################
 # Dependency discovery
@@ -74,6 +75,14 @@ if(AXIS_ENABLE_PROJ)
         set(AXIS_ENABLE_PROJ OFF)
     endif()
 endif()
+
+# ##############################################################################
+# Vendored third-party: ArborX (BSD-3-Clause, header-only BVH spatial index)
+# Provides GPU-portable bounding-volume-hierarchy for spatial queries used by
+# WeightGenerator (nearest, bilinear point-location, conservative overlap).
+# ##############################################################################
+
+add_subdirectory(third_party/ArborX EXCLUDE_FROM_ALL)
 
 # ##############################################################################
 # Library sources
@@ -127,6 +136,9 @@ target_compile_features(axis PUBLIC cxx_std_20)
 # Kokkos — PUBLIC so downstream consumers get Kokkos transitively.
 target_link_libraries(axis PUBLIC Kokkos::kokkos)
 
+# ArborX — PRIVATE (vendored, header-only BVH for spatial search in WeightGenerator).
+target_link_libraries(axis PRIVATE ArborX::ArborX)
+
 # PROJ — PRIVATE so downstream consumers do NOT link PROJ.
 if(AXIS_ENABLE_PROJ)
     if(TARGET PROJ::proj)
@@ -168,11 +180,43 @@ if(BUILD_FORTRAN)
 endif()
 
 # ##############################################################################
+# Python bindings (nanobind)
+# ##############################################################################
+
+if(BUILD_PYTHON)
+    add_subdirectory(python)
+endif()
+
+# ##############################################################################
+# Tier 1 Isolation Scan (HELM Law #4 — static verification)
+# ##############################################################################
+
+# Custom target: run the isolation scan on demand via `cmake --build . --target check_isolation`
+add_custom_target(check_isolation
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_tier1_isolation.sh ${CMAKE_CURRENT_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Running AXIS Tier 1 isolation scan (HELM Law #4 verification)..."
+    VERBATIM
+)
+
+# Register the isolation scan as a CTest so `ctest -R TierIsolation` picks it up.
+# This is unconditional — the isolation scan is a static check, not a unit test.
+enable_testing()
+add_test(
+    NAME TierIsolationScan
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_tier1_isolation.sh ${CMAKE_CURRENT_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+set_tests_properties(TierIsolationScan PROPERTIES
+    LABELS "isolation;static-analysis"
+    TIMEOUT 60
+)
+
+# ##############################################################################
 # Testing
 # ##############################################################################
 
 if(BUILD_TESTING)
-    enable_testing()
     add_subdirectory(tests)
 endif()
 

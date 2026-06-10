@@ -1,13 +1,138 @@
 // AXIS unit test: first-order conservation (Σ src·area_a·frac_a ≈ Σ dst·area_b)
-// Placeholder — implementation added in task 21.1
+// Tests that conservative regridding preserves global integrals.
 
 #include <gtest/gtest.h>
 
+#include <Kokkos_Core.hpp>
+
+#include <axis/types.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <axis/solver/apply.hpp>
+#include <axis/solver/conservation.hpp>
+#include <axis/solver/regrid_config.hpp>
+
+namespace {
+// Kokkos initialization via GTest global environment
+class KokkosEnv : public ::testing::Environment {
+public:
+    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
+    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+};
+static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+}  // namespace
+
 namespace axis::test {
 
-TEST(Conservation, Placeholder) {
-    // TODO: Implement exact-fraction conservation verification
-    GTEST_SKIP() << "Not yet implemented";
+using MemSpace = Kokkos::HostSpace;
+
+// Helper: build a simple NxN structured grid covering [0, size] x [0, size]
+// with uniform cells, then convert to UnstructuredMesh.
+static topology::UnstructuredMesh<MemSpace>
+make_uniform_mesh(std::size_t n, double size) {
+    const std::size_t n_cells = n;
+    const double dx = size / static_cast<double>(n);
+
+    // Center coordinates for an n x n grid
+    Kokkos::View<double*, MemSpace> cx("cx", n * n);
+    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    for (std::size_t j = 0; j < n; ++j) {
+        for (std::size_t i = 0; i < n; ++i) {
+            cx(i + j * n) = (static_cast<double>(i) + 0.5) * dx;
+            cy(i + j * n) = (static_cast<double>(j) + 0.5) * dx;
+        }
+    }
+
+    topology::StructuredGrid<MemSpace> grid(
+        n, n, std::move(cx), std::move(cy),
+        topology::CoordinateSystem::Cartesian3D);
+
+    // Set corners for conservative regridding
+    const std::size_t nc = n + 1;
+    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    for (std::size_t j = 0; j <= n; ++j) {
+        for (std::size_t i = 0; i <= n; ++i) {
+            crx(i + j * nc) = static_cast<double>(i) * dx;
+            cry(i + j * nc) = static_cast<double>(j) * dx;
+        }
+    }
+    grid.set_corners(std::move(crx), std::move(cry));
+
+    return grid.to_unstructured();
+}
+
+// Test: Conservative regridding of a known field on identical 3x3 meshes
+// that tile the same domain preserves the global integral.
+TEST(Conservation, IdenticalMeshesPreserveIntegral) {
+    auto src_mesh = make_uniform_mesh(3, 3.0);
+    auto dst_mesh = make_uniform_mesh(3, 3.0);
+
+    solver::RegridConfig cfg;
+    cfg.method = solver::InterpolationMethod::Conservative1stOrder;
+    cfg.norm_type = solver::NormType::DstArea;
+    cfg.line_type = solver::LineType::Cartesian;
+    cfg.unmapped = solver::UnmappedAction::Ignore;
+
+    auto matrix = solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
+
+    // Apply a constant field value of 5.0
+    const std::size_t n_src = matrix.n_src();
+    const std::size_t n_dst = matrix.n_dst();
+    std::vector<double> src_data(n_src, 5.0);
+    std::vector<double> dst_data(n_dst, 0.0);
+
+    field_view<const double, 1> src_view(src_data.data(), n_src);
+    field_view<double, 1> dst_view(dst_data.data(), n_dst);
+
+    solver::apply<MemSpace>(matrix, src_view, dst_view);
+
+    // Check conservation: source_integral ≈ destination_integral
+    auto report = solver::check_conservation<MemSpace>(
+        src_view,
+        field_view<const double, 1>(dst_data.data(), n_dst),
+        matrix,
+        solver::NormType::DstArea);
+
+    EXPECT_NEAR(report.src_integral, report.dst_integral, 1e-12 * std::abs(report.src_integral));
+    EXPECT_LT(report.relative_error, 1e-12);
+}
+
+// Test: Conservation with a spatially-varying field
+TEST(Conservation, VaryingFieldPreservesIntegral) {
+    auto src_mesh = make_uniform_mesh(3, 3.0);
+    auto dst_mesh = make_uniform_mesh(3, 3.0);
+
+    solver::RegridConfig cfg;
+    cfg.method = solver::InterpolationMethod::Conservative1stOrder;
+    cfg.norm_type = solver::NormType::DstArea;
+    cfg.line_type = solver::LineType::Cartesian;
+    cfg.unmapped = solver::UnmappedAction::Ignore;
+
+    auto matrix = solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
+
+    const std::size_t n_src = matrix.n_src();
+    const std::size_t n_dst = matrix.n_dst();
+
+    // Field: value = cell index + 1
+    std::vector<double> src_data(n_src);
+    for (std::size_t i = 0; i < n_src; ++i) src_data[i] = static_cast<double>(i + 1);
+    std::vector<double> dst_data(n_dst, 0.0);
+
+    field_view<const double, 1> src_view(src_data.data(), n_src);
+    field_view<double, 1> dst_view(dst_data.data(), n_dst);
+
+    solver::apply<MemSpace>(matrix, src_view, dst_view);
+
+    auto report = solver::check_conservation<MemSpace>(
+        src_view,
+        field_view<const double, 1>(dst_data.data(), n_dst),
+        matrix,
+        solver::NormType::DstArea);
+
+    EXPECT_NEAR(report.src_integral, report.dst_integral, 1e-12 * std::abs(report.src_integral));
 }
 
 }  // namespace axis::test

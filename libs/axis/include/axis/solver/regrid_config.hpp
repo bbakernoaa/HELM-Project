@@ -22,8 +22,11 @@ namespace axis::solver {
 
 /// Selects the interpolation method used by WeightGenerator.
 enum class InterpolationMethod : std::uint8_t {
-    Bilinear,              ///< Distance-based barycentric weights in source cell
-    Conservative1stOrder   ///< Area-weighted first-order conservative (overlap-based)
+    Bilinear,              ///< True bilinear: point-in-cell location + barycentric weights
+    NearestNeighbor,       ///< Nearest source cell centroid to each destination point (weight = 1.0)
+    Bicubic,               ///< Bicubic: 4×4 stencil cubic interpolation (CDO remapbic equivalent)
+    Patch,                 ///< Patch recovery: least-squares polynomial fit over local patch (ESMF REGRID_METHOD_PATCH)
+    Conservative1stOrder   ///< Area-weighted first-order conservative (overlap-based via ArborX BVH + Sutherland-Hodgman)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

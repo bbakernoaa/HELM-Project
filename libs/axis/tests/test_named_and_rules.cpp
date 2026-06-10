@@ -1,13 +1,99 @@
 // AXIS unit test: named-grid and GridRules generation
-// Placeholder — implementation added in task 21.1
+// Verifies NamedGridRegistry::generate produces non-empty meshes and
+// RuleGenerator produces meshes with the correct cell count.
 
 #include <gtest/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <cmath>
+
+#include <axis/types.hpp>
+#include <axis/ingest/grid_descriptor.hpp>
+#include <axis/topology/named_grid_registry.hpp>
+#include <axis/topology/rule_generator.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+
+namespace {
+class KokkosEnv : public ::testing::Environment {
+public:
+    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
+    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+};
+static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+}  // namespace
+
 namespace axis::test {
 
-TEST(NamedAndRules, Placeholder) {
-    // TODO: Implement named-grid and rule-based generation tests
-    GTEST_SKIP() << "Not yet implemented";
+using MemSpace = Kokkos::HostSpace;
+
+// Test: generate("O4") produces a non-empty mesh with expected structure
+TEST(NamedAndRules, O4GeneratesNonEmptyMesh) {
+    auto mesh = topology::NamedGridRegistry::generate<MemSpace>("O4");
+
+    EXPECT_GT(mesh.n_nodes(), std::size_t(0));
+    EXPECT_GT(mesh.n_cells(), std::size_t(0));
+
+    // CSR offsets should have n_cells + 1 entries
+    auto offsets = mesh.conn_offsets();
+    EXPECT_EQ(offsets.extent(0), mesh.n_cells() + 1);
+}
+
+// Test: generate("F4") produces a non-empty mesh
+TEST(NamedAndRules, F4GeneratesNonEmptyMesh) {
+    auto mesh = topology::NamedGridRegistry::generate<MemSpace>("F4");
+
+    EXPECT_GT(mesh.n_nodes(), std::size_t(0));
+    EXPECT_GT(mesh.n_cells(), std::size_t(0));
+}
+
+// Test: parse("O4") returns family='O', number=4
+TEST(NamedAndRules, ParseO4ReturnsCorrectParsedName) {
+    auto parsed = topology::NamedGridRegistry::parse("O4");
+    EXPECT_EQ(parsed.family, 'O');
+    EXPECT_EQ(parsed.number, 4);
+}
+
+// Test: parse with invalid family throws
+TEST(NamedAndRules, ParseInvalidFamilyThrows) {
+    EXPECT_THROW(topology::NamedGridRegistry::parse("Z100"), std::invalid_argument);
+}
+
+// Test: RuleGenerator RegularLatLon produces correct cell count
+TEST(NamedAndRules, RegularLatLonCellCount) {
+    ingest::GridRulesParams rules;
+    rules.kind = "RegularLatLon";
+    rules.min_x = 0.0;
+    rules.max_x = 10.0;
+    rules.min_y = 0.0;
+    rules.max_y = 6.0;
+    rules.r_x = 2.0;
+    rules.r_y = 3.0;
+
+    auto mesh = topology::RuleGenerator::generate<MemSpace>(rules);
+
+    // Expected: floor((10-0)/2) * floor((6-0)/3) = 5 * 2 = 10 cells
+    const std::size_t expected_cells =
+        static_cast<std::size_t>(std::floor((rules.max_x - rules.min_x) / rules.r_x)) *
+        static_cast<std::size_t>(std::floor((rules.max_y - rules.min_y) / rules.r_y));
+
+    EXPECT_EQ(mesh.n_cells(), expected_cells);
+    EXPECT_EQ(mesh.n_cells(), std::size_t(10));
+}
+
+// Test: RuleGenerator with zero resolution throws
+TEST(NamedAndRules, ZeroResolutionThrows) {
+    ingest::GridRulesParams rules;
+    rules.kind = "RegularLatLon";
+    rules.min_x = 0.0;
+    rules.max_x = 10.0;
+    rules.min_y = 0.0;
+    rules.max_y = 10.0;
+    rules.r_x = 0.0;  // invalid
+    rules.r_y = 1.0;
+
+    EXPECT_THROW(
+        topology::RuleGenerator::generate<MemSpace>(rules),
+        std::invalid_argument);
 }
 
 }  // namespace axis::test
