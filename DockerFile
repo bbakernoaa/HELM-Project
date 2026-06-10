@@ -41,6 +41,7 @@ RUN git clone -b 5.1.1 https://github.com/kokkos/kokkos.git /tmp/kokkos \
     && cmake -B build \
     -DCMAKE_INSTALL_PREFIX=/usr/local \
     -DCMAKE_CXX_STANDARD=20 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DKokkos_ENABLE_OPENMP=ON \
     -DKokkos_ENABLE_SERIAL=ON \
     && cmake --build build --parallel $(nproc) \
