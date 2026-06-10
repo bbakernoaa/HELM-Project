@@ -13,7 +13,24 @@ include(CMakeFindDependencyMacro)
 find_dependency(MPI REQUIRED COMPONENTS CXX)
 find_dependency(Kokkos REQUIRED)
 
-# Import the exported targets (HELM::HALO, etc.)
+# Import the exported targets (HELM::halo, HELM::halo_c_interop, HELM::halo_fortran)
 include("${CMAKE_CURRENT_LIST_DIR}/HALOTargets.cmake")
+
+# Provide the documented uppercase alias HELM::HALO that downstream consumers
+# use in target_link_libraries(). The install-exported target is HELM::halo
+# (lowercase) because CMake's NAMESPACE prefix is prepended to the target name
+# as-is; the uppercase alias matches Requirement 10.4 and the README.
+if(NOT TARGET HELM::HALO)
+    add_library(HELM::HALO INTERFACE IMPORTED)
+    set_target_properties(HELM::HALO PROPERTIES
+        INTERFACE_LINK_LIBRARIES HELM::halo
+    )
+endif()
+if(TARGET HELM::halo_fortran AND NOT TARGET HELM::HALO_Fortran)
+    add_library(HELM::HALO_Fortran INTERFACE IMPORTED)
+    set_target_properties(HELM::HALO_Fortran PROPERTIES
+        INTERFACE_LINK_LIBRARIES HELM::halo_fortran
+    )
+endif()
 
 check_required_components(HALO)
