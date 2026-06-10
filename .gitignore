@@ -1,3 +1,116 @@
-*~
+# ============================================================
+# HELM Project .gitignore
+# C++20 / Fortran / CMake / Kokkos ecosystem
+# ============================================================
+
+# ---------- Compiled objects & binaries ----------
+*.o
+*.obj
+*.lo
+*.a
+*.la
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.mod          # Fortran module files
+*.smod         # Fortran submodule files
+
+# ---------- Precompiled headers ----------
+*.gch
+*.pch
+
+# ---------- CMake ----------
+build/
+_build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+CPackConfig.cmake
+CPackSourceConfig.cmake
+*.cmake.in~
+Testing/
+
+# ---------- IDE & Editors ----------
+.vscode/
+.idea/
+*.swp
+*.swo
 .sw[a-p]
+*~
 .DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+.project
+.cproject
+.settings/
+
+# ---------- Kokkos ----------
+*.kokkos_*
+KokkosCore_config.h
+
+# ---------- Debug / profiling ----------
+*.dSYM/
+*.su
+*.idb
+*.pdb
+core
+core.*
+vgcore.*
+*.gcda
+*.gcno
+*.gcov
+
+# ---------- Dependency artifacts ----------
+_deps/
+external/
+third_party/build/
+vcpkg_installed/
+
+# ---------- Documentation build ----------
+docs/_build/
+docs/site/site/
+site/
+doxygen_output/
+html/
+latex/
+
+# ---------- Python (if any helper scripts) ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---------- Docker ----------
+*.log
+
+# ---------- Testing artifacts ----------
+*.xml
+Testing/
+LastTest.log
+LastTestsFailed.log
+
+# ---------- OS junk ----------
+.DS_Store
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# ---------- Misc ----------
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
