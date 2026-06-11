@@ -328,10 +328,33 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_structured_exchange.cpp")
     )
 endif()
 
+# ─── Neighbor Collective Exchange Integration Test (MPI-based) ────────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_neighbor_collective.cpp")
+    halo_add_mpi_test(test_neighbor_collective
+        SOURCES test_neighbor_collective.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
 # ─── Error Messages Unit Test (MPI-based) ────────────────────────────────────
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_error_messages.cpp")
     halo_add_mpi_test(test_error_messages
         SOURCES test_error_messages.cpp
+    )
+endif()
+
+# ─── Structured Exchange Property Test (MPI-based + RapidCheck) ──────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_structured_exchange.cpp")
+    halo_add_mpi_test(prop_structured_exchange
+        SOURCES prop_structured_exchange.cpp
+        LIBRARIES Kokkos::kokkos rapidcheck
+    )
+    if(TARGET rapidcheck_gtest)
+        target_link_libraries(prop_structured_exchange PRIVATE rapidcheck_gtest)
+    endif()
+    set_tests_properties(prop_structured_exchange PROPERTIES
+        TIMEOUT 120
+        LABELS "mpi;property"
     )
 endif()
 

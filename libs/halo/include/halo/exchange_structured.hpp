@@ -33,6 +33,7 @@
 
 #include <halo/communicator.hpp>
 #include <halo/detail/memory_traits.hpp>
+#include <halo/detail/mpi_datatype.hpp>
 #include <halo/detail/pack_unpack.hpp>
 #include <halo/diagnostics.hpp>
 #include <halo/environment.hpp>
@@ -49,6 +50,11 @@ namespace detail {
 ///
 /// tag = (sender_rank * comm_size + receiver_rank) % MPI_TAG_UB_VALUE
 ///
+/// For structured grids with face-based connectivity, each rank pair
+/// exchanges at most one message per face direction. MPI's FIFO ordering
+/// guarantee ensures correct matching when Irecvs and Isends are posted
+/// in the same face order on both sides.
+///
 /// @param sender   The rank of the sending process.
 /// @param receiver The rank of the receiving process.
 /// @param comm_size Total number of processes in the communicator.
@@ -62,27 +68,8 @@ inline int structured_compute_tag(int sender, int receiver, int comm_size) noexc
     return static_cast<int>(product % tag_ub);
 }
 
-/// @brief Map a Kokkos::View value_type to the corresponding MPI_Datatype.
-template <typename T>
-inline MPI_Datatype mpi_type_for() noexcept {
-    if constexpr (std::is_same_v<T, double>) {
-        return MPI_DOUBLE;
-    } else if constexpr (std::is_same_v<T, float>) {
-        return MPI_FLOAT;
-    } else if constexpr (std::is_same_v<T, int>) {
-        return MPI_INT;
-    } else if constexpr (std::is_same_v<T, long>) {
-        return MPI_LONG;
-    } else if constexpr (std::is_same_v<T, long long>) {
-        return MPI_LONG_LONG;
-    } else if constexpr (std::is_same_v<T, unsigned int>) {
-        return MPI_UNSIGNED;
-    } else if constexpr (std::is_same_v<T, char>) {
-        return MPI_CHAR;
-    } else {
-        return MPI_BYTE;
-    }
-}
+// MPI datatype resolution is provided by halo/detail/mpi_datatype.hpp
+// (included above). Use detail::mpi_datatype_for<T>() throughout.
 
 /// @brief Create a subview of a multi-dimensional view given a Region.
 ///
@@ -170,7 +157,7 @@ void exchange_structured_blocking(
     const int my_rank = comm.rank();
     const int comm_size = comm.size();
     const MPI_Comm mpi_comm = comm.handle();
-    const MPI_Datatype mpi_dtype = detail::mpi_type_for<value_type>();
+    const MPI_Datatype mpi_dtype = detail::mpi_datatype_for<value_type>();
 
     // ─── Phase 1: Pack all send regions ─────────────────────────────────────
     std::vector<buffer_view_t> send_buffers;
@@ -357,7 +344,7 @@ template <typename ViewType>
     const int my_rank = comm.rank();
     const int comm_size = comm.size();
     const MPI_Comm mpi_comm = comm.handle();
-    const MPI_Datatype mpi_dtype = detail::mpi_type_for<value_type>();
+    const MPI_Datatype mpi_dtype = detail::mpi_datatype_for<value_type>();
 
     constexpr int num_faces = Structured_Halo_Plan<Rank>::num_faces_value;
 
@@ -581,7 +568,7 @@ void exchange_neighbor_collective(
     // Acquire serialization guard for thread safety
     detail::Serialized_MPI_Guard guard;
 
-    const MPI_Datatype mpi_dtype = detail::mpi_type_for<value_type>();
+    const MPI_Datatype mpi_dtype = detail::mpi_datatype_for<value_type>();
 
     // ─── Build the neighbor index mapping ───────────────────────────────────
     // Collect active face indices (faces that have valid neighbors).

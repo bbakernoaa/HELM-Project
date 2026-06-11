@@ -106,11 +106,12 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
     }
 
     // Walk the tree.
-    // IMPORTANT: yaml-cpp Node uses reference semantics. We use `current.reset(child)`
-    // to rebind the node handle to the child without modifying the underlying tree.
-    // Direct assignment (`current = child`) would mutate the tree data when `current`
-    // shares identity with the root. `reset()` is safe: it simply rebinds the handle.
-    YAML::Node current = root_;
+    // IMPORTANT: yaml-cpp Node has reference semantics. Using `node.reset(child)`
+    // corrupts the underlying tree because `reset` rebinds the node handle in-place,
+    // which can modify the tree structure when the node was obtained from a parent.
+    // Instead, we clone the root to get an independent copy for traversal and use
+    // simple assignment (`current = child`) within the cloned tree.
+    YAML::Node current = YAML::Clone(root_);
 
     for (const auto& seg : segments) {
         if (current.IsMap()) {
@@ -121,7 +122,7 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
                 throw Conf_Error(Error_Code::Key_Not_Found,
                     "key not found: " + std::string(dotted_path));
             }
-            current.reset(child);
+            current = child;
 
         } else if (current.IsSequence()) {
             // Check if segment is all ASCII digits
@@ -154,7 +155,7 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
                     "key not found: " + std::string(dotted_path));
             }
 
-            current.reset(current[index]);
+            current = current[index];
 
         } else {
             // Scalar, Null, or Undefined — cannot descend further

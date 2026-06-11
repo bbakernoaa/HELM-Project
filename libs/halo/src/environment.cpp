@@ -47,11 +47,11 @@ bool Environment::is_gpu_aware_mpi() noexcept {
 // ─── Error Policy ────────────────────────────────────────────────────────────
 
 void Environment::set_error_policy(ErrorPolicy policy) noexcept {
-    error_policy_ = policy;
+    error_policy_.store(policy, std::memory_order_release);
 }
 
 ErrorPolicy Environment::error_policy() noexcept {
-    return error_policy_;
+    return error_policy_.load(std::memory_order_acquire);
 }
 
 } // namespace halo
