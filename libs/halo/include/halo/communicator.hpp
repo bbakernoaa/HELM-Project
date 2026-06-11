@@ -21,6 +21,12 @@ namespace halo {
 /// Manages the lifetime of an MPI communicator. Predefined communicators
 /// (MPI_COMM_WORLD, MPI_COMM_SELF) and MPI_COMM_NULL are stored but never freed.
 /// Move-only semantics enforce unique ownership.
+///
+/// @note HALO-owned communicators (non-predefined, non-null) have their error
+/// handler set to MPI_ERRORS_RETURN so that MPI errors are returned as error
+/// codes rather than invoking the default abort behavior. Predefined
+/// communicators (WORLD, SELF) are NOT modified to avoid side effects on the
+/// application's global error handling strategy.
 class Communicator {
 public:
     /// @brief Construct from a raw MPI_Comm handle. Takes exclusive ownership.

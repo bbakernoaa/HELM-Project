@@ -11,7 +11,15 @@ namespace halo {
 
 Communicator::Communicator(MPI_Comm comm) noexcept
     : comm_{comm}
-{}
+{
+    // Set MPI_ERRORS_RETURN on HALO-owned communicators so that MPI errors are
+    // returned as error codes rather than triggering the default abort handler.
+    // Predefined communicators (WORLD, SELF) are not modified to avoid global
+    // side effects on the application's error handling strategy.
+    if (comm_ != MPI_COMM_NULL && !is_predefined()) {
+        MPI_Comm_set_errhandler(comm_, MPI_ERRORS_RETURN);
+    }
+}
 
 // ─── Destruction ─────────────────────────────────────────────────────────────
 
@@ -100,6 +108,10 @@ Communicator Communicator::split(int color, int key) const {
         throw std::runtime_error(
             std::string("MPI_Comm_split failed: ") + std::string(err_str, len));
     }
+    // Set MPI_ERRORS_RETURN before wrapping in Communicator RAII object.
+    if (new_comm != MPI_COMM_NULL) {
+        MPI_Comm_set_errhandler(new_comm, MPI_ERRORS_RETURN);
+    }
     return Communicator{new_comm};
 }
 
@@ -112,6 +124,10 @@ Communicator Communicator::duplicate() const {
         MPI_Error_string(rc, err_str, &len);
         throw std::runtime_error(
             std::string("MPI_Comm_dup failed: ") + std::string(err_str, len));
+    }
+    // Set MPI_ERRORS_RETURN before wrapping in Communicator RAII object.
+    if (new_comm != MPI_COMM_NULL) {
+        MPI_Comm_set_errhandler(new_comm, MPI_ERRORS_RETURN);
     }
     return Communicator{new_comm};
 }

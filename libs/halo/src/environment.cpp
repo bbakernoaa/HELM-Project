@@ -3,6 +3,8 @@
 #include <mpi.h>
 #include <stdexcept>
 
+#include <halo/detail/gpu_aware_probe.hpp>
+
 namespace halo {
 
 // ─── Initialization ──────────────────────────────────────────────────────────
@@ -22,6 +24,9 @@ void Environment::initialize() {
         int provided = MPI_THREAD_SINGLE;
         MPI_Query_thread(&provided);
         thread_level_ = provided;
+
+        // Probe for GPU-aware MPI support and cache the result.
+        gpu_aware_mpi_ = detail::gpu_aware_probe();
     });
 }
 
@@ -33,6 +38,20 @@ int Environment::thread_support_level() noexcept {
 
 bool Environment::is_thread_multiple() noexcept {
     return thread_level_ == MPI_THREAD_MULTIPLE;
+}
+
+bool Environment::is_gpu_aware_mpi() noexcept {
+    return gpu_aware_mpi_;
+}
+
+// ─── Error Policy ────────────────────────────────────────────────────────────
+
+void Environment::set_error_policy(ErrorPolicy policy) noexcept {
+    error_policy_ = policy;
+}
+
+ErrorPolicy Environment::error_policy() noexcept {
+    return error_policy_;
 }
 
 } // namespace halo

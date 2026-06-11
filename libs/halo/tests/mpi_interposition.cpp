@@ -159,6 +159,15 @@ int MPI_Comm_get_attr(MPI_Comm comm, int keyval, void* attribute_val, int* flag)
     return MPI_SUCCESS;
 }
 
+// ─── MPI_Comm_set_errhandler ─────────────────────────────────────────────────
+// Override to silently accept error handler changes without requiring real MPI.
+// The Communicator constructor sets MPI_ERRORS_RETURN on non-predefined comms;
+// this mock allows that call to succeed in unit tests that run without MPI_Init.
+int MPI_Comm_set_errhandler(MPI_Comm comm, MPI_Errhandler errhandler) {
+    // No-op in mock mode: accept and return success.
+    return MPI_SUCCESS;
+}
+
 // ─── MPI_Comm_free ──────────────────────────────────────────────────────────
 int MPI_Comm_free(MPI_Comm* comm) {
     int err = MPI_Spy::instance().record(

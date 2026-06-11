@@ -5,6 +5,17 @@ project(HALO
     DESCRIPTION "Hardware-Abstracted Link Operations — RAII MPI with GPU-aware halo exchange"
 )
 
+# ─── Version Header Generation ───────────────────────────────────────────────
+set(HALO_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(HALO_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(HALO_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/halo/version.hpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/include/halo/version.hpp"
+    @ONLY
+)
+
 # ─── C++20 Requirement ───────────────────────────────────────────────────────
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,6 +44,7 @@ add_library(HELM::HALO ALIAS halo)
 target_sources(halo PRIVATE
     src/communicator.cpp
     src/environment.cpp
+    src/error_policy.cpp
     src/halo_handle.cpp
     src/halo_plan.cpp
     src/request_guard.cpp
@@ -43,6 +55,7 @@ target_sources(halo PRIVATE
 target_include_directories(halo
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
 
@@ -125,6 +138,12 @@ install(TARGETS halo
 
 # Install public headers
 install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+# Install generated headers (version.hpp)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp"
 )

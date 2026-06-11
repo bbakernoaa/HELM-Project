@@ -14,6 +14,7 @@
 
 #include <mpi.h>
 
+#include <chrono>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -22,9 +23,13 @@
 #include <Kokkos_Core.hpp>
 
 #include <halo/communicator.hpp>
+#include <halo/detail/compute_tag.hpp>
 #include <halo/detail/memory_traits.hpp>
+#include <halo/detail/gpu_aware_probe.hpp>
 #include <halo/detail/staging.hpp>
+#include <halo/diagnostics.hpp>
 #include <halo/environment.hpp>
+#include <halo/error_policy.hpp>
 #include <halo/halo_handle.hpp>
 #include <halo/halo_plan.hpp>
 
@@ -32,29 +37,11 @@ namespace halo {
 
 namespace detail {
 
-/// @brief Compute a deterministic MPI tag from sender, receiver, and comm size.
-///
-/// tag = (sender_rank * comm_size + receiver_rank) % MPI_TAG_UB_VALUE
-///
-/// @param sender   The rank of the sending process.
-/// @param receiver The rank of the receiving process.
-/// @param comm_size Total number of processes in the communicator.
-/// @return A tag value in [0, MPI_TAG_UB).
-inline int compute_tag(int sender, int receiver, int comm_size) noexcept {
-    // Query MPI_TAG_UB from MPI_COMM_WORLD
-    int* tag_ub_ptr = nullptr;
-    int flag = 0;
-    MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &tag_ub_ptr, &flag);
-
-    // MPI standard guarantees MPI_TAG_UB >= 32767
-    int tag_ub = (flag && tag_ub_ptr != nullptr) ? *tag_ub_ptr : 32767;
-
-    // Compute deterministic tag using modular arithmetic
-    long long product = static_cast<long long>(sender) * comm_size + receiver;
-    return static_cast<int>(product % tag_ub);
-}
-
 /// @brief Throw a std::runtime_error with MPI error string and failing rank.
+///
+/// @deprecated Use detail::handle_mpi_error() which respects the active ErrorPolicy.
+/// This function is retained for backward compatibility and delegates to
+/// handle_mpi_error() directly.
 ///
 /// @param mpi_error_code The MPI error code returned by the failing call.
 /// @param neighbor_rank  The rank of the neighbor involved in the failure.
@@ -62,14 +49,7 @@ inline int compute_tag(int sender, int receiver, int comm_size) noexcept {
 [[noreturn]] inline void throw_mpi_error(int mpi_error_code,
                                          int neighbor_rank,
                                          const char* operation) {
-    char error_string[MPI_MAX_ERROR_STRING];
-    int resultlen = 0;
-    MPI_Error_string(mpi_error_code, error_string, &resultlen);
-
-    std::string msg = std::string(operation) + " failed for rank " +
-                      std::to_string(neighbor_rank) + ": " +
-                      std::string(error_string, static_cast<std::size_t>(resultlen));
-    throw std::runtime_error(msg);
+    handle_mpi_error(mpi_error_code, neighbor_rank, operation);
 }
 
 } // namespace detail
@@ -93,6 +73,25 @@ void exchange_blocking(const Halo_Plan& plan, ViewType& view) {
     // Early return for empty plans (no neighbors in either direction)
     if (plan.num_send_neighbors() == 0 && plan.num_recv_neighbors() == 0) {
         return;
+    }
+
+    // ─── Diagnostics: begin event ───────────────────────────────────────────
+    const bool diag_active = Diagnostics::is_active();
+    std::chrono::steady_clock::time_point diag_t0;
+    if (diag_active) {
+        diag_t0 = std::chrono::steady_clock::now();
+        const int num_neighbors = static_cast<int>(
+            plan.num_send_neighbors() + plan.num_recv_neighbors());
+        const std::size_t total_bytes =
+            (plan.total_send_elements() + plan.total_recv_elements())
+            * sizeof(typename ViewType::value_type);
+        Diagnostics::emit(Exchange_Event{
+            Exchange_Event::Phase::begin,
+            plan.communicator().rank(),
+            num_neighbors,
+            total_bytes,
+            std::chrono::nanoseconds{0},
+            /*is_async=*/false});
     }
 
     // Acquire serialization guard for thread safety
@@ -136,6 +135,63 @@ void exchange_blocking(const Halo_Plan& plan, ViewType& view) {
     std::vector<MPI_Request> requests(total_requests, MPI_REQUEST_NULL);
 
     if constexpr (detail::requires_staging_v<ViewType>) {
+        // The compile-time trait says staging is needed (device view, no
+        // HALO_GPU_AWARE_MPI flag). However, runtime detection may reveal that
+        // GPU-aware MPI IS available — in that case, skip staging and use
+        // the direct path.
+        if (Environment::is_gpu_aware_mpi()) {
+            // ─── Runtime GPU-aware path: pass device pointers directly ───────
+            std::size_t recv_offset = plan.total_send_elements();
+            for (std::size_t i = 0; i < num_recv; ++i) {
+                const auto& neighbor = recv_info[i];
+                const int tag = detail::compute_tag(neighbor.rank, my_rank, comm_size);
+
+                int rc = MPI_Irecv(
+                    view.data() + recv_offset,
+                    static_cast<int>(neighbor.count),
+                    mpi_dtype,
+                    neighbor.rank,
+                    tag,
+                    mpi_comm,
+                    &requests[i]);
+
+                if (rc != MPI_SUCCESS) {
+                    detail::throw_mpi_error(rc, neighbor.rank, "MPI_Irecv");
+                }
+
+                recv_offset += neighbor.count;
+            }
+
+            std::size_t send_offset = 0;
+            for (std::size_t i = 0; i < num_send; ++i) {
+                const auto& neighbor = send_info[i];
+                const int tag = detail::compute_tag(my_rank, neighbor.rank, comm_size);
+
+                int rc = MPI_Isend(
+                    view.data() + send_offset,
+                    static_cast<int>(neighbor.count),
+                    mpi_dtype,
+                    neighbor.rank,
+                    tag,
+                    mpi_comm,
+                    &requests[num_recv + i]);
+
+                if (rc != MPI_SUCCESS) {
+                    detail::throw_mpi_error(rc, neighbor.rank, "MPI_Isend");
+                }
+
+                send_offset += neighbor.count;
+            }
+
+            int rc = MPI_Waitall(
+                static_cast<int>(total_requests),
+                requests.data(),
+                MPI_STATUSES_IGNORE);
+
+            if (rc != MPI_SUCCESS) {
+                detail::throw_mpi_error(rc, my_rank, "MPI_Waitall");
+            }
+        } else {
         // ─── Staged path: device view requires host buffers ─────────────────
 
         // Allocate host receive buffers
@@ -215,6 +271,7 @@ void exchange_blocking(const Halo_Plan& plan, ViewType& view) {
             recv_offset += neighbor.count;
         }
 
+        } // end staged path
     } else {
         // ─── Direct path: host view or GPU-aware MPI ────────────────────────
 
@@ -272,6 +329,23 @@ void exchange_blocking(const Halo_Plan& plan, ViewType& view) {
             detail::throw_mpi_error(rc, my_rank, "MPI_Waitall");
         }
     }
+
+    // ─── Diagnostics: end event ─────────────────────────────────────────────
+    if (diag_active) {
+        const auto elapsed = std::chrono::steady_clock::now() - diag_t0;
+        const int num_neighbors = static_cast<int>(
+            plan.num_send_neighbors() + plan.num_recv_neighbors());
+        const std::size_t total_bytes =
+            (plan.total_send_elements() + plan.total_recv_elements())
+            * sizeof(typename ViewType::value_type);
+        Diagnostics::emit(Exchange_Event{
+            Exchange_Event::Phase::end,
+            plan.communicator().rank(),
+            num_neighbors,
+            total_bytes,
+            std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
+            /*is_async=*/false});
+    }
 }
 
 /// @brief Non-blocking asynchronous halo exchange.
@@ -295,6 +369,25 @@ template <typename ViewType>
     // Early return for empty plans (no neighbors in either direction)
     if (plan.num_send_neighbors() == 0 && plan.num_recv_neighbors() == 0) {
         return Halo_Handle{};
+    }
+
+    // ─── Diagnostics: begin event ───────────────────────────────────────────
+    const bool diag_active = Diagnostics::is_active();
+    std::chrono::steady_clock::time_point diag_t0;
+    if (diag_active) {
+        diag_t0 = std::chrono::steady_clock::now();
+        const int num_neighbors = static_cast<int>(
+            plan.num_send_neighbors() + plan.num_recv_neighbors());
+        const std::size_t total_bytes =
+            (plan.total_send_elements() + plan.total_recv_elements())
+            * sizeof(typename ViewType::value_type);
+        Diagnostics::emit(Exchange_Event{
+            Exchange_Event::Phase::begin,
+            plan.communicator().rank(),
+            num_neighbors,
+            total_bytes,
+            std::chrono::nanoseconds{0},
+            /*is_async=*/true});
     }
 
     // Acquire serialization guard for thread safety
@@ -338,6 +431,58 @@ template <typename ViewType>
     handle.requests_.reserve(num_recv + num_send);
 
     if constexpr (detail::requires_staging_v<ViewType>) {
+        // The compile-time trait says staging is needed (device view, no
+        // HALO_GPU_AWARE_MPI flag). However, runtime detection may reveal that
+        // GPU-aware MPI IS available — in that case, skip staging and use
+        // the direct path.
+        if (Environment::is_gpu_aware_mpi()) {
+            // ─── Runtime GPU-aware path: pass device pointers directly ───────
+            std::size_t recv_offset = plan.total_send_elements();
+            for (std::size_t i = 0; i < num_recv; ++i) {
+                const auto& neighbor = recv_info[i];
+                const int tag = detail::compute_tag(neighbor.rank, my_rank, comm_size);
+
+                MPI_Request req = MPI_REQUEST_NULL;
+                int rc = MPI_Irecv(
+                    view.data() + recv_offset,
+                    static_cast<int>(neighbor.count),
+                    mpi_dtype,
+                    neighbor.rank,
+                    tag,
+                    mpi_comm,
+                    &req);
+
+                if (rc != MPI_SUCCESS) {
+                    detail::throw_mpi_error(rc, neighbor.rank, "MPI_Irecv");
+                }
+
+                handle.requests_.emplace_back(req);
+                recv_offset += neighbor.count;
+            }
+
+            std::size_t send_offset = 0;
+            for (std::size_t i = 0; i < num_send; ++i) {
+                const auto& neighbor = send_info[i];
+                const int tag = detail::compute_tag(my_rank, neighbor.rank, comm_size);
+
+                MPI_Request req = MPI_REQUEST_NULL;
+                int rc = MPI_Isend(
+                    view.data() + send_offset,
+                    static_cast<int>(neighbor.count),
+                    mpi_dtype,
+                    neighbor.rank,
+                    tag,
+                    mpi_comm,
+                    &req);
+
+                if (rc != MPI_SUCCESS) {
+                    detail::throw_mpi_error(rc, neighbor.rank, "MPI_Isend");
+                }
+
+                handle.requests_.emplace_back(req);
+                send_offset += neighbor.count;
+            }
+        } else {
         // ─── Staged path: device view requires host buffers ─────────────────
 
         // Allocate host receive buffers
@@ -421,6 +566,7 @@ template <typename ViewType>
         };
         handle.staged_recv_ = std::move(staged);
 
+        } // end staged path (runtime check: not gpu-aware)
     } else {
         // ─── Direct path: host view or GPU-aware MPI ────────────────────────
 
@@ -471,6 +617,23 @@ template <typename ViewType>
             handle.requests_.emplace_back(req);
             send_offset += neighbor.count;
         }
+    }
+
+    // ─── Diagnostics: end event ─────────────────────────────────────────────
+    if (diag_active) {
+        const auto elapsed = std::chrono::steady_clock::now() - diag_t0;
+        const int num_neighbors = static_cast<int>(
+            plan.num_send_neighbors() + plan.num_recv_neighbors());
+        const std::size_t total_bytes =
+            (plan.total_send_elements() + plan.total_recv_elements())
+            * sizeof(typename ViewType::value_type);
+        Diagnostics::emit(Exchange_Event{
+            Exchange_Event::Phase::end,
+            plan.communicator().rank(),
+            num_neighbors,
+            total_bytes,
+            std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
+            /*is_async=*/true});
     }
 
     return handle;

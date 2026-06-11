@@ -18,11 +18,14 @@
 #include "handle_registry.hpp"
 
 #include <halo/halo.hpp>
+#include <halo/error_policy.hpp>
+#include <halo/environment.hpp>
 
 #include <mpi.h>
 #include <Kokkos_Core.hpp>
 
 #include <cstddef>
+#include <cstdio>
 #include <stdexcept>
 #include <vector>
 
@@ -48,6 +51,10 @@ enum Halo_Error : int {
 /// error codes. This ensures no C++ exception ever propagates into Fortran code,
 /// which would cause undefined behavior.
 ///
+/// When the abort_with_diagnostics policy is active, exceptions are written to
+/// stderr before returning the error code. This ensures Fortran callers always
+/// get full diagnostic context on stderr regardless of the exception type.
+///
 /// Usage:
 /// @code
 ///   int my_func_c(int arg, int* out) {
@@ -60,16 +67,34 @@ enum Halo_Error : int {
 // Variadic so that bodies containing top-level commas (e.g. Kokkos::View
 // template argument lists or brace-init lists) are passed through intact
 // instead of being parsed as multiple macro arguments.
-#define HALO_C_TRY(...)                                     \
-    try {                                                   \
-        __VA_ARGS__;                                        \
-        return HALO_SUCCESS;                                \
-    } catch (const std::invalid_argument&) {                \
-        return HALO_ERR_INVALID_ARG;                        \
-    } catch (const std::runtime_error&) {                   \
-        return HALO_ERR_RUNTIME;                            \
-    } catch (...) {                                         \
-        return HALO_ERR_UNKNOWN;                            \
+#define HALO_C_TRY(...)                                                     \
+    try {                                                                   \
+        __VA_ARGS__;                                                        \
+        return HALO_SUCCESS;                                                \
+    } catch (const std::invalid_argument& e) {                              \
+        if (halo::Environment::error_policy() ==                            \
+            halo::ErrorPolicy::abort_with_diagnostics) {                    \
+            std::fprintf(stderr, "HALO FATAL (Fortran interop): %s\n",     \
+                         e.what());                                         \
+            std::fflush(stderr);                                            \
+        }                                                                   \
+        return HALO_ERR_INVALID_ARG;                                        \
+    } catch (const std::runtime_error& e) {                                 \
+        if (halo::Environment::error_policy() ==                            \
+            halo::ErrorPolicy::abort_with_diagnostics) {                    \
+            std::fprintf(stderr, "HALO FATAL (Fortran interop): %s\n",     \
+                         e.what());                                         \
+            std::fflush(stderr);                                            \
+        }                                                                   \
+        return HALO_ERR_RUNTIME;                                            \
+    } catch (...) {                                                         \
+        if (halo::Environment::error_policy() ==                            \
+            halo::ErrorPolicy::abort_with_diagnostics) {                    \
+            std::fprintf(stderr,                                            \
+                "HALO FATAL (Fortran interop): unknown exception\n");       \
+            std::fflush(stderr);                                            \
+        }                                                                   \
+        return HALO_ERR_UNKNOWN;                                            \
     }
 
 extern "C" {
@@ -88,6 +113,8 @@ extern "C" {
 int halo_init_c(int mpi_comm_int, int* comm_handle_out) {
     HALO_C_TRY(
         halo::Environment::initialize();
+        // Fortran callers cannot catch C++ exceptions; force abort policy.
+        halo::Environment::set_error_policy(halo::ErrorPolicy::abort_with_diagnostics);
         MPI_Comm comm = MPI_Comm_f2c(mpi_comm_int);
         auto* c = new halo::Communicator(comm);
         *comm_handle_out = halo::fortran::Handle_Registry::instance()

@@ -15,6 +15,8 @@
 #include <mpi.h>
 #include <mutex>
 
+#include <halo/error_policy.hpp>
+
 namespace halo {
 
 // Forward declaration for friend access.
@@ -44,6 +46,27 @@ public:
     /// @return true if concurrent MPI calls are safe without serialization.
     [[nodiscard]] static bool is_thread_multiple() noexcept;
 
+    /// @brief Returns true if the MPI implementation supports GPU-aware
+    ///        (device pointer) communication at runtime.
+    ///
+    /// The value is determined during initialize() via detail::gpu_aware_probe()
+    /// and cached for the lifetime of the process.
+    ///
+    /// @return true if GPU-aware MPI is available.
+    [[nodiscard]] static bool is_gpu_aware_mpi() noexcept;
+
+    /// @brief Set the active error policy for MPI error handling.
+    ///
+    /// The policy determines whether HALO throws std::runtime_error (default)
+    /// or writes diagnostics to stderr and calls MPI_Abort on MPI failures.
+    ///
+    /// @param policy The error policy to activate.
+    static void set_error_policy(ErrorPolicy policy) noexcept;
+
+    /// @brief Returns the active error policy.
+    /// @return The current ErrorPolicy (throw_on_error by default).
+    [[nodiscard]] static ErrorPolicy error_policy() noexcept;
+
     // Non-copyable, non-movable singleton.
     Environment(const Environment&) = delete;
     Environment& operator=(const Environment&) = delete;
@@ -53,6 +76,8 @@ private:
 
     static inline std::once_flag init_flag_;
     static inline int thread_level_{-1};
+    static inline bool gpu_aware_mpi_{false};
+    static inline ErrorPolicy error_policy_{ErrorPolicy::throw_on_error};
     static inline std::mutex serialization_mutex_;
 
     friend class detail::Serialized_MPI_Guard;

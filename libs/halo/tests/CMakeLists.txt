@@ -164,6 +164,13 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_exchange.cpp")
     )
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_persistent_handle.cpp")
+    halo_add_mpi_test(test_persistent_handle
+        SOURCES test_persistent_handle.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_raii_exceptions.cpp")
     halo_add_property_test(test_raii_exceptions
         SOURCES test_raii_exceptions.cpp
@@ -282,6 +289,57 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange_forwarding.cpp")
     )
     target_include_directories(prop_exchange_forwarding
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/fortran
+    )
+endif()
+
+# ─── Pack/Unpack Kernel Unit Test (no MPI needed, single-rank, Kokkos) ───────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_pack_unpack.cpp")
+    add_executable(test_pack_unpack test_pack_unpack.cpp)
+    target_link_libraries(test_pack_unpack
+        PRIVATE
+            halo
+            GTest::gtest
+            Kokkos::kokkos
+    )
+    target_include_directories(test_pack_unpack
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_features(test_pack_unpack PUBLIC cxx_std_20)
+    add_test(NAME test_pack_unpack COMMAND $<TARGET_FILE:test_pack_unpack>)
+    set_tests_properties(test_pack_unpack PROPERTIES
+        TIMEOUT 60
+        LABELS "unit"
+    )
+endif()
+
+# ─── Structured Halo Plan Unit Test (MPI-based) ─────────────────────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_structured_halo_plan.cpp")
+    halo_add_mpi_test(test_structured_halo_plan
+        SOURCES test_structured_halo_plan.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
+# ─── Structured Exchange Integration Test (MPI-based) ────────────────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_structured_exchange.cpp")
+    halo_add_mpi_test(test_structured_exchange
+        SOURCES test_structured_exchange.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
+# ─── Error Messages Unit Test (MPI-based) ────────────────────────────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_error_messages.cpp")
+    halo_add_mpi_test(test_error_messages
+        SOURCES test_error_messages.cpp
+    )
+endif()
+
+# ─── Diagnostics Hook Unit Test (MPI-based) ──────────────────────────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_diagnostics.cpp")
+    halo_add_mpi_test(test_diagnostics
+        SOURCES test_diagnostics.cpp
+        LIBRARIES Kokkos::kokkos
     )
 endif()
 

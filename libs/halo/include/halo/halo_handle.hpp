@@ -28,6 +28,7 @@ namespace halo {
 
 // Forward declarations for friend access
 class Halo_Plan;
+template <int Rank> class Structured_Halo_Plan;
 
 /// @brief Async halo exchange completion handle.
 ///
@@ -87,6 +88,11 @@ private:
     // exchange_async is a friend so it can populate the handle's internals.
     template <typename ViewType>
     friend Halo_Handle exchange_async(const Halo_Plan&, ViewType&);
+
+    // exchange_structured_async is a friend so it can populate the handle's internals.
+    template <typename ViewType>
+    friend Halo_Handle exchange_structured_async(
+        const Structured_Halo_Plan<ViewType::rank>&, ViewType&);
 
     // Test-only friend for Property 18: allows injecting staged_recv state.
     friend class Halo_Handle_Test_Access;
