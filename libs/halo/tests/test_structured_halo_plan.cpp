@@ -331,10 +331,10 @@ TEST_F(StructuredHaloPlanBoundsTest, FaceIndexOutOfRange) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors, halo_widths, *comm_);
 
-    EXPECT_THROW(plan.send_region(4), std::out_of_range);
-    EXPECT_THROW(plan.send_region(-1), std::out_of_range);
-    EXPECT_THROW(plan.recv_region(4), std::out_of_range);
-    EXPECT_THROW(plan.neighbor_rank(4), std::out_of_range);
+    EXPECT_THROW((void)plan.send_region(4), std::out_of_range);
+    EXPECT_THROW((void)plan.send_region(-1), std::out_of_range);
+    EXPECT_THROW((void)plan.recv_region(4), std::out_of_range);
+    EXPECT_THROW((void)plan.neighbor_rank(4), std::out_of_range);
 }
 
 TEST_F(StructuredHaloPlanBoundsTest, DimIndexOutOfRange) {
@@ -344,8 +344,8 @@ TEST_F(StructuredHaloPlanBoundsTest, DimIndexOutOfRange) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors, halo_widths, *comm_);
 
-    EXPECT_THROW(plan.extent(2), std::out_of_range);
-    EXPECT_THROW(plan.halo_width(-1), std::out_of_range);
+    EXPECT_THROW((void)plan.extent(2), std::out_of_range);
+    EXPECT_THROW((void)plan.halo_width(-1), std::out_of_range);
 }
 
 // ─── Layout Detection Tests ─────────────────────────────────────────────────

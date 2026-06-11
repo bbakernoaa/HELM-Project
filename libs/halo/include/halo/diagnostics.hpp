@@ -17,6 +17,7 @@
 /// Tier 1 isolation: This header has NO dependency on LOGS or any other
 /// HELM component.
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <functional>
@@ -61,7 +62,7 @@ public:
     static void set_callback(Diagnostics_Callback cb) {
         std::lock_guard<std::mutex> lock(mutex_);
         callback_ = std::move(cb);
-        active_ = true;
+        active_.store(true, std::memory_order_release);
     }
 
     /// @brief Remove the currently registered callback.
@@ -70,7 +71,7 @@ public:
     static void clear_callback() {
         std::lock_guard<std::mutex> lock(mutex_);
         callback_ = nullptr;
-        active_ = false;
+        active_.store(false, std::memory_order_release);
     }
 
     /// @brief Emit a diagnostics event.
@@ -82,30 +83,28 @@ public:
     /// @param event The exchange event to emit.
     static void emit(const Exchange_Event& event) {
         // Fast path: no callback registered — zero overhead.
-        if (!active_) {
+        if (!active_.load(std::memory_order_acquire)) {
             return;
         }
 
-        // Slow path: callback is registered, acquire lock and invoke.
-        Diagnostics_Callback cb;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            cb = callback_;
-        }
-        if (cb) {
-            cb(event);
+        // Slow path: callback is registered, acquire lock and invoke directly.
+        // We invoke under the lock to avoid copying std::function (which may
+        // allocate). The callback should be lightweight (e.g., accumulate stats).
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (callback_) {
+            callback_(event);
         }
     }
 
     /// @brief Returns true if a callback is currently registered.
     [[nodiscard]] static bool is_active() noexcept {
-        return active_;
+        return active_.load(std::memory_order_acquire);
     }
 
 private:
     static inline std::mutex mutex_;
     static inline Diagnostics_Callback callback_{nullptr};
-    static inline bool active_{false};
+    static inline std::atomic<bool> active_{false};
 
     Diagnostics() = delete;
 };

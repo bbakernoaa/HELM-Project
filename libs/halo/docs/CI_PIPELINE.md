@@ -14,8 +14,9 @@ the whole pipeline inside the container (`sh cmake/ci_pipeline.sh`). The prose
 below, that workflow, and the driver script are kept in lock-step — if you
 change one, change the others.
 
-> **Requirements covered:** 12.2, 12.3, 12.5, 13.5
-> (see `.kiro/specs/helm-halo-microlibrary/requirements.md`).
+> **Requirements covered:** 1.1, 2.1, 6.1, 6.2, 6.3, 7.1, 10.1, 11.1, 12.2, 12.3, 12.5, 13.1, 13.5
+> (see `.kiro/specs/helm-halo-microlibrary/requirements.md` and
+> `.kiro/specs/halo-production-hardening/requirements.md`).
 
 ---
 
@@ -65,10 +66,11 @@ allocation, which is required on a headless runner).
 | --- | --- | --- | --- |
 | 1 | Static analysis / Tier 1 isolation scan | Reject forbidden HELM cross-dependencies before spending build time | 13.5 |
 | 2 | Standalone CMake build inside Docker | Prove HALO builds alone and produces `HELM::HALO` | 12.2, 12.3 |
-| 3 | Unit tests (`mpirun -np 4`) | Verify real MPI behavior across ranks | 12.2 |
-| 4 | Property tests (single-rank, mocked MPI) | Verify RAII/algebraic invariants deterministically | 12.2 |
+| 3 | Unit tests (`mpirun -np 4`) | Verify real MPI behavior across ranks (including structured exchange, persistent handles, diagnostics) | 12.2 |
+| 4 | Property tests (single-rank, mocked MPI) | Verify RAII/algebraic invariants and structured exchange properties deterministically | 12.2 |
 | 5 | Fortran integration test (`mpirun -np 4`) | Verify the `iso_c_binding` interop end-to-end | 12.2 |
 | 6 | Sanitizer builds (ASan + UBSan) | Catch memory-safety and undefined-behavior defects | 12.2 |
+| 7 | Spack build smoke test (planned) | Verify `spack install halo` succeeds with default variants | 6.1, 6.2, 6.3 |
 
 Stage 1 runs first and is a hard gate: an isolation violation fails the
 pipeline immediately, before any compilation, because a Tier 1 dependency
@@ -202,10 +204,37 @@ cd libs/halo/build-ci
 ctest -L unit --output-on-failure
 ```
 
-`-L unit` selects the MPI-based unit tests (e.g. `test_communicator`,
-`test_request_guard`, `test_window_guard`, `test_halo_plan`, `test_exchange`)
-as well as the single-rank `test_handle_registry`. To run a single test binary
-directly with explicit ranks:
+`-L unit` selects all MPI-based unit tests, including:
+
+**Core RAII/resource tests:**
+
+- `test_communicator` — MPI_Comm RAII lifecycle
+- `test_request_guard` — MPI_Request RAII lifecycle
+- `test_window_guard` — MPI_Win RAII lifecycle
+- `test_halo_plan` — Halo_Plan construction and neighbor topology
+- `test_exchange` — Flat-buffer halo exchange
+
+**Structured exchange tests (production hardening):**
+
+- `test_structured_halo_plan` — Structured_Halo_Plan construction and subview computation
+- `test_structured_exchange` — Multi-dimensional structured halo exchange (2D/3D periodic, non-periodic, LayoutLeft/Right, strided subviews)
+- `test_neighbor_collective` — Topology-aware MPI_Neighbor_alltoallv exchange path
+
+**Persistent communication tests:**
+
+- `test_persistent_handle` — Persistent_Halo_Handle start/wait/test cycle and RAII
+
+**Diagnostics and error handling tests:**
+
+- `test_diagnostics` — Exchange_Event emission and callback invocation
+- `test_error_messages` — Context-rich error messages with rank/comm info
+
+**Single-rank unit tests (no mpirun):**
+
+- `test_handle_registry` — C-interop handle registry (single-rank, no MPI)
+- `test_pack_unpack` — GPU pack/unpack kernels (single-rank, Kokkos)
+
+To run a single test binary directly with explicit ranks:
 
 ```bash
 mpirun --oversubscribe -np 4 ./tests/test_communicator
@@ -228,11 +257,22 @@ cd libs/halo/build-ci
 ctest -L property --output-on-failure
 ```
 
-This covers `prop_communicator`, `prop_request_guard`, `prop_window_guard`,
-`prop_halo_plan`, `prop_exchange`, `prop_environment`, `prop_gpu_dispatch`,
-`prop_handle_registry`, and the C-interop boundary properties
-(`prop_exception_boundary`, `prop_destroy_handle`, `prop_plan_validation`,
-`prop_exchange_forwarding`).
+This covers:
+
+**Core RAII properties:**
+
+- `prop_communicator`, `prop_request_guard`, `prop_window_guard`
+- `prop_halo_plan`, `prop_exchange`
+- `prop_environment`, `prop_gpu_dispatch`, `prop_handle_registry`
+
+**C-interop boundary properties:**
+
+- `prop_exception_boundary`, `prop_destroy_handle`
+- `prop_plan_validation`, `prop_exchange_forwarding`
+
+**Structured exchange properties (production hardening):**
+
+- `prop_structured_exchange` — Round-trip data preservation, pack/unpack identity, persistent vs non-persistent equivalence
 
 ---
 
@@ -300,6 +340,43 @@ the default leak detection used in earlier stages.
 
 ---
 
+### Stage 7 — Spack build smoke test (planned)
+
+**Why:** HALO ships a Spack package
+([`spack/package.py`](../spack/package.py)) for integration into HPC center
+software stacks. **Requirement 6.1** mandates that `spack install halo` succeed
+with default variants on a reference system. This stage validates the Spack
+package definition by performing a concretization dry run and (when a full Spack
+install is available) a real install + `spack test run halo`.
+
+> **Status: Planned.** The HELM CI Docker container does not currently include a
+> Spack installation. This stage will be enabled once Spack is added to the
+> container image or a separate Spack-enabled runner is provisioned. The GitHub
+> Actions workflow contains a placeholder step that is currently skipped.
+
+When enabled, the stage will run:
+
+```bash
+# Concretize (validates spec + dependencies resolve)
+spack spec halo@main +fortran ~gpu_aware_mpi +tests
+
+# Install from source (uses the in-tree package.py)
+spack dev-build halo@main
+
+# Run package tests
+spack test run halo
+```
+
+The variants tested:
+
+| Variant | Default | Purpose |
+| --- | --- | --- |
+| `+fortran` | on | Build Fortran interop (`halo_fortran`, `halo_mod`) |
+| `~gpu_aware_mpi` | off | No GPU-aware MPI in CI (no GPU hardware) |
+| `+tests` | off in production, on in CI | Build and run the test suite |
+
+---
+
 ## Cleanup
 
 Throwaway CI build trees (`build-ci`, `build-asan`, and the downstream consumer
@@ -343,6 +420,15 @@ docker compose exec -T helm-dev bash -lc '
     -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
   cmake --build build-asan --parallel $(nproc)
   ( cd build-asan && ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 ctest -L property --output-on-failure )
+
+  # Stage 7: Spack smoke test (skip if spack not installed)
+  if command -v spack >/dev/null 2>&1; then
+    spack spec halo@main +fortran ~gpu_aware_mpi +tests
+    spack dev-build halo@main
+    spack test run halo
+  else
+    echo "Stage 7: SKIPPED (spack not installed)"
+  fi
 
   # Cleanup
   rm -rf build-ci build-asan

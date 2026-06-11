@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cstddef>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -245,6 +246,7 @@ public:
     ///
     /// @return The cached topology communicator handle.
     [[nodiscard]] MPI_Comm topology_comm() const {
+        std::lock_guard<std::mutex> lock(topo_mutex_);
         if (topo_comm_ != MPI_COMM_NULL) {
             return topo_comm_;
         }
@@ -343,6 +345,9 @@ private:
     /// @brief Cached MPI dist-graph topology communicator for neighbor collectives.
     /// Created lazily on first call to topology_comm(). Freed in destructor.
     mutable MPI_Comm topo_comm_{MPI_COMM_NULL};
+
+    /// @brief Mutex protecting lazy initialization of topo_comm_.
+    mutable std::mutex topo_mutex_;
 
     /// @brief Validate that each extent is at least 2 * halo_width.
     void validate_extents() const {

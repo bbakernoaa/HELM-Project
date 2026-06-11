@@ -15,12 +15,16 @@
 
 #include <halo/version.hpp>
 #include <halo/communicator.hpp>
+#include <halo/diagnostics.hpp>
 #include <halo/environment.hpp>
 #include <halo/error_policy.hpp>
 #include <halo/exchange.hpp>
+#include <halo/exchange_structured.hpp>
 #include <halo/halo_handle.hpp>
 #include <halo/halo_plan.hpp>
+#include <halo/persistent_halo_handle.hpp>
 #include <halo/request_guard.hpp>
+#include <halo/structured_halo_plan.hpp>
 #include <halo/window_guard.hpp>
 
 #endif // HALO_HALO_HPP

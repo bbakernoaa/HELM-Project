@@ -13,6 +13,7 @@
 /// Subsequent calls are no-ops (idempotent via std::once_flag).
 
 #include <mpi.h>
+#include <atomic>
 #include <mutex>
 
 #include <halo/error_policy.hpp>
@@ -77,7 +78,7 @@ private:
     static inline std::once_flag init_flag_;
     static inline int thread_level_{-1};
     static inline bool gpu_aware_mpi_{false};
-    static inline ErrorPolicy error_policy_{ErrorPolicy::throw_on_error};
+    static inline std::atomic<ErrorPolicy> error_policy_{ErrorPolicy::throw_on_error};
     static inline std::mutex serialization_mutex_;
 
     friend class detail::Serialized_MPI_Guard;

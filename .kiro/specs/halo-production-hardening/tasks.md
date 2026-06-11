@@ -103,7 +103,7 @@ Upgrades HALO from a spec-complete Tier 1 foundation to a production-grade micro
     - Test move semantics (source becomes empty)
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 5. Diagnostics and instrumentation
+- [x] 5. Diagnostics and instrumentation
   - [x] 5.1 Implement diagnostics hook interface
     - Create `include/halo/diagnostics.hpp` with Exchange_Event struct and Diagnostics class
     - Implement set_callback / clear_callback (static, thread-safe)
@@ -118,14 +118,14 @@ Upgrades HALO from a spec-complete Tier 1 foundation to a production-grade micro
     - Update Fortran interop error path to write context to stderr before abort
     - _Requirements: 11.1, 11.2, 11.3_
 
-  - [-] 5.3 Write tests for diagnostics
+  - [x] 5.3 Write tests for diagnostics
     - Register a callback, perform an exchange, verify events received with correct fields
     - Verify no callback registered → no overhead (timing-based sanity check)
     - Verify thread safety of set_callback / emit under concurrent exchanges
     - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-- [ ] 6. Neighbor collectives (optional exchange path)
-  - [ ] 6.1 Implement topology-aware neighbor collective exchange
+- [x] 6. Neighbor collectives (optional exchange path)
+  - [x] 6.1 Implement topology-aware neighbor collective exchange
     - Create `exchange_neighbor_collective<ViewType>` in exchange_structured.hpp
     - Build MPI_Dist_graph_create_adjacent from the plan's neighbor topology
     - Cache the topology communicator in the Structured_Halo_Plan
@@ -133,14 +133,14 @@ Upgrades HALO from a spec-complete Tier 1 foundation to a production-grade micro
     - Fall back to Isend/Irecv when topology is asymmetric or MPI < 3.0
     - _Requirements: 13.1, 13.2, 13.3_
 
-  - [ ] 6.2 Write tests for neighbor collective exchange
+  - [x] 6.2 Write tests for neighbor collective exchange
     - Test symmetric 2D periodic grid via neighbor collective path
     - Test asymmetric topology falls back to Isend/Irecv transparently
     - Verify data correctness matches the standard exchange path
     - _Requirements: 13.1, 13.2, 13.3_
 
-- [ ] 7. Spack packaging
-  - [ ] 7.1 Create Spack package.py
+- [x] 7. Spack packaging
+  - [x] 7.1 Create Spack package.py
     - Create `spack/package.py` with HaloPackage class
     - Declare dependencies: mpi, kokkos, and optional googletest/rapidcheck
     - Implement variants: +fortran (default on), +gpu_aware_mpi (default off), +tests (default off)
@@ -149,21 +149,21 @@ Upgrades HALO from a spec-complete Tier 1 foundation to a production-grade micro
     - Test with `spack install halo` and `spack test run halo` documentation
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 8. Documentation
-  - [ ] 8.1 Write communication/computation overlap guide
+- [x] 8. Documentation
+  - [x] 8.1 Write communication/computation overlap guide
     - Create `docs/overlap_pattern.md` with interior/halo decomposition examples
     - Show async exchange + interior computation + wait pattern with code
     - Document buffer lifetime requirements for the async window
     - _Requirements: 8.1, 8.2, 8.3_
 
-  - [ ] 8.2 Write thread safety documentation
+  - [x] 8.2 Write thread safety documentation
     - Create `docs/thread_safety.md` documenting the thread model
     - Document MPI_THREAD_MULTIPLE behavior (no serialization, concurrent exchanges safe)
     - Document MPI_THREAD_SERIALIZED behavior (exchanges must be from serial context)
     - Document the optional communication thread mode (if implemented)
     - _Requirements: 9.1, 9.2, 9.3_
 
-  - [ ] 8.3 Update README with production features
+  - [x] 8.3 Update README with production features
     - Add structured exchange API section with code examples
     - Add persistent communication section
     - Add Spack installation instructions
@@ -171,34 +171,34 @@ Upgrades HALO from a spec-complete Tier 1 foundation to a production-grade micro
     - Update prerequisites table with new optional dependencies
     - _Requirements: 5.4, 8.1_
 
-- [ ] 9. Model adapter examples
-  - [ ] 9.1 Create FV3 cubed-sphere adapter example
+- [x] 9. Model adapter examples
+  - [x] 9.1 Create FV3 cubed-sphere adapter example
     - Create `examples/fv3_adapter.F90` showing ESMF_FieldHalo replacement with halo_mod
     - Include build instructions (standalone CMakeLists using find_package(HALO))
     - Document the mapping from ESMF RouteHandle to Halo_Plan
     - _Requirements: 14.1_
 
-  - [ ] 9.2 Create MPAS unstructured mesh adapter example
+  - [x] 9.2 Create MPAS unstructured mesh adapter example
     - Create `examples/mpas_adapter.cpp` showing cell halo exchange with Kokkos views
     - Include build instructions (standalone CMakeLists using find_package(HALO))
     - Document the mapping from MPAS exchange_halo to HALO's flat-buffer API
     - _Requirements: 14.2_
 
-- [ ] 10. Integration testing and CI updates
-  - [ ] 10.1 Write structured exchange property tests
+- [x] 10. Integration testing and CI updates
+  - [x] 10.1 Write structured exchange property tests
     - Property: structured exchange round-trip preserves halo data (random grid sizes, random halo widths)
     - Property: pack then unpack is identity (for any subview shape)
     - Property: persistent start/wait delivers same data as non-persistent exchange
     - Run with MPI spy for the property tests, mpirun for integration tests
     - _Requirements: 1.1, 2.1, 7.1_
 
-  - [ ] 10.2 Update CI pipeline for new features
+  - [x] 10.2 Update CI pipeline for new features
     - Add structured exchange tests to the CTest suite (mpirun -np 4)
     - Add Spack build smoke test to CI
     - Update docs/CI_PIPELINE.md with new stages
     - _Requirements: all_
 
-  - [ ] 10.3 Final checkpoint — production hardening complete
+  - [x] 10.3 Final checkpoint — production hardening complete
     - Full test suite green (existing 22 + new structured/persistent/diagnostics tests)
     - Spack package builds
     - All documentation reviewed

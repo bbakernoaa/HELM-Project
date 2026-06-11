@@ -17,6 +17,7 @@
 /// environments where multiple threads may create/destroy objects concurrently.
 
 #include <cstdint>
+#include <limits>
 #include <mutex>
 #include <unordered_map>
 
@@ -55,12 +56,18 @@ public:
     /// @brief Register a pointer and return a unique positive integer token.
     ///
     /// The returned token is guaranteed to be a positive integer that has
-    /// never been issued before by this registry instance.
+    /// never been issued before by this registry instance. Tokens are limited
+    /// to INT_MAX; if exhausted, returns HALO_HANDLE_INVALID.
     ///
     /// @param ptr Pointer to the C++ object to register. Must not be nullptr.
-    /// @return A unique positive integer token identifying the registered object.
+    /// @return A unique positive integer token identifying the registered object,
+    ///         or HALO_HANDLE_INVALID if tokens are exhausted.
     int register_handle(void* ptr) {
         std::lock_guard<std::mutex> lock(mutex_);
+        if (next_token_ == std::numeric_limits<int>::max()) {
+            // Token space exhausted — cannot safely allocate.
+            return HALO_HANDLE_INVALID;
+        }
         int token = next_token_++;
         handles_[token] = ptr;
         return token;

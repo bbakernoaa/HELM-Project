@@ -29,6 +29,7 @@
 #include <halo/detail/compute_tag.hpp>
 #include <halo/detail/gpu_aware_probe.hpp>
 #include <halo/detail/memory_traits.hpp>
+#include <halo/detail/mpi_datatype.hpp>
 #include <halo/detail/staging.hpp>
 #include <halo/environment.hpp>
 #include <halo/error_policy.hpp>
@@ -137,34 +138,6 @@ private:
 // Implementation
 // ═══════════════════════════════════════════════════════════════════════════════
 
-namespace detail {
-
-/// @brief Resolve the MPI datatype for a given C++ value type.
-/// @tparam T The C++ arithmetic type.
-/// @return The corresponding MPI_Datatype.
-template <typename T>
-inline MPI_Datatype resolve_mpi_datatype() noexcept {
-    if constexpr (std::is_same_v<T, double>) {
-        return MPI_DOUBLE;
-    } else if constexpr (std::is_same_v<T, float>) {
-        return MPI_FLOAT;
-    } else if constexpr (std::is_same_v<T, int>) {
-        return MPI_INT;
-    } else if constexpr (std::is_same_v<T, long>) {
-        return MPI_LONG;
-    } else if constexpr (std::is_same_v<T, long long>) {
-        return MPI_LONG_LONG;
-    } else if constexpr (std::is_same_v<T, unsigned int>) {
-        return MPI_UNSIGNED;
-    } else if constexpr (std::is_same_v<T, char>) {
-        return MPI_CHAR;
-    } else {
-        return MPI_BYTE;
-    }
-}
-
-} // namespace detail
-
 template <typename ViewType>
 Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& view) {
     // Early return for empty plans
@@ -181,7 +154,7 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
     const MPI_Comm mpi_comm = comm.handle();
 
     using value_type = typename ViewType::value_type;
-    const MPI_Datatype mpi_dtype = detail::resolve_mpi_datatype<value_type>();
+    const MPI_Datatype mpi_dtype = detail::mpi_datatype_for<value_type>();
 
     const auto recv_info = plan.recv_info();
     const auto send_info = plan.send_info();

@@ -9,9 +9,14 @@
 #   1. Static analysis / Tier 1 isolation scan ............ Requirement 13.5
 #   2. Standalone CMake build inside Docker (HELM::HALO) ... Requirements 12.2, 12.3
 #   3. Unit tests           (mpirun -np 4, label "unit") .. Requirement 12.2
+#      Includes: structured exchange, persistent handle,
+#      neighbor collective, diagnostics, error messages,
+#      pack/unpack kernels, structured halo plan
 #   4. Property tests       (single-rank, label "property") Requirement 12.2
+#      Includes: prop_structured_exchange
 #   5. Fortran integration  (mpirun -np 4, label "fortran") Requirement 12.2
 #   6. Sanitizer builds     (ASan + UBSan) ................ Requirement 12.2
+#   7. Spack build smoke test (planned) ................... Requirements 6.1, 6.2, 6.3
 #
 # Submodules are checked out recursively so the pinned HALO commit is present
 # without manual steps (Requirement 12.5).
@@ -144,6 +149,22 @@ jobs:
             cd build-asan
             ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
               ctest -L property --output-on-failure
+          '
+
+      # Stage 7 — Spack build smoke test (planned). Currently skipped because
+      # the HELM Docker container does not include a Spack installation. Enable
+      # this step once Spack is available in the container or on the runner.
+      # (Requirements 6.1, 6.2, 6.3)
+      - name: "Stage 7: Spack build smoke test (planned)"
+        if: false  # Enable when Spack is installed in the CI container
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/halo
+            spack repo add --scope=site spack/
+            spack spec halo@main +fortran ~gpu_aware_mpi +tests
+            spack dev-build halo@main
+            spack test run halo
           '
 
       # Always clean up throwaway build trees; leave the normal build/ intact.
