@@ -1,0 +1,5 @@
+model:
+  name: test_model
+  layers: 42
+  rate: 3.14
+  enabled: true

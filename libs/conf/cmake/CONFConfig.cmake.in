@@ -1,0 +1,28 @@
+@PACKAGE_INIT@
+
+# ─── CONFConfig.cmake ────────────────────────────────────────────────────────
+# CMake package configuration file for CONF (Configuration Object & Notation Framework)
+#
+# This file is included by find_package(CONF) and imports the CONF targets.
+#
+# NOTE: Unlike HALO (which has PUBLIC deps like MPI and Kokkos), CONF has NO
+# public transitive dependencies. yaml-cpp is linked PRIVATE and statically
+# absorbed into the conf library — it is never exposed to downstream consumers.
+# Therefore find_dependency(yaml-cpp) is deliberately omitted here.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Import the exported targets (HELM::conf)
+include("${CMAKE_CURRENT_LIST_DIR}/CONFTargets.cmake")
+
+# Provide the documented uppercase alias HELM::CONF that downstream consumers
+# use in target_link_libraries(). The install-exported target is HELM::conf
+# (lowercase) because CMake's NAMESPACE prefix is prepended to the target name
+# as-is; the uppercase alias matches the HELM naming convention.
+if(NOT TARGET HELM::CONF)
+    add_library(HELM::CONF INTERFACE IMPORTED)
+    set_target_properties(HELM::CONF PROPERTIES
+        INTERFACE_LINK_LIBRARIES HELM::conf
+    )
+endif()
+
+check_required_components(CONF)
