@@ -14,13 +14,18 @@
 /// express: factorList (S), factorIndexList col/row (src/dst), plus per-cell
 /// fraction and area arrays for conservative normalization.
 ///
+/// The matrix also supports conversion to CSR (Compressed Sparse Row) format
+/// via to_csr(), enabling row-parallel SpMV without atomics.
+///
 /// Templated on a Kokkos MemorySpace (HELM Law #2: explicit placement, no UVM).
 /// Light inline accessors live in this header; the .cpp provides explicit
 /// template instantiations for common memory spaces.
 
+#include <algorithm>
 #include <cstddef>
 
 #include <Kokkos_Core.hpp>
+#include <Kokkos_Sort.hpp>
 
 #include <axis/types.hpp>
 
@@ -46,6 +51,11 @@ struct IndexPair {
 ///   frac_b[j] = fraction of destination cell j covered by source cells
 ///   area_a[i] = area of source cell i
 ///   area_b[j] = area of destination cell j
+///
+/// Optionally converts to CSR format via to_csr() for row-parallel apply:
+///   row_ptr[n_dst+1] — row pointer offsets
+///   col_idx[nnz]     — sorted column indices
+///   csr_vals[nnz]    — values sorted to match col_idx
 ///
 /// @tparam MemorySpace Kokkos memory space for internal array storage
 ///         (Kokkos::HostSpace, CudaSpace, HIPSpace, etc.)
@@ -175,6 +185,139 @@ public:
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // CSR (Compressed Sparse Row) interface
+    //
+    // Call to_csr() to convert from COO to CSR format. Once converted,
+    // solver::apply can dispatch to the row-parallel path (no atomics).
+    // The COO data remains accessible after conversion.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Convert the internal COO representation to CSR format.
+    ///
+    /// Sorts entries by (row, column) and builds the row_ptr, col_idx,
+    /// and csr_vals arrays using Kokkos parallel patterns on the same
+    /// MemorySpace as the matrix data.
+    ///
+    /// If already in CSR format (is_csr() == true), this is a no-op.
+    void to_csr() {
+        if (has_csr_) return;
+
+        const auto n_nz = nnz();
+        const auto n_rows = n_dst_;
+
+        if (n_nz == 0) {
+            // Empty matrix: just allocate zero-sized CSR arrays
+            row_ptr_ = Kokkos::View<index_t*, MemorySpace>(
+                "csr_row_ptr", n_rows + 1);
+            col_idx_ = Kokkos::View<index_t*, MemorySpace>(
+                "csr_col_idx", 0);
+            csr_vals_ = Kokkos::View<double*, MemorySpace>(
+                "csr_vals", 0);
+            // row_ptr is already zero-initialized by Kokkos
+            has_csr_ = true;
+            return;
+        }
+
+        // --- Step 1: Build permutation array sorted by (row, col) ---
+        // We sort on the host side using a mirror for portability, then
+        // apply the permutation to build CSR arrays on the target space.
+
+        // Create host mirrors of row and col indices
+        auto h_row = Kokkos::create_mirror_view_and_copy(
+            Kokkos::HostSpace{}, factor_row_);
+        auto h_col = Kokkos::create_mirror_view_and_copy(
+            Kokkos::HostSpace{}, factor_col_);
+        auto h_vals = Kokkos::create_mirror_view_and_copy(
+            Kokkos::HostSpace{}, factor_list_);
+
+        // Build permutation indices on host
+        Kokkos::View<index_t*, Kokkos::HostSpace> h_perm("perm", n_nz);
+        Kokkos::parallel_for(
+            "init_perm",
+            Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace>(0, n_nz),
+            KOKKOS_LAMBDA(const std::size_t i) {
+                h_perm(i) = static_cast<index_t>(i);
+            });
+        Kokkos::fence();
+
+        // Sort permutation by (row, col) using std::sort on the host
+        // This gives us the sorted order without moving the original COO data
+        auto h_perm_ptr = h_perm.data();
+        auto h_row_ptr = h_row.data();
+        auto h_col_ptr = h_col.data();
+        std::sort(h_perm_ptr, h_perm_ptr + n_nz,
+            [h_row_ptr, h_col_ptr](index_t a, index_t b) {
+                if (h_row_ptr[a] != h_row_ptr[b])
+                    return h_row_ptr[a] < h_row_ptr[b];
+                return h_col_ptr[a] < h_col_ptr[b];
+            });
+
+        // --- Step 2: Build CSR arrays on host ---
+        Kokkos::View<index_t*, Kokkos::HostSpace> h_row_ptr_csr(
+            "h_csr_row_ptr", n_rows + 1);
+        Kokkos::View<index_t*, Kokkos::HostSpace> h_col_idx(
+            "h_csr_col_idx", n_nz);
+        Kokkos::View<double*, Kokkos::HostSpace> h_csr_vals(
+            "h_csr_vals", n_nz);
+
+        // Count entries per row
+        for (std::size_t k = 0; k < n_nz; ++k) {
+            const auto row_idx = h_row.data()[h_perm.data()[k]];
+            h_row_ptr_csr.data()[row_idx + 1]++;
+        }
+
+        // Exclusive prefix sum to get row_ptr
+        for (std::size_t i = 0; i < n_rows; ++i) {
+            h_row_ptr_csr.data()[i + 1] += h_row_ptr_csr.data()[i];
+        }
+
+        // Fill sorted col_idx and csr_vals using the permutation
+        for (std::size_t k = 0; k < n_nz; ++k) {
+            const auto orig_idx = h_perm.data()[k];
+            h_col_idx.data()[k] = h_col.data()[orig_idx];
+            h_csr_vals.data()[k] = h_vals.data()[orig_idx];
+        }
+
+        // --- Step 3: Copy CSR arrays to target MemorySpace ---
+        row_ptr_ = Kokkos::View<index_t*, MemorySpace>(
+            "csr_row_ptr", n_rows + 1);
+        col_idx_ = Kokkos::View<index_t*, MemorySpace>(
+            "csr_col_idx", n_nz);
+        csr_vals_ = Kokkos::View<double*, MemorySpace>(
+            "csr_vals", n_nz);
+
+        Kokkos::deep_copy(row_ptr_, h_row_ptr_csr);
+        Kokkos::deep_copy(col_idx_, h_col_idx);
+        Kokkos::deep_copy(csr_vals_, h_csr_vals);
+
+        has_csr_ = true;
+    }
+
+    /// Returns true if the CSR representation has been built via to_csr().
+    [[nodiscard]] bool is_csr() const noexcept {
+        return has_csr_;
+    }
+
+    /// CSR row pointer array: [n_dst+1].
+    /// row_ptr[j] to row_ptr[j+1] spans the entries for destination cell j.
+    /// @pre is_csr() == true
+    [[nodiscard]] Kokkos::View<const index_t*, MemorySpace> row_ptr() const noexcept {
+        return row_ptr_;
+    }
+
+    /// CSR column index array: [nnz]. Sorted by column within each row.
+    /// @pre is_csr() == true
+    [[nodiscard]] Kokkos::View<const index_t*, MemorySpace> col_idx() const noexcept {
+        return col_idx_;
+    }
+
+    /// CSR values array: [nnz]. Entries correspond to col_idx positions.
+    /// @pre is_csr() == true
+    [[nodiscard]] Kokkos::View<const double*, MemorySpace> csr_values() const noexcept {
+        return csr_vals_;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Internal Kokkos::View accessors (for WeightGenerator, apply, and
     // conservation accounting that need direct View access)
     // ─────────────────────────────────────────────────────────────────────────
@@ -188,6 +331,7 @@ public:
     [[nodiscard]] const auto& area_b_view() const noexcept { return area_b_; }
 
 private:
+    // COO storage
     Kokkos::View<double*, MemorySpace>  factor_list_;   ///< weights [nnz]
     Kokkos::View<index_t*, MemorySpace> factor_row_;    ///< destination indices [nnz]
     Kokkos::View<index_t*, MemorySpace> factor_col_;    ///< source indices [nnz]
@@ -197,6 +341,12 @@ private:
     Kokkos::View<double*, MemorySpace>  area_b_;        ///< destination cell areas [n_dst]
     std::size_t n_src_{0};
     std::size_t n_dst_{0};
+
+    // CSR storage (populated by to_csr())
+    Kokkos::View<index_t*, MemorySpace> row_ptr_;       ///< row pointers [n_dst+1]
+    Kokkos::View<index_t*, MemorySpace> col_idx_;       ///< column indices [nnz]
+    Kokkos::View<double*, MemorySpace>  csr_vals_;      ///< values [nnz]
+    bool has_csr_{false};                               ///< CSR representation available
 };
 
 } // namespace axis::solver

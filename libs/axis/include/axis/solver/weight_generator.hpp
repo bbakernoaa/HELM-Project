@@ -130,6 +130,12 @@ private:
     generate_conservative(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
                           const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
                           const RegridConfig& config);
+
+    template <class MemorySpace>
+    static InterpolationMatrix<MemorySpace>
+    generate_conservative_2nd_order(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
+                                    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
+                                    const RegridConfig& config);
 };
 
 } // namespace axis::solver

@@ -62,7 +62,28 @@ RUN git clone https://github.com/emil-e/rapidcheck.git /tmp/rapidcheck \
     && cmake --install build \
     && rm -rf /tmp/rapidcheck
 
-# 5. Workspace Setup
+# 5. Clone and install KokkosKernels (sparse linear algebra — spmv, sort)
+# Provides hardware-tuned SpMV (cuSPARSE on GPU, MKL on CPU) for AXIS CSR apply.
+# Only the Sparse component is enabled — no BLAS/LAPACK/Batched/Graph/ODE.
+RUN git clone --depth 1 https://github.com/kokkos/kokkos-kernels.git /tmp/kokkos-kernels \
+    && cd /tmp/kokkos-kernels \
+    && cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DCMAKE_CXX_STANDARD=20 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DKokkosKernels_ENABLE_ALL_COMPONENTS=OFF \
+    -DKokkosKernels_ENABLE_COMPONENT_SPARSE=ON \
+    -DKokkosKernels_ENABLE_COMPONENT_BLAS=OFF \
+    -DKokkosKernels_ENABLE_COMPONENT_GRAPH=OFF \
+    -DKokkosKernels_ENABLE_COMPONENT_BATCHED=OFF \
+    -DKokkosKernels_ENABLE_COMPONENT_LAPACK=OFF \
+    -DKokkosKernels_ENABLE_COMPONENT_ODE=OFF \
+    -DKokkosKernels_ADD_DEFAULT_ETI=OFF \
+    && cmake --build build --parallel $(nproc) \
+    && cmake --install build \
+    && rm -rf /tmp/kokkos-kernels
+
+# 6. Workspace Setup
 WORKDIR /workspace/helm-project
 
 # Default command to keep the container alive if run detached

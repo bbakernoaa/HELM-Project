@@ -155,19 +155,14 @@ RC_GTEST_PROP(PropUnmappedHandling, ErrorModeThrowsOnDegenerate, ()) {
     config.method = axis::solver::InterpolationMethod::Conservative1stOrder;
     config.unmapped = axis::solver::UnmappedAction::Error;
 
-    // Should throw std::runtime_error for unmapped (zero-area) destination cells
-    bool threw_runtime = false;
-    try {
-        axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-            src_mesh, dst_mesh, config);
-    } catch (const std::runtime_error& e) {
-        threw_runtime = true;
-        // Verify error message contains "unmapped"
-        std::string msg = e.what();
-        RC_ASSERT(msg.find("unmapped") != std::string::npos);
-    }
+    // After DegenerateCellHandler integration (Req 11.1), degenerate destination
+    // cells are excluded before the unmapped check — they do not throw.
+    // The generate should complete without error, producing an empty matrix.
+    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
+        src_mesh, dst_mesh, config);
 
-    RC_ASSERT(threw_runtime);
+    // All destination cells are degenerate, so no weights should be generated.
+    RC_ASSERT(matrix.nnz() == 0);
 }
 
 // ─── Kokkos Initialization ───────────────────────────────────────────────────

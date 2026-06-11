@@ -1,0 +1,128 @@
+# Doxyfile.in for AXIS - Arbitrary eXgrid Interpolation Solver
+#
+# Configured by CMake. Generate via: cmake --build build --target docs
+#
+# Variables substituted by CMake:
+#   @PROJECT_NAME@       — "AXIS"
+#   @PROJECT_VERSION@    — from project(... VERSION ...)
+#   @CMAKE_CURRENT_SOURCE_DIR@ — axis source root
+#   @CMAKE_CURRENT_BINARY_DIR@ — axis build dir
+#   @DOXYGEN_OUTPUT_DIR@ — output path for generated docs
+
+#---------------------------------------------------------------------------
+# Project related configuration options
+#---------------------------------------------------------------------------
+
+PROJECT_NAME           = "@PROJECT_NAME@"
+PROJECT_NUMBER         = @PROJECT_VERSION@
+PROJECT_BRIEF          = "Arbitrary eXgrid Interpolation Solver — stateless spatial regridding for HELM"
+PROJECT_LOGO           =
+
+OUTPUT_DIRECTORY       = @DOXYGEN_OUTPUT_DIR@
+
+#---------------------------------------------------------------------------
+# Build related configuration options
+#---------------------------------------------------------------------------
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = NO
+
+#---------------------------------------------------------------------------
+# Input related configuration options
+#---------------------------------------------------------------------------
+
+INPUT                  = @CMAKE_CURRENT_SOURCE_DIR@/include/axis \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/getting_started.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/mesh_construction.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/weight_generation.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/apply.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/caching.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/masking.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/python_api.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/performance_tuning.md \
+                         @CMAKE_CURRENT_SOURCE_DIR@/docs/migration_v1_to_v2.md
+FILE_PATTERNS          = *.hpp *.md
+RECURSIVE              = YES
+USE_MDFILE_AS_MAINPAGE = @CMAKE_CURRENT_SOURCE_DIR@/docs/getting_started.md
+
+#---------------------------------------------------------------------------
+# Source browsing configuration
+#---------------------------------------------------------------------------
+
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+
+#---------------------------------------------------------------------------
+# Alphabetical index configuration
+#---------------------------------------------------------------------------
+
+ALPHABETICAL_INDEX     = YES
+
+#---------------------------------------------------------------------------
+# HTML output configuration
+#---------------------------------------------------------------------------
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_DYNAMIC_SECTIONS  = YES
+DISABLE_INDEX          = NO
+GENERATE_TREEVIEW      = YES
+
+#---------------------------------------------------------------------------
+# XML output configuration (for downstream consumers)
+#---------------------------------------------------------------------------
+
+GENERATE_XML           = YES
+XML_OUTPUT             = xml
+
+#---------------------------------------------------------------------------
+# LaTeX output configuration
+#---------------------------------------------------------------------------
+
+GENERATE_LATEX         = NO
+
+#---------------------------------------------------------------------------
+# Preprocessor configuration
+#---------------------------------------------------------------------------
+
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = KOKKOS_FUNCTION= \
+                         KOKKOS_INLINE_FUNCTION= \
+                         __cplusplus=202002L \
+                         AXIS_ENABLE_PROJ=1 \
+                         AXIS_HAVE_KOKKOSKERNELS=1
+
+#---------------------------------------------------------------------------
+# Dot tool configuration (for diagrams)
+#---------------------------------------------------------------------------
+
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+
+#---------------------------------------------------------------------------
+# Warning and progress configuration
+#---------------------------------------------------------------------------
+
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+
+#---------------------------------------------------------------------------
+# Sorting configuration
+#---------------------------------------------------------------------------
+
+SORT_MEMBER_DOCS       = YES
+SORT_BRIEF_DOCS        = NO
+SORT_GROUP_NAMES       = NO

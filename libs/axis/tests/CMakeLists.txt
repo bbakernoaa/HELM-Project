@@ -63,6 +63,8 @@ set(AXIS_UNIT_TEST_SOURCES
     test_conservation_norm.cpp
     test_raii_handles.cpp
     test_spherical_geometry.cpp
+    test_gnomonic_projector.cpp
+    test_masking.cpp
 )
 
 add_executable(axis_unit_tests ${AXIS_UNIT_TEST_SOURCES})
@@ -119,6 +121,15 @@ if(rapidcheck_FOUND)
         prop_gmsh_roundtrip.cpp
         prop_descriptor_roundtrip.cpp
         prop_host_device_equivalence.cpp
+        prop_spherical_clipper.cpp
+        prop_true_bilinear.cpp
+        prop_conservative_2nd_order.cpp
+        prop_weight_cache.cpp
+        prop_csr_format.cpp
+        prop_batch_apply.cpp
+        prop_dateline.cpp
+        prop_masking.cpp
+        prop_scrip_egress.cpp
     )
 
     add_executable(axis_property_tests ${AXIS_PROPERTY_TEST_SOURCES})

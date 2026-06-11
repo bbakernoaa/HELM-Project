@@ -26,7 +26,8 @@ enum class InterpolationMethod : std::uint8_t {
     NearestNeighbor,       ///< Nearest source cell centroid to each destination point (weight = 1.0)
     Bicubic,               ///< Bicubic: 4×4 stencil cubic interpolation (CDO remapbic equivalent)
     Patch,                 ///< Patch recovery: least-squares polynomial fit over local patch (ESMF REGRID_METHOD_PATCH)
-    Conservative1stOrder   ///< Area-weighted first-order conservative (overlap-based via ArborX BVH + Sutherland-Hodgman)
+    Conservative1stOrder,  ///< Area-weighted first-order conservative (overlap-based via ArborX BVH + Sutherland-Hodgman)
+    Conservative2ndOrder   ///< Second-order conservative: linear gradient reconstruction + overlap integrals (requires GradientReconstructor)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,10 +68,11 @@ enum class UnmappedAction : std::uint8_t {
 /// Configuration struct capturing all runtime options for weight generation.
 /// Passed by value to WeightGenerator::generate.
 struct RegridConfig {
-    InterpolationMethod method    = InterpolationMethod::Bilinear;
-    NormType            norm_type = NormType::DstArea;
-    LineType            line_type = LineType::GreatCircle;
-    UnmappedAction      unmapped  = UnmappedAction::Ignore;
+    InterpolationMethod method      = InterpolationMethod::Bilinear;
+    NormType            norm_type   = NormType::DstArea;
+    LineType            line_type   = LineType::GreatCircle;
+    UnmappedAction      unmapped    = UnmappedAction::Ignore;
+    bool                use_limiter = false;  ///< Enable Barth-Jespersen monotonicity limiter (Conservative2ndOrder only)
 };
 
 } // namespace axis::solver

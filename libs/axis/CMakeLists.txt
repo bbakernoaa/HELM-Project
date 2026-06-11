@@ -49,6 +49,8 @@ option(AXIS_ENABLE_PROJ "Enable PROJ (libproj) for coordinate projection transfo
 option(BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"              OFF)
 option(BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"               OFF)
 option(BUILD_PYTHON     "Build the nanobind Python bindings"                          OFF)
+option(BUILD_EXAMPLES   "Build runnable documentation examples"                       OFF)
+option(BUILD_BENCHMARKS "Build the AXIS performance benchmark harness"                OFF)
 
 # ##############################################################################
 # Dependency discovery
@@ -56,6 +58,16 @@ option(BUILD_PYTHON     "Build the nanobind Python bindings"                    
 
 # Kokkos — the ONLY required third-party dependency (HELM Law #2).
 find_package(Kokkos REQUIRED)
+
+# KokkosKernels — OPTIONAL accelerator for sparse linear algebra (SpMV, sort).
+# When found, AXIS uses KokkosSparse::spmv for CSR apply instead of hand-rolled
+# TeamPolicy loops. Header-only usage (no ETI).
+find_package(KokkosKernels QUIET)
+if(KokkosKernels_FOUND)
+    message(STATUS "AXIS: KokkosKernels found — using KokkosSparse::spmv for CSR apply")
+else()
+    message(STATUS "AXIS: KokkosKernels not found — using built-in CSR apply")
+endif()
 
 # PROJ — the single OPTIONAL third-party dependency for projection-string
 # coordinate transforms (pure math, no equivalent in AMIO's stack).
@@ -103,6 +115,7 @@ set(AXIS_SOURCES
     src/solver/interpolation_matrix.cpp
     src/solver/halo_pattern.cpp
     src/solver/conservation.cpp
+    src/solver/gradient_reconstructor.cpp
 )
 
 # ##############################################################################
@@ -135,6 +148,12 @@ target_compile_features(axis PUBLIC cxx_std_20)
 
 # Kokkos — PUBLIC so downstream consumers get Kokkos transitively.
 target_link_libraries(axis PUBLIC Kokkos::kokkos)
+
+# KokkosKernels — PUBLIC for KokkosSparse::spmv in apply.hpp (header-only).
+if(KokkosKernels_FOUND)
+    target_link_libraries(axis PUBLIC Kokkos::kokkoskernels)
+    target_compile_definitions(axis PUBLIC AXIS_HAVE_KOKKOSKERNELS=1)
+endif()
 
 # ArborX — PRIVATE (vendored, header-only BVH for spatial search in WeightGenerator).
 target_link_libraries(axis PRIVATE ArborX::ArborX)
@@ -188,6 +207,29 @@ if(BUILD_PYTHON)
 endif()
 
 # ##############################################################################
+# Documentation (optional — requires Doxygen)
+# ##############################################################################
+
+find_package(Doxygen QUIET)
+if(DOXYGEN_FOUND)
+    set(DOXYGEN_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/docs")
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in
+        ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+        @ONLY
+    )
+    add_custom_target(docs
+        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Generating AXIS API documentation with Doxygen..."
+        VERBATIM
+    )
+    message(STATUS "AXIS: Doxygen found — 'docs' target available (cmake --build build --target docs)")
+else()
+    message(STATUS "AXIS: Doxygen not found — 'docs' target disabled (documentation build skipped)")
+endif()
+
+# ##############################################################################
 # Tier 1 Isolation Scan (HELM Law #4 — static verification)
 # ##############################################################################
 
@@ -213,11 +255,27 @@ set_tests_properties(TierIsolationScan PROPERTIES
 )
 
 # ##############################################################################
+# Examples (runnable documentation)
+# ##############################################################################
+
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
+# ##############################################################################
 # Testing
 # ##############################################################################
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
+endif()
+
+# ##############################################################################
+# Benchmarks
+# ##############################################################################
+
+if(BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 # ##############################################################################
@@ -287,6 +345,10 @@ message(STATUS "AXIS ${PROJECT_VERSION} configuration summary")
 message(STATUS "  C++ standard    : C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  PROJ enabled    : ${AXIS_ENABLE_PROJ}")
 message(STATUS "  Build testing   : ${BUILD_TESTING}")
+message(STATUS "  Build benchmarks: ${BUILD_BENCHMARKS}")
+message(STATUS "  Build examples  : ${BUILD_EXAMPLES}")
 message(STATUS "  Build Fortran   : ${BUILD_FORTRAN}")
+message(STATUS "  Build Python    : ${BUILD_PYTHON}")
+message(STATUS "  Doxygen docs    : ${DOXYGEN_FOUND}")
 message(STATUS "  Install prefix  : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "")
