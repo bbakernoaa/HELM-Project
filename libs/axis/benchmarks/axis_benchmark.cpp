@@ -12,6 +12,8 @@
 ///   4. csr_apply_O96             — CSR-format apply O96→O96
 ///   5. conservative_1440x720_to_720x360  — Conservative 1st-order F720→F360 (Requirement 6.1)
 ///   6. conservative_3600x1800_to_1440x720 — Conservative 1st-order F1800→F720 (Requirement 6.5)
+///   7. bilinear_3600x1800_to_1440x720 — Bilinear fast-path F1800→F720 (Requirement 6.1)
+///   8. bilinear_1440x720_to_720x360   — Bilinear fast-path F720→F360 (Requirement 6.2)
 ///
 /// All benchmarks use Kokkos::HostSpace for reproducible timing across CI
 /// environments (Requirement 13.5).
@@ -338,6 +340,86 @@ BenchmarkResult bench_conservative_3600x1800_to_1440x720(const std::string& comm
     };
 }
 
+/// Case 7: Bilinear fast-path F1800→F720 (3600×1800 to 1440×720)
+/// Exercises the regular-grid bilinear fast-path on a large grid pair.
+/// Target: ≤ 900ms wall-clock (Requirement 6.1).
+BenchmarkResult bench_bilinear_3600x1800_to_1440x720(const std::string& commit, const std::string& date) {
+    using MS = Kokkos::HostSpace;
+
+    // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
+    auto src_mesh = axis::topology::NamedGridRegistry::generate<MS>("F1800");
+    auto dst_mesh = axis::topology::NamedGridRegistry::generate<MS>("F720");
+
+    // Configure bilinear regridding
+    axis::solver::RegridConfig config;
+    config.method   = axis::solver::InterpolationMethod::Bilinear;
+    config.unmapped = axis::solver::UnmappedAction::Ignore;
+
+    // Warmup
+    axis::solver::InterpolationMatrix<MS> matrix;
+    for (int i = 0; i < WARMUP_ITERS; ++i) {
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+    }
+
+    // Timed iterations
+    Timer timer;
+    double total_ms = 0.0;
+    for (int i = 0; i < BENCH_ITERS; ++i) {
+        timer.start();
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+        Kokkos::fence("bench_bilinear_3600x1800_to_1440x720_complete");
+        timer.stop();
+        total_ms += timer.elapsed_ms();
+    }
+
+    return BenchmarkResult{
+        "bilinear_3600x1800_to_1440x720",
+        total_ms / BENCH_ITERS,
+        date,
+        commit
+    };
+}
+
+/// Case 8: Bilinear fast-path F720→F360 (1440×720 to 720×360)
+/// Exercises the regular-grid bilinear fast-path on a medium grid pair.
+/// Target: ≤ 250ms wall-clock (Requirement 6.2).
+BenchmarkResult bench_bilinear_1440x720_to_720x360(const std::string& commit, const std::string& date) {
+    using MS = Kokkos::HostSpace;
+
+    // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
+    auto src_mesh = axis::topology::NamedGridRegistry::generate<MS>("F720");
+    auto dst_mesh = axis::topology::NamedGridRegistry::generate<MS>("F360");
+
+    // Configure bilinear regridding
+    axis::solver::RegridConfig config;
+    config.method   = axis::solver::InterpolationMethod::Bilinear;
+    config.unmapped = axis::solver::UnmappedAction::Ignore;
+
+    // Warmup
+    axis::solver::InterpolationMatrix<MS> matrix;
+    for (int i = 0; i < WARMUP_ITERS; ++i) {
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+    }
+
+    // Timed iterations
+    Timer timer;
+    double total_ms = 0.0;
+    for (int i = 0; i < BENCH_ITERS; ++i) {
+        timer.start();
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+        Kokkos::fence("bench_bilinear_1440x720_to_720x360_complete");
+        timer.stop();
+        total_ms += timer.elapsed_ms();
+    }
+
+    return BenchmarkResult{
+        "bilinear_1440x720_to_720x360",
+        total_ms / BENCH_ITERS,
+        date,
+        commit
+    };
+}
+
 /// Case 4: CSR apply O96→O96
 BenchmarkResult bench_csr_apply_O96(const std::string& commit, const std::string& date) {
     using MS = Kokkos::HostSpace;
@@ -438,35 +520,45 @@ int main(int argc, char* argv[]) {
         std::cout << "\n";
 
         // Run benchmark cases
-        std::cout << "[1/6] bilinear_O48_to_O96 ..." << std::flush;
+        std::cout << "[1/8] bilinear_O48_to_O96 ..." << std::flush;
         auto r1 = bench_bilinear_O48_to_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r1.wall_clock_ms << " ms\n";
         results.push_back(r1);
 
-        std::cout << "[2/6] conservative_O48_to_O96 ..." << std::flush;
+        std::cout << "[2/8] conservative_O48_to_O96 ..." << std::flush;
         auto r2 = bench_conservative_O48_to_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r2.wall_clock_ms << " ms\n";
         results.push_back(r2);
 
-        std::cout << "[3/6] batch_apply_10vars_O96_to_O96 ..." << std::flush;
+        std::cout << "[3/8] batch_apply_10vars_O96_to_O96 ..." << std::flush;
         auto r3 = bench_batch_apply_10vars_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r3.wall_clock_ms << " ms\n";
         results.push_back(r3);
 
-        std::cout << "[4/6] csr_apply_O96_to_O96 ..." << std::flush;
+        std::cout << "[4/8] csr_apply_O96_to_O96 ..." << std::flush;
         auto r4 = bench_csr_apply_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r4.wall_clock_ms << " ms\n";
         results.push_back(r4);
 
-        std::cout << "[5/6] conservative_1440x720_to_720x360 ..." << std::flush;
+        std::cout << "[5/8] conservative_1440x720_to_720x360 ..." << std::flush;
         auto r5 = bench_conservative_1440x720_to_720x360(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r5.wall_clock_ms << " ms\n";
         results.push_back(r5);
 
-        std::cout << "[6/6] conservative_3600x1800_to_1440x720 ..." << std::flush;
+        std::cout << "[6/8] conservative_3600x1800_to_1440x720 ..." << std::flush;
         auto r6 = bench_conservative_3600x1800_to_1440x720(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r6.wall_clock_ms << " ms\n";
         results.push_back(r6);
+
+        std::cout << "[7/8] bilinear_3600x1800_to_1440x720 ..." << std::flush;
+        auto r7 = bench_bilinear_3600x1800_to_1440x720(cli.commit, date);
+        std::cout << " " << std::fixed << std::setprecision(2) << r7.wall_clock_ms << " ms\n";
+        results.push_back(r7);
+
+        std::cout << "[8/8] bilinear_1440x720_to_720x360 ..." << std::flush;
+        auto r8 = bench_bilinear_1440x720_to_720x360(cli.commit, date);
+        std::cout << " " << std::fixed << std::setprecision(2) << r8.wall_clock_ms << " ms\n";
+        results.push_back(r8);
 
         std::cout << "\nDone.\n";
 

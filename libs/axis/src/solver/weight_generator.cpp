@@ -1464,6 +1464,17 @@ WeightGenerator::generate_nearest(
 // the poles because the shape function formulation is purely algebraic.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Forward declaration: bilinear regular-grid fast-path (defined in
+// weight_generator_bilinear_rect.cpp).
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace>
+generate_bilinear_rect(
+    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
+    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
+    const RegridConfig& config,
+    const detail::RegularGridInfo& src_grid_info,
+    const detail::RegularGridInfo& dst_grid_info);
+
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace>
 WeightGenerator::generate_bilinear(
@@ -1481,6 +1492,24 @@ WeightGenerator::generate_bilinear(
     // ── Host-space path (original implementation) ──
     using HostSpace = Kokkos::HostSpace;
     using Point2    = ArborX::Point<2>;
+
+    // ── Regular-grid fast-path dispatch ──
+    // If both source and destination are regular lat-lon grids, use analytic
+    // index arithmetic instead of BVH. No ArborX allocation occurs in this path.
+    auto src_grid_info = detail::detect_regular_grid(src_mesh);
+    auto dst_grid_info = detail::detect_regular_grid(dst_mesh);
+    if (src_grid_info.is_regular && dst_grid_info.is_regular) {
+        auto result = generate_bilinear_rect(src_mesh, dst_mesh, config,
+                                             src_grid_info, dst_grid_info);
+        // A default-constructed InterpolationMatrix (n_dst == 0) signals
+        // degenerate grid — fall through to BVH. Any matrix with valid
+        // n_dst > 0 is a legitimate result (even if nnz == 0 because all
+        // destination cells were unmapped under Ignore policy).
+        if (result.n_dst() > 0) {
+            return result;
+        }
+        // Empty result = fallback signal; continue to BVH path
+    }
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();

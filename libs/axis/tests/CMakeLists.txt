@@ -53,6 +53,7 @@ set(AXIS_UNIT_TEST_SOURCES
     test_conservation.cpp
     test_constant_field.cpp
     test_bilinear_exactness.cpp
+    test_bilinear_rect.cpp
     test_spmv_apply.cpp
     test_descriptor_roundtrip.cpp
     test_producer_equivalence.cpp
@@ -142,6 +143,12 @@ if(rapidcheck_FOUND)
         prop_morton_sort.cpp
         prop_conservation_optimized.cpp
         prop_optimized_equivalence.cpp
+        prop_bilinear_rect_unity.cpp
+        prop_bilinear_rect_agreement.cpp
+        prop_bilinear_rect_sparsity.cpp
+        prop_bilinear_rect_periodic.cpp
+        prop_bilinear_rect_unmapped.cpp
+        prop_bilinear_rect_cell_location.cpp
     )
 
     add_executable(axis_property_tests ${AXIS_PROPERTY_TEST_SOURCES})
