@@ -154,3 +154,183 @@ TEST(ScopedContextExceptionUnwind, PreExistingContextPreservedAfterUnwind) {
 }
 
 } // namespace
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Property 31 — Context Capture Ordered Outermost-to-Innermost
+//
+// Task 18.3: Verify active labels carried in outermost-to-innermost order;
+//            empty when no context active.
+// **Validates: Requirements 1.4, 8.4, 8.10**
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#include <logs/logger.hpp>
+#include "in_memory_sink.hpp"
+
+#include <rapidcheck.h>
+#include <rapidcheck/gtest.h>
+
+#include <algorithm>
+#include <regex>
+#include <string>
+#include <vector>
+
+namespace {
+
+/// Helper: generate a non-empty printable ASCII string for context capture tests.
+static rc::Gen<std::string> genPrintableMessage() {
+    return rc::gen::map(
+        rc::gen::nonEmpty(
+            rc::gen::container<std::string>(rc::gen::inRange(33, 127))),
+        [](std::string s) { return s; });
+}
+
+/// Helper: Extract context bracket content from a formatted log line.
+/// Format is: [RANK:XXXX] [SEVERITY] [label1 > label2 > ...] message\n
+/// Returns empty vector if no context bracket is present.
+std::vector<std::string> extract_context_labels(const std::string& formatted) {
+    // Look for the third bracket group: [label1 > label2 > ...]
+    // The format is: [RANK:...] [SEV] [ctx1 > ctx2] message
+    // We search for a bracket that is NOT rank or severity.
+    std::vector<std::string> labels;
+
+    // Find all [...] sections
+    std::size_t pos = 0;
+    int bracket_count = 0;
+    while (pos < formatted.size()) {
+        auto open = formatted.find('[', pos);
+        if (open == std::string::npos) break;
+        auto close = formatted.find(']', open);
+        if (close == std::string::npos) break;
+
+        ++bracket_count;
+        // The third bracket (if present) is the context bracket.
+        if (bracket_count == 3) {
+            std::string content = formatted.substr(open + 1, close - open - 1);
+            // Split by " > "
+            std::size_t split_pos = 0;
+            while (split_pos < content.size()) {
+                auto sep = content.find(" > ", split_pos);
+                if (sep == std::string::npos) {
+                    labels.push_back(content.substr(split_pos));
+                    break;
+                }
+                labels.push_back(content.substr(split_pos, sep - split_pos));
+                split_pos = sep + 3; // skip " > "
+            }
+            return labels;
+        }
+        pos = close + 1;
+    }
+
+    return labels; // empty = no context bracket
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Property 31: Context Capture Ordered Outermost-to-Innermost
+// **Validates: Requirements 1.4, 8.4, 8.10**
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// For any sequence of nested Scoped_Context objects with random labels,
+/// verify the formatted output carries labels in outermost-to-innermost order.
+RC_GTEST_PROP(ContextCaptureProperty,
+              NestedLabelsAppearOutermostToInnermost,
+              ()) {
+    // Generate 1..8 non-empty labels (avoid labels containing "]" or " > "
+    // which would confuse parsing).
+    const auto label_count = *rc::gen::inRange(1, 9);
+    std::vector<std::string> labels;
+    labels.reserve(static_cast<std::size_t>(label_count));
+
+    for (int i = 0; i < label_count; ++i) {
+        auto label = *rc::gen::suchThat(
+            rc::gen::nonEmpty<std::string>(),
+            [](const std::string& s) {
+                // Avoid characters that would break bracket parsing.
+                return s.find(']') == std::string::npos &&
+                       s.find('[') == std::string::npos &&
+                       s.find(" > ") == std::string::npos &&
+                       s.find('\n') == std::string::npos &&
+                       s.find('\0') == std::string::npos &&
+                       s.size() <= 64; // keep labels short for readability
+            });
+        labels.push_back(std::move(label));
+    }
+
+    // Create Logger with an in-memory sink.
+    logs::Logger logger;
+    logs::testing::In_Memory_Sink mem_sink;
+    logger.add_sink(mem_sink.sink());
+
+    // Create nested Scoped_Context objects (outermost first).
+    // We use a vector of unique_ptr to manage their lifetime in order.
+    std::vector<std::unique_ptr<logs::Scoped_Context>> contexts;
+    contexts.reserve(labels.size());
+    for (const auto& lbl : labels) {
+        contexts.push_back(std::make_unique<logs::Scoped_Context>(lbl));
+    }
+
+    // Emit a record — it should capture all active context labels.
+    logger.log(logs::Severity_Level::INFO, "context capture test");
+
+    RC_ASSERT(mem_sink.count() == 1u);
+
+    // Parse the formatted output and extract context labels.
+    const auto all_entries = mem_sink.entries();
+    const std::string& output = all_entries[0];
+    std::vector<std::string> captured = extract_context_labels(output);
+
+    // Verify: captured labels match in outermost-to-innermost order.
+    RC_ASSERT(captured.size() == labels.size());
+    for (std::size_t i = 0; i < labels.size(); ++i) {
+        RC_ASSERT(captured[i] == labels[i]);
+    }
+
+    // Clean up contexts in reverse order (innermost first) to maintain RAII.
+    while (!contexts.empty()) {
+        contexts.pop_back();
+    }
+}
+
+/// With no active labels, verify no context bracket appears in the output.
+RC_GTEST_PROP(ContextCaptureProperty,
+              NoActiveContextProducesNoContextBracket,
+              ()) {
+    logs::Logger logger;
+    logs::testing::In_Memory_Sink mem_sink;
+    logger.add_sink(mem_sink.sink());
+
+    // Generate a printable message without bracket characters to avoid
+    // confusing the bracket-based parsing logic.
+    const auto msg = *rc::gen::nonEmpty(
+        rc::gen::container<std::string>(
+            rc::gen::suchThat(rc::gen::inRange(33, 127),
+                              [](int c) { return c != '[' && c != ']'; })));
+
+    // Emit with no Scoped_Context active.
+    logger.log(logs::Severity_Level::INFO, msg);
+
+    RC_ASSERT(mem_sink.count() == 1u);
+
+    const auto all_entries = mem_sink.entries();
+    const std::string& output = all_entries[0];
+    std::vector<std::string> captured = extract_context_labels(output);
+
+    // With no context, the third bracket should not exist — captured is empty.
+    RC_ASSERT(captured.empty());
+
+    // Verify the format has exactly 2 bracket sections: [RANK:...] [SEV]
+    // (valid since we excluded brackets from the message itself)
+    int bracket_count = 0;
+    std::size_t pos = 0;
+    while (pos < output.size()) {
+        auto open = output.find('[', pos);
+        if (open == std::string::npos) break;
+        auto close = output.find(']', open);
+        if (close == std::string::npos) break;
+        ++bracket_count;
+        pos = close + 1;
+    }
+    RC_ASSERT(bracket_count == 2);
+}
+
+} // namespace

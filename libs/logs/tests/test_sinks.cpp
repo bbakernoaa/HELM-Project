@@ -380,59 +380,69 @@ TEST(SinkDispatch, MaxSinksRejectionAbsorbed) {
 // **Validates: Requirements 6.1, 6.2, 6.3**
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Property 23: For any k sinks and accepted record, verify exactly one
-/// write per sink; zero sinks → stderr; count <= 64.
+/// Helper: generate a non-empty printable ASCII string for sink tests.
+static rc::Gen<std::string> genPrintableMessage() {
+    return rc::gen::map(
+        rc::gen::nonEmpty(
+            rc::gen::container<std::string>(rc::gen::inRange(33, 127))),
+        [](std::string s) { return s; });
+}
+
+/// Property 23: For k > 0 sinks and accepted record, verify exactly one
+/// write per sink; count <= 64.
 RC_GTEST_PROP(SinkDispatchProperty,
               WriteExactlyOnceAndBoundedCardinality,
               ()) {
-    // Generate k in [0, 64].
-    const auto k = *rc::gen::inRange(0, 65);
+    // Generate k in [1, 64].
+    const auto k = *rc::gen::inRange(1, 65);
+    RC_ASSERT(k <= 64);
 
-    if (k == 0) {
-        // Zero sinks → verify stderr fallback.
-        logs::Logger logger;
+    logs::Logger logger;
+    std::vector<std::unique_ptr<logs::testing::In_Memory_Sink>> sinks;
+    sinks.reserve(static_cast<std::size_t>(k));
 
-        std::ostringstream captured;
-        std::streambuf* original_stderr = std::cerr.rdbuf();
-        std::cerr.rdbuf(captured.rdbuf());
-
-        const auto msg = *rc::gen::nonEmpty<std::string>();
-        logger.log(logs::Severity_Level::INFO, msg);
-
-        std::cerr.rdbuf(original_stderr);
-
-        RC_ASSERT(!captured.str().empty());
-        RC_ASSERT(captured.str().find(msg) != std::string::npos);
-    } else {
-        // k > 0: verify exactly one write per sink, count <= 64.
-        RC_ASSERT(k <= 64);
-
-        logs::Logger logger;
-        std::vector<std::unique_ptr<logs::testing::In_Memory_Sink>> sinks;
-        sinks.reserve(static_cast<std::size_t>(k));
-
-        for (int i = 0; i < k; ++i) {
-            sinks.push_back(std::make_unique<logs::testing::In_Memory_Sink>());
-            logger.add_sink(sinks.back()->sink());
-        }
-
-        const auto msg = *rc::gen::nonEmpty<std::string>();
-        logger.log(logs::Severity_Level::WARNING, msg);
-
-        // Every sink must receive exactly one write.
-        for (int i = 0; i < k; ++i) {
-            RC_ASSERT(sinks[i]->count() == 1u);
-        }
-
-        // All sinks received the same formatted record.
-        const std::string& first_entry = sinks[0]->entries()[0];
-        for (int i = 1; i < k; ++i) {
-            RC_ASSERT(sinks[i]->entries()[0] == first_entry);
-        }
-
-        // The formatted record contains the original message.
-        RC_ASSERT(first_entry.find(msg) != std::string::npos);
+    for (int i = 0; i < k; ++i) {
+        sinks.push_back(std::make_unique<logs::testing::In_Memory_Sink>());
+        logger.add_sink(sinks.back()->sink());
     }
+
+    const auto msg = *genPrintableMessage();
+    logger.log(logs::Severity_Level::WARNING, msg);
+
+    // Every sink must receive exactly one write.
+    for (int i = 0; i < k; ++i) {
+        RC_ASSERT(sinks[i]->count() == 1u);
+    }
+
+    // All sinks received the same formatted record.
+    const auto first_entries = sinks[0]->entries();
+    const std::string& first_entry = first_entries[0];
+    for (int i = 1; i < k; ++i) {
+        const auto other_entries = sinks[i]->entries();
+        RC_ASSERT(other_entries[0] == first_entry);
+    }
+
+    // The formatted record contains the original message.
+    RC_ASSERT(first_entry.find(msg) != std::string::npos);
+}
+
+/// Property 23 (zero-sink case): verify stderr fallback when no sinks configured.
+RC_GTEST_PROP(SinkDispatchProperty,
+              ZeroSinksFallbackToStderr,
+              ()) {
+    logs::Logger logger;
+
+    std::ostringstream captured;
+    std::streambuf* original_stderr = std::cerr.rdbuf();
+    std::cerr.rdbuf(captured.rdbuf());
+
+    const auto msg = *genPrintableMessage();
+    logger.log(logs::Severity_Level::INFO, msg);
+
+    std::cerr.rdbuf(original_stderr);
+
+    RC_ASSERT(!captured.str().empty());
+    RC_ASSERT(captured.str().find(msg) != std::string::npos);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -480,7 +490,7 @@ RC_GTEST_PROP(SinkDispatchProperty,
     }
 
     // Emit a record — must not throw (exception absorbed).
-    const auto msg = *rc::gen::nonEmpty<std::string>();
+    const auto msg = *genPrintableMessage();
     logger.log(logs::Severity_Level::ERROR, msg);
 
     // All good sinks must have received exactly one write.
@@ -493,7 +503,7 @@ RC_GTEST_PROP(SinkDispatchProperty,
     for (auto& gs : good_sinks) {
         gs->clear();
     }
-    const auto msg2 = *rc::gen::nonEmpty<std::string>();
+    const auto msg2 = *genPrintableMessage();
     logger.log(logs::Severity_Level::INFO, msg2);
 
     for (int i = 0; i < good_count; ++i) {

@@ -129,6 +129,11 @@ if(TARGET test_sinks)
     target_link_libraries(test_sinks PRIVATE rapidcheck)
 endif()
 
+# test_scoped_context uses RapidCheck for property-based context capture tests.
+if(TARGET test_scoped_context)
+    target_link_libraries(test_scoped_context PRIVATE rapidcheck)
+endif()
+
 # test_stack_trace uses RapidCheck for property-based stack-trace attachment test.
 if(TARGET test_stack_trace)
     target_link_libraries(test_stack_trace PRIVATE rapidcheck)
