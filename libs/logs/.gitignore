@@ -1,0 +1,65 @@
+# ===================================================================
+# LOGS .gitignore
+# ===================================================================
+
+# --- Editor / OS ---
+*~
+.sw[a-p]
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.kate-swp
+
+# --- Kiro ---
+.kiro/
+
+# --- CMake build directories ---
+build/
+_build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# --- Compiled objects / libraries / executables ---
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# --- Pre-compiled headers ---
+*.gch
+*.pch
+
+# --- Coverage / profiling ---
+*.gcda
+*.gcno
+*.gcov
+coverage/
+lcov.info
+
+# --- Debug ---
+*.dSYM/
+core
+core.*
+
+# --- Misc ---
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej

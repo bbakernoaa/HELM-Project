@@ -1,0 +1,27 @@
+@PACKAGE_INIT@
+
+####################################################################
+# LOGSConfig.cmake
+#
+# Provides the imported target for downstream consumers:
+#
+#   HELM::LOGS  — SHARED library; thread-safe MPI-rank-aware logging.
+#
+# Consumers should write:
+#
+#   find_package(LOGS REQUIRED)
+#   target_link_libraries(my_app PRIVATE HELM::LOGS)
+#
+# MPI (CXX component) is a transitive PUBLIC dependency and will be
+# located automatically by this config file.  No manual MPI setup is
+# required by the consumer.
+####################################################################
+
+include(CMakeFindDependencyMacro)
+
+# LOGS links MPI::MPI_CXX as PUBLIC — propagate the requirement.
+find_dependency(MPI REQUIRED COMPONENTS CXX)
+
+include("${CMAKE_CURRENT_LIST_DIR}/LOGSTargets.cmake")
+
+check_required_components(LOGS)
