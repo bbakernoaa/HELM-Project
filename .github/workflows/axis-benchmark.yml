@@ -4,13 +4,15 @@
 # Performance regression detection for the AXIS interpolation library.
 # Runs on every merge to main and compares against stored baselines.
 #
-# Benchmark cases (Requirement 13.1):
+# Benchmark cases (Requirement 13.1, 6.1):
 #   1. Bilinear O48→O96
 #   2. Conservative O48→O96
 #   3. Batch apply 10 vars O96→O96
 #   4. CSR apply O96→O96
+#   5. Conservative 1440×720→720×360
+#   6. Conservative 3600×1800→1440×720
 #
-# Regression threshold: 10% above baseline (Requirement 13.2)
+# Regression threshold: 15% above baseline (Requirement 6.3)
 # Execution: Kokkos::HostSpace for reproducibility (Requirement 13.5)
 # Output: JSON with case name, wall_clock_ms, date, commit (Requirement 13.3)
 # Manual dispatch: update baseline (Requirement 13.4)
@@ -74,7 +76,7 @@ jobs:
               --output /workspace/helm-project/benchmark_results.json
           '
 
-      # Compare against baseline; fail if regression >10% (Requirements 13.2, 13.6).
+      # Compare against baseline; fail if regression >15% (Requirements 6.2, 6.3, 13.6).
       - name: "Check for regressions"
         if: ${{ github.event.inputs.update_baseline != 'true' }}
         run: |
@@ -84,7 +86,7 @@ jobs:
           import json
           import sys
 
-          REGRESSION_THRESHOLD = 0.10  # 10%
+          REGRESSION_THRESHOLD = 0.15  # 15%
 
           # Load baseline
           try:

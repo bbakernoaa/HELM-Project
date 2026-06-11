@@ -65,6 +65,11 @@ set(AXIS_UNIT_TEST_SOURCES
     test_spherical_geometry.cpp
     test_gnomonic_projector.cpp
     test_masking.cpp
+    test_morton_sort.cpp
+    test_planar_clipper.cpp
+    test_regular_grid_detector.cpp
+    test_trig_cache.cpp
+    test_spherical_cap_filter.cpp
 )
 
 add_executable(axis_unit_tests ${AXIS_UNIT_TEST_SOURCES})
@@ -130,6 +135,13 @@ if(rapidcheck_FOUND)
         prop_dateline.cpp
         prop_masking.cpp
         prop_scrip_egress.cpp
+        prop_regular_grid_detector.cpp
+        prop_planar_clipper.cpp
+        prop_spherical_cap_filter.cpp
+        prop_trig_cache.cpp
+        prop_morton_sort.cpp
+        prop_conservation_optimized.cpp
+        prop_optimized_equivalence.cpp
     )
 
     add_executable(axis_property_tests ${AXIS_PROPERTY_TEST_SOURCES})

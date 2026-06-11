@@ -10,6 +10,8 @@
 ///   2. conservative_O48_to_O96   — Conservative 1st-order O48→O96
 ///   3. batch_apply_10vars_O96    — Batch apply 10 variables O96→O96
 ///   4. csr_apply_O96             — CSR-format apply O96→O96
+///   5. conservative_1440x720_to_720x360  — Conservative 1st-order F720→F360 (Requirement 6.1)
+///   6. conservative_3600x1800_to_1440x720 — Conservative 1st-order F1800→F720 (Requirement 6.5)
 ///
 /// All benchmarks use Kokkos::HostSpace for reproducible timing across CI
 /// environments (Requirement 13.5).
@@ -254,6 +256,88 @@ BenchmarkResult bench_batch_apply_10vars_O96(const std::string& commit, const st
     };
 }
 
+/// Case 5: Conservative 1st-order F720→F360 (1440×720 to 720×360)
+/// Triggers the regular-grid rectangle fast-path since both are F-family (regular lat-lon).
+BenchmarkResult bench_conservative_1440x720_to_720x360(const std::string& commit, const std::string& date) {
+    using MS = Kokkos::HostSpace;
+
+    // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
+    auto src_mesh = axis::topology::NamedGridRegistry::generate<MS>("F720");
+    auto dst_mesh = axis::topology::NamedGridRegistry::generate<MS>("F360");
+
+    // Configure conservative 1st-order with Cartesian line type
+    axis::solver::RegridConfig config;
+    config.method    = axis::solver::InterpolationMethod::Conservative1stOrder;
+    config.norm_type = axis::solver::NormType::DstArea;
+    config.line_type = axis::solver::LineType::Cartesian;
+    config.unmapped  = axis::solver::UnmappedAction::Ignore;
+
+    // Warmup
+    axis::solver::InterpolationMatrix<MS> matrix;
+    for (int i = 0; i < WARMUP_ITERS; ++i) {
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+    }
+
+    // Timed iterations
+    Timer timer;
+    double total_ms = 0.0;
+    for (int i = 0; i < BENCH_ITERS; ++i) {
+        timer.start();
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+        Kokkos::fence("bench_conservative_1440x720_to_720x360_complete");
+        timer.stop();
+        total_ms += timer.elapsed_ms();
+    }
+
+    return BenchmarkResult{
+        "conservative_1440x720_to_720x360",
+        total_ms / BENCH_ITERS,
+        date,
+        commit
+    };
+}
+
+/// Case 6: Conservative 1st-order F1800→F720 (3600×1800 to 1440×720)
+/// CDO-competitive target (Requirement 6.5).
+BenchmarkResult bench_conservative_3600x1800_to_1440x720(const std::string& commit, const std::string& date) {
+    using MS = Kokkos::HostSpace;
+
+    // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
+    auto src_mesh = axis::topology::NamedGridRegistry::generate<MS>("F1800");
+    auto dst_mesh = axis::topology::NamedGridRegistry::generate<MS>("F720");
+
+    // Configure conservative 1st-order with Cartesian line type
+    axis::solver::RegridConfig config;
+    config.method    = axis::solver::InterpolationMethod::Conservative1stOrder;
+    config.norm_type = axis::solver::NormType::DstArea;
+    config.line_type = axis::solver::LineType::Cartesian;
+    config.unmapped  = axis::solver::UnmappedAction::Ignore;
+
+    // Warmup
+    axis::solver::InterpolationMatrix<MS> matrix;
+    for (int i = 0; i < WARMUP_ITERS; ++i) {
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+    }
+
+    // Timed iterations
+    Timer timer;
+    double total_ms = 0.0;
+    for (int i = 0; i < BENCH_ITERS; ++i) {
+        timer.start();
+        matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
+        Kokkos::fence("bench_conservative_3600x1800_to_1440x720_complete");
+        timer.stop();
+        total_ms += timer.elapsed_ms();
+    }
+
+    return BenchmarkResult{
+        "conservative_3600x1800_to_1440x720",
+        total_ms / BENCH_ITERS,
+        date,
+        commit
+    };
+}
+
 /// Case 4: CSR apply O96→O96
 BenchmarkResult bench_csr_apply_O96(const std::string& commit, const std::string& date) {
     using MS = Kokkos::HostSpace;
@@ -354,25 +438,35 @@ int main(int argc, char* argv[]) {
         std::cout << "\n";
 
         // Run benchmark cases
-        std::cout << "[1/4] bilinear_O48_to_O96 ..." << std::flush;
+        std::cout << "[1/6] bilinear_O48_to_O96 ..." << std::flush;
         auto r1 = bench_bilinear_O48_to_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r1.wall_clock_ms << " ms\n";
         results.push_back(r1);
 
-        std::cout << "[2/4] conservative_O48_to_O96 ..." << std::flush;
+        std::cout << "[2/6] conservative_O48_to_O96 ..." << std::flush;
         auto r2 = bench_conservative_O48_to_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r2.wall_clock_ms << " ms\n";
         results.push_back(r2);
 
-        std::cout << "[3/4] batch_apply_10vars_O96_to_O96 ..." << std::flush;
+        std::cout << "[3/6] batch_apply_10vars_O96_to_O96 ..." << std::flush;
         auto r3 = bench_batch_apply_10vars_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r3.wall_clock_ms << " ms\n";
         results.push_back(r3);
 
-        std::cout << "[4/4] csr_apply_O96_to_O96 ..." << std::flush;
+        std::cout << "[4/6] csr_apply_O96_to_O96 ..." << std::flush;
         auto r4 = bench_csr_apply_O96(cli.commit, date);
         std::cout << " " << std::fixed << std::setprecision(2) << r4.wall_clock_ms << " ms\n";
         results.push_back(r4);
+
+        std::cout << "[5/6] conservative_1440x720_to_720x360 ..." << std::flush;
+        auto r5 = bench_conservative_1440x720_to_720x360(cli.commit, date);
+        std::cout << " " << std::fixed << std::setprecision(2) << r5.wall_clock_ms << " ms\n";
+        results.push_back(r5);
+
+        std::cout << "[6/6] conservative_3600x1800_to_1440x720 ..." << std::flush;
+        auto r6 = bench_conservative_3600x1800_to_1440x720(cli.commit, date);
+        std::cout << " " << std::fixed << std::setprecision(2) << r6.wall_clock_ms << " ms\n";
+        results.push_back(r6);
 
         std::cout << "\nDone.\n";
 

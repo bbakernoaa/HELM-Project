@@ -35,10 +35,14 @@
 
 #include <axis/detail/dateline_handler.hpp>
 #include <axis/detail/degenerate_cell_handler.hpp>
+#include <axis/detail/morton_sort.hpp>
+#include <axis/detail/planar_clipper.hpp>
+#include <axis/detail/regular_grid_detector.hpp>
+#include <axis/detail/spherical_cap_filter.hpp>
 #include <axis/detail/spherical_clipper.hpp>
 #include <axis/detail/spherical_geometry.hpp>
+#include <axis/detail/trig_cache.hpp>
 
-#include <axis/detail/spherical_clipper.hpp>
 #include <axis/solver/gradient_reconstructor.hpp>
 
 namespace axis::solver {
@@ -360,6 +364,47 @@ extract_cell_polygon_spherical(const topology::UnstructuredMesh<MemorySpace>& me
             }
         }
     }
+    return poly;
+}
+
+/// Extract cell polygon for a regular-grid cell using cached trig values.
+/// For a regular lat-lon grid, cell (ci, cj) has 4 vertices at known node
+/// positions. The NodeTrigCache provides pre-computed sin/cos for all node
+/// positions, replacing per-vertex transcendental function calls with O(1)
+/// lookups. Falls back to direct computation for non-quad cells.
+///
+/// @param cache       NodeTrigCache for the mesh (must have cache.valid == true)
+/// @param cell_idx    Flat cell index (row-major: ci = cell_idx % ni, cj = cell_idx / ni)
+/// @return            Vector of 4 unit-sphere Vec3 vertices (CCW winding)
+template <class MemorySpace>
+std::vector<axis::detail::spherical::Vec3>
+extract_cell_polygon_spherical_cached(
+    const axis::detail::NodeTrigCache<MemorySpace>& cache,
+    std::size_t cell_idx) {
+    using axis::detail::spherical::Vec3;
+
+    std::vector<Vec3> poly;
+    poly.reserve(4);
+
+    // Derive (ci, cj) from flat cell index
+    std::size_t ci = cell_idx % cache.ni;
+    std::size_t cj = cell_idx / cache.ni;
+
+    // The 4 vertices of cell (ci, cj) in CCW order:
+    //   v0 = (ci,   cj)     — bottom-left
+    //   v1 = (ci+1, cj)     — bottom-right
+    //   v2 = (ci+1, cj+1)   — top-right
+    //   v3 = (ci,   cj+1)   — top-left
+    auto to_vec3 = [&](std::size_t lon_idx, std::size_t lat_idx) -> Vec3 {
+        auto cached = axis::detail::lonlat_to_xyz_node_cached(cache, lon_idx, lat_idx);
+        return Vec3{cached.x, cached.y, cached.z};
+    };
+
+    poly.push_back(to_vec3(ci,     cj));
+    poly.push_back(to_vec3(ci + 1, cj));
+    poly.push_back(to_vec3(ci + 1, cj + 1));
+    poly.push_back(to_vec3(ci,     cj + 1));
+
     return poly;
 }
 
@@ -2361,6 +2406,17 @@ WeightGenerator::generate_patch(
 // generate_conservative — ArborX AABB intersection + SphericalClipper overlap
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Forward declaration: rectangle fast-path for regular grids (defined in
+// weight_generator_conservative_rect.cpp).
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace>
+generate_conservative_rect(
+    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
+    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
+    const RegridConfig& config,
+    const detail::RegularGridInfo& src_grid_info,
+    const detail::RegularGridInfo& dst_grid_info);
+
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace>
 WeightGenerator::generate_conservative(
@@ -2373,6 +2429,21 @@ WeightGenerator::generate_conservative(
     // fully device-resident pipeline that avoids host round-trips.
     if constexpr (is_device_space_v<MemorySpace>) {
         return generate_conservative_device(src_mesh, dst_mesh, config);
+    }
+
+    // ── Optimization dispatch (Req 2.1, 2.5) ──
+    // Tier 1: Regular-grid rectangle fast-path — bypasses BVH entirely when
+    // both source and destination meshes are uniform lat-lon grids.
+    auto src_grid_info = detail::detect_regular_grid(src_mesh);
+    auto dst_grid_info = detail::detect_regular_grid(dst_mesh);
+    if (src_grid_info.is_regular && dst_grid_info.is_regular) {
+        auto result = generate_conservative_rect(src_mesh, dst_mesh, config,
+                                                 src_grid_info, dst_grid_info);
+        // If non-empty, use it. If empty (fallback signal from dateline wrap
+        // or other edge case), fall through to standard BVH path.
+        if (result.nnz() > 0) {
+            return result;
+        }
     }
 
     // ── Host-space path (original implementation) ──
@@ -2440,6 +2511,43 @@ WeightGenerator::generate_conservative(
         dst_areas = get_cell_areas(dst_mesh);
     }
 
+    // ── Morton/Z-curve destination sort (Req 5.2, 5.4) ──
+    // Compute destination cell centroids and produce a Morton-sorted permutation
+    // to improve spatial locality in the overlap loop (better cache behaviour for
+    // BVH queries on spatially adjacent destination cells).
+    Kokkos::View<double*, Kokkos::HostSpace> dst_cx, dst_cy;
+    compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
+
+    // morton_sort_indices expects View<const double*, MemorySpace>
+    Kokkos::View<const double*, Kokkos::HostSpace> dst_cx_const(dst_cx);
+    Kokkos::View<const double*, Kokkos::HostSpace> dst_cy_const(dst_cy);
+    auto sorted_dst = detail::morton_sort_indices<Kokkos::HostSpace>(
+        dst_cx_const, dst_cy_const, n_dst);
+
+    // ── Spherical cap early-exit filter precomputation (Req 3.2, 3.5, 3.6) ──
+    // Precompute centroids and angular radii for all cells in both meshes.
+    // Used in the GreatCircle inner loop to skip pairs whose bounding spherical
+    // caps are guaranteed non-overlapping (angular distance > sum of radii).
+    detail::CapData<Kokkos::HostSpace> src_cap, dst_cap;
+    if (use_spherical) {
+        src_cap = detail::precompute_cap_data<Kokkos::HostSpace>(src_mesh);
+        dst_cap = detail::precompute_cap_data<Kokkos::HostSpace>(dst_mesh);
+    }
+
+    // ── Trig cache for regular-grid coordinate conversion (Req 4.3, 4.4, 4.6) ──
+    // If either mesh is a regular lat-lon grid, build a node-level trig cache
+    // to replace per-vertex sin()/cos() calls with O(1) lookups during the
+    // lon/lat-to-XYZ conversion in the GreatCircle overlap loop.
+    detail::NodeTrigCache<Kokkos::HostSpace> src_node_trig, dst_node_trig;
+    if (use_spherical) {
+        if (src_grid_info.is_regular) {
+            src_node_trig = detail::build_node_trig_cache<Kokkos::HostSpace>(src_grid_info);
+        }
+        if (dst_grid_info.is_regular) {
+            dst_node_trig = detail::build_node_trig_cache<Kokkos::HostSpace>(dst_grid_info);
+        }
+    }
+
     // ── Accumulators for frac_a and frac_b ──
     std::vector<double> frac_a_acc(n_src, 0.0);
     std::vector<double> frac_b_acc(n_dst, 0.0);
@@ -2449,36 +2557,236 @@ WeightGenerator::generate_conservative(
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
-    for (std::size_t j = 0; j < n_dst; ++j) {
-        // Skip masked destination cells entirely (Req 8.2)
-        if (has_dst_mask && dst_mask[j] == 0) continue;
+    if (!use_spherical) {
+        // ══════════════════════════════════════════════════════════════════════
+        // Parallel Cartesian path: Kokkos::parallel_for over destination cells
+        // using PlanarClipper with fixed-capacity stack polygons (Req 1.1, 1.2, 1.5).
+        //
+        // Thread-safe COO insertion via atomic counter + pre-allocated arrays.
+        // Each work-item builds PlanarPolygon<32> on the stack and calls
+        // PlanarClipper::overlap_area() — no heap allocation (HELM Law #2).
+        // ══════════════════════════════════════════════════════════════════════
 
-        // Skip degenerate destination cells (Req 11.1)
-        if (dst_degenerate[j]) continue;
+        using exec_space = Kokkos::DefaultHostExecutionSpace;
 
-        int begin = offsets_view(j);
-        int end   = offsets_view(j + 1);
+        // Upper bound on COO entries: total number of BVH candidate pairs.
+        const std::size_t max_candidates =
+            static_cast<std::size_t>(offsets_view(n_dst));
 
-        double area_dst = dst_areas[j];
-        if (area_dst <= 0.0) {
-            if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "WeightGenerator::generate_conservative: unmapped destination cell "
-                    + std::to_string(j));
-            }
-            continue;
+        // Pre-allocate COO buffers (over-sized; actual usage <= max_candidates).
+        Kokkos::View<double*, Kokkos::HostSpace>  coo_weights("coo_weights", max_candidates);
+        Kokkos::View<index_t*, Kokkos::HostSpace> coo_rows("coo_rows", max_candidates);
+        Kokkos::View<index_t*, Kokkos::HostSpace> coo_cols("coo_cols", max_candidates);
+        // Per-entry overlap areas for frac_a/frac_b post-computation.
+        Kokkos::View<double*, Kokkos::HostSpace>  coo_overlap("coo_overlap", max_candidates);
+
+        // Atomic counter for thread-safe COO insertion.
+        Kokkos::View<int64_t, Kokkos::HostSpace> coo_count("coo_count");
+        Kokkos::deep_copy(coo_count, int64_t{0});
+
+        // Access mesh data via Kokkos Views for lambda capture.
+        const auto src_coords_kv  = src_mesh.node_coords_view();
+        const auto src_offsets_kv = src_mesh.conn_offsets_view();
+        const auto src_indices_kv = src_mesh.conn_indices_view();
+        const auto dst_coords_kv  = dst_mesh.node_coords_view();
+        const auto dst_offsets_kv = dst_mesh.conn_offsets_view();
+        const auto dst_indices_kv = dst_mesh.conn_indices_view();
+
+        // Copy cell areas into Kokkos Views for lambda capture.
+        Kokkos::View<double*, Kokkos::HostSpace> src_areas_kv("src_areas_kv", n_src);
+        Kokkos::View<double*, Kokkos::HostSpace> dst_areas_kv("dst_areas_kv", n_dst);
+        for (std::size_t i = 0; i < n_src; ++i) src_areas_kv(i) = src_areas[i];
+        for (std::size_t j = 0; j < n_dst; ++j) dst_areas_kv(j) = dst_areas[j];
+
+        // Copy degenerate flags into Kokkos Views for lambda capture.
+        Kokkos::View<int*, Kokkos::HostSpace> src_degen_kv("src_degen", n_src);
+        Kokkos::View<int*, Kokkos::HostSpace> dst_degen_kv("dst_degen", n_dst);
+        for (std::size_t i = 0; i < n_src; ++i)
+            src_degen_kv(i) = src_degenerate[i] ? 1 : 0;
+        for (std::size_t j = 0; j < n_dst; ++j)
+            dst_degen_kv(j) = dst_degenerate[j] ? 1 : 0;
+
+        Kokkos::parallel_for("cartesian_overlap",
+            Kokkos::RangePolicy<exec_space>(0, n_dst),
+            KOKKOS_LAMBDA(const std::size_t j) {
+                // Skip masked destination cells (Req 8.2)
+                if (has_dst_mask && dst_mask[j] == 0) return;
+
+                // Skip degenerate destination cells (Req 11.1)
+                if (dst_degen_kv(j) != 0) return;
+
+                double area_dst_j = dst_areas_kv(j);
+                if (area_dst_j <= 0.0) return;
+
+                int bvh_begin = offsets_view(j);
+                int bvh_end   = offsets_view(j + 1);
+
+                // Build destination polygon from CSR connectivity.
+                detail::PlanarPolygon<32> dst_poly;
+                {
+                    auto d_start = static_cast<std::size_t>(dst_offsets_kv(j));
+                    auto d_end   = static_cast<std::size_t>(dst_offsets_kv(j + 1));
+                    int d_nverts = static_cast<int>(d_end - d_start);
+
+                    // Fill polygon vertices with dateline normalization.
+                    double lons[32];
+                    int count = (d_nverts <= 32) ? d_nverts : 32;
+                    for (int vi = 0; vi < count; ++vi) {
+                        auto ni = static_cast<std::size_t>(dst_indices_kv(d_start + vi));
+                        lons[vi] = dst_coords_kv(ni, 0);
+                    }
+
+                    // Dateline normalization (Req 9.1, 9.2).
+                    if (count >= 2 &&
+                        detail::DatelineHandler::crosses_dateline(lons, count)) {
+                        detail::DatelineHandler::normalize(lons, count);
+                    }
+
+                    for (int vi = 0; vi < count; ++vi) {
+                        auto ni = static_cast<std::size_t>(dst_indices_kv(d_start + vi));
+                        dst_poly.push(lons[vi], dst_coords_kv(ni, 1));
+                    }
+                }
+
+                // Iterate over BVH candidates for this destination cell.
+                for (int vi = bvh_begin; vi < bvh_end; ++vi) {
+                    auto src_i = static_cast<std::size_t>(values(vi).index);
+
+                    // Skip masked source cells (Req 8.1)
+                    if (has_src_mask && src_mask[src_i] == 0) continue;
+
+                    // Skip degenerate source cells (Req 11.1)
+                    if (src_degen_kv(src_i) != 0) continue;
+
+                    double area_src_i = src_areas_kv(src_i);
+                    if (area_src_i <= 0.0) continue;
+
+                    // Build source polygon from CSR connectivity.
+                    detail::PlanarPolygon<32> src_poly;
+                    {
+                        auto s_start = static_cast<std::size_t>(src_offsets_kv(src_i));
+                        auto s_end   = static_cast<std::size_t>(src_offsets_kv(src_i + 1));
+                        int s_nverts = static_cast<int>(s_end - s_start);
+
+                        double lons[32];
+                        int count = (s_nverts <= 32) ? s_nverts : 32;
+                        for (int si = 0; si < count; ++si) {
+                            auto ni = static_cast<std::size_t>(src_indices_kv(s_start + si));
+                            lons[si] = src_coords_kv(ni, 0);
+                        }
+
+                        // Dateline normalization (Req 9.1, 9.2).
+                        if (count >= 2 &&
+                            detail::DatelineHandler::crosses_dateline(lons, count)) {
+                            detail::DatelineHandler::normalize(lons, count);
+                        }
+
+                        for (int si = 0; si < count; ++si) {
+                            auto ni = static_cast<std::size_t>(src_indices_kv(s_start + si));
+                            src_poly.push(lons[si], src_coords_kv(ni, 1));
+                        }
+                    }
+
+                    double overlap_area =
+                        detail::PlanarClipper::overlap_area<32>(src_poly, dst_poly);
+
+                    if (overlap_area <= 0.0) continue;
+
+                    double w_ij = overlap_area / area_dst_j;
+                    if (w_ij < 0.0) w_ij = 0.0;
+
+                    // Atomic COO insertion — thread-safe.
+                    auto slot = Kokkos::atomic_fetch_add(&coo_count(), int64_t{1});
+                    coo_weights(slot) = w_ij;
+                    coo_rows(slot) = static_cast<index_t>(j);
+                    coo_cols(slot) = static_cast<index_t>(src_i);
+                    coo_overlap(slot) = overlap_area;
+                }
+            });
+
+        Kokkos::fence();
+
+        // Gather results from the parallel COO buffers into std::vectors.
+        auto total_entries = static_cast<std::size_t>(coo_count());
+        weights_vec.reserve(total_entries);
+        rows_vec.reserve(total_entries);
+        cols_vec.reserve(total_entries);
+
+        for (std::size_t k = 0; k < total_entries; ++k) {
+            weights_vec.push_back(coo_weights(k));
+            rows_vec.push_back(coo_rows(k));
+            cols_vec.push_back(coo_cols(k));
+
+            auto src_i = static_cast<std::size_t>(coo_cols(k));
+            auto j_idx = static_cast<std::size_t>(coo_rows(k));
+            double overlap_a = coo_overlap(k);
+            double area_src_i = src_areas[src_i];
+            double area_dst_j = dst_areas[j_idx];
+
+            frac_a_acc[src_i] += overlap_a / area_src_i;
+            frac_b_acc[j_idx] += overlap_a / area_dst_j;
         }
 
-        bool has_entry = false;
+        // Check for unmapped destinations if configured (Req 8.6).
+        if (config.unmapped == UnmappedAction::Error) {
+            std::vector<bool> dst_has_entry(n_dst, false);
+            for (std::size_t k = 0; k < total_entries; ++k) {
+                dst_has_entry[static_cast<std::size_t>(coo_rows(k))] = true;
+            }
+            for (std::size_t j = 0; j < n_dst; ++j) {
+                if (has_dst_mask && dst_mask[j] == 0) continue;
+                if (dst_degenerate[j]) continue;
+                if (dst_areas[j] <= 0.0) continue;
+                if (!dst_has_entry[j]) {
+                    throw std::runtime_error(
+                        "WeightGenerator::generate_conservative: unmapped destination cell "
+                        + std::to_string(j));
+                }
+            }
+        }
 
-        if (use_spherical) {
+    } else {
+        // ══════════════════════════════════════════════════════════════════════
+        // Spherical path: sequential with SphericalClipper + cap filter + trig cache
+        // (unchanged behavior)
+        // ══════════════════════════════════════════════════════════════════════
+
+        for (std::size_t k = 0; k < n_dst; ++k) {
+            // Process destinations in Morton/Z-curve order for spatial locality (Req 5.2)
+            std::size_t j = static_cast<std::size_t>(sorted_dst(k));
+            // Skip masked destination cells entirely (Req 8.2)
+            if (has_dst_mask && dst_mask[j] == 0) continue;
+
+            // Skip degenerate destination cells (Req 11.1)
+            if (dst_degenerate[j]) continue;
+
+            int begin = offsets_view(j);
+            int end   = offsets_view(j + 1);
+
+            double area_dst = dst_areas[j];
+            if (area_dst <= 0.0) {
+                if (config.unmapped == UnmappedAction::Error) {
+                    throw std::runtime_error(
+                        "WeightGenerator::generate_conservative: unmapped destination cell "
+                        + std::to_string(j));
+                }
+                continue;
+            }
+
+            bool has_entry = false;
+
             // ── Spherical path: SphericalClipper (Greiner-Hormann on unit sphere) ──
             // Note: Dateline-crossing cells and polar cells are inherently handled
             // in this path because SphericalClipper operates in Cartesian XYZ
             // coordinates on the unit sphere — great-circle arcs have no
             // discontinuity at the dateline, and pole convergence is not a
             // singularity in 3D (Req 9.2, 9.5).
-            auto dst_poly_s = extract_cell_polygon_spherical(dst_mesh, j);
+
+            // Use trig-cached extraction for regular grids (Req 4.3), fall back
+            // to direct sin/cos for non-regular meshes (Req 4.6).
+            auto dst_poly_s = dst_node_trig.valid
+                ? extract_cell_polygon_spherical_cached(dst_node_trig, j)
+                : extract_cell_polygon_spherical(dst_mesh, j);
 
             // Convert to SphericalPolygon for the clipper
             axis::detail::SphericalPolygon<32> dst_sp;
@@ -2498,7 +2806,19 @@ WeightGenerator::generate_conservative(
                 double area_src = src_areas[src_i];
                 if (area_src <= 0.0) continue;
 
-                auto src_poly_s = extract_cell_polygon_spherical(src_mesh, src_i);
+                // ── Spherical cap early-exit filter (Req 3.5, 3.6) ──
+                // If the bounding spherical caps of the source and destination
+                // cells are disjoint, their geometric overlap is guaranteed zero.
+                // Skip the expensive SphericalClipper computation in that case.
+                if (detail::spherical_cap_rejects(
+                        src_cap.centroids(src_i), src_cap.angular_radii(src_i),
+                        dst_cap.centroids(j), dst_cap.angular_radii(j))) {
+                    continue;
+                }
+
+                auto src_poly_s = src_node_trig.valid
+                    ? extract_cell_polygon_spherical_cached(src_node_trig, src_i)
+                    : extract_cell_polygon_spherical(src_mesh, src_i);
 
                 // Convert to SphericalPolygon for the clipper
                 axis::detail::SphericalPolygon<32> src_sp;
@@ -2522,45 +2842,13 @@ WeightGenerator::generate_conservative(
                 frac_a_acc[src_i] += overlap_area / area_src;
                 frac_b_acc[j] += overlap_area / area_dst;
             }
-        } else {
-            // ── Cartesian path: flat Sutherland-Hodgman clipping ──
-            auto dst_poly = extract_cell_polygon(dst_mesh, j);
 
-            for (int vi = begin; vi < end; ++vi) {
-                auto src_i = static_cast<std::size_t>(values(vi).index);
-
-                // Skip masked source cells (Req 8.1)
-                if (has_src_mask && src_mask[src_i] == 0) continue;
-
-                // Skip degenerate source cells (Req 11.1)
-                if (src_degenerate[src_i]) continue;
-
-                double area_src = src_areas[src_i];
-                if (area_src <= 0.0) continue;
-
-                auto src_poly = extract_cell_polygon(src_mesh, src_i);
-                double overlap_area = compute_polygon_overlap_area(src_poly, dst_poly);
-
-                if (overlap_area <= 0.0) continue;
-
-                double w_ij = overlap_area / area_dst;
-                w_ij = std::max(w_ij, 0.0);
-
-                weights_vec.push_back(w_ij);
-                rows_vec.push_back(static_cast<index_t>(j));
-                cols_vec.push_back(static_cast<index_t>(src_i));
-                has_entry = true;
-
-                frac_a_acc[src_i] += overlap_area / area_src;
-                frac_b_acc[j] += overlap_area / area_dst;
+            // Throw for unmasked destination cells with zero coverage (Req 8.6)
+            if (!has_entry && config.unmapped == UnmappedAction::Error) {
+                throw std::runtime_error(
+                    "WeightGenerator::generate_conservative: unmapped destination cell "
+                    + std::to_string(j));
             }
-        }
-
-        // Throw for unmasked destination cells with zero coverage (Req 8.6)
-        if (!has_entry && config.unmapped == UnmappedAction::Error) {
-            throw std::runtime_error(
-                "WeightGenerator::generate_conservative: unmapped destination cell "
-                + std::to_string(j));
         }
     }
 

@@ -112,6 +112,7 @@ set(AXIS_SOURCES
     src/topology/projection_builder.cpp
     src/topology/gmsh_writer.cpp
     src/solver/weight_generator.cpp
+    src/solver/weight_generator_conservative_rect.cpp
     src/solver/interpolation_matrix.cpp
     src/solver/halo_pattern.cpp
     src/solver/conservation.cpp

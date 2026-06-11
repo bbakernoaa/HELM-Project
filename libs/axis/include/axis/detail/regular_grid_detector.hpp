@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: Apache-2.0
+// AXIS — Arbitrary eXgrid Interpolation Solver
+// Copyright (c) HELM Project Contributors
+
+#ifndef AXIS_DETAIL_REGULAR_GRID_DETECTOR_HPP
+#define AXIS_DETAIL_REGULAR_GRID_DETECTOR_HPP
+
+/// @file axis/detail/regular_grid_detector.hpp
+/// @brief Detect whether an UnstructuredMesh originated from a regular lat-lon
+///        grid with uniform spacing.
+///
+/// Provides:
+///   - RegularGridInfo: device-portable struct holding grid dimensions and spacing
+///   - detect_regular_grid(): host-side detection examining mesh connectivity and
+///     coordinate uniformity
+///
+/// Detection runs on host but RegularGridInfo is device-portable (POD struct).
+/// No heap allocation in the struct itself (HELM Law #2).
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <vector>
+
+#include <Kokkos_Core.hpp>
+
+#include <axis/topology/unstructured_mesh.hpp>
+
+namespace axis::detail {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegularGridInfo — POD struct describing a regular lat-lon grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Describes a regular lat-lon grid detected from an UnstructuredMesh.
+///
+/// If is_regular is true, the mesh cells form a logically rectangular ni × nj
+/// grid with uniform spacing delta_lon and delta_lat. This enables the
+/// rectangle fast-path and trig cache optimizations.
+///
+/// This struct is a POD type — safe to copy to device memory spaces.
+struct RegularGridInfo {
+    bool        is_regular{false};
+    double      lon_min{0.0};
+    double      lon_max{0.0};
+    double      delta_lon{0.0};
+    double      lat_min{0.0};
+    double      lat_max{0.0};
+    double      delta_lat{0.0};
+    std::size_t ni{0};  ///< Number of unique longitude cell centers
+    std::size_t nj{0};  ///< Number of unique latitude cell centers
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// detect_regular_grid — host-side detection algorithm
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Detect whether an UnstructuredMesh originated from a regular lat-lon
+///        grid.
+///
+/// Checks:
+///   1. All cells are quads (4 vertices each)
+///   2. Extract unique sorted lon and lat values from cell vertices
+///   3. Compute deltas between consecutive unique values
+///   4. Verify max(delta) - min(delta) < 1e-10 * mean(delta) for both axes
+///
+/// Detection runs on host. For device-space meshes, the caller must first
+/// mirror to host before calling this function.
+///
+/// @tparam MemorySpace Kokkos memory space of the mesh (must be host-accessible)
+/// @param mesh The unstructured mesh to examine
+/// @return RegularGridInfo with is_regular=true if the mesh is a uniform grid
+template <class MemorySpace>
+RegularGridInfo detect_regular_grid(
+    const topology::UnstructuredMesh<MemorySpace>& mesh) {
+
+    static_assert(Kokkos::SpaceAccessibility<Kokkos::HostSpace, MemorySpace>::accessible,
+                  "detect_regular_grid() requires a host-accessible mesh");
+
+    RegularGridInfo info;
+
+    const auto n_cells = mesh.n_cells();
+    if (n_cells == 0) {
+        return info;
+    }
+
+    // Access raw Kokkos views (host-accessible)
+    const auto& offsets = mesh.conn_offsets_view();
+    const auto& indices = mesh.conn_indices_view();
+    const auto& coords  = mesh.node_coords_view();
+
+    // ── Step 1: Verify all cells are quads (4 vertices each) ──
+    for (std::size_t c = 0; c < n_cells; ++c) {
+        auto start = offsets(c);
+        auto end   = offsets(c + 1);
+        if ((end - start) != 4) {
+            return info;  // Not all quads → not a regular grid
+        }
+    }
+
+    // ── Step 2: Extract unique sorted lon and lat values from cell vertices ──
+    // Collect all unique longitude and latitude values from the node coordinates.
+    // For a regular grid with ni×nj cells, there are (ni+1) unique lon values
+    // and (nj+1) unique lat values at cell boundaries.
+
+    const auto n_nodes = mesh.n_nodes();
+    std::vector<double> all_lons;
+    std::vector<double> all_lats;
+    all_lons.reserve(n_nodes);
+    all_lats.reserve(n_nodes);
+
+    for (std::size_t i = 0; i < n_nodes; ++i) {
+        all_lons.push_back(coords(i, 0));  // lon is column 0
+        all_lats.push_back(coords(i, 1));  // lat is column 1
+    }
+
+    // Sort and extract unique values with a tolerance for floating-point equality
+    std::sort(all_lons.begin(), all_lons.end());
+    std::sort(all_lats.begin(), all_lats.end());
+
+    // Remove near-duplicates (tolerance-based unique)
+    constexpr double unique_tol = 1.0e-12;
+
+    auto unique_filter = [&](std::vector<double>& sorted) -> std::vector<double> {
+        std::vector<double> unique_vals;
+        if (sorted.empty()) return unique_vals;
+        unique_vals.push_back(sorted[0]);
+        for (std::size_t i = 1; i < sorted.size(); ++i) {
+            if (std::abs(sorted[i] - unique_vals.back()) > unique_tol) {
+                unique_vals.push_back(sorted[i]);
+            }
+        }
+        return unique_vals;
+    };
+
+    auto unique_lons = unique_filter(all_lons);
+    auto unique_lats = unique_filter(all_lats);
+
+    // For a regular grid with ni×nj cells, we expect (ni+1) unique lon values
+    // and (nj+1) unique lat values (cell boundary coordinates).
+    if (unique_lons.size() < 2 || unique_lats.size() < 2) {
+        return info;
+    }
+
+    const std::size_t n_lon_bounds = unique_lons.size();  // ni + 1
+    const std::size_t n_lat_bounds = unique_lats.size();  // nj + 1
+    const std::size_t ni = n_lon_bounds - 1;
+    const std::size_t nj = n_lat_bounds - 1;
+
+    // Verify cell count matches ni * nj
+    if (ni * nj != n_cells) {
+        return info;
+    }
+
+    // ── Step 3: Compute deltas between consecutive unique values ──
+    std::vector<double> lon_deltas(ni);
+    std::vector<double> lat_deltas(nj);
+
+    for (std::size_t i = 0; i < ni; ++i) {
+        lon_deltas[i] = unique_lons[i + 1] - unique_lons[i];
+    }
+    for (std::size_t j = 0; j < nj; ++j) {
+        lat_deltas[j] = unique_lats[j + 1] - unique_lats[j];
+    }
+
+    // ── Step 4: Verify uniformity — max(delta) - min(delta) < 1e-10 * mean(delta) ──
+    auto check_uniform = [](const std::vector<double>& deltas) -> bool {
+        if (deltas.empty()) return false;
+
+        double min_d = deltas[0];
+        double max_d = deltas[0];
+        double sum   = 0.0;
+
+        for (const auto& d : deltas) {
+            min_d = std::min(min_d, d);
+            max_d = std::max(max_d, d);
+            sum += d;
+        }
+
+        // All deltas must be positive
+        if (min_d <= 0.0) return false;
+
+        double mean_d = sum / static_cast<double>(deltas.size());
+        double range  = max_d - min_d;
+
+        return range < 1.0e-10 * mean_d;
+    };
+
+    if (!check_uniform(lon_deltas) || !check_uniform(lat_deltas)) {
+        return info;
+    }
+
+    // ── All checks passed — fill the RegularGridInfo struct ──
+    double lon_sum = 0.0;
+    for (const auto& d : lon_deltas) lon_sum += d;
+    double lat_sum = 0.0;
+    for (const auto& d : lat_deltas) lat_sum += d;
+
+    info.is_regular = true;
+    info.lon_min    = unique_lons.front();
+    info.lon_max    = unique_lons.back();
+    info.delta_lon  = lon_sum / static_cast<double>(ni);
+    info.lat_min    = unique_lats.front();
+    info.lat_max    = unique_lats.back();
+    info.delta_lat  = lat_sum / static_cast<double>(nj);
+    info.ni         = ni;
+    info.nj         = nj;
+
+    return info;
+}
+
+} // namespace axis::detail
+
+#endif // AXIS_DETAIL_REGULAR_GRID_DETECTOR_HPP
