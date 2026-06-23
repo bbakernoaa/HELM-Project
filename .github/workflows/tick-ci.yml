@@ -1,0 +1,127 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TICK CI Pipeline (GitHub Actions)
+#
+# Full staged pipeline for the TICK Tier 1 fixed-point time arithmetic library.
+# Every stage runs INSIDE the HELM project Docker container (built from
+# ./DockerFile via docker compose), using the Docker_Exec_Pattern to match
+# DAGR/HALO/LOGS CI pipelines exactly.
+#
+# Stages:
+#   1. Tier isolation scan .................... Requirements 6.5
+#   2. Standalone CMake build (HELM::TICK) .... Requirements 6.6
+#   2b. Downstream consumer test .............. Requirements 6.7
+#   3. Unit tests     (ctest -L unit) ......... Requirements 6.8
+#   4. Property tests (ctest -L property) ..... Requirements 6.9
+#   5. Sanitizer build (ASan + UBSan) ......... Requirements 6.10
+# ─────────────────────────────────────────────────────────────────────────────
+name: TICK CI
+
+on:
+  push:
+    paths:
+      - "libs/tick/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/tick-ci.yml"
+  pull_request:
+    paths:
+      - "libs/tick/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/tick-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    name: TICK build, test, sanitize
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # ── Stage 1: Tier isolation scan ─────────────────────────────────────
+      - name: "Stage 1: Tier isolation scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/tick && bash cmake/check_tier1_isolation.sh .
+          '
+
+      # ── Stage 2: Standalone CMake build ──────────────────────────────────
+      - name: "Stage 2: Standalone build (produces HELM::TICK)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/tick
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON
+            cmake --build build-ci --parallel $(nproc)
+          '
+
+      # ── Stage 2b: Downstream HELM::TICK consumer ─────────────────────────
+      - name: "Stage 2b: Downstream HELM::TICK consumer"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            rm -rf /tmp/tick_consumer && mkdir -p /tmp/tick_consumer
+            cat > /tmp/tick_consumer/CMakeLists.txt <<EOF
+          cmake_minimum_required(VERSION 3.21)
+          project(tick_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          add_subdirectory(/workspace/helm-project/libs/tick \${CMAKE_BINARY_DIR}/tick_build)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE HELM::TICK)
+          EOF
+            printf "#include <tick/tick.hpp>\nint main() { return 0; }\n" > /tmp/tick_consumer/main.cpp
+            cd /tmp/tick_consumer
+            cmake -B build -G Ninja -DBUILD_TESTING=OFF
+            cmake --build build --target consumer
+          '
+
+      # ── Stage 3: Unit tests ───────────────────────────────────────────────
+      - name: "Stage 3: Unit tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/tick/build-ci && ctest -L unit --output-on-failure
+          '
+
+      # ── Stage 4: Property tests ───────────────────────────────────────────
+      - name: "Stage 4: Property tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/tick/build-ci && ctest -L property --output-on-failure
+          '
+
+      # ── Stage 5: Sanitizer build (ASan + UBSan) ───────────────────────────
+      - name: "Stage 5: Sanitizer build (ASan + UBSan)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/tick
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+            cd build-asan
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+              ctest -L property --output-on-failure
+          '
+
+      - name: Cleanup scratch build trees
+        if: always()
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/tick && rm -rf build-ci build-asan
+          ' || true
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true

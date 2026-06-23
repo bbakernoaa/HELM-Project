@@ -13,6 +13,7 @@ set(TICK_TEST_SOURCES
     test_sync
     test_window
     test_integration
+    test_aliasing_engine
 )
 
 foreach(test_name IN LISTS TICK_TEST_SOURCES)

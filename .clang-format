@@ -1,0 +1,8 @@
+BasedOnStyle: Google
+ColumnLimit: 150
+Standard: c++20
+IndentWidth: 4
+PointerAlignment: Right
+AllowShortFunctionsOnASingleLine: Empty
+AlignAfterOpenBracket: Align
+BreakBeforeBraces: Attach

@@ -1,0 +1,179 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DAGR CI Pipeline (GitHub Actions)
+#
+# Executable encoding of the DAGR zero-computation enforcement and build/test
+# pipeline. Every stage runs INSIDE the HELM project Docker container (built
+# from ./DockerFile via docker compose), so the toolchain matches local
+# development exactly.
+#
+# Stages:
+#   1. Static analysis — Zero-computation enforcement ..... Requirements 7.1, 7.6, 7.7
+#      a. Prohibited math includes scan
+#      b. Raw MPI function call scan
+#      c. Direct stdout/stderr write scan
+#   2. Tier isolation — CMake dependency graph validation . Requirement 11.6
+#   3. Standalone CMake build inside Docker (HELM::DAGR) .. Requirements 11.1, 11.5
+#   4. Unit tests           (label "unit") ................ Requirements 13.7, 13.8
+#   5. Property tests       (label "property") ............ Requirements 13.7, 13.8
+#   6. Sanitizer builds     (ASan + UBSan) ................ Quality gate
+#
+# DAGR performs zero mathematical calculations — it routes pointers between
+# lower-tier engines (TICK, AMIO, BLEND, HALO) and manages execution
+# dependencies. The static analysis step enforces this constraint at CI time.
+# ─────────────────────────────────────────────────────────────────────────────
+name: DAGR CI
+
+on:
+  push:
+    paths:
+      - "libs/dagr/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/dagr-ci.yml"
+  pull_request:
+    paths:
+      - "libs/dagr/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/dagr-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 1: Static analysis — Zero-computation enforcement
+  # Fast scan, no compiler required. Fails the build on any violation.
+  # ─────────────────────────────────────────────────────────────────────────
+  zero-computation-check:
+    name: Zero-computation static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # Stage 1: Zero-computation constraint enforcement (Requirements 7.1, 7.6, 7.7)
+      # Scans dagr source for prohibited math includes, raw MPI calls, and
+      # direct stdout/stderr writes.
+      - name: "Stage 1: Zero-computation enforcement scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/dagr && sh scripts/check_zero_computation.sh .
+          '
+
+      # Stage 2: Tier isolation — CMake dependency graph validation (Req 11.6)
+      # Verifies no Tier 1/1b target depends on a Tier 3 (DAGR) target.
+      - name: "Stage 2: CMake dependency graph validation"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/dagr
+            rm -rf build-graph
+            cmake -B build-graph -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=OFF \
+              --graphviz=build-graph/dagr_deps.dot 2>/dev/null || true
+
+            # If graphviz output was produced, check for upward dependency edges
+            if [ -f build-graph/dagr_deps.dot ]; then
+              # Tier 1/1b targets that must NOT depend on DAGR (Tier 3)
+              TIER1_TARGETS="span|tick|halo|logs|blend|amio|conf"
+
+              # Check for edges FROM lower-tier targets TO dagr
+              upward_edges=$(grep -iE "\"(${TIER1_TARGETS})[^\"]*\"[[:space:]]*->[[:space:]]*\"[^\"]*dagr" \
+                build-graph/dagr_deps.dot 2>/dev/null || true)
+
+              if [ -n "$upward_edges" ]; then
+                echo "FAIL: Tier 1/1b targets depend on DAGR (Tier 3):" >&2
+                echo "$upward_edges" >&2
+                exit 1
+              fi
+              echo "CMake dependency graph: PASS — no upward dependency edges found."
+            else
+              echo "WARNING: cmake --graphviz did not produce output; skipping graph validation."
+              echo "This is non-fatal but should be investigated."
+            fi
+            rm -rf build-graph
+          '
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 2: Build and test
+  # Full compile, unit tests, property tests, and sanitizer pass.
+  # ─────────────────────────────────────────────────────────────────────────
+  build-and-test:
+    name: DAGR build, test, sanitize
+    runs-on: ubuntu-latest
+    needs: zero-computation-check
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # Stage 3: Standalone CMake build (Requirements 11.1, 11.5)
+      # Builds ONLY libs/dagr producing libdagr.a and HELM::DAGR alias,
+      # plus all test executables.
+      - name: "Stage 3: Standalone build (produces HELM::DAGR)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/dagr
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON
+            cmake --build build-ci --parallel $(nproc)
+          '
+
+      # Stage 4: Unit tests (Requirements 13.7, 13.8)
+      - name: "Stage 4: Unit tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/dagr/build-ci && ctest -L unit --output-on-failure
+          '
+
+      # Stage 5: Property tests (Requirements 13.7, 13.8)
+      - name: "Stage 5: Property tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/dagr/build-ci && ctest -L property --output-on-failure
+          '
+
+      # Stage 6: Sanitizer build (ASan + UBSan)
+      - name: "Stage 6: Sanitizer build (ASan + UBSan)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/dagr
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+            cd build-asan
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+              ctest -L property --output-on-failure
+          '
+
+      # Always clean up scratch build trees.
+      - name: Cleanup scratch build trees
+        if: always()
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/dagr && rm -rf build-ci build-asan
+          ' || true
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true

@@ -23,3 +23,8 @@
 
 // Accumulation windows
 #include "tick/time_window.hpp"
+
+// Aliasing
+#include "tick/out_of_bounds_policy.hpp"
+#include "tick/aliased_window.hpp"
+#include "tick/aliasing_engine.hpp"

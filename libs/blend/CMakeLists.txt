@@ -61,6 +61,7 @@ target_compile_features(blend INTERFACE cxx_std_20)
 # ##############################################################################
 
 if(BUILD_TESTING)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 

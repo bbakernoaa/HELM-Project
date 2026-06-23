@@ -1,0 +1,132 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# BLEND CI Pipeline (GitHub Actions)
+#
+# Full staged pipeline for the BLEND Tier 1 header-only math kernels library.
+# Every stage runs INSIDE the HELM project Docker container (built from
+# ./DockerFile via docker compose), so the toolchain matches local development.
+#
+# Stages:
+#   1. Tier isolation scan .................... Requirements 2.5, 2.11
+#   2. Standalone CMake build (HELM::BLEND) ... Requirements 2.6
+#   2b. Downstream consumer test .............. Requirements 2.7
+#   3. Unit tests     (ctest -L unit) ......... Requirements 2.8
+#   4. Property tests (ctest -L property) ..... Requirements 2.9
+#   5. Sanitizer build (ASan + UBSan) ......... Requirements 2.10
+# ─────────────────────────────────────────────────────────────────────────────
+name: BLEND CI
+
+on:
+  push:
+    paths:
+      - "libs/blend/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/blend-ci.yml"
+  pull_request:
+    paths:
+      - "libs/blend/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/blend-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  blend:
+    name: BLEND build, test, sanitize
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # ── Stage 1: Tier isolation scan ─────────────────────────────────────
+      # Scans BLEND source and headers for forbidden #include directives.
+      # Runs before the build to fail fast on architectural violations.
+      - name: "Stage 1: Tier isolation scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/blend && bash cmake/check_tier1_isolation.sh .
+          '
+
+      # ── Stage 2: Standalone CMake build ──────────────────────────────────
+      # Builds ONLY libs/blend — no other HELM source trees — producing the
+      # HELM::BLEND alias target and all test executables.
+      - name: "Stage 2: Standalone build (produces HELM::BLEND)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/blend
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON
+            cmake --build build-ci --parallel $(nproc)
+          '
+
+      # ── Stage 2b: Downstream HELM::BLEND consumer ────────────────────────
+      # Proves the exported alias is consumable by a project linking only
+      # libs/blend. If the alias carries a hidden dependency, this fails.
+      - name: "Stage 2b: Downstream HELM::BLEND consumer"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            rm -rf /tmp/blend_consumer && mkdir -p /tmp/blend_consumer
+            cat > /tmp/blend_consumer/CMakeLists.txt <<EOF
+          cmake_minimum_required(VERSION 3.21)
+          project(blend_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          add_subdirectory(/workspace/helm-project/libs/blend \${CMAKE_BINARY_DIR}/blend_build)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE HELM::BLEND)
+          EOF
+            printf "#include <blend/helm_math_blend.hpp>\nint main() { return 0; }\n" > /tmp/blend_consumer/main.cpp
+            cd /tmp/blend_consumer
+            cmake -B build -G Ninja -DBUILD_TESTING=OFF
+            cmake --build build --target consumer
+          '
+
+      # ── Stage 3: Unit tests ───────────────────────────────────────────────
+      - name: "Stage 3: Unit tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/blend/build-ci && ctest -L unit --output-on-failure
+          '
+
+      # ── Stage 4: Property tests ───────────────────────────────────────────
+      - name: "Stage 4: Property tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/blend/build-ci && ctest -L property --output-on-failure
+          '
+
+      # ── Stage 5: Sanitizer build (ASan + UBSan) ───────────────────────────
+      - name: "Stage 5: Sanitizer build (ASan + UBSan)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/blend
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+            cd build-asan
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+              ctest -L property --output-on-failure
+          '
+
+      - name: Cleanup scratch build trees
+        if: always()
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/blend && rm -rf build-ci build-asan
+          ' || true
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true

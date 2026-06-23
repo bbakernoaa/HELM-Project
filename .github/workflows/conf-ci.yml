@@ -1,0 +1,142 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CONF CI Pipeline (GitHub Actions)
+#
+# Full staged pipeline for the CONF Tier 1 RAII YAML parsing library.
+# Every stage runs INSIDE the HELM project Docker container (built from
+# ./DockerFile via docker compose), so the toolchain matches local development.
+#
+# Stages:
+#   1. Tier isolation scan .................... Requirements 4.5
+#   2. Standalone CMake build (HELM::CONF) .... Requirements 4.6
+#   2b. Downstream consumer test .............. Requirements 4.7
+#   3. Unit tests     (ctest -L unit) ......... Requirements 4.8
+#   4. Property tests (ctest -L property) ..... Requirements 4.9
+#   4b. Fortran tests (ctest -L fortran) ...... Requirements 4.10
+#   5. Sanitizer build (ASan + UBSan,
+#      BUILD_FORTRAN=OFF) ..................... Requirements 4.11
+#
+# CONF includes Fortran integration (BUILD_FORTRAN=ON) in the main build but
+# Fortran is excluded from sanitizer analysis (BUILD_FORTRAN=OFF in Stage 5).
+# ─────────────────────────────────────────────────────────────────────────────
+name: CONF CI
+
+on:
+  push:
+    paths:
+      - "libs/conf/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/conf-ci.yml"
+  pull_request:
+    paths:
+      - "libs/conf/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/conf-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  conf:
+    name: CONF build, test, sanitize
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # ── Stage 1: Tier isolation scan ─────────────────────────────────────
+      - name: "Stage 1: Tier isolation scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/conf && bash cmake/check_tier1_isolation.sh .
+          '
+
+      # ── Stage 2: Standalone CMake build ──────────────────────────────────
+      # Builds with BUILD_FORTRAN=ON to exercise the full Fortran interop layer.
+      - name: "Stage 2: Standalone build (produces HELM::CONF)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/conf
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DBUILD_FORTRAN=ON
+            cmake --build build-ci --parallel $(nproc)
+          '
+
+      # ── Stage 2b: Downstream HELM::CONF consumer ─────────────────────────
+      - name: "Stage 2b: Downstream HELM::CONF consumer"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            rm -rf /tmp/conf_consumer && mkdir -p /tmp/conf_consumer
+            cat > /tmp/conf_consumer/CMakeLists.txt <<EOF
+          cmake_minimum_required(VERSION 3.21)
+          project(conf_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          add_subdirectory(/workspace/helm-project/libs/conf \${CMAKE_BINARY_DIR}/conf_build)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE HELM::CONF)
+          EOF
+            printf "#include <conf/conf.hpp>\nint main() { return 0; }\n" > /tmp/conf_consumer/main.cpp
+            cd /tmp/conf_consumer
+            cmake -B build -G Ninja -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF
+            cmake --build build --target consumer
+          '
+
+      # ── Stage 3: Unit tests ───────────────────────────────────────────────
+      - name: "Stage 3: Unit tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/conf/build-ci && ctest -L unit --output-on-failure
+          '
+
+      # ── Stage 4: Property tests ───────────────────────────────────────────
+      - name: "Stage 4: Property tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/conf/build-ci && ctest -L property --output-on-failure
+          '
+
+      # ── Stage 4b: Fortran integration tests ───────────────────────────────
+      - name: "Stage 4b: Fortran integration tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/conf/build-ci && ctest -L fortran --output-on-failure
+          '
+
+      # ── Stage 5: Sanitizer build (ASan + UBSan, BUILD_FORTRAN=OFF) ────────
+      # Fortran code is excluded from sanitizer analysis.
+      - name: "Stage 5: Sanitizer build (ASan + UBSan)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/conf
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DBUILD_FORTRAN=OFF \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+            cd build-asan
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+              ctest -L property --output-on-failure
+          '
+
+      - name: Cleanup scratch build trees
+        if: always()
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/conf && rm -rf build-ci build-asan
+          ' || true
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true

@@ -1,0 +1,152 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LOGS CI Pipeline (GitHub Actions)
+#
+# Executable encoding of libs/logs/docs/CI.md. Every stage runs INSIDE the HELM
+# project Docker container (built from ./DockerFile via docker compose), so the
+# toolchain matches local development exactly.
+#
+# Stages:
+#   1. Static analysis
+#      a. Tier 1 isolation scan .......................... Requirements 14.1, 14.5–14.7
+#      b. No-input-parsing scan .......................... Requirements 10.5–10.8
+#   2. Standalone CMake build inside Docker (HELM::LOGS) . Requirements 15.2, 15.3, 15.7
+#   3. Unit tests           (mpirun -np 4, label "unit") . Requirements 15.2, 15.3
+#   4. Property tests       (single-rank, label "property") Requirements 15.2, 15.3
+#   5. Sanitizer builds     (ASan + UBSan) ............... Requirements 15.2, 15.3
+#
+# LOGS has NO Fortran interface and NO Kokkos dependency — those stages are
+# intentionally absent (unlike the HALO pipeline).
+# ─────────────────────────────────────────────────────────────────────────────
+name: LOGS CI
+
+on:
+  push:
+    paths:
+      - "libs/logs/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/logs-ci.yml"
+  pull_request:
+    paths:
+      - "libs/logs/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/logs-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  logs:
+    name: LOGS build, test, sanitize
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Build and start the HELM container. The compose service is `helm-dev`;
+      # OMPI_ALLOW_RUN_AS_ROOT is set so mpirun tests run under the CI user.
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # ── Stage 1a: Tier 1 isolation scan ──────────────────────────────────
+      # Scans for forbidden #include directives referencing other HELM
+      # component path segments. Fast, no compiler required.
+      - name: "Stage 1a: Tier 1 isolation scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/logs && sh cmake/check_tier1_isolation.sh .
+          '
+
+      # ── Stage 1b: No-input-parsing scan ─────────────────────────────────
+      # Scans for YAML/config/file-reading indicators. LOGS is strictly an
+      # output mechanism — it never reads input.
+      - name: "Stage 1b: No-input-parsing scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/logs && sh cmake/check_no_input_parsing.sh .
+          '
+
+      # ── Stage 2: Standalone build ───────────────────────────────────────
+      # Builds ONLY libs/logs (no other HELM source trees), producing the
+      # logs library, the HELM::LOGS alias, and all test executables.
+      - name: "Stage 2: Standalone build (produces HELM::LOGS)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/logs
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON
+            cmake --build build-ci --parallel $(nproc)
+          '
+
+      # ── Stage 2b: Downstream HELM::LOGS consumer ────────────────────────
+      # Proves the exported alias is consumable by a project that links ONLY
+      # libs/logs. If the alias carried a hidden HELM dependency, this fails.
+      - name: "Stage 2b: Downstream HELM::LOGS consumer"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            rm -rf /tmp/logs_consumer && mkdir -p /tmp/logs_consumer
+            cat > /tmp/logs_consumer/CMakeLists.txt <<EOF
+          cmake_minimum_required(VERSION 3.21)
+          project(logs_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          add_subdirectory(/workspace/helm-project/libs/logs \${CMAKE_BINARY_DIR}/logs_build)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE HELM::LOGS)
+          EOF
+            printf "#include <logs/logs.hpp>\nint main() { return 0; }\n" > /tmp/logs_consumer/main.cpp
+            cd /tmp/logs_consumer
+            cmake -B build -G Ninja -DBUILD_TESTING=OFF
+            cmake --build build --target consumer
+          '
+
+      # ── Stage 3: Unit tests (mpirun -np 4) ──────────────────────────────
+      # Google Test suite launched under MPI with 4 ranks via ctest.
+      - name: "Stage 3: Unit tests (mpirun -np 4)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/logs/build-ci && ctest -L unit --output-on-failure
+          '
+
+      # ── Stage 4: Property tests (single-rank, mocked MPI) ───────────────
+      # RapidCheck property tests using the MPI interposition spy layer.
+      - name: "Stage 4: Property tests (single-rank, mocked MPI)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/logs/build-ci && ctest -L property --output-on-failure
+          '
+
+      # ── Stage 5: Sanitizer build (ASan + UBSan) ─────────────────────────
+      # Separate build with -fsanitize=address,undefined. detect_leaks=0
+      # suppresses reports for process-global interposition-layer objects.
+      - name: "Stage 5: Sanitizer build (ASan + UBSan)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/logs
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+            cd build-asan
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+              ctest -L property --output-on-failure
+          '
+
+      # Always clean up scratch build trees.
+      - name: Cleanup scratch build trees
+        if: always()
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/logs && rm -rf build-ci build-asan
+          ' || true
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true

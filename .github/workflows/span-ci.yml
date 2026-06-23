@@ -1,0 +1,126 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SPAN CI Pipeline (GitHub Actions)
+#
+# Full staged pipeline for the SPAN Tier 2 zero-copy boundary views library.
+# Every stage runs INSIDE the HELM project Docker container (built from
+# ./DockerFile via docker compose), so the toolchain matches local development.
+#
+# Stages:
+#   1. Tier isolation scan .................... Requirements 3.5
+#   2. Standalone CMake build (HELM::SPAN) .... Requirements 3.6
+#   2b. Downstream consumer test .............. Requirements 3.7
+#   3. Unit tests     (ctest -L unit) ......... Requirements 3.8
+#   4. Property tests (ctest -L property) ..... Requirements 3.9
+#   5. Sanitizer build (ASan + UBSan) ......... Requirements 3.10
+# ─────────────────────────────────────────────────────────────────────────────
+name: SPAN CI
+
+on:
+  push:
+    paths:
+      - "libs/span/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/span-ci.yml"
+  pull_request:
+    paths:
+      - "libs/span/**"
+      - "DockerFile"
+      - "docker-compose.yml"
+      - ".github/workflows/span-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  span:
+    name: SPAN build, test, sanitize
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Bring up HELM container
+        run: docker compose up -d --build
+
+      # ── Stage 1: Tier isolation scan ─────────────────────────────────────
+      - name: "Stage 1: Tier isolation scan"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/span && bash cmake/check_tier1_isolation.sh .
+          '
+
+      # ── Stage 2: Standalone CMake build ──────────────────────────────────
+      - name: "Stage 2: Standalone build (produces HELM::SPAN)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/span
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON
+            cmake --build build-ci --parallel $(nproc)
+          '
+
+      # ── Stage 2b: Downstream HELM::SPAN consumer ─────────────────────────
+      - name: "Stage 2b: Downstream HELM::SPAN consumer"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            rm -rf /tmp/span_consumer && mkdir -p /tmp/span_consumer
+            cat > /tmp/span_consumer/CMakeLists.txt <<EOF
+          cmake_minimum_required(VERSION 3.21)
+          project(span_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          add_subdirectory(/workspace/helm-project/libs/span \${CMAKE_BINARY_DIR}/span_build)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE HELM::SPAN)
+          EOF
+            printf "#include <span/span.hpp>\nint main() { return 0; }\n" > /tmp/span_consumer/main.cpp
+            cd /tmp/span_consumer
+            cmake -B build -G Ninja -DBUILD_TESTING=OFF
+            cmake --build build --target consumer
+          '
+
+      # ── Stage 3: Unit tests ───────────────────────────────────────────────
+      - name: "Stage 3: Unit tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/span/build-ci && ctest -L unit --output-on-failure
+          '
+
+      # ── Stage 4: Property tests ───────────────────────────────────────────
+      - name: "Stage 4: Property tests"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/span/build-ci && ctest -L property --output-on-failure
+          '
+
+      # ── Stage 5: Sanitizer build (ASan + UBSan) ───────────────────────────
+      - name: "Stage 5: Sanitizer build (ASan + UBSan)"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            set -e
+            cd libs/span
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja \
+              -DCMAKE_CXX_STANDARD=20 \
+              -DBUILD_TESTING=ON \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+            cd build-asan
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+              ctest -L property --output-on-failure
+          '
+
+      - name: Cleanup scratch build trees
+        if: always()
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/span && rm -rf build-ci build-asan
+          ' || true
+
+      - name: Tear down container
+        if: always()
+        run: docker compose down || true
