@@ -86,7 +86,7 @@ unset(_dagr_deps)
 
 # When building standalone (without full super-build), provide include paths for
 # sibling libraries so that headers resolve correctly.
-set(_sibling_libs SPAN TICK HALO logs BLEND AMIO conf)
+set(_sibling_libs span tick halo logs blend AMIO conf)
 foreach(_lib ${_sibling_libs})
     set(_inc_dir "${CMAKE_CURRENT_SOURCE_DIR}/../${_lib}/include")
     if(IS_DIRECTORY ${_inc_dir})

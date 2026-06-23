@@ -55,7 +55,7 @@ jobs:
       - name: "Stage 1a: Tier 1 isolation scan"
         run: |
           docker compose exec -T helm-dev bash -lc '
-            cd libs/logs && sh cmake/check_tier1_isolation.sh .
+            cd libs/logs && bash cmake/check_tier1_isolation.sh .
           '
 
       # ── Stage 1b: No-input-parsing scan ─────────────────────────────────
