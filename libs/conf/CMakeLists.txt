@@ -35,13 +35,11 @@ target_sources(conf PRIVATE
     src/config.cpp
     src/value.cpp
     src/detail/yaml_tree.cpp
+    src/fortran/conf_c_interop.cpp
 )
 
 if(BUILD_FORTRAN)
     enable_language(Fortran)
-    target_sources(conf PRIVATE
-        src/fortran/conf_c_interop.cpp
-    )
 
     add_library(conf_fortran fortran/conf_mod.f90)
     add_library(HELM::CONF_Fortran ALIAS conf_fortran)
