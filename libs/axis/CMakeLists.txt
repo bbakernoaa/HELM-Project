@@ -92,9 +92,24 @@ endif()
 # Vendored third-party: ArborX (BSD-3-Clause, header-only BVH spatial index)
 # Provides GPU-portable bounding-volume-hierarchy for spatial queries used by
 # WeightGenerator (nearest, bilinear point-location, conservative overlap).
+#
+# Prefer the vendored copy at third_party/ArborX (e.g. populated via git
+# submodule). Fall back to FetchContent when the directory is absent (CI,
+# fresh clones without --recurse-submodules).
 # ##############################################################################
 
-add_subdirectory(third_party/ArborX EXCLUDE_FROM_ALL)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ArborX/CMakeLists.txt")
+    add_subdirectory(third_party/ArborX EXCLUDE_FROM_ALL)
+else()
+    include(FetchContent)
+    FetchContent_Declare(
+        ArborX
+        GIT_REPOSITORY https://github.com/arborx/ArborX.git
+        GIT_TAG        v1.6
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(ArborX)
+endif()
 
 # ##############################################################################
 # Library sources
