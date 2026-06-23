@@ -64,7 +64,7 @@ jobs:
       - name: "Stage 1b: No-input-parsing scan"
         run: |
           docker compose exec -T helm-dev bash -lc '
-            cd libs/logs && sh cmake/check_no_input_parsing.sh .
+            cd libs/logs && bash cmake/check_no_input_parsing.sh .
           '
 
       # ── Stage 2: Standalone build ───────────────────────────────────────
