@@ -29,6 +29,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <span>
 
 // mdspan: use the C++23 standard header if available, otherwise fall back to
 // the kokkos/mdspan reference implementation.
@@ -41,7 +42,9 @@ namespace std {
     using Kokkos::dextents;
     using Kokkos::extents;
     using Kokkos::layout_left;
+#ifndef __cpp_lib_span
     using Kokkos::dynamic_extent;
+#endif
 }
 #endif
 
@@ -77,8 +80,20 @@ public:
     // Type aliases
     // ─────────────────────────────────────────────────────────────────────────
 
+    template <typename IndexType, std::size_t R>
+    using my_dextents = std::conditional_t<R == 1,
+        Kokkos::extents<IndexType, std::dynamic_extent>,
+        std::conditional_t<R == 2,
+            Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent>,
+            std::conditional_t<R == 3,
+                Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>,
+                Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>
+            >
+        >
+    >;
+
     /// The mdspan type for host-side access (column-major, non-owning).
-    using mdspan_type = std::mdspan<T, std::dextents<std::size_t, Rank>, std::layout_left>;
+    using mdspan_type = Kokkos::mdspan<T, my_dextents<std::size_t, Rank>, Kokkos::layout_left>;
 
     /// Extent array type (fixed-size array matching Rank).
     using extents_type = std::array<std::size_t, Rank>;
