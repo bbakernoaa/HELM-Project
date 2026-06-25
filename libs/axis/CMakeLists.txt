@@ -250,8 +250,8 @@ endif()
 # Tier 1 Isolation Scan (HELM Law #4 — static verification)
 # ##############################################################################
 
-# Custom target: run the isolation scan on demand via `cmake --build . --target check_isolation`
-add_custom_target(check_isolation
+# Custom target: run the isolation scan on demand via `cmake --build . --target check_axis_isolation`
+add_custom_target(check_axis_isolation
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_tier1_isolation.sh ${CMAKE_CURRENT_SOURCE_DIR}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Running AXIS Tier 1 isolation scan (HELM Law #4 verification)..."
