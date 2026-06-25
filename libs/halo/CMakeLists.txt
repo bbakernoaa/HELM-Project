@@ -200,8 +200,8 @@ set(HALO_ISOLATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_tier1_isolati
 find_program(HALO_SH_EXECUTABLE NAMES sh)
 
 if(HALO_SH_EXECUTABLE)
-    # Always-available custom target: `cmake --build . --target check_isolation`.
-    add_custom_target(check_isolation
+    # Always-available custom target: `cmake --build . --target check_halo_isolation`.
+    add_custom_target(check_halo_isolation
         COMMAND ${HALO_SH_EXECUTABLE} ${HALO_ISOLATION_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Scanning HALO sources for forbidden HELM component includes (Tier 1 isolation)"
