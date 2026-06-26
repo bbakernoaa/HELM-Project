@@ -23,7 +23,6 @@
 
 #include <array>
 #include <cstddef>
-#include <mdspan>
 #include <type_traits>
 #include <utility>
 
