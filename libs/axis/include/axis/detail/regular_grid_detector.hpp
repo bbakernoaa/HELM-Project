@@ -78,7 +78,6 @@ RectilinearGridInfo detect_rectilinear_grid(
     }
 
     const auto& offsets = mesh.conn_offsets_view();
-    const auto& indices = mesh.conn_indices_view();
     const auto& coords  = mesh.node_coords_view();
 
     for (std::size_t c = 0; c < n_cells; ++c) {

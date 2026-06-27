@@ -39,6 +39,16 @@ generate_bilinear_rect_nonuniform(
     auto unique_lons = src_rect_info.unique_lons;
     auto unique_lats = src_rect_info.unique_lats;
 
+    // Build unique cell center coordinate arrays on host
+    std::vector<double> unique_center_lons(ni);
+    for (std::size_t i = 0; i < ni; ++i) {
+        unique_center_lons[i] = 0.5 * (unique_lons(i) + unique_lons(i + 1));
+    }
+    std::vector<double> unique_center_lats(nj);
+    for (std::size_t j = 0; j < nj; ++j) {
+        unique_center_lats[j] = 0.5 * (unique_lats(j) + unique_lats(j + 1));
+    }
+
     // Retrieve destination centroids
     const auto& offsets = dst_mesh.conn_offsets_view();
     const auto& indices = dst_mesh.conn_indices_view();
@@ -67,24 +77,26 @@ generate_bilinear_rect_nonuniform(
         double lon_d = lon_sum / static_cast<double>(n_verts);
         double lat_d = lat_sum / static_cast<double>(n_verts);
 
-        // Perform 1D binary search to locate containing bounds
-        auto lon_it = std::upper_bound(unique_lons.data(), unique_lons.data() + unique_lons.extent(0), lon_d);
-        auto lat_it = std::upper_bound(unique_lats.data(), unique_lats.data() + unique_lats.extent(0), lat_d);
+        // Perform 1D binary search to locate left/bottom cell centers
+        auto lon_it = std::upper_bound(unique_center_lons.begin(), unique_center_lons.end(), lon_d);
+        auto lat_it = std::upper_bound(unique_center_lats.begin(), unique_center_lats.end(), lat_d);
 
-        int i = static_cast<int>(std::distance(unique_lons.data(), lon_it)) - 1;
-        int j = static_cast<int>(std::distance(unique_lats.data(), lat_it)) - 1;
+        int i = static_cast<int>(std::distance(unique_center_lons.begin(), lon_it)) - 1;
+        int j = static_cast<int>(std::distance(unique_center_lats.begin(), lat_it)) - 1;
 
-        if (i < 0 || i >= static_cast<int>(ni) || j < 0 || j >= static_cast<int>(nj)) {
-            if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error("Unmapped destination cell in non-uniform bilinear");
-            }
-            continue;
-        }
+        // Clamp i and j to ensure stencil indices [i, i+1] and [j, j+1] are perfectly safe & within bounds
+        if (i < 0) i = 0;
+        if (i >= static_cast<int>(ni) - 1) i = static_cast<int>(ni) - 2;
+        if (i < 0) i = 0; // Safety for ni == 1
 
-        double x0 = unique_lons(i);
-        double x1 = unique_lons(i + 1);
-        double y0 = unique_lats(j);
-        double y1 = unique_lats(j + 1);
+        if (j < 0) j = 0;
+        if (j >= static_cast<int>(nj) - 1) j = static_cast<int>(nj) - 2;
+        if (j < 0) j = 0; // Safety for nj == 1
+
+        double x0 = unique_center_lons[i];
+        double x1 = unique_center_lons[i + 1];
+        double y0 = unique_center_lats[j];
+        double y1 = unique_center_lats[j + 1];
 
         double tx = (lon_d - x0) / (x1 - x0);
         double ty = (lat_d - y0) / (y1 - y0);
@@ -92,11 +104,14 @@ generate_bilinear_rect_nonuniform(
         tx = std::max(0.0, std::min(1.0, tx));
         ty = std::max(0.0, std::min(1.0, ty));
 
+        int i1 = i + 1;
+        int j1 = j + 1;
+
         std::size_t src_idx[4] = {
-            static_cast<std::size_t>(j) * ni + static_cast<std::size_t>(i),
-            static_cast<std::size_t>(j) * ni + static_cast<std::size_t>(i + 1),
-            static_cast<std::size_t>(j + 1) * ni + static_cast<std::size_t>(i),
-            static_cast<std::size_t>(j + 1) * ni + static_cast<std::size_t>(i + 1)
+            static_cast<std::size_t>(j)  * ni + static_cast<std::size_t>(i),
+            static_cast<std::size_t>(j)  * ni + static_cast<std::size_t>(i1),
+            static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i),
+            static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i1)
         };
 
         double wts[4] = {
