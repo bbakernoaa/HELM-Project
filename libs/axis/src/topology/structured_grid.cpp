@@ -137,40 +137,45 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
     auto center_lon = center_lon_;
     auto center_lat = center_lat_;
 
-    // Corner node (ci, cj) is at the intersection of cell edges. Its coordinate
-    // is the average of up to 4 adjacent cell centers: (ci-1,cj-1), (ci,cj-1),
-    // (ci-1,cj), (ci,cj). Boundary corners use fewer neighbors.
+    // Use Kokkos::TeamPolicy for coordinate caching
+    using TeamPolicy = Kokkos::TeamPolicy<exec_space>;
+    using MemberType = typename TeamPolicy::member_type;
+
+    // Dispatch one team per row of corners (njp1 teams). Threads in a team handle elements in the row.
+    TeamPolicy policy(static_cast<int>(njp1), Kokkos::AUTO);
     Kokkos::parallel_for(
-        "synthesize_corners",
-        Kokkos::RangePolicy<exec_space>(0, static_cast<int>(n_corners)),
-        KOKKOS_LAMBDA(const int idx) {
-            const std::size_t ci = static_cast<std::size_t>(idx) % nip1;
-            const std::size_t cj = static_cast<std::size_t>(idx) / nip1;
+        "synthesize_corners_team",
+        policy,
+        KOKKOS_LAMBDA(const MemberType& team) {
+            const std::size_t cj = static_cast<std::size_t>(team.league_rank());
 
-            double sum_lon = 0.0;
-            double sum_lat = 0.0;
-            int count = 0;
+            Kokkos::parallel_for(
+                Kokkos::TeamThreadRange(team, nip1),
+                [&](const std::size_t ci) {
+                    const std::size_t idx = ci + cj * nip1;
+                    double sum_lon = 0.0;
+                    double sum_lat = 0.0;
+                    int count = 0;
 
-            // Each corner (ci,cj) touches up to 4 cell centers:
-            // cells (ci-1,cj-1), (ci,cj-1), (ci-1,cj), (ci,cj)
-            for (int dj = -1; dj <= 0; ++dj) {
-                for (int di = -1; di <= 0; ++di) {
-                    const auto cell_i = static_cast<long long>(ci) + di;
-                    const auto cell_j = static_cast<long long>(cj) + dj;
-                    if (cell_i >= 0 && cell_i < static_cast<long long>(ni) &&
-                        cell_j >= 0 && cell_j < static_cast<long long>(nj)) {
-                        const std::size_t cell_idx =
-                            static_cast<std::size_t>(cell_i) +
-                            static_cast<std::size_t>(cell_j) * ni;
-                        sum_lon += center_lon(cell_idx);
-                        sum_lat += center_lat(cell_idx);
-                        ++count;
+                    for (int dj = -1; dj <= 0; ++dj) {
+                        for (int di = -1; di <= 0; ++di) {
+                            const auto cell_i = static_cast<long long>(ci) + di;
+                            const auto cell_j = static_cast<long long>(cj) + dj;
+                            if (cell_i >= 0 && cell_i < static_cast<long long>(ni) &&
+                                cell_j >= 0 && cell_j < static_cast<long long>(nj)) {
+                                const std::size_t cell_idx =
+                                    static_cast<std::size_t>(cell_i) +
+                                    static_cast<std::size_t>(cell_j) * ni;
+                                sum_lon += center_lon(cell_idx);
+                                sum_lat += center_lat(cell_idx);
+                                ++count;
+                            }
+                        }
                     }
-                }
-            }
 
-            clon(idx) = sum_lon / static_cast<double>(count);
-            clat(idx) = sum_lat / static_cast<double>(count);
+                    clon(idx) = sum_lon / static_cast<double>(count);
+                    clat(idx) = sum_lat / static_cast<double>(count);
+                });
         });
 
     Kokkos::fence("synthesize_corners_fence");
