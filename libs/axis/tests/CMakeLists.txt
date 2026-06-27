@@ -54,6 +54,7 @@ set(AXIS_UNIT_TEST_SOURCES
     test_constant_field.cpp
     test_bilinear_exactness.cpp
     test_bilinear_rect.cpp
+    test_bilinear_rect_nonuniform.cpp
     test_spmv_apply.cpp
     test_descriptor_roundtrip.cpp
     test_producer_equivalence.cpp

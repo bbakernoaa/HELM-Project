@@ -129,6 +129,7 @@ set(AXIS_SOURCES
     src/solver/weight_generator.cpp
     src/solver/weight_generator_conservative_rect.cpp
     src/solver/weight_generator_bilinear_rect.cpp
+    src/solver/weight_generator_bilinear_rect_nonuniform.cpp
     src/solver/interpolation_matrix.cpp
     src/solver/halo_pattern.cpp
     src/solver/conservation.cpp

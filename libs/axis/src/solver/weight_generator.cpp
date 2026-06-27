@@ -1475,6 +1475,16 @@ generate_bilinear_rect(
     const detail::RegularGridInfo& src_grid_info,
     const detail::RegularGridInfo& dst_grid_info);
 
+// Forward declaration: bilinear non-uniform rectilinear grid fast-path (defined in
+// weight_generator_bilinear_rect_nonuniform.cpp).
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace>
+generate_bilinear_rect_nonuniform(
+    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
+    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
+    const RegridConfig& config,
+    const detail::RectilinearGridInfo& src_rect_info);
+
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace>
 WeightGenerator::generate_bilinear(
@@ -1509,6 +1519,15 @@ WeightGenerator::generate_bilinear(
             return result;
         }
         // Empty result = fallback signal; continue to BVH path
+    }
+
+    // ── Non-uniform rectilinear grid fast-path dispatch ──
+    auto src_rect_info = detail::detect_rectilinear_grid(src_mesh);
+    if (src_rect_info.is_rectilinear) {
+        auto result = generate_bilinear_rect_nonuniform(src_mesh, dst_mesh, config, src_rect_info);
+        if (result.n_dst() > 0) {
+            return result;
+        }
     }
 
     const std::size_t n_src = src_mesh.n_cells();
