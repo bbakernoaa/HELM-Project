@@ -52,6 +52,103 @@ struct RegularGridInfo {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// RectilinearGridInfo — Describes a non-uniform or uniform rectilinear grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct RectilinearGridInfo {
+    bool        is_rectilinear{false};
+    std::size_t ni{0};
+    std::size_t nj{0};
+    Kokkos::View<double*, Kokkos::HostSpace> unique_lons;
+    Kokkos::View<double*, Kokkos::HostSpace> unique_lats;
+};
+
+template <class MemorySpace>
+RectilinearGridInfo detect_rectilinear_grid(
+    const topology::UnstructuredMesh<MemorySpace>& mesh) {
+
+    static_assert(Kokkos::SpaceAccessibility<Kokkos::HostSpace, MemorySpace>::accessible,
+                  "detect_rectilinear_grid() requires a host-accessible mesh");
+
+    RectilinearGridInfo info;
+
+    const auto n_cells = mesh.n_cells();
+    if (n_cells == 0) {
+        return info;
+    }
+
+    const auto& offsets = mesh.conn_offsets_view();
+    const auto& indices = mesh.conn_indices_view();
+    const auto& coords  = mesh.node_coords_view();
+
+    for (std::size_t c = 0; c < n_cells; ++c) {
+        auto start = offsets(c);
+        auto end   = offsets(c + 1);
+        if ((end - start) != 4) {
+            return info;  // Must be all quads
+        }
+    }
+
+    const auto n_nodes = mesh.n_nodes();
+    std::vector<double> all_lons;
+    std::vector<double> all_lats;
+    all_lons.reserve(n_nodes);
+    all_lats.reserve(n_nodes);
+
+    for (std::size_t i = 0; i < n_nodes; ++i) {
+        all_lons.push_back(coords(i, 0));
+        all_lats.push_back(coords(i, 1));
+    }
+
+    std::sort(all_lons.begin(), all_lons.end());
+    std::sort(all_lats.begin(), all_lats.end());
+
+    constexpr double unique_tol = 1.0e-12;
+    auto unique_filter = [&](std::vector<double>& sorted) -> std::vector<double> {
+        std::vector<double> unique_vals;
+        if (sorted.empty()) return unique_vals;
+        unique_vals.push_back(sorted[0]);
+        for (std::size_t i = 1; i < sorted.size(); ++i) {
+            if (std::abs(sorted[i] - unique_vals.back()) > unique_tol) {
+                unique_vals.push_back(sorted[i]);
+            }
+        }
+        return unique_vals;
+    };
+
+    auto unique_lons = unique_filter(all_lons);
+    auto unique_lats = unique_filter(all_lats);
+
+    if (unique_lons.size() < 2 || unique_lats.size() < 2) {
+        return info;
+    }
+
+    const std::size_t ni = unique_lons.size() - 1;
+    const std::size_t nj = unique_lats.size() - 1;
+
+    if (ni * nj != n_cells) {
+        return info;  // Not a rectilinear structured layout
+    }
+
+    // Populate RectilinearGridInfo
+    info.is_rectilinear = true;
+    info.ni = ni;
+    info.nj = nj;
+
+    info.unique_lons = Kokkos::View<double*, Kokkos::HostSpace>("unique_lons", unique_lons.size());
+    info.unique_lats = Kokkos::View<double*, Kokkos::HostSpace>("unique_lats", unique_lats.size());
+
+    for (std::size_t i = 0; i < unique_lons.size(); ++i) {
+        info.unique_lons(i) = unique_lons[i];
+    }
+    for (std::size_t j = 0; j < unique_lats.size(); ++j) {
+        info.unique_lats(j) = unique_lats[j];
+    }
+
+    return info;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // detect_regular_grid — host-side detection algorithm
 // ─────────────────────────────────────────────────────────────────────────────
 

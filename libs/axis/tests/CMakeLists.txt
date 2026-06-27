@@ -69,6 +69,7 @@ set(AXIS_UNIT_TEST_SOURCES
     test_morton_sort.cpp
     test_planar_clipper.cpp
     test_regular_grid_detector.cpp
+    test_rectilinear_grid_detector.cpp
     test_trig_cache.cpp
     test_spherical_cap_filter.cpp
 )
