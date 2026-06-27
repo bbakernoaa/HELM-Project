@@ -214,36 +214,25 @@ StructuredGrid<MemorySpace>::to_unstructured() const {
     auto clon = corner_lon_;
     auto clat = corner_lat_;
 
-    // ── Fill node coordinates from corners via Kokkos parallel_for ───────────
-    // Node (ci, cj) has index ci + cj * (ni+1) in column-major order.
+    // Optimize node coordinate filling using MDRangePolicy
+    using MDRange2D = Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<2>>;
     Kokkos::parallel_for(
-        "to_unstructured_fill_nodes",
-        Kokkos::RangePolicy<exec_space>(0, static_cast<int>(n_nodes)),
-        KOKKOS_LAMBDA(const int node_idx) {
+        "to_unstructured_fill_nodes_md",
+        MDRange2D({0, 0}, {static_cast<int>(nip1), static_cast<int>(njp1)}),
+        KOKKOS_LAMBDA(const int ci, const int cj) {
+            const int node_idx = ci + cj * nip1;
             node_coords(node_idx, 0) = clon(node_idx);
             node_coords(node_idx, 1) = clat(node_idx);
         });
 
-    // ── Fill CSR connectivity and cell types via Kokkos parallel_for ─────────
-    // Cell (i, j) has 4 corner nodes:
-    //   bottom-left:  (i,   j)     → node index = i     + j     * nip1
-    //   bottom-right: (i+1, j)     → node index = (i+1) + j     * nip1
-    //   top-right:    (i+1, j+1)   → node index = (i+1) + (j+1) * nip1
-    //   top-left:     (i,   j+1)   → node index = i     + (j+1) * nip1
-    //
-    // This counterclockwise winding is the standard FEM convention for quads.
+    // Optimize connectivity filling using MDRangePolicy
     Kokkos::parallel_for(
-        "to_unstructured_fill_connectivity",
-        Kokkos::RangePolicy<exec_space>(0, static_cast<int>(n_cells)),
-        KOKKOS_LAMBDA(const int cell_flat) {
-            const std::size_t cell_idx = static_cast<std::size_t>(cell_flat);
-            const std::size_t i = cell_idx % ni;
-            const std::size_t j = cell_idx / ni;
-
-            // CSR offset: each cell has exactly 4 nodes
+        "to_unstructured_fill_connectivity_md",
+        MDRange2D({0, 0}, {static_cast<int>(ni), static_cast<int>(nj)}),
+        KOKKOS_LAMBDA(const int i, const int j) {
+            const int cell_idx = i + j * ni;
             cell_node_offsets(cell_idx) = static_cast<index_t>(cell_idx * 4);
 
-            // Node indices for the 4 corners (CCW winding)
             const std::size_t base = cell_idx * 4;
             cell_node_indices(base + 0) = static_cast<index_t>(i     + j       * nip1);  // bottom-left
             cell_node_indices(base + 1) = static_cast<index_t>((i+1) + j       * nip1);  // bottom-right
