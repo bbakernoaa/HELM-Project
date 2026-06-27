@@ -2465,6 +2465,17 @@ generate_conservative_rect(
     const detail::RegularGridInfo& src_grid_info,
     const detail::RegularGridInfo& dst_grid_info);
 
+// Forward declaration: conservative non-uniform rectilinear grid fast-path (defined in
+// weight_generator_conservative_rect_nonuniform.cpp).
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace>
+generate_conservative_rect_nonuniform(
+    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
+    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
+    const RegridConfig& config,
+    const detail::RectilinearGridInfo& src_rect_info,
+    const detail::RectilinearGridInfo& dst_rect_info);
+
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace>
 WeightGenerator::generate_conservative(
@@ -2489,6 +2500,17 @@ WeightGenerator::generate_conservative(
                                                  src_grid_info, dst_grid_info);
         // If non-empty, use it. If empty (fallback signal from dateline wrap
         // or other edge case), fall through to standard BVH path.
+        if (result.nnz() > 0) {
+            return result;
+        }
+    }
+
+    // ── Non-uniform rectilinear grid fast-path dispatch ──
+    auto src_rect_info = detail::detect_rectilinear_grid(src_mesh);
+    auto dst_rect_info = detail::detect_rectilinear_grid(dst_mesh);
+    if (src_rect_info.is_rectilinear && dst_rect_info.is_rectilinear) {
+        auto result = generate_conservative_rect_nonuniform(src_mesh, dst_mesh, config,
+                                                             src_rect_info, dst_rect_info);
         if (result.nnz() > 0) {
             return result;
         }
