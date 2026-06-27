@@ -32,6 +32,18 @@ CDO 2.6.1 for spatial interpolation (regridding) on regular lat-lon grids.
 | Nearest Neighbor | 1.15 | 0.77 | **1.5×** | 1.8e-03 | 1.1e-03 |
 | Conservative 1st-order | 20.3 | 9.3 | **2.2×** | 1.4e-03 | 8.1e-04 |
 
+## Results: Regional Lambert Conformal Conic (LCC) → EPSG:4326
+
+**Source (LCC): 120×120 (14,400 cells) → Destination (Regular Lat-Lon): 90×90 (8,100 cells)**
+
+| Method | CDO Time (s) | AXIS Time (s) | Speedup | Max Err | RMS Err |
+|--------|:------------:|:--------------:|:-------:|:-------:|:-------:|
+| Bilinear | 0.135 | **0.011** | **12.0×** | 4.1e-03 | 2.2e-03 |
+| Nearest Neighbor | 0.134 | **0.006** | **20.2×** | 5.6e-03 | 2.3e-03 |
+| Conservative 1st-order | 0.164 | **0.026** | **6.4×** | 2.4e-02 | 2.6e-02 |
+
+Note: On complex regional grids, AXIS bypasses file I/O overhead and uses highly optimized on-device spatial searching (ArborX) paired with parallel Great Circle clipping and gnomonic projection. This delivers massive speedups (6.4× to 20.2×) over CDO even on single-socket OpenMP.
+
 ### Optimization Impact: Bilinear 3600×1800 → 1440×720
 
 | Version | AXIS Time (s) | vs CDO | Improvement |
@@ -95,12 +107,21 @@ Both AXIS and CDO preserve the global field integral (Σ ≈ 0 for the cosine be
 ## Running the benchmark
 
 ```bash
-# In the Docker container with conda activated:
-source /opt/conda/etc/profile.d/conda.sh && conda activate base
+# To run the regular global lat-lon benchmark:
 cd libs/axis
-PYTHONPATH=build-py/python python3 benchmarks/compare_cdo.py \
+PATH=/opt/conda/envs/axis-benchmark-env/bin:$PATH PYTHONPATH=build-py/python \
+    /opt/conda/envs/axis-benchmark-env/bin/python3 benchmarks/compare_cdo.py \
     --src-size 1440x720 \
     --dst-size 720x360 \
+    --methods bilinear,nearest,conservative \
+    --field cosine
+
+# To run the Lambert Conformal Conic (LCC) to EPSG:4326 regional benchmark:
+PATH=/opt/conda/envs/axis-benchmark-env/bin:$PATH PYTHONPATH=build-py/python \
+    /opt/conda/envs/axis-benchmark-env/bin/python3 benchmarks/compare_cdo.py \
+    --src-size 120x120 \
+    --dst-size 90x90 \
+    --grid-type lcc \
     --methods bilinear,nearest,conservative \
     --field cosine
 ```

@@ -21,8 +21,10 @@
 #include <Kokkos_Core.hpp>
 
 #include <axis/types.hpp>
-#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/projection_builder.hpp>
+#include <axis/ingest/grid_descriptor.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
+#include <axis/topology/structured_grid.hpp>
 #include <axis/topology/mesh_factory.hpp>
 #include <axis/topology/named_grid_registry.hpp>
 #include <axis/solver/regrid_config.hpp>
@@ -88,6 +90,27 @@ HostMesh make_regular_mesh(std::size_t ni, std::size_t nj,
         axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(std::move(crx), std::move(cry));
 
+    return grid.to_unstructured();
+}
+
+// ─── Helper: Build a projected mesh (e.g. Lambert Conformal) via PROJ ───────
+
+HostMesh make_projected_mesh(std::size_t ni, std::size_t nj,
+                             const std::string& proj_string,
+                             nb::ndarray<nb::numpy, double, nb::ndim<1>> center_x,
+                             nb::ndarray<nb::numpy, double, nb::ndim<1>> center_y) {
+    ensure_kokkos();
+
+    axis::ingest::ProjectedParams params;
+    params.proj_string = proj_string;
+
+    axis::ingest::BufferViews buffers;
+    buffers.ni = ni;
+    buffers.nj = nj;
+    buffers.center_x = axis::field_view<const double, 1>(center_x.data(), center_x.shape(0));
+    buffers.center_y = axis::field_view<const double, 1>(center_y.data(), center_y.shape(0));
+
+    auto grid = axis::topology::ProjectionBuilder::build<Kokkos::HostSpace>(params, buffers);
     return grid.to_unstructured();
 }
 
@@ -228,6 +251,11 @@ NB_MODULE(axis_py, m) {
     m.def("make_regular_mesh", &make_regular_mesh,
           "ni"_a, "nj"_a, "lon_start"_a, "lat_start"_a, "dlon"_a, "dlat"_a,
           "Create a regular lat-lon UnstructuredMesh");
+
+    // Make a projected mesh (e.g. Lambert Conformal)
+    m.def("make_projected_mesh", &make_projected_mesh,
+          "ni"_a, "nj"_a, "proj_string"_a, "center_x"_a, "center_y"_a,
+          "Create a projected UnstructuredMesh using PROJ");
 
     // Make a named grid (Req 12.4)
     m.def("make_named_mesh", [](const std::string& name) -> HostMesh {

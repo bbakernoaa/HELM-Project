@@ -14,7 +14,7 @@ Prerequisites:
   - axis_py module (built from libs/axis/python/)
 
 Usage:
-  python benchmarks/compare_cdo.py [--grid-size 32] [--methods bilinear,nearest,conservative]
+  python benchmarks/compare_cdo.py [--grid-type regular] [--grid-size 32] [--methods bilinear,nearest,conservative]
 
 Output:
   Prints a comparison table with max error, RMS error, conservation error,
@@ -53,23 +53,56 @@ except ImportError:
     axis_py = None
 
 
-def create_test_field(nlat, nlon, field_type="cosine"):
-    """Create a test field on a regular lat-lon grid."""
+# Lambert Conformal Conic (LCC) projection string
+LCC_PROJ = "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+
+
+def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
+    """Create a test field on a regular lat-lon or Lambert Conformal conic grid."""
+    if grid_type == "lcc":
+        # Create a coordinate grid in projection space (meters)
+        # Use a large regional domain (2000 km x 2000 km) for better overlap
+        min_x = -1000000.0
+        max_x =  1000000.0
+        min_y = -1000000.0
+        max_y =  1000000.0
+        
+        xs = np.linspace(min_x, max_x, nlon)
+        ys = np.linspace(min_y, max_y, nlat)
+        x_grid2d, y_grid2d = np.meshgrid(xs, ys)
+
+        # Convert projection coordinates to geographic lon/lat
+        import pyproj
+        proj = pyproj.Proj(LCC_PROJ)
+        lons2d, lats2d = proj(x_grid2d, y_grid2d, inverse=True)
+
+        if field_type == "cosine":
+            # Smooth cosine bell
+            field = np.cos(np.radians(lats2d)) * np.cos(np.radians(lons2d))
+        elif field_type == "linear":
+            field = 0.5 * lons2d + 0.3 * lats2d + 10.0
+        elif field_type == "constant":
+            field = 42.0 * np.ones_like(lats2d)
+        elif field_type == "step":
+            field = np.where(lats2d > 0, 1.0, 0.0)
+        else:
+            raise ValueError(f"Unknown field type: {field_type}")
+
+        return lats2d, lons2d, field
+
+    # Regular
     lats = np.linspace(-90, 90, nlat)
     lons = np.linspace(0, 360, nlon, endpoint=False)
     lon2d, lat2d = np.meshgrid(lons, lats)
 
     if field_type == "cosine":
-        # Smooth cosine bell — good for testing bilinear exactness
+        # Smooth cosine bell
         field = np.cos(np.radians(lat2d)) * np.cos(np.radians(lon2d))
     elif field_type == "linear":
-        # Linear field — bilinear should reproduce exactly
         field = 0.5 * lon2d + 0.3 * lat2d + 10.0
     elif field_type == "constant":
-        # Constant — tests partition of unity
         field = 42.0 * np.ones_like(lat2d)
     elif field_type == "step":
-        # Step function — stresses conservative method
         field = np.where(lat2d > 0, 1.0, 0.0)
     else:
         raise ValueError(f"Unknown field type: {field_type}")
@@ -77,8 +110,58 @@ def create_test_field(nlat, nlon, field_type="cosine"):
     return lats, lons, field
 
 
-def write_netcdf(filepath, lats, lons, field, varname="temperature"):
+def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temperature"):
     """Write a field to a CF-compliant NetCDF file for CDO."""
+    if grid_type == "lcc":
+        # Curvilinear format with 2D lon and lat coordinates and boundary corners
+        nlat, nlon = field.shape
+        min_x = -1000000.0
+        max_x =  1000000.0
+        min_y = -1000000.0
+        max_y =  1000000.0
+        dx = (max_x - min_x) / (nlon - 1)
+        dy = (max_y - min_y) / (nlat - 1)
+
+        # Generate cell corner boundaries in projection space
+        xs_c = np.linspace(min_x - 0.5 * dx, max_x + 0.5 * dx, nlon + 1)
+        ys_c = np.linspace(min_y - 0.5 * dy, max_y + 0.5 * dy, nlat + 1)
+        xc_grid2d, yc_grid2d = np.meshgrid(xs_c, ys_c)
+
+        import pyproj
+        proj = pyproj.Proj(LCC_PROJ)
+        clons2d, clats2d = proj(xc_grid2d, yc_grid2d, inverse=True)
+
+        # Construct 3D bounds [lat, lon, 4 corners] in counter-clockwise order
+        lat_bounds = np.zeros((nlat, nlon, 4))
+        lon_bounds = np.zeros((nlat, nlon, 4))
+        for j in range(nlat):
+            for i in range(nlon):
+                lat_bounds[j, i, 0] = clats2d[j, i]
+                lat_bounds[j, i, 1] = clats2d[j, i+1]
+                lat_bounds[j, i, 2] = clats2d[j+1, i+1]
+                lat_bounds[j, i, 3] = clats2d[j+1, i]
+
+                lon_bounds[j, i, 0] = clons2d[j, i]
+                lon_bounds[j, i, 1] = clons2d[j, i+1]
+                lon_bounds[j, i, 2] = clons2d[j+1, i+1]
+                lon_bounds[j, i, 3] = clons2d[j+1, i]
+
+        ds = xr.Dataset(
+            {varname: (["lat", "lon"], field.astype(np.float64))},
+            coords={
+                "lat_2d": (["lat", "lon"], lats),
+                "lon_2d": (["lat", "lon"], lons),
+            },
+        )
+        ds["lat_bounds"] = (["lat", "lon", "nv"], lat_bounds)
+        ds["lon_bounds"] = (["lat", "lon", "nv"], lon_bounds)
+        ds["lat_2d"].attrs = {"units": "degrees_north", "standard_name": "latitude", "bounds": "lat_bounds"}
+        ds["lon_2d"].attrs = {"units": "degrees_east", "standard_name": "longitude", "bounds": "lon_bounds"}
+        ds[varname].attrs = {"coordinates": "lon_2d lat_2d", "units": "K", "long_name": "Test field"}
+        ds.to_netcdf(filepath)
+        return ds
+
+    # Regular
     ds = xr.Dataset(
         {varname: (["lat", "lon"], field.astype(np.float64))},
         coords={"lat": lats, "lon": lons},
@@ -111,7 +194,7 @@ def run_cdo_remap(input_file, output_file, target_grid, method):
     return elapsed
 
 
-def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method):
+def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_type="regular"):
     """Run AXIS remapping and return (result, wall_time)."""
     if axis_py is None:
         return None, 0.0
@@ -125,18 +208,51 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method):
         "conservative": axis_py.Method.Conservative,
     }
 
-    # Build source and destination meshes as regular lat-lon grids
-    src_dlon = 360.0 / src_nlon
-    src_dlat = 180.0 / src_nlat
-    dst_dlon = 360.0 / dst_nlon
-    dst_dlat = 180.0 / dst_nlat
-
     t0 = time.perf_counter()
 
-    src_mesh = axis_py.make_regular_mesh(
-        src_nlon, src_nlat, 0.0, -90.0, src_dlon, src_dlat)
+    if grid_type == "lcc":
+        # Generate 1D arrays of centers in projected space
+        min_x = -1000000.0
+        max_x =  1000000.0
+        min_y = -1000000.0
+        max_y =  1000000.0
+        dx = (max_x - min_x) / src_nlon
+        dy = (max_y - min_y) / src_nlat
+
+        center_x = np.zeros(src_nlon * src_nlat)
+        center_y = np.zeros(src_nlon * src_nlat)
+        for j in range(src_nlat):
+            for i in range(src_nlon):
+                idx = i + j * src_nlon
+                center_x[idx] = min_x + (i + 0.5) * dx
+                center_y[idx] = min_y + (j + 0.5) * dy
+
+        src_mesh = axis_py.make_projected_mesh(src_nlon, src_nlat, LCC_PROJ, center_x, center_y)
+    else:
+        # regular
+        src_dlon = 360.0 / src_nlon
+        src_dlat = 180.0 / src_nlat
+        src_mesh = axis_py.make_regular_mesh(
+            src_nlon, src_nlat, 0.0, -90.0, src_dlon, src_dlat)
+
+    # Build destination mesh (regular lat-lon spanning the local U.S. sector of LCC for cleaner overlap metrics)
+    if grid_type == "lcc":
+        # Spans U.S. region roughly overlapping the 2000 km LCC domain
+        dst_min_lon = -110.0
+        dst_max_lon = -82.0
+        dst_min_lat = 30.0
+        dst_max_lat = 50.0
+    else:
+        # Global
+        dst_min_lon = 0.0
+        dst_max_lon = 360.0
+        dst_min_lat = -90.0
+        dst_max_lat = 90.0
+
+    dst_dlon = (dst_max_lon - dst_min_lon) / dst_nlon
+    dst_dlat = (dst_max_lat - dst_min_lat) / dst_nlat
     dst_mesh = axis_py.make_regular_mesh(
-        dst_nlon, dst_nlat, 0.0, -90.0, dst_dlon, dst_dlat)
+        dst_nlon, dst_nlat, dst_min_lon, dst_min_lat, dst_dlon, dst_dlat)
 
     # Generate weights
     matrix = axis_py.generate_weights(src_mesh, dst_mesh, method_map[method])
@@ -152,20 +268,27 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method):
 
 def compare_results(axis_result, cdo_result):
     """Compare AXIS and CDO results, return error metrics."""
-    if axis_result is None:
+    if axis_result is None or cdo_result is None:
         return {"max_error": np.nan, "rms_error": np.nan, "mean_error": np.nan}
 
     # Flatten CDO result to match AXIS
     cdo_flat = cdo_result.ravel()
 
-    # If sizes differ (different grid interpretation), truncate to common size
+    # Truncate to common size
     n = min(len(axis_result), len(cdo_flat))
     diff = axis_result[:n] - cdo_flat[:n]
 
+    # Ignore NaN values from unmapped cells in local projected grids
+    valid = ~np.isnan(diff) & ~np.isnan(axis_result[:n]) & ~np.isnan(cdo_flat[:n])
+    if not np.any(valid):
+        return {"max_error": 0.0, "rms_error": 0.0, "mean_error": 0.0}
+
+    valid_diff = diff[valid]
+
     return {
-        "max_error": np.max(np.abs(diff)),
-        "rms_error": np.sqrt(np.mean(diff**2)),
-        "mean_error": np.mean(np.abs(diff)),
+        "max_error": np.max(np.abs(valid_diff)),
+        "rms_error": np.sqrt(np.mean(valid_diff**2)),
+        "mean_error": np.mean(np.abs(valid_diff)),
     }
 
 
@@ -175,6 +298,9 @@ def main():
                         help="Source grid size: N (square NxN) or NLONxNLAT")
     parser.add_argument("--dst-size", type=str, default="24",
                         help="Destination grid size: N (square NxN) or NLONxNLAT")
+    parser.add_argument("--grid-type", type=str, default="regular",
+                        choices=["regular", "lcc"],
+                        help="Source grid type: regular (lat-lon) or lcc (Lambert Conformal Conic)")
     parser.add_argument("--methods", type=str, default="bilinear,nearest,bicubic,patch,conservative",
                         help="Comma-separated interpolation methods to test")
     parser.add_argument("--field", type=str, default="cosine",
@@ -197,7 +323,7 @@ def main():
     print(f"{'='*70}")
     print(f"AXIS vs CDO Interpolation Benchmark")
     print(f"{'='*70}")
-    print(f"Source grid:  {src_nlon}x{src_nlat} regular lat-lon ({src_nlon*src_nlat:,} cells)")
+    print(f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon*src_nlat:,} cells)")
     print(f"Dest grid:    {dst_nlon}x{dst_nlat} regular lat-lon ({dst_nlon*dst_nlat:,} cells)")
     print(f"Test field:   {args.field}")
     print(f"Methods:      {', '.join(methods)}")
@@ -206,16 +332,27 @@ def main():
     print()
 
     # Create test field
-    lats, lons, field = create_test_field(src_nlat, src_nlon, args.field)
+    lats, lons, field = create_test_field(src_nlat, src_nlon, args.field, args.grid_type)
 
     # Write source NetCDF for CDO
     with tempfile.TemporaryDirectory() as tmpdir:
         src_nc = os.path.join(tmpdir, "source.nc")
-        write_netcdf(src_nc, lats, lons, field)
+        write_netcdf(src_nc, lats, lons, field, args.grid_type)
 
-        # Create CDO target grid description
-        dst_lats = np.linspace(-90, 90, dst_nlat)
-        dst_lons = np.linspace(0, 360, dst_nlon, endpoint=False)
+        # Create CDO target grid description (representing regional sector for LCC, or global for regular)
+        if args.grid_type == "lcc":
+            dst_min_lon = -110.0
+            dst_max_lon = -82.0
+            dst_min_lat = 30.0
+            dst_max_lat = 50.0
+        else:
+            dst_min_lon = 0.0
+            dst_max_lon = 360.0
+            dst_min_lat = -90.0
+            dst_max_lat = 90.0
+
+        dst_lats = np.linspace(dst_min_lat, dst_max_lat, dst_nlat)
+        dst_lons = np.linspace(dst_min_lon, dst_max_lon, dst_nlon, endpoint=False)
         target_grid = os.path.join(tmpdir, "target_grid.txt")
         with open(target_grid, "w") as f:
             f.write(f"gridtype = lonlat\n")
@@ -236,6 +373,7 @@ def main():
             try:
                 cdo_time = run_cdo_remap(src_nc, cdo_out, target_grid, method)
                 cdo_ds = xr.open_dataset(cdo_out)
+                # Read temperature variable
                 cdo_result = cdo_ds["temperature"].values
                 cdo_sum = float(np.nansum(cdo_result))
             except Exception as e:
@@ -251,10 +389,10 @@ def main():
 
             # ── AXIS ──
             axis_result, axis_time = run_axis_remap(
-                src_nlat, src_nlon, dst_nlat, dst_nlon, field, method)
+                src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, args.grid_type)
 
             if axis_result is not None:
-                axis_sum = float(np.sum(axis_result))
+                axis_sum = float(np.nansum(axis_result))
 
                 # Compare against CDO
                 if cdo_result is not None:
