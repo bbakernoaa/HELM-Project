@@ -39,6 +39,8 @@ namespace std {
 }
 #endif
 
+/// @namespace axis
+/// @brief Root namespace for the Arbitrary eXgrid Interpolation Solver (AXIS).
 namespace axis {
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,6 +48,9 @@ namespace axis {
 // boundaries. T is the element type, Rank is the number of dimensions.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// @brief Helper template to generate Kokkos dynamic extents based on rank.
+/// @tparam IndexType The index type used to define the extent bounds.
+/// @tparam Rank The dimensionality (rank) of the span, supporting values 1, 2, 3, or 4.
 template <typename IndexType, std::size_t Rank>
 using my_dextents = std::conditional_t<Rank == 1,
     Kokkos::extents<IndexType, std::dynamic_extent>,
@@ -58,8 +63,13 @@ using my_dextents = std::conditional_t<Rank == 1,
     >
 >;
 
-/// Column-major (Fortran) non-owning view over a contiguous array.
-/// This is the ONLY layout AXIS accepts at its public boundary.
+/// @brief Column-major (Fortran-layout) non-owning multidimensional span view.
+///
+/// This is the canonical layout AXIS accepts at its public boundary, enabling
+/// zero-copy interoperability with Fortran scientific models and high-performance layouts.
+///
+/// @tparam T The element type stored or accessed through the span (e.g. @c double or @c const @c double).
+/// @tparam Rank The dimensionality of the field (number of dynamic dimensions).
 template <class T, std::size_t Rank>
 using field_view = Kokkos::mdspan<T, my_dextents<std::size_t, Rank>, Kokkos::layout_left>;
 
@@ -67,19 +77,20 @@ using field_view = Kokkos::mdspan<T, my_dextents<std::size_t, Rank>, Kokkos::lay
 // Common rank shortcuts
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Rank-1 double view: [n_cells] — unstructured fields, 1-D coordinate arrays.
+/// @brief Rank-1 double view: [n_cells] — unstructured fields, 1-D coordinate arrays.
 using field1d = field_view<double, 1>;
 
-/// Rank-2 double view: [ni, nj] — structured fields (i fastest, column-major).
+/// @brief Rank-2 double view: [ni, nj] — structured fields (i fastest, column-major).
 using field2d = field_view<double, 2>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Index type
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Index type used throughout the sparse matrix and CSR connectivity tables.
-/// Signed 64-bit to support global indices in distributed mode and sentinel
-/// values (e.g., -1 for invalid/unmapped).
+/// @brief Signed 64-bit index type used across solver matrices and connectivity tables.
+///
+/// Supports global indices in distributed MPI configurations, and allows negative
+/// sentinel values (such as -1) to signify invalid or unmapped elements.
 using index_t = std::int64_t;
 
 } // namespace axis

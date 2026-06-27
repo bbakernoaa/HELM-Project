@@ -40,48 +40,64 @@
 
 namespace axis::topology {
 
-/// Static interface factory for building UnstructuredMesh from descriptors,
-/// named-grid tokens, or rule parameters.
+/// @brief Static factory class that serves as the single entry funnel for all grids into AXIS.
 ///
-/// All methods are static — MeshFactory has no instance state.
+/// MeshFactory provides a static interface (no instance state) to construct `UnstructuredMesh`
+/// instances from various sources:
+///   1. `from_descriptor`: The primary unified entry point for all file-backed grid sources described via `GridDescriptor`.
+///   2. `from_named`: A shortcut entry point that resolves pre-defined or registered named grids by string tokens.
+///   3. `from_rules`: A shortcut entry point that generates mesh topologies procedurally from rules-based parameters.
+///
+/// Because all methods are static, this class cannot be instantiated (the default constructor is deleted).
 class MeshFactory {
 public:
+    /// @brief Deleted default constructor to prevent instantiation of this static factory class.
     MeshFactory() = delete;
 
-    /// Build an UnstructuredMesh from a GridDescriptor — THE single entry point
-    /// for all file-backed grid sources.
+    /// @brief Builds an UnstructuredMesh from a GridDescriptor.
     ///
-    /// Branches on descriptor.kind ONCE. NEVER branches on producer identity.
-    /// Validates thoroughly before building (strong guarantee: all-or-nothing).
+    /// This is the single, unified entry point for all file-backed grid sources. It branches
+    /// on `descriptor.kind` exactly once to dispatch to the appropriate convention builder, and
+    /// never branches based on producer identity.
     ///
-    /// @tparam MemorySpace  Target Kokkos memory space for the resulting mesh.
-    /// @param descriptor    The populated GridDescriptor from a producer.
-    /// @return A complete UnstructuredMesh in the target MemorySpace.
+    /// Thorough validation of the descriptor is performed prior to construction (providing a strong
+    /// all-or-nothing guarantee). If any validation check fails, an exception is thrown and no mesh
+    /// is constructed.
     ///
-    /// @throws std::invalid_argument on unknown kind, missing field,
-    ///         inconsistent extents, or null/empty required buffers.
+    /// If the buffer views in the descriptor already address the target `MemorySpace`, they are adopted
+    /// directly without performing any copy. Otherwise, an explicit deep copy using `Kokkos::deep_copy`
+    /// is executed to place the data in the target memory space.
+    ///
+    /// @tparam MemorySpace The target Kokkos memory space for the resulting unstructured mesh. Defaults to Kokkos::HostSpace.
+    /// @param descriptor The populated ingest::GridDescriptor instance from a file or grid producer.
+    /// @return A complete UnstructuredMesh instance residing in the specified MemorySpace.
+    /// @throws std::invalid_argument If the descriptor has an unknown kind, missing required fields, inconsistent buffer extents, or null/empty required buffers.
     template <class MemorySpace = Kokkos::HostSpace>
     [[nodiscard]] static UnstructuredMesh<MemorySpace>
     from_descriptor(const ingest::GridDescriptor& descriptor);
 
-    /// Shortcut: generate a named grid by token. Delegates directly to
-    /// NamedGridRegistry::generate.
+    /// @brief Generates an UnstructuredMesh for a registered named grid token.
     ///
-    /// @tparam MemorySpace  Target Kokkos memory space.
-    /// @param name          Grid name string (e.g. "O1280", "F128", "N320").
-    /// @return A complete UnstructuredMesh.
-    /// @throws std::invalid_argument if the name is unknown/malformed.
+    /// This method is a shortcut helper that delegates directly to `NamedGridRegistry::generate`.
+    /// Typical named grid tokens include standard meteorological grids such as "O1280", "F128", "N320", etc.
+    ///
+    /// @tparam MemorySpace The target Kokkos memory space for the resulting unstructured mesh. Defaults to Kokkos::HostSpace.
+    /// @param name The named grid token string.
+    /// @return A complete UnstructuredMesh instance residing in the specified MemorySpace.
+    /// @throws std::invalid_argument If the provided name is unknown, malformed, or unregistered.
     template <class MemorySpace = Kokkos::HostSpace>
     [[nodiscard]] static UnstructuredMesh<MemorySpace>
     from_named(const std::string& name);
 
-    /// Shortcut: generate a mesh from rule parameters. Delegates directly to
-    /// RuleGenerator::generate.
+    /// @brief Generates an UnstructuredMesh procedurally from a set of rule parameters.
     ///
-    /// @tparam MemorySpace  Target Kokkos memory space.
-    /// @param params        GridRulesParams specifying kind, bbox, resolution, etc.
-    /// @return A complete UnstructuredMesh.
-    /// @throws std::invalid_argument on invalid/inconsistent parameters.
+    /// This method is a shortcut helper that delegates directly to `RuleGenerator::generate` to build
+    /// structured/unstructured meshes based on analytical specifications (such as bounding boxes and resolutions).
+    ///
+    /// @tparam MemorySpace The target Kokkos memory space for the resulting unstructured mesh. Defaults to Kokkos::HostSpace.
+    /// @param params The ingest::GridRulesParams structure specifying the procedural rules.
+    /// @return A complete UnstructuredMesh instance residing in the specified MemorySpace.
+    /// @throws std::invalid_argument If the parameters are inconsistent or invalid.
     template <class MemorySpace = Kokkos::HostSpace>
     [[nodiscard]] static UnstructuredMesh<MemorySpace>
     from_rules(const ingest::GridRulesParams& params);

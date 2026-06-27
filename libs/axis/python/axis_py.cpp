@@ -195,6 +195,21 @@ axis::solver::RegridConfig parse_regrid_config(const nb::dict& config) {
         }
     }
 
+    if (config.contains("line_type")) {
+        auto lt = config["line_type"];
+        if (nb::isinstance<axis::solver::LineType>(lt)) {
+            cfg.line_type = nb::cast<axis::solver::LineType>(lt);
+        } else if (nb::isinstance<nb::str>(lt)) {
+            std::string s = nb::cast<std::string>(lt);
+            if (s == "cartesian" || s == "Cartesian")
+                cfg.line_type = axis::solver::LineType::Cartesian;
+            else if (s == "great_circle" || s == "GreatCircle")
+                cfg.line_type = axis::solver::LineType::GreatCircle;
+            else
+                throw std::invalid_argument("Unknown line_type: " + s);
+        }
+    }
+
     if (config.contains("use_limiter")) {
         cfg.use_limiter = nb::cast<bool>(config["use_limiter"]);
     }
@@ -226,6 +241,11 @@ NB_MODULE(axis_py, m) {
     nb::enum_<axis::solver::UnmappedAction>(m, "UnmappedAction")
         .value("Error", axis::solver::UnmappedAction::Error)
         .value("Ignore", axis::solver::UnmappedAction::Ignore);
+
+    // ─── LineType enum ───────────────────────────────────────────────────────
+    nb::enum_<axis::solver::LineType>(m, "LineType")
+        .value("Cartesian", axis::solver::LineType::Cartesian)
+        .value("GreatCircle", axis::solver::LineType::GreatCircle);
 
     // ─── Mesh wrapper class ──────────────────────────────────────────────────
     nb::class_<HostMesh>(m, "Mesh")

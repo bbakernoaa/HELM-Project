@@ -310,7 +310,7 @@ def run_cdo_remap(input_file, output_file, target_grid, method):
     return elapsed
 
 
-def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_type="regular"):
+def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_type="regular", line_type="great_circle"):
     """Run AXIS remapping and return (result, wall_time)."""
     if axis_py is None:
         return None, 0.0
@@ -374,8 +374,13 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_t
     dst_mesh = axis_py.make_regular_mesh(
         dst_nlon, dst_nlat, dst_min_lon, dst_min_lat, dst_dlon, dst_dlat)
 
-    # Generate weights
-    matrix = axis_py.generate_weights(src_mesh, dst_mesh, method_map[method])
+    # Generate weights with full configuration dictionary
+    config = {
+        "method": method_map[method],
+        "line_type": line_type,
+        "unmapped": "ignore"
+    }
+    matrix = axis_py.generate_weights(src_mesh, dst_mesh, config)
 
     # Apply weights
     if grid_type == "mpas":
@@ -430,6 +435,9 @@ def main():
     parser.add_argument("--field", type=str, default="cosine",
                         choices=["cosine", "linear", "constant", "step"],
                         help="Test field type")
+    parser.add_argument("--line-type", type=str, default="great_circle",
+                        choices=["great_circle", "cartesian"],
+                        help="Line geometry to use: great_circle (default) or cartesian (fast planar)")
     args = parser.parse_args()
 
     # Parse grid sizes (support NxM or just N for square)
@@ -524,7 +532,7 @@ def main():
 
             # ── AXIS ──
             axis_result, axis_time = run_axis_remap(
-                src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, args.grid_type)
+                src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, args.grid_type, args.line_type)
 
             if axis_result is not None:
                 axis_sum = float(np.nansum(axis_result))

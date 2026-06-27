@@ -25,20 +25,32 @@
 
 namespace axis::topology {
 
-/// Logically rectangular (rectilinear or curvilinear) grid. Internally stores
-/// center lon/lat arrays [ni*nj] and optionally corner arrays [(ni+1)*(nj+1)].
-/// to_unstructured() converts to the common FEM format for the solver.
+/// @brief Represents a logically rectangular (rectilinear or curvilinear) structured grid.
+///
+/// This class represents a structured grid in logical 2D space. Internally, it stores the
+/// coordinate arrays for cell centers and cell corners as flat 1-D Kokkos::Views in a specific
+/// memory space. The center arrays contain `ni * nj` elements, while the corner arrays contain
+/// `(ni + 1) * (nj + 1)` elements. It supports conservative methods by allowing the explicit
+/// configuration of corner coordinates, and can be converted into the common internal finite-element
+/// `UnstructuredMesh` format via the `to_unstructured()` member function.
+///
+/// @tparam MemorySpace The Kokkos memory space used for internal array storage (e.g., Kokkos::HostSpace, Kokkos::CudaSpace, Kokkos::HIPSpace).
 template <class MemorySpace = Kokkos::HostSpace>
 class StructuredGrid {
 public:
+    /// @brief Type alias for the memory space template parameter.
     using memory_space = MemorySpace;
 
-    /// Construct from dimensions and 1-D center coordinate arrays.
-    /// @param ni        Number of cells in i-direction (longitude-like)
-    /// @param nj        Number of cells in j-direction (latitude-like)
-    /// @param center_lon  Center longitudes as 1-D array [ni*nj], column-major
-    /// @param center_lat  Center latitudes as 1-D array [ni*nj], column-major
-    /// @param coord_sys   Coordinate system of the coordinates
+    /// @brief Constructs a StructuredGrid from dimensions and 1-D center coordinate arrays.
+    ///
+    /// This constructor adopts the provided center coordinate Kokkos::View objects, moving them in
+    /// without performing deep copies.
+    ///
+    /// @param ni The number of cells in the i-direction (longitude-like, fastest-varying dimension) as a std::size_t.
+    /// @param nj The number of cells in the j-direction (latitude-like) as a std::size_t.
+    /// @param center_lon A rank-1 Kokkos::View of size [ni*nj] containing cell center longitudes in column-major order.
+    /// @param center_lat A rank-1 Kokkos::View of size [ni*nj] containing cell center latitudes in column-major order.
+    /// @param coord_sys The CoordinateSystem enum value specifying the coordinate system (e.g., SphericalDeg, Cartesian).
     StructuredGrid(std::size_t ni, std::size_t nj,
                    Kokkos::View<double*, MemorySpace> center_lon,
                    Kokkos::View<double*, MemorySpace> center_lat,
@@ -46,46 +58,68 @@ public:
 
     // ── Dimension queries ────────────────────────────────────────────────────
 
-    /// Number of cells in the i-direction (fastest-varying dimension).
+    /// @brief Gets the number of cells in the i-direction (fastest-varying dimension).
+    /// @return The number of cells in the i-direction as a std::size_t.
     [[nodiscard]] std::size_t ni() const noexcept { return ni_; }
 
-    /// Number of cells in the j-direction.
+    /// @brief Gets the number of cells in the j-direction.
+    /// @return The number of cells in the j-direction as a std::size_t.
     [[nodiscard]] std::size_t nj() const noexcept { return nj_; }
 
-    /// Coordinate system.
+    /// @brief Gets the coordinate system of the grid's coordinates.
+    /// @return The CoordinateSystem enum value representing the grid's coordinate system.
     [[nodiscard]] CoordinateSystem coord_system() const noexcept { return coord_sys_; }
 
     // ── Coordinate accessors (1-D flat arrays) ───────────────────────────────
 
-    /// Center longitudes [ni*nj].
+    /// @brief Gets the center longitudes as a flat 1-D field_view.
+    /// @return A non-owning rank-1 field_view of size [ni*nj].
     [[nodiscard]] field_view<const double, 1> center_lon() const noexcept;
 
-    /// Center latitudes [ni*nj].
+    /// @brief Gets the center latitudes as a flat 1-D field_view.
+    /// @return A non-owning rank-1 field_view of size [ni*nj].
     [[nodiscard]] field_view<const double, 1> center_lat() const noexcept;
 
-    /// Corner longitudes [(ni+1)*(nj+1)]. Empty if corners not set.
+    /// @brief Gets the corner longitudes as a flat 1-D field_view.
+    ///
+    /// If corner coordinates were not explicitly set via `set_corners()`, this returns
+    /// an empty view of size 0.
+    ///
+    /// @return A non-owning rank-1 field_view of size [(ni+1)*(nj+1)] or empty.
     [[nodiscard]] field_view<const double, 1> corner_lon() const noexcept;
 
-    /// Corner latitudes [(ni+1)*(nj+1)]. Empty if corners not set.
+    /// @brief Gets the corner latitudes as a flat 1-D field_view.
+    ///
+    /// If corner coordinates were not explicitly set via `set_corners()`, this returns
+    /// an empty view of size 0.
+    ///
+    /// @return A non-owning rank-1 field_view of size [(ni+1)*(nj+1)] or empty.
     [[nodiscard]] field_view<const double, 1> corner_lat() const noexcept;
 
     // ── Mutators ─────────────────────────────────────────────────────────────
 
-    /// Set vertex (corner) coordinates for conservative methods.
-    /// @param corner_lon  Corner longitudes [(ni+1)*(nj+1)]
-    /// @param corner_lat  Corner latitudes [(ni+1)*(nj+1)]
+    /// @brief Sets the vertex (corner) coordinates for conservative methods.
+    ///
+    /// This method moves the provided corner Views into the grid instance without copying.
+    ///
+    /// @param corner_lon A rank-1 Kokkos::View of size [(ni+1)*(nj+1)] containing corner longitudes.
+    /// @param corner_lat A rank-1 Kokkos::View of size [(ni+1)*(nj+1)] containing corner latitudes.
     void set_corners(Kokkos::View<double*, MemorySpace> corner_lon,
                      Kokkos::View<double*, MemorySpace> corner_lat);
 
     // ── Conversion ───────────────────────────────────────────────────────────
 
-    /// Convert to the common internal FEM unstructured mesh format.
-    /// Produces exactly ni*nj quadrilateral cells. Each cell (i,j) has 4 corner
-    /// nodes. If corners are not set, they are synthesized from centers using
-    /// midpoints between adjacent centers.
+    /// @brief Converts the StructuredGrid into the common internal finite-element UnstructuredMesh format.
     ///
-    /// The conversion executes via a Kokkos parallel kernel for hardware
-    /// portability (Requirement 18.3).
+    /// Produces exactly `ni * nj` quadrilateral cells. Each logical cell (i, j) is mapped to a
+    /// quadrilateral element with 4 corner nodes in the resulting unstructured mesh. If corner
+    /// coordinates have not been explicitly provided via `set_corners()`, they are dynamically
+    /// synthesized from the cell center coordinates using a midpoint interpolation scheme.
+    ///
+    /// This conversion is executed via a highly parallelized Kokkos kernel on the device or host
+    /// associated with the template's `MemorySpace`.
+    ///
+    /// @return A complete UnstructuredMesh<MemorySpace> instance representing the same grid.
     [[nodiscard]] UnstructuredMesh<MemorySpace> to_unstructured() const;
 
 private:

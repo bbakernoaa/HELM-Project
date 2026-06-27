@@ -27,23 +27,31 @@
 
 namespace axis::topology {
 
-/// Rule-based generator. Builds a mesh purely from the GridRules parameters in a
-/// descriptor (kind, bbox, resolution, gaussian_n) using a Kokkos parallel
-/// kernel — NO file enumeration and NO YAML/JSON parsing.
+/// @class RuleGenerator
+/// @brief Rule-based grid generator from abstract mathematical rules.
 ///
-/// Validation:
-///   - If kind is unrecognized → throw std::invalid_argument
-///   - If resolution r_x or r_y <= 0 → throw std::invalid_argument
-///   - If bbox max < min → throw std::invalid_argument
-///   - If gaussian_n <= 0 for Gaussian kinds → throw std::invalid_argument
+/// Generates a mesh in a deterministic manner using Kokkos parallel kernels, fully derived from
+/// GridRules configurations (such as grid kind, bounding boxes, resolutions, and Gaussian number N).
+/// It performs generation with zero file interactions or third-party file format parsing.
+///
+/// Validation rules:
+///   - If the grid kind is unrecognized, an exception is thrown.
+///   - If the grid resolutions (r_x, r_y) are non-positive, an exception is thrown.
+///   - If the bounding box maximum coordinate is less than its minimum coordinate, an exception is thrown.
+///   - If the Gaussian grid parameter gaussian_n is non-positive for Gaussian-style grids, an exception is thrown.
 class RuleGenerator {
 public:
-    /// Generate an UnstructuredMesh from rule parameters.
+    /// @brief Generate an UnstructuredMesh from specified grid rules parameters.
     ///
-    /// @tparam MemorySpace  Kokkos memory space for the resulting mesh
-    /// @param rules  GridRulesParams specifying kind, bbox, resolution, etc.
-    /// @return A complete UnstructuredMesh in the target MemorySpace
-    /// @throws std::invalid_argument on invalid/inconsistent parameters
+    /// Constructs a fully populated UnstructuredMesh structure entirely within the target memory space
+    /// based on mathematical rule formulations.
+    ///
+    /// @tparam MemorySpace The Kokkos memory space in which the resulting mesh's data views should be allocated. Defaults to Kokkos::HostSpace.
+    /// @param rules The ingest::GridRulesParams structure containing parameters for mesh generation (e.g., kind, bbox, resolution, and gaussian_n).
+    /// @return UnstructuredMesh<MemorySpace> A completed UnstructuredMesh object located in the specified MemorySpace.
+    /// @throw std::invalid_argument If the grid rule kind is unrecognized, if coordinate bounding box constraints
+    ///                              are violated (max < min), if resolution spacing is non-positive, or if the Gaussian N parameter
+    ///                              is invalid (<= 0) for Gaussian-based grids.
     template <class MemorySpace = Kokkos::HostSpace>
     [[nodiscard]] static UnstructuredMesh<MemorySpace>
         generate(const ingest::GridRulesParams& rules);

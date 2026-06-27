@@ -30,28 +30,28 @@
 
 namespace axis::topology {
 
-/// PROJ projection builder. Transforms a regular grid laid out in projection
-/// space (bbox + resolution) to geographic coordinates via detail::Proj_Handle.
-/// This is the ONLY helper guarded by an optional dependency (AXIS_ENABLE_PROJ);
-/// projection math has no equivalent in AMIO's stack, so it genuinely belongs
-/// to AXIS. Invoked by MeshFactory::from_descriptor for ConventionKind::Projected.
+/// @class ProjectionBuilder
+/// @brief PROJ-based projection builder for geographic coordinate transformation.
+///
+/// This class transforms regular grid coordinates specified in projection space (such as a bounding
+/// box and grid resolutions) into geographic coordinates (longitude and latitude in degrees) using the
+/// PROJ library via an internal handle.
+/// This is the only helper in AXIS guarded by the optional AXIS_ENABLE_PROJ compilation dependency.
+/// It is invoked by MeshFactory::from_descriptor when processing ConventionKind::Projected grids.
 class ProjectionBuilder {
 public:
-    /// Build a StructuredGrid by transforming projection-space coordinates to
-    /// geographic (lon/lat) coordinates using PROJ.
+    /// @brief Build a StructuredGrid by transforming projection-space coordinates to geographic (lon/lat) coordinates using PROJ.
     ///
-    /// @tparam MemorySpace  Target Kokkos memory space for the output grid.
-    /// @param params        The projected params (contains the proj_string).
-    /// @param buffers       The descriptor's buffer views (center_x, center_y, ni, nj).
-    /// @return A StructuredGrid with coordinates in geographic lon/lat (degrees).
+    /// For GPU builds targeting a device memory space, the PROJ transformation is executed on the host CPU
+    /// (since the third-party PROJ library is CPU-only), and the resulting coordinate views are subsequently
+    /// transferred to the target device memory space using a Kokkos::deep_copy operation.
     ///
-    /// @throws std::runtime_error if AXIS was built without PROJ support.
-    /// @throws std::runtime_error if the PROJ transformation fails.
-    /// @throws std::invalid_argument if the proj_string is empty or buffers are invalid.
-    ///
-    /// For GPU builds (device MemorySpace): the PROJ transform executes on the
-    /// host first (PROJ is CPU-only), then the result is deep_copied to the
-    /// target device memory space.
+    /// @tparam MemorySpace The Kokkos memory space in which the output StructuredGrid's data arrays should be allocated. Defaults to Kokkos::HostSpace.
+    /// @param params The ingest::ProjectedParams structure containing projection information, such as the PROJ string.
+    /// @param buffers The ingest::BufferViews structure containing grid dimension sizes (ni, nj) and source coordinate buffers (center_x, center_y).
+    /// @return StructuredGrid<MemorySpace> A StructuredGrid containing longitude and latitude coordinates in degrees, allocated in the specified MemorySpace.
+    /// @throw std::runtime_error If AXIS was compiled without PROJ support (AXIS_ENABLE_PROJ is OFF), or if the underlying PROJ coordinate transformation library encounters an error.
+    /// @throw std::invalid_argument If the provided projection string is empty, or if the input buffer views are invalid or of inconsistent sizes.
     template <class MemorySpace = Kokkos::HostSpace>
     [[nodiscard]] static StructuredGrid<MemorySpace>
     build(const ingest::ProjectedParams& params,

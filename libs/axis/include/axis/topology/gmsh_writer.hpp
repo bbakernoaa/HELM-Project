@@ -25,33 +25,34 @@
 
 namespace axis::topology {
 
-/// @brief Exports an UnstructuredMesh to Gmsh .msh v2.2 ASCII format.
+/// @class GmshWriter
+/// @brief Native exporter for serializing an UnstructuredMesh to Gmsh .msh v2.2 ASCII format.
 ///
+/// Provides a clean static function interface for exporting unstructured mesh data.
 /// Usage:
 /// @code
 ///   GmshWriter::write("output.msh", mesh);
 /// @endcode
-///
-/// @throws std::runtime_error if the file cannot be opened or a write error occurs.
 class GmshWriter {
 public:
-    /// Serialize @p mesh to Gmsh .msh v2.2 ASCII at @p filepath.
+    /// @brief Serialize an UnstructuredMesh to Gmsh .msh v2.2 ASCII format at the specified file path.
     ///
-    /// If the mesh resides in device memory (CudaSpace, HIPSpace, etc.),
-    /// internal arrays are mirrored to host via Kokkos::deep_copy before
-    /// writing. The file is managed via detail::File_Handle RAII — guaranteed
-    /// to be closed on all exit paths including exceptions.
+    /// If the mesh resides in device memory (e.g., CudaSpace or HIPSpace), internal arrays
+    /// are automatically mirrored to the host memory space via explicit Kokkos::deep_copy prior to serialization.
+    /// File streams are managed safely using a detail::File_Handle RAII container to guarantee files
+    /// are closed properly on all function exits, including exception unwinding.
     ///
-    /// Element types are determined from per-cell node count:
-    ///   - 3 nodes → Gmsh type 2 (3-node triangle)
-    ///   - 4 nodes → Gmsh type 3 (4-node quadrilateral)
-    ///   - Other   → skipped (not representable in MSH v2.2)
+    /// Element types are determined from per-cell node count as follows:
+    ///   - Cells with 3 nodes are exported as Gmsh element type 2 (3-node triangle).
+    ///   - Cells with 4 nodes are exported as Gmsh element type 3 (4-node quadrilateral).
+    ///   - Cells with other node counts are skipped, as they are not natively representable in standard MSH v2.2.
     ///
-    /// Node indices are converted from AXIS 0-based to Gmsh 1-based.
+    /// Node indexing is converted from AXIS 0-based indexing to Gmsh 1-based indexing during serialization.
     ///
-    /// @param filepath  Path to the output .msh file.
-    /// @param mesh      The mesh to serialize.
-    /// @throws std::runtime_error if fopen fails or a write error occurs.
+    /// @tparam MemorySpace The Kokkos memory space of the mesh being serialized.
+    /// @param filepath The std::string representing the path to the output .msh file on the file system.
+    /// @param mesh The UnstructuredMesh<MemorySpace> instance to serialize.
+    /// @throw std::runtime_error If the target output file cannot be opened, or if a write error occurs during serialization.
     template <class MemorySpace>
     static void write(const std::string& filepath,
                       const UnstructuredMesh<MemorySpace>& mesh);

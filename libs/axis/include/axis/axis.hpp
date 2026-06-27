@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright NOAA / HELM Project
-//
-// axis.hpp — Umbrella header for the AXIS micro-library.
-//
-// Including this single header brings in the entire AXIS public API:
-//   - Plain-data ingest/egress contract (GridDescriptor, WeightEgress, MeshEgress)
-//   - Topology data structures and builders (meshes, grids, factories, generators)
-//   - Solver engine (weight generation, sparse apply, conservation accounting)
-//   - Internal detail utilities (memory traits, mdspan interop, RAII handles)
-//
-// AXIS is a Tier 1 HELM utility — it includes NO headers from HALO, AMIO,
-// TICK, LOGS, SPAN, DAGR, eckit, or domain-science models.
+
+/// @file axis.hpp
+/// @brief Umbrella header for the AXIS micro-library.
+///
+/// Including this single header brings in the entire AXIS public API:
+///   - Plain-data ingest/egress contract (GridDescriptor, WeightEgress, MeshEgress)
+///   - Topology data structures and builders (meshes, grids, factories, generators)
+///   - Solver engine (weight generation, sparse apply, conservation accounting)
+///   - Internal detail utilities (memory traits, mdspan interop, RAII handles)
+///
+/// AXIS is a Tier 1 HELM utility — it includes NO headers from HALO, AMIO,
+/// TICK, LOGS, SPAN, DAGR, eckit, or domain-science models.
 
 #ifndef AXIS_AXIS_HPP
 #define AXIS_AXIS_HPP

@@ -31,9 +31,10 @@ namespace axis::ingest {
 // ConventionKind — how to interpret the descriptor's metadata and buffers.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// How to interpret the descriptor's metadata and buffers. The producer sets
-/// this after detecting the file's grid convention; AXIS branches on it ONCE
-/// inside MeshFactory::from_descriptor.
+/// @brief How to interpret the descriptor's metadata and buffers.
+///
+/// The producer sets this after detecting the file's grid convention; AXIS branches
+/// on it ONCE inside MeshFactory::from_descriptor.
 enum class ConventionKind : std::uint8_t {
     CF,         ///< CF-conventions structured grid (grid_mapping + coord vars)
     UGRID,      ///< UGRID unstructured mesh (node/edge/face topology)
@@ -48,7 +49,7 @@ enum class ConventionKind : std::uint8_t {
 // is self-contained (no dependency on topology headers).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Coordinate system for node/cell coordinates.
+/// @brief Coordinate system for node/cell coordinates.
 enum class CoordinateSystem : std::uint8_t {
     SphericalDeg,   ///< Geographic lon/lat in degrees
     SphericalRad,   ///< Geographic lon/lat in radians
@@ -60,113 +61,158 @@ enum class CoordinateSystem : std::uint8_t {
 // Only the member matching GridDescriptor::convention is meaningful.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// CF grid_mapping parameters (cf-conventions ch.5.6).
+/// @brief CF grid_mapping parameters (cf-conventions ch.5.6).
 struct CfParams {
-    std::string grid_mapping_name;          ///< e.g. "latitude_longitude", "lambert_conformal_conic"
-    double earth_radius{0.0};               ///< optional Earth radius (m); 0 = unset
-    double semi_major{0.0};                 ///< optional semi-major axis (m); 0 = unset
-    double semi_minor{0.0};                 ///< optional semi-minor axis (m); 0 = unset
-    double inverse_flattening{0.0};         ///< optional inverse flattening; 0 = unset
+    /// @brief Name of the grid mapping variable projection (e.g. "latitude_longitude", "lambert_conformal_conic").
+    std::string grid_mapping_name;
+    /// @brief Optional sphere Earth radius in meters (0.0 if unset).
+    double earth_radius{0.0};
+    /// @brief Optional semi-major axis of the ellipsoid in meters (0.0 if unset).
+    double semi_major{0.0};
+    /// @brief Optional semi-minor axis of the ellipsoid in meters (0.0 if unset).
+    double semi_minor{0.0};
+    /// @brief Optional inverse flattening of the ellipsoid (0.0 if unset).
+    double inverse_flattening{0.0};
 };
 
-/// UGRID topology attributes (ugrid-conventions).
+/// @brief UGRID topology attributes (ugrid-conventions).
 struct UgridParams {
-    int         topology_dimension{2};      ///< 2 (surface) or 3 (volume)
-    int         start_index{0};             ///< 0- or 1-based connectivity offset
-    std::string mesh_name;                  ///< mesh topology variable name
+    /// @brief Topology dimension of the mesh, usually 2 (surface) or 3 (volume).
+    int         topology_dimension{2};
+    /// @brief Connectivity array index offset (0-based or 1-based index).
+    int         start_index{0};
+    /// @brief Name of the mesh topology container variable.
+    std::string mesh_name;
 };
 
-/// GRIB grid-description keys (as surfaced by AMIO's g2c driver).
+/// @brief GRIB grid-description keys (as surfaced by AMIO's g2c driver).
 struct GribParams {
-    std::string grid_type;                  ///< "regular_ll", "regular_gg", "reduced_gg", ...
-    std::int64_t ni{0};                     ///< points along a parallel (Ni)
-    std::int64_t nj{0};                     ///< points along a meridian (Nj)
-    std::int64_t gaussian_n{0};             ///< Gaussian truncation N (0 if not Gaussian)
-    std::uint8_t scanning_mode{0};          ///< GRIB scanning mode byte
-    int          earth_shape_code{0};       ///< GRIB earth shape code
+    /// @brief GRIB grid type name (e.g. "regular_ll", "regular_gg", "reduced_gg").
+    std::string grid_type;
+    /// @brief Number of grid points along a parallel of latitude (Ni).
+    std::int64_t ni{0};
+    /// @brief Number of grid points along a meridian of longitude (Nj).
+    std::int64_t nj{0};
+    /// @brief Gaussian truncation parameter N (number of latitude rows between a pole and the equator; 0 if not Gaussian).
+    std::int64_t gaussian_n{0};
+    /// @brief GRIB scanning mode flag byte.
+    std::uint8_t scanning_mode{0};
+    /// @brief GRIB shape of the earth code identifier.
+    int          earth_shape_code{0};
 };
 
-/// Projected-grid parameters. AXIS transforms via PROJ (its only optional dep).
+/// @brief Projected-grid parameters. AXIS transforms via PROJ (its only optional dep).
 struct ProjectedParams {
-    std::string proj_string;                ///< proj4 / PROJ definition string
+    /// @brief PROJ/proj4 spatial projection definition string (e.g., "+proj=lcc +lat_1=33 ...").
+    std::string proj_string;
 };
 
-/// Named-grid parameters: just the registry token. AXIS generates in-memory.
+/// @brief Named-grid parameters: just the registry token. AXIS generates in-memory.
 struct NamedGridParams {
-    std::string name;                       ///< e.g. "O1280", "F128", "N320"
+    /// @brief Registered grid name token (e.g. "O1280", "F128", "N320").
+    std::string name;
 };
 
-/// Rule-based parameters (a GridRules YAML is parsed by the PRODUCER into these
+/// @brief Rule-based parameters (a GridRules YAML is parsed by the PRODUCER into these
 /// plain fields; AXIS never parses YAML or JSON).
 struct GridRulesParams {
-    std::string kind;                       ///< "RegularLatLon", "GaussianRegular", etc.
-    double min_x{-180.0};                   ///< bounding box min x
-    double max_x{180.0};                    ///< bounding box max x
-    double min_y{-90.0};                    ///< bounding box min y
-    double max_y{90.0};                     ///< bounding box max y
-    double r_x{1.0};                        ///< resolution in x direction
-    double r_y{1.0};                        ///< resolution in y direction
-    std::int64_t gaussian_n{0};             ///< Gaussian truncation N (0 if not Gaussian)
-    std::string proj_string;                ///< proj4 string when kind == "Projected"
+    /// @brief Rule kind identifier (e.g., "RegularLatLon", "GaussianRegular").
+    std::string kind;
+    /// @brief Minimum coordinate value in the X (longitude) direction.
+    double min_x{-180.0};
+    /// @brief Maximum coordinate value in the X (longitude) direction.
+    double max_x{180.0};
+    /// @brief Minimum coordinate value in the Y (latitude) direction.
+    double min_y{-90.0};
+    /// @brief Maximum coordinate value in the Y (latitude) direction.
+    double max_y{90.0};
+    /// @brief Grid resolution or spacing increment in the X direction.
+    double r_x{1.0};
+    /// @brief Grid resolution or spacing increment in the Y direction.
+    double r_y{1.0};
+    /// @brief Gaussian truncation parameter N (0 if not Gaussian).
+    std::int64_t gaussian_n{0};
+    /// @brief Optional proj4 spatial projection definition string used when kind is "Projected".
+    std::string proj_string;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BufferViews — non-owning layout_left mdspan views over decoded arrays.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Non-owning views over the DECODED arrays the producer supplies. AXIS copies
-/// out of these into the target Kokkos memory space (explicit deep_copy, no UVM);
-/// the descriptor OWNS NOTHING. All views are std::layout_left (HELM lingua
-/// franca). Unused members are left empty (extent 0) per ConventionKind.
+/// @brief Non-owning layout_left views over decoded source arrays.
+///
+/// The consumer/producer populates these; AXIS copies out of them into the target Kokkos memory space.
+/// Unused views should be left default-constructed with size 0.
 struct BufferViews {
     // ── Structured (CF / GRIB): 1-D center coordinate arrays ────────────────
-    field_view<const double, 1> center_x{};           ///< lon/x centers [n_points]
-    field_view<const double, 1> center_y{};           ///< lat/y centers [n_points]
+    /// @brief Structured Grid longitude/X centers array of shape [n_points] or similar 1-D layout.
+    field_view<const double, 1> center_x{};
+    /// @brief Structured Grid latitude/Y centers array of shape [n_points] or similar 1-D layout.
+    field_view<const double, 1> center_y{};
 
     // ── Structured: corner coordinate arrays (optional) ─────────────────────
-    field_view<const double, 1> corner_x{};           ///< vertex x coordinates
-    field_view<const double, 1> corner_y{};           ///< vertex y coordinates
+    /// @brief Structured Grid corner vertex longitude/X coordinates.
+    field_view<const double, 1> corner_x{};
+    /// @brief Structured Grid corner vertex latitude/Y coordinates.
+    field_view<const double, 1> corner_y{};
 
     // ── Unstructured (UGRID): node coordinates + CSR connectivity ───────────
-    field_view<const double, 2> node_coords{};        ///< [n_nodes, ndim]
-    field_view<const index_t, 1> conn_offsets{};      ///< CSR offsets [n_cells + 1]
-    field_view<const index_t, 1> conn_indices{};      ///< CSR column indices
+    /// @brief Unstructured Grid (UGRID) node coordinates of shape [n_nodes, ndim].
+    field_view<const double, 2> node_coords{};
+    /// @brief Unstructured Grid (UGRID) CSR connectivity offsets of length [n_cells + 1].
+    field_view<const index_t, 1> conn_offsets{};
+    /// @brief Unstructured Grid (UGRID) CSR column node indices mapping cells to nodes.
+    field_view<const index_t, 1> conn_indices{};
 
     // ── Optional per-cell metadata (any convention) ─────────────────────────
-    field_view<const double, 1> cell_areas{};         ///< precomputed cell areas (optional)
-    field_view<const int, 1>    cell_mask{};          ///< 0 = masked, 1 = active (optional)
+    /// @brief Precomputed cell areas, size [n_cells] (optional).
+    field_view<const double, 1> cell_areas{};
+    /// @brief Cell active/validity mask (0 = masked, 1 = active), size [n_cells] (optional).
+    field_view<const int, 1>    cell_mask{};
 
     // ── Structured grid dimensions (for CF / GRIB) ──────────────────────────
-    std::size_t ni{0};                                ///< structured dim i (0 if unstructured)
-    std::size_t nj{0};                                ///< structured dim j (0 if unstructured)
+    /// @brief Number of grid points along structured dimension i (0 for unstructured meshes).
+    std::size_t ni{0};
+    /// @brief Number of grid points along structured dimension j (0 for unstructured meshes).
+    std::size_t nj{0};
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GridDescriptor — THE INGEST CONTRACT
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// THE INGEST CONTRACT. A producer fills this; MeshFactory::from_descriptor
-/// consumes it. Pure data: copyable, no destructor logic, no owned resources.
+/// @brief THE INGEST CONTRACT.
+///
+/// A producer fills this; MeshFactory::from_descriptor consumes it.
+/// Pure data: copyable, no destructor logic, no owned resources.
 ///
 /// Only the convention-specific params member matching `kind` is meaningful;
 /// the rest are default-constructed. This flat layout (instead of std::variant)
 /// is chosen so a Python layer can populate by name without variant gymnastics.
 struct GridDescriptor {
-    /// Which grid convention the producer detected in the file.
+    /// @brief Which grid convention the producer detected in the file.
     ConventionKind   kind{ConventionKind::CF};
 
-    /// Coordinate system for the buffer data.
+    /// @brief Coordinate system for the buffer data.
     CoordinateSystem coord_system{CoordinateSystem::SphericalDeg};
 
     // ── Convention-specific metadata (only one is meaningful per `kind`) ─────
+    /// @brief CF-conventions structured grid metadata params.
     CfParams         cf{};
+    /// @brief UGRID unstructured mesh metadata params.
     UgridParams      ugrid{};
+    /// @brief GRIB2 grid-description metadata params.
     GribParams       grib{};
+    /// @brief Projected grid parameters.
     ProjectedParams  projected{};
+    /// @brief Named grid metadata parameter token.
     NamedGridParams  named_grid{};
+    /// @brief Rule-based mesh generation parameters.
     GridRulesParams  grid_rules{};
 
     // ── Decoded buffers (empty for NamedGrid / GridRules, generated by AXIS) ─
+    /// @brief Plain non-owning views of the decoded buffers.
     BufferViews      buffers{};
 };
 

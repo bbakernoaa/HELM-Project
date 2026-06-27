@@ -23,31 +23,46 @@ namespace axis::detail {
 // (data not directly host-addressable).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Primary template: default to false (host-like space).
+/// @brief Compile-time check to determine if a Kokkos memory space resides on a device.
+///
+/// This trait is used to differentiate between host-accessible memory spaces and
+/// device-only memory spaces (like GPU memory) at compile time.
+///
+/// @tparam MemorySpace The Kokkos memory space to inspect.
 template <class MemorySpace>
 struct is_device_space : std::false_type {};
 
-/// HostSpace is explicitly host-accessible.
+/// @brief Specialization of `is_device_space` for `Kokkos::HostSpace`.
+///
+/// Kokkos::HostSpace is explicitly host-accessible.
 template <>
 struct is_device_space<Kokkos::HostSpace> : std::false_type {};
 
 #ifdef KOKKOS_ENABLE_CUDA
-/// CudaSpace is a device space (dedicated GPU DRAM).
+/// @brief Specialization of `is_device_space` for `Kokkos::CudaSpace`.
+///
+/// Kokkos::CudaSpace is a device space (dedicated GPU DRAM).
 template <>
 struct is_device_space<Kokkos::CudaSpace> : std::true_type {};
 
+/// @brief Specialization of `is_device_space` for `Kokkos::CudaUVMSpace`.
+///
 /// CudaUVMSpace is technically device-accessible but page-migrating; treat
-/// as device for AXIS's purposes (no UVM reliance policy).
+/// as device for AXIS's purposes to support our no UVM reliance policy (HELM Law #2).
 template <>
 struct is_device_space<Kokkos::CudaUVMSpace> : std::true_type {};
 #endif
 
 #ifdef KOKKOS_ENABLE_HIP
+/// @brief Specialization of `is_device_space` for `Kokkos::HIPSpace`.
+///
 /// HIPSpace is a device space (AMD GPU DRAM).
 template <>
 struct is_device_space<Kokkos::HIPSpace> : std::true_type {};
 
-/// HIPManagedSpace — treated as device (same policy as CudaUVMSpace).
+/// @brief Specialization of `is_device_space` for `Kokkos::HIPManagedSpace`.
+///
+/// HIPManagedSpace is treated as device with the same policy as CudaUVMSpace.
 template <>
 struct is_device_space<Kokkos::HIPManagedSpace> : std::true_type {};
 #endif
@@ -56,7 +71,8 @@ struct is_device_space<Kokkos::HIPManagedSpace> : std::true_type {};
 // Variable template shortcut
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Convenience variable template for is_device_space.
+/// @brief Convenience variable template shortcut for `is_device_space`.
+/// @tparam MemorySpace The Kokkos memory space to inspect.
 template <class MemorySpace>
 inline constexpr bool is_device_space_v = is_device_space<MemorySpace>::value;
 
@@ -64,9 +80,12 @@ inline constexpr bool is_device_space_v = is_device_space<MemorySpace>::value;
 // exec_space_t<MemorySpace> — maps a MemorySpace to its default execution space
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The execution space paired with a memory space (Kokkos default mapping).
+/// @brief Template alias mapping a Kokkos memory space to its default execution space.
+///
 /// For Kokkos::HostSpace this is typically Kokkos::Serial or Kokkos::OpenMP;
 /// for CudaSpace it is Kokkos::Cuda; for HIPSpace it is Kokkos::HIP.
+///
+/// @tparam MemorySpace The Kokkos memory space.
 template <class MemorySpace>
 using exec_space_t = typename MemorySpace::execution_space;
 

@@ -50,55 +50,86 @@ namespace axis::ingest {
 // ScripEgress — SCRIP-convention non-owning view over weight + grid data
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Plain-data struct exposing interpolation weights and grid metadata in the
-/// SCRIP convention layout. All index arrays use 1-based addressing. Grid
-/// center coordinates, areas, and fractions are non-owning views into the
-/// source InterpolationMatrix and UnstructuredMesh buffers.
+/// @brief Plain-data struct exposing interpolation weights and grid metadata in the SCRIP convention layout.
 ///
-/// A consumer (AMIO, Python) serializes these views to a SCRIP NetCDF file.
+/// All index arrays use 1-based addressing. Grid center coordinates, areas, and fractions are non-owning
+/// views into the source InterpolationMatrix and UnstructuredMesh buffers. A consumer (AMIO, Python)
+/// serializes these views to a SCRIP NetCDF file.
 struct ScripEgress {
-    field_view<const double, 1>  S{};    ///< Interpolation weights [n_s]
-    field_view<const index_t, 1> col{};  ///< 1-based source cell indices [n_s]
-    field_view<const index_t, 1> row{};  ///< 1-based destination cell indices [n_s]
+    /// @brief Interpolation weights list (often labeled 'S' in SCRIP), size [n_s].
+    field_view<const double, 1>  S{};
 
-    field_view<const double, 1> src_grid_center_lon{};  ///< Source cell center longitudes [n_a]
-    field_view<const double, 1> src_grid_center_lat{};  ///< Source cell center latitudes [n_a]
-    field_view<const double, 1> dst_grid_center_lon{};  ///< Destination cell center longitudes [n_b]
-    field_view<const double, 1> dst_grid_center_lat{};  ///< Destination cell center latitudes [n_b]
+    /// @brief 1-based source cell index per nonzero weight factor (0-based internally, converted to 1-based), size [n_s].
+    field_view<const index_t, 1> col{};
 
-    field_view<const double, 1> src_grid_area{};   ///< Source cell areas [n_a]
-    field_view<const double, 1> dst_grid_area{};   ///< Destination cell areas [n_b]
-    field_view<const double, 1> src_grid_frac{};   ///< Source cell fractions [n_a]
-    field_view<const double, 1> dst_grid_frac{};   ///< Destination cell fractions [n_b]
+    /// @brief 1-based destination cell index per nonzero weight factor (0-based internally, converted to 1-based), size [n_s].
+    field_view<const index_t, 1> row{};
 
-    std::size_t src_grid_dims[2]{};  ///< Source grid logical dimensions [ni, nj] (0 if unstructured)
-    std::size_t dst_grid_dims[2]{};  ///< Destination grid logical dimensions [ni, nj] (0 if unstructured)
+    /// @brief Source cell center longitudes, size [n_a].
+    field_view<const double, 1> src_grid_center_lon{};
 
-    const char* remap_method{};  ///< "conservative", "bilinear", or "nearest_neighbor"
-    const char* norm_option{};   ///< "destarea" or "fracarea"
-    const char* map_method{};    ///< "Conservative remapping", "Bilinear remapping", etc.
+    /// @brief Source cell center latitudes, size [n_a].
+    field_view<const double, 1> src_grid_center_lat{};
 
-    std::size_t n_s{0};  ///< Number of nonzero weights
+    /// @brief Destination cell center longitudes, size [n_b].
+    field_view<const double, 1> dst_grid_center_lon{};
+
+    /// @brief Destination cell center latitudes, size [n_b].
+    field_view<const double, 1> dst_grid_center_lat{};
+
+    /// @brief Source cell areas, size [n_a].
+    field_view<const double, 1> src_grid_area{};
+
+    /// @brief Destination cell areas, size [n_b].
+    field_view<const double, 1> dst_grid_area{};
+
+    /// @brief Source cell area active fractions in interpolation, size [n_a].
+    field_view<const double, 1> src_grid_frac{};
+
+    /// @brief Destination cell area active fractions in interpolation, size [n_b].
+    field_view<const double, 1> dst_grid_frac{};
+
+    /// @brief Source grid logical dimensions [ni, nj] (each is 0 if unstructured grid).
+    std::size_t src_grid_dims[2]{};
+
+    /// @brief Destination grid logical dimensions [ni, nj] (each is 0 if unstructured grid).
+    std::size_t dst_grid_dims[2]{};
+
+    /// @brief SCRIP remap method identifier string (e.g., "conservative", "bilinear", "nearest_neighbor", etc.).
+    const char* remap_method{};
+
+    /// @brief SCRIP normalization option string (e.g., "destarea" or "fracarea").
+    const char* norm_option{};
+
+    /// @brief SCRIP descriptive map method string (e.g., "Conservative remapping", "Bilinear remapping", etc.).
+    const char* map_method{};
+
+    /// @brief Number of nonzero interpolation weight factors.
+    std::size_t n_s{0};
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ScripEgressResult — owns the lightweight 1-based index buffers + cell centers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Result type returned by scrip_egress(). Owns the Kokkos Views for the
-/// 1-based row/col index arrays and computed cell center coordinates, while
-/// exposing a ScripEgress view struct for consumer access.
+/// @brief Result type returned by @ref scrip_egress().
 ///
-/// The caller holds this result alive while the ScripEgress views are in use.
+/// Owns the Kokkos Views for the 1-based row/col index arrays and computed cell center coordinates,
+/// while exposing a ScripEgress view struct for consumer access.
+/// The caller MUST hold this result alive while the ScripEgress views are in use.
+///
+/// @tparam MemorySpace The Kokkos memory space of the owned buffers.
 template <class MemorySpace>
 struct ScripEgressResult {
-    /// The non-owning ScripEgress view struct — valid while this result lives.
+    /// @brief The non-owning ScripEgress view struct — valid while this result remains alive.
     ScripEgress egress{};
 
-    /// Access the egress view struct.
+    /// @brief Access the egress view struct.
+    /// @return A @c const @c ScripEgress& viewing the underlying data.
     [[nodiscard]] const ScripEgress& get() const noexcept { return egress; }
 
-    /// Implicit conversion to ScripEgress for ergonomic use.
+    /// @brief Implicit conversion to ScripEgress for ergonomic use.
+    /// @return A @c const @c ScripEgress& viewing the underlying data.
     [[nodiscard]] operator const ScripEgress&() const noexcept { return egress; }
 
 private:
@@ -126,7 +157,9 @@ private:
 
 namespace detail {
 
-/// Map InterpolationMethod enum to SCRIP remap_method string.
+/// @brief Map InterpolationMethod enum to SCRIP remap_method string.
+/// @param m The interpolation method enum.
+/// @return The string identifier (e.g. "conservative", "bilinear", "nearest_neighbor").
 inline constexpr const char* scrip_remap_method(solver::InterpolationMethod m) noexcept {
     switch (m) {
         case solver::InterpolationMethod::Conservative1stOrder:
@@ -145,7 +178,9 @@ inline constexpr const char* scrip_remap_method(solver::InterpolationMethod m) n
     }
 }
 
-/// Map InterpolationMethod enum to SCRIP map_method description.
+/// @brief Map InterpolationMethod enum to SCRIP map_method description.
+/// @param m The interpolation method enum.
+/// @return The description string (e.g. "Conservative remapping", "Bilinear remapping").
 inline constexpr const char* scrip_map_method(solver::InterpolationMethod m) noexcept {
     switch (m) {
         case solver::InterpolationMethod::Conservative1stOrder:
@@ -165,7 +200,9 @@ inline constexpr const char* scrip_map_method(solver::InterpolationMethod m) noe
     }
 }
 
-/// Map NormType enum to SCRIP norm_option string.
+/// @brief Map NormType enum to SCRIP norm_option string.
+/// @param n The normalization type enum.
+/// @return The string identifier (e.g. "destarea", "fracarea").
 inline constexpr const char* scrip_norm_option(solver::NormType n) noexcept {
     switch (n) {
         case solver::NormType::DstArea:  return "destarea";
@@ -180,13 +217,14 @@ inline constexpr const char* scrip_norm_option(solver::NormType n) noexcept {
 // scrip_egress() factory function
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Build a SCRIP-convention egress view over an InterpolationMatrix and meshes.
+/// @brief Build a SCRIP-convention egress view over an InterpolationMatrix and meshes.
 ///
 /// Creates 1-based row/col index arrays (lightweight allocation of nnz index_t
 /// values each) and computes cell center lon/lat from mesh node coordinates.
 /// All other fields (S, areas, fractions) are zero-copy views into the
 /// existing InterpolationMatrix buffers.
 ///
+/// @tparam MS The Kokkos memory space.
 /// @param matrix  The interpolation weight matrix
 /// @param src     Source UnstructuredMesh (cell areas must be computed)
 /// @param dst     Destination UnstructuredMesh (cell areas must be computed)
