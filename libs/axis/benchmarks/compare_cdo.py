@@ -11,6 +11,7 @@ Prerequisites:
   - python-cdo package (`mamba install -c conda-forge python-cdo`)
   - xarray + netcdf4 for I/O
   - numpy
+  - scipy
   - axis_py module (built from libs/axis/python/)
 
 Usage:
@@ -58,7 +59,77 @@ LCC_PROJ = "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +da
 
 
 def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
-    """Create a test field on a regular lat-lon or Lambert Conformal conic grid."""
+    """Create a test field on a regular lat-lon, LCC, or unstructured MPAS (Voronoi) grid."""
+    if grid_type == "mpas":
+        # Generate random/Poisson-like generator points in regional sector
+        n_cells = nlon  # Use total cells requested as nlon (e.g. --src-size 1000)
+        min_lon = -115.0
+        max_lon = -77.0
+        min_lat = 25.0
+        max_lat = 55.0
+        
+        # Deterministic generation
+        np.random.seed(42)
+        lons = np.random.uniform(min_lon, max_lon, n_cells)
+        lats = np.random.uniform(min_lat, max_lat, n_cells)
+        points = np.column_stack((lons, lats))
+        
+        from scipy.spatial import Voronoi
+        vor = Voronoi(points)
+        
+        node_coords = vor.vertices
+        
+        conn_offsets = [0]
+        conn_indices = []
+        valid_cell_indices = []
+        cell_lons = []
+        cell_lats = []
+        
+        for i, r_idx in enumerate(vor.point_region):
+            region = vor.regions[r_idx]
+            # Valid bounded cell has at least 3 vertices and no infinity vertex (-1)
+            if len(region) >= 3 and not -1 in region:
+                valid_cell_indices.append(r_idx)
+                conn_indices.extend(region)
+                conn_offsets.append(len(conn_indices))
+                cell_lons.append(lons[i])
+                cell_lats.append(lats[i])
+                
+        n_valid_cells = len(valid_cell_indices)
+        cell_lons = np.array(cell_lons)
+        cell_lats = np.array(cell_lats)
+        conn_offsets = np.array(conn_offsets, dtype=np.int64)
+        conn_indices = np.array(conn_indices, dtype=np.int64)
+        
+        # Determine maximum vertices per cell for the CDO 2D bounds padding
+        max_nv = max(len(vor.regions[r]) for r in valid_cell_indices)
+        face_nodes = -1 * np.ones((n_valid_cells, max_nv), dtype=np.int32)
+        for idx, r_idx in enumerate(valid_cell_indices):
+            region = vor.regions[r_idx]
+            face_nodes[idx, :len(region)] = region
+            
+        if field_type == "cosine":
+            field = np.cos(np.radians(cell_lats)) * np.cos(np.radians(cell_lons))
+        elif field_type == "linear":
+            field = 0.5 * cell_lons + 0.3 * cell_lats + 10.0
+        elif field_type == "constant":
+            field = 42.0 * np.ones_like(cell_lats)
+        elif field_type == "step":
+            field = np.where(cell_lats > 40, 1.0, 0.0)
+        else:
+            raise ValueError(f"Unknown field type: {field_type}")
+            
+        # Return structured data package for unstructured grid
+        return cell_lats, cell_lons, {
+            "node_coords": node_coords,
+            "conn_offsets": conn_offsets,
+            "conn_indices": conn_indices,
+            "face_nodes": face_nodes,
+            "cell_lon": cell_lons,
+            "cell_lat": cell_lats,
+            "field": field
+        }
+
     if grid_type == "lcc":
         # Create a coordinate grid in projection space (meters)
         # Use a large regional domain (2000 km x 2000 km) for better overlap
@@ -112,6 +183,51 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
 
 def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temperature"):
     """Write a field to a CF-compliant NetCDF file for CDO."""
+    if grid_type == "mpas":
+        # Standard CDO-compliant Unstructured Grid format (cell center lon/lat with repeated corners)
+        data = field  # Unstructured mesh data package
+        n_cells = len(data["cell_lon"])
+        max_nv = data["face_nodes"].shape[1]
+        
+        lon_bnds = np.zeros((n_cells, max_nv))
+        lat_bnds = np.zeros((n_cells, max_nv))
+        
+        # Populate bounds from face_nodes and node_coords
+        for idx in range(n_cells):
+            node_idx_list = [n for n in data["face_nodes"][idx] if n != -1]
+            n_vertices = len(node_idx_list)
+            
+            # Fill existing corners
+            for v_idx in range(n_vertices):
+                lon_bnds[idx, v_idx] = data["node_coords"][node_idx_list[v_idx], 0]
+                lat_bnds[idx, v_idx] = data["node_coords"][node_idx_list[v_idx], 1]
+                
+            # Repeat last corner to pad up to max_nv (standard CDO SCRIP-style padding)
+            last_lon = lon_bnds[idx, n_vertices - 1]
+            last_lat = lat_bnds[idx, n_vertices - 1]
+            for v_idx in range(n_vertices, max_nv):
+                lon_bnds[idx, v_idx] = last_lon
+                lat_bnds[idx, v_idx] = last_lat
+
+        ds = xr.Dataset(
+            {varname: (["cell"], data["field"].astype(np.float64))},
+            coords={
+                "lon": (["cell"], data["cell_lon"]),
+                "lat": (["cell"], data["cell_lat"]),
+            }
+        )
+        ds["lon_bnds"] = (["cell", "nv"], lon_bnds)
+        ds["lat_bnds"] = (["cell", "nv"], lat_bnds)
+        ds["lon"].attrs = {"units": "degrees_east", "standard_name": "longitude", "bounds": "lon_bnds"}
+        ds["lat"].attrs = {"units": "degrees_north", "standard_name": "latitude", "bounds": "lat_bnds"}
+        ds[varname].attrs = {
+            "coordinates": "lon lat",
+            "units": "K",
+            "long_name": "Test field"
+        }
+        ds.to_netcdf(filepath)
+        return ds
+
     if grid_type == "lcc":
         # Curvilinear format with 2D lon and lat coordinates and boundary corners
         nlat, nlon = field.shape
@@ -210,7 +326,11 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_t
 
     t0 = time.perf_counter()
 
-    if grid_type == "lcc":
+    if grid_type == "mpas":
+        data = field  # Unstructured data package passed here
+        src_mesh = axis_py.make_ugrid_mesh(
+            data["node_coords"], data["conn_offsets"], data["conn_indices"])
+    elif grid_type == "lcc":
         # Generate 1D arrays of centers in projected space
         min_x = -1000000.0
         max_x =  1000000.0
@@ -235,9 +355,9 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_t
         src_mesh = axis_py.make_regular_mesh(
             src_nlon, src_nlat, 0.0, -90.0, src_dlon, src_dlat)
 
-    # Build destination mesh (regular lat-lon spanning the local U.S. sector of LCC for cleaner overlap metrics)
-    if grid_type == "lcc":
-        # Spans U.S. region roughly overlapping the 2000 km LCC domain
+    # Build destination mesh (regular lat-lon spanning the local U.S. sector of LCC/MPAS for cleaner overlap metrics)
+    if grid_type in ["lcc", "mpas"]:
+        # Spans U.S. region roughly overlapping the LCC / MPAS domain
         dst_min_lon = -110.0
         dst_max_lon = -82.0
         dst_min_lat = 30.0
@@ -258,7 +378,11 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_t
     matrix = axis_py.generate_weights(src_mesh, dst_mesh, method_map[method])
 
     # Apply weights
-    src_flat = field.ravel().astype(np.float64)
+    if grid_type == "mpas":
+        src_flat = data["field"].astype(np.float64)
+    else:
+        src_flat = field.ravel().astype(np.float64)
+        
     dst_flat = axis_py.apply_weights(matrix, src_flat)
 
     elapsed = time.perf_counter() - t0
@@ -278,7 +402,7 @@ def compare_results(axis_result, cdo_result):
     n = min(len(axis_result), len(cdo_flat))
     diff = axis_result[:n] - cdo_flat[:n]
 
-    # Ignore NaN values from unmapped cells in local projected grids
+    # Ignore NaN values from unmapped cells in local projected / unstructured grids
     valid = ~np.isnan(diff) & ~np.isnan(axis_result[:n]) & ~np.isnan(cdo_flat[:n])
     if not np.any(valid):
         return {"max_error": 0.0, "rms_error": 0.0, "mean_error": 0.0}
@@ -295,12 +419,12 @@ def compare_results(axis_result, cdo_result):
 def main():
     parser = argparse.ArgumentParser(description="AXIS vs CDO interpolation benchmark")
     parser.add_argument("--src-size", type=str, default="32",
-                        help="Source grid size: N (square NxN) or NLONxNLAT")
+                        help="Source grid size: N (square NxN), NLONxNLAT, or total cells for unstructured")
     parser.add_argument("--dst-size", type=str, default="24",
                         help="Destination grid size: N (square NxN) or NLONxNLAT")
     parser.add_argument("--grid-type", type=str, default="regular",
-                        choices=["regular", "lcc"],
-                        help="Source grid type: regular (lat-lon) or lcc (Lambert Conformal Conic)")
+                        choices=["regular", "lcc", "mpas"],
+                        help="Source grid type: regular (lat-lon), lcc (Lambert Conformal), or mpas (unstructured Voronoi)")
     parser.add_argument("--methods", type=str, default="bilinear,nearest,bicubic,patch,conservative",
                         help="Comma-separated interpolation methods to test")
     parser.add_argument("--field", type=str, default="cosine",
@@ -316,14 +440,23 @@ def main():
         n = int(s)
         return n, n
 
-    src_nlon, src_nlat = parse_grid_size(args.src_size)
+    if args.grid_type == "mpas":
+        # Unstructured: src-size defines total cells directly (nlon)
+        src_nlon = int(args.src_size)
+        src_nlat = 1
+    else:
+        src_nlon, src_nlat = parse_grid_size(args.src_size)
+        
     dst_nlon, dst_nlat = parse_grid_size(args.dst_size)
     methods = [m.strip() for m in args.methods.split(",")]
 
     print(f"{'='*70}")
     print(f"AXIS vs CDO Interpolation Benchmark")
     print(f"{'='*70}")
-    print(f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon*src_nlat:,} cells)")
+    if args.grid_type == "mpas":
+        print(f"Source grid:  {src_nlon} unstructured MPAS cells")
+    else:
+        print(f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon*src_nlat:,} cells)")
     print(f"Dest grid:    {dst_nlon}x{dst_nlat} regular lat-lon ({dst_nlon*dst_nlat:,} cells)")
     print(f"Test field:   {args.field}")
     print(f"Methods:      {', '.join(methods)}")
@@ -339,8 +472,8 @@ def main():
         src_nc = os.path.join(tmpdir, "source.nc")
         write_netcdf(src_nc, lats, lons, field, args.grid_type)
 
-        # Create CDO target grid description (representing regional sector for LCC, or global for regular)
-        if args.grid_type == "lcc":
+        # Create CDO target grid description (representing regional sector for LCC/MPAS, or global for regular)
+        if args.grid_type in ["lcc", "mpas"]:
             dst_min_lon = -110.0
             dst_max_lon = -82.0
             dst_min_lat = 30.0
@@ -373,7 +506,6 @@ def main():
             try:
                 cdo_time = run_cdo_remap(src_nc, cdo_out, target_grid, method)
                 cdo_ds = xr.open_dataset(cdo_out)
-                # Read temperature variable
                 cdo_result = cdo_ds["temperature"].values
                 cdo_sum = float(np.nansum(cdo_result))
             except Exception as e:
@@ -382,7 +514,10 @@ def main():
                 cdo_time = 0.0
                 cdo_sum = np.nan
 
-            src_sum = float(np.sum(field))
+            if args.grid_type == "mpas":
+                src_sum = float(np.sum(field["field"]))
+            else:
+                src_sum = float(np.sum(field))
 
             if cdo_result is not None:
                 print(f"{method:<15} {'CDO':<8} {cdo_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {cdo_sum:<14.4f}")

@@ -44,6 +44,20 @@ CDO 2.6.1 for spatial interpolation (regridding) on regular lat-lon grids.
 
 Note: On complex regional grids, AXIS bypasses file I/O overhead and uses highly optimized on-device spatial searching (ArborX) paired with parallel Great Circle clipping and gnomonic projection. This delivers massive speedups (6.4× to 20.2×) over CDO even on single-socket OpenMP.
 
+## Results: Unstructured MPAS (Voronoi/Hexagonal) → EPSG:4326
+
+**Source (Unstructured MPAS): 10,000 cells → Destination (Regular Lat-Lon): 90×90 (8,100 cells)**
+
+| Method | CDO Time (s) | AXIS Time (s) | Speedup | Max Err | RMS Err |
+|--------|:------------:|:--------------:|:-------:|:-------:|:-------:|
+| Bilinear | *FAILED* | **0.009** | **N/A** (Exclusive!) | — | — |
+| Nearest Neighbor | 0.138 | **0.007** | **20.3×** | 4.4e-01 | 2.5e-01 |
+| Conservative 1st-order | 0.396 | **0.514** | **0.8×** | 3.3e-01 | 1.5e-01 |
+
+Note:
+- **Bilinear Exclusivity:** CDO's `remapbil` does not support remapping from unstructured meshes to regular grids. AXIS successfully handles bilinear unstructured remapping natively using an on-device spatial BVH (ArborX) paired with gnomonic point location.
+- **Conservative Remapping:** CDO performs Sutherland-Hodgman clipping in projected/flat 2D space. AXIS computes mathematically exact great-circle polygon intersections on the 3D sphere, leading to slight execution time differences but superior spherical conservation accuracy.
+
 ### Optimization Impact: Bilinear 3600×1800 → 1440×720
 
 | Version | AXIS Time (s) | vs CDO | Improvement |
@@ -122,6 +136,15 @@ PATH=/opt/conda/envs/axis-benchmark-env/bin:$PATH PYTHONPATH=build-py/python \
     --src-size 120x120 \
     --dst-size 90x90 \
     --grid-type lcc \
+    --methods bilinear,nearest,conservative \
+    --field cosine
+
+# To run the unstructured MPAS-style Voronoi regional benchmark:
+PATH=/opt/conda/envs/axis-benchmark-env/bin:$PATH PYTHONPATH=build-py/python \
+    /opt/conda/envs/axis-benchmark-env/bin/python3 benchmarks/compare_cdo.py \
+    --src-size 10000 \
+    --dst-size 90x90 \
+    --grid-type mpas \
     --methods bilinear,nearest,conservative \
     --field cosine
 ```

@@ -114,6 +114,28 @@ HostMesh make_projected_mesh(std::size_t ni, std::size_t nj,
     return grid.to_unstructured();
 }
 
+// ─── Helper: Build an unstructured UGRID mesh from arrays ───────────────────
+
+HostMesh make_ugrid_mesh(nb::ndarray<nb::numpy, double, nb::ndim<2>> node_coords,
+                         nb::ndarray<nb::numpy, axis::index_t, nb::ndim<1>> conn_offsets,
+                         nb::ndarray<nb::numpy, axis::index_t, nb::ndim<1>> conn_indices) {
+    ensure_kokkos();
+
+    axis::ingest::GridDescriptor desc;
+    desc.kind = axis::ingest::ConventionKind::UGRID;
+    desc.ugrid.topology_dimension = 2;
+    desc.ugrid.start_index = 0;
+
+    desc.buffers.node_coords = axis::field_view<const double, 2>(
+        node_coords.data(), node_coords.shape(0), node_coords.shape(1));
+    desc.buffers.conn_offsets = axis::field_view<const axis::index_t, 1>(
+        conn_offsets.data(), conn_offsets.shape(0));
+    desc.buffers.conn_indices = axis::field_view<const axis::index_t, 1>(
+        conn_indices.data(), conn_indices.shape(0));
+
+    return axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
+}
+
 // ─── Helper: Parse RegridConfig from Python dict ─────────────────────────────
 
 axis::solver::RegridConfig parse_regrid_config(const nb::dict& config) {
@@ -256,6 +278,11 @@ NB_MODULE(axis_py, m) {
     m.def("make_projected_mesh", &make_projected_mesh,
           "ni"_a, "nj"_a, "proj_string"_a, "center_x"_a, "center_y"_a,
           "Create a projected UnstructuredMesh using PROJ");
+
+    // Make an unstructured UGRID mesh
+    m.def("make_ugrid_mesh", &make_ugrid_mesh,
+          "node_coords"_a, "conn_offsets"_a, "conn_indices"_a,
+          "Create an unstructured UGRID UnstructuredMesh");
 
     // Make a named grid (Req 12.4)
     m.def("make_named_mesh", [](const std::string& name) -> HostMesh {
