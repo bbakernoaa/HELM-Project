@@ -184,7 +184,7 @@ if(AXIS_ENABLE_PROJ)
     elseif(TARGET PkgConfig::PROJ)
         target_link_libraries(axis PRIVATE PkgConfig::PROJ)
     endif()
-    target_compile_definitions(axis PRIVATE AXIS_ENABLE_PROJ=1)
+    target_compile_definitions(axis PUBLIC AXIS_ENABLE_PROJ=1)
 endif()
 
 # ##############################################################################
