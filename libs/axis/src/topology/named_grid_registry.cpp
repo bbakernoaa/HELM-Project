@@ -21,6 +21,8 @@
 ///   polynomial roots on the unit sphere (iterative, pure math, no tables).
 
 #include <axis/topology/named_grid_registry.hpp>
+#include <axis/ingest/grid_descriptor.hpp>
+#include <axis/topology/projection_builder.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -378,6 +380,152 @@ UnstructuredMesh<MemorySpace> generate_octahedral_gaussian(int N) {
 } // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Grid generation: NOAA NWS GRIB Grids (G family - Extensible)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @struct NoaaGribDefinition
+/// @brief Declarative metadata structure for NOAA GRIB grids.
+struct NoaaGribDefinition {
+    int number;              ///< Official GRIB grid number.
+    std::size_t ni;          ///< Columns count (Ni).
+    std::size_t nj;          ///< Rows count (Nj).
+    double lon_start;        ///< Leftmost longitude boundary (for regular grids).
+    double lat_start;        ///< Southernmost latitude boundary (for regular grids).
+    double dlon;             ///< Longitude grid spacing (for regular grids).
+    double dlat;             ///< Latitude grid spacing (for regular grids).
+    const char* proj_string; ///< PROJ-compliant string (nullptr if regular global grid).
+};
+
+/// @brief Global declarative registry of supported NOAA GRIB grids.
+/// @details Adding a new grid to AXIS is a simple, single-line addition here!
+static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
+    // grid3: GFS 1.0 degree global grid
+    {3, 360, 181, -180.0, -90.0, 1.0, 1.0, nullptr},
+    // grid4: GFS 0.5 degree global grid
+    {4, 720, 361, -180.0, -90.0, 0.5, 0.5, nullptr},
+    // grid218: NAM / RAP 12km ConUS Lambert Conformal grid (requires PROJ)
+    {218, 614, 428, 0.0, 0.0, 0.0, 0.0,
+     "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"}
+};
+
+/// @brief Total count of registered NOAA NWS grids in our static array.
+static constexpr std::size_t NOAA_GRIB_GRIDS_COUNT = sizeof(NOAA_GRIB_GRIDS) / sizeof(NOAA_GRIB_GRIDS[0]);
+
+/// @brief Generates a standard regular lat-lon grid as an UnstructuredMesh.
+template <class MemorySpace>
+inline UnstructuredMesh<MemorySpace> generate_regular_grid(
+    std::size_t ni, std::size_t nj,
+    double lon_start, double lat_start,
+    double dlon, double dlat) {
+
+    const std::size_t n_nodes = (ni + 1) * (nj + 1);
+    const std::size_t n_cells = ni * nj;
+
+    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace>
+        h_coords("h_coords", n_nodes, 2);
+
+    for (std::size_t j = 0; j <= nj; ++j) {
+        for (std::size_t i = 0; i <= ni; ++i) {
+            std::size_t idx = i + j * (ni + 1);
+            h_coords(idx, 0) = lon_start + static_cast<double>(i) * dlon;
+            h_coords(idx, 1) = lat_start + static_cast<double>(j) * dlat;
+        }
+    }
+
+    Kokkos::View<index_t*, Kokkos::HostSpace> h_offsets("h_offsets", n_cells + 1);
+    Kokkos::View<index_t*, Kokkos::HostSpace> h_indices("h_indices", n_cells * 4);
+
+    h_offsets(0) = 0;
+    for (std::size_t j = 0; j < nj; ++j) {
+        for (std::size_t i = 0; i < ni; ++i) {
+            std::size_t cell_idx = i + j * ni;
+            h_offsets(cell_idx + 1) = h_offsets(cell_idx) + 4;
+
+            std::size_t n0 = i + j * (ni + 1);
+            std::size_t n1 = (i + 1) + j * (ni + 1);
+            std::size_t n2 = (i + 1) + (j + 1) * (ni + 1);
+            std::size_t n3 = i + (j + 1) * (ni + 1);
+
+            std::size_t indices_start = cell_idx * 4;
+            h_indices(indices_start) = n0;
+            h_indices(indices_start + 1) = n1;
+            h_indices(indices_start + 2) = n2;
+            h_indices(indices_start + 3) = n3;
+        }
+    }
+
+    auto node_coords = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_coords);
+    auto conn_offsets = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_offsets);
+    auto conn_indices = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_indices);
+
+    return UnstructuredMesh<MemorySpace>(
+        std::move(node_coords),
+        std::move(conn_offsets),
+        std::move(conn_indices),
+        CoordinateSystem::SphericalDeg);
+}
+
+/// @brief Analytically generates a registered NOAA NWS GRIB grid.
+template <class MemorySpace>
+inline UnstructuredMesh<MemorySpace> generate_noaa_grib_grid(int number) {
+    for (std::size_t idx = 0; idx < NOAA_GRIB_GRIDS_COUNT; ++idx) {
+        const auto& grid_def = NOAA_GRIB_GRIDS[idx];
+        if (grid_def.number == number) {
+            if (grid_def.proj_string != nullptr) {
+#ifndef AXIS_ENABLE_PROJ
+                throw std::runtime_error(
+                    "NamedGridRegistry::generate: requested projected grid \"grid" +
+                    std::to_string(number) + "\" but AXIS was compiled without PROJ support.");
+#else
+                axis::ingest::ProjectedParams params;
+                params.proj_string = grid_def.proj_string;
+
+                const std::size_t ni = grid_def.ni;
+                const std::size_t nj = grid_def.nj;
+                const std::size_t n_points = ni * nj;
+
+                // Set coordinates in projection space for NAM Grid 218
+                double min_x = -3733392.0;
+                double max_x =  3733392.0;
+                double min_y = -2602779.0;
+                double max_y =  2602779.0;
+                double dx = (max_x - min_x) / (ni - 1);
+                double dy = (max_y - min_y) / (nj - 1);
+
+                std::vector<double> h_cx(n_points);
+                std::vector<double> h_cy(n_points);
+                for (std::size_t j = 0; j < nj; ++j) {
+                    for (std::size_t i = 0; i < ni; ++i) {
+                        std::size_t cell_idx = i + j * ni;
+                        h_cx[cell_idx] = min_x + i * dx;
+                        h_cy[cell_idx] = min_y + j * dy;
+                    }
+                }
+
+                axis::ingest::BufferViews buffers;
+                buffers.ni = ni;
+                buffers.nj = nj;
+                buffers.center_x = axis::field_view<const double, 1>(h_cx.data(), n_points);
+                buffers.center_y = axis::field_view<const double, 1>(h_cy.data(), n_points);
+
+                auto grid = axis::topology::ProjectionBuilder::build<MemorySpace>(params, buffers);
+                return grid.to_unstructured();
+#endif
+            } else {
+                return generate_regular_grid<MemorySpace>(
+                    grid_def.ni, grid_def.nj,
+                    grid_def.lon_start, grid_def.lat_start,
+                    grid_def.dlon, grid_def.dlat);
+            }
+        }
+    }
+
+    throw std::invalid_argument(
+        "NamedGridRegistry::generate: unregistered NOAA GRIB grid number grid" +
+        std::to_string(number));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // NamedGridRegistry public interface
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -387,6 +535,53 @@ NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string& name) 
             "NamedGridRegistry::parse: empty grid name string");
     }
 
+    std::string lower_name = name;
+    for (char& c : lower_name) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    // Support case-insensitive NOAA GRIB grid numbers (e.g. "grid218")
+    if (lower_name.rfind("grid", 0) == 0) {
+        if (name.size() < 5) {
+            throw std::invalid_argument(
+                "NamedGridRegistry::parse: grid name \"" + name +
+                "\" has no number after the 'grid' prefix");
+        }
+        std::string num_str = name.substr(4);
+        for (char ch : num_str) {
+            if (!std::isdigit(static_cast<unsigned char>(ch))) {
+                throw std::invalid_argument(
+                    "NamedGridRegistry::parse: non-numeric character '" +
+                    std::string(1, ch) + "' in number portion of name \"" + name + "\"");
+            }
+        }
+        int grid_num = 0;
+        try {
+            grid_num = std::stoi(num_str);
+        } catch (...) {
+            throw std::invalid_argument(
+                "NamedGridRegistry::parse: cannot parse number from name \"" + name + "\"");
+        }
+        if (grid_num <= 0) {
+            throw std::invalid_argument(
+                "NamedGridRegistry::parse: grid number must be positive, got " +
+                std::to_string(grid_num) + " in name \"" + name + "\"");
+        }
+        bool found_grib = false;
+        for (std::size_t idx = 0; idx < NOAA_GRIB_GRIDS_COUNT; ++idx) {
+            if (NOAA_GRIB_GRIDS[idx].number == grid_num) {
+                found_grib = true;
+                break;
+            }
+        }
+        if (!found_grib) {
+            throw std::invalid_argument(
+                "NamedGridRegistry::parse: unregistered NOAA GRIB grid number grid" +
+                std::to_string(grid_num));
+        }
+        return ParsedName{'G', grid_num};
+    }
+
     char family = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
 
     // Validate family
@@ -394,7 +589,7 @@ NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string& name) 
         throw std::invalid_argument(
             "NamedGridRegistry::parse: unknown grid family '" +
             std::string(1, name[0]) + "' in name \"" + name +
-            "\"; registered families are O, F, N");
+            "\"; registered families are O, F, N, and grid<num>");
     }
 
     // Parse number
@@ -452,6 +647,8 @@ NamedGridRegistry::generate<Kokkos::HostSpace>(const std::string& name) {
     ParsedName parsed = parse(name);
 
     switch (parsed.family) {
+        case 'G':
+            return generate_noaa_grib_grid<Kokkos::HostSpace>(parsed.number);
         case 'O':
             return generate_octahedral_gaussian<Kokkos::HostSpace>(parsed.number);
         case 'N':
