@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+// AXIS — Arbitrary eXgrid Interpolation Solver
+// Copyright (c) HELM Project Contributors
+
+#ifndef AXIS_DISTRIBUTED_WEIGHT_GENERATOR_HPP
+#define AXIS_DISTRIBUTED_WEIGHT_GENERATOR_HPP
+
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <mpi.h>
+
+namespace axis::distributed {
+
+/// @class DistributedWeightGenerator
+/// @brief Multi-node MPI-distributed weight generation class.
+///
+/// This generator leverages the adjacent HELM `halo` library to coordinate coordinate
+/// bounding-box exchanges across different MPI ranks. Each rank generates weights for its assigned
+/// local destination mesh partition and maps the results to global sparse CSR arrays.
+template <typename MemorySpace>
+class DistributedWeightGenerator {
+public:
+    /// @brief Generate an InterpolationMatrix partitioned across MPI ranks.
+    /// @param local_src_mesh Source mesh partition owned by this rank.
+    /// @param local_dst_mesh Destination mesh partition owned by this rank.
+    /// @param config         Regridding configuration.
+    /// @param comm           The MPI communicator.
+    /// @return A partitioned InterpolationMatrix representing this rank's contribution.
+    static solver::InterpolationMatrix<MemorySpace> generate(
+        const topology::UnstructuredMesh<MemorySpace>& local_src_mesh,
+        const topology::UnstructuredMesh<MemorySpace>& local_dst_mesh,
+        const solver::RegridConfig&                    config,
+        MPI_Comm                                       comm
+    );
+};
+
+} // namespace axis::distributed
+
+#endif // AXIS_DISTRIBUTED_WEIGHT_GENERATOR_HPP

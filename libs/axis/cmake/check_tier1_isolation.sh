@@ -134,7 +134,9 @@ scan_pattern() {
                    -not -path "*/third_party/*" \
                    -not -path "*/build/*" \
                    -not -path "*/io/*" \
+                   -not -path "*/distributed/*" \
                    -not -name "*test_esmf_weight_io.cpp" \
+                   -not -name "*test_distributed_weight_generator.cpp" \
                    -print0)
     done
 }

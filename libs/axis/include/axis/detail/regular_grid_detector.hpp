@@ -312,9 +312,11 @@ RegularGridInfo detect_regular_grid(
 /// @struct TripolarGridInfo
 /// @brief Holds metadata for detected folded tripolar grids.
 struct TripolarGridInfo {
-    bool is_tripolar{false}; ///< True if the mesh has a folded tripolar northern boundary
-    std::size_t ni{0};       ///< Number of columns (cells along x)
-    std::size_t nj{0};       ///< Number of rows (cells along y)
+    bool is_tripolar{false};      ///< True if the mesh has a folded tripolar northern boundary
+    std::size_t ni{0};            ///< Number of columns (cells along x)
+    std::size_t nj{0};            ///< Number of rows (cells along y)
+    double seam_lat{0.0};         ///< Latitude of the folded seam boundary (degrees)
+    double seam_lon_center{0.0};  ///< Longitudinal reflection midpoint of the folded boundary
 };
 
 /// @brief Detect whether an unstructured mesh represents a folded tripolar grid.
@@ -355,6 +357,9 @@ inline TripolarGridInfo detect_tripolar_grid(const topology::UnstructuredMesh<Me
         info.is_tripolar = true;
         info.ni = ni;
         info.nj = nj;
+        info.seam_lat = h_coords(top_row_start, 1);
+        // Set reflection center longitude as the midpoint longitude of the northern seam
+        info.seam_lon_center = h_coords(top_row_start + ni / 2, 0);
     }
 
     return info;

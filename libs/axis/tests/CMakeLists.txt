@@ -81,6 +81,7 @@ set(AXIS_UNIT_TEST_SOURCES
     test_coastal_renormalization.cpp
     test_warp_cooperative_clipping.cpp
     test_noaa_grib_named_grids.cpp
+    test_distributed_weight_generator.cpp
 )
 
 add_executable(axis_unit_tests ${AXIS_UNIT_TEST_SOURCES})

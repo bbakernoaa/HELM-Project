@@ -103,7 +103,8 @@ void compute_cell_centroids_xy(
 /// Returns a host-space View of ArborX::Box<2>.
 template <class MemorySpace>
 Kokkos::View<ArborX::Box<2>*, Kokkos::HostSpace>
-compute_cell_aabbs(const topology::UnstructuredMesh<MemorySpace>& mesh) {
+compute_cell_aabbs(const topology::UnstructuredMesh<MemorySpace>& mesh,
+                   const axis::detail::TripolarGridInfo& tripolar = axis::detail::TripolarGridInfo{}) {
 
     const auto n_cells = mesh.n_cells();
     const auto coords  = mesh.node_coords();
@@ -125,6 +126,15 @@ compute_cell_aabbs(const topology::UnstructuredMesh<MemorySpace>& mesh) {
             auto ni = static_cast<std::size_t>(indices[i]);
             double x = coords(ni, 0);
             double y = coords(ni, 1);
+
+            if (tripolar.is_tripolar && y > tripolar.seam_lat) {
+                // Analytically reflect coordinate over the polar folded seam
+                y = 2.0 * tripolar.seam_lat - y;
+                x = tripolar.seam_lon_center + (tripolar.seam_lon_center - x);
+                while (x >= 360.0) x -= 360.0;
+                while (x < 0.0) x += 360.0;
+            }
+
             min_x = std::min(min_x, x);
             min_y = std::min(min_y, y);
             max_x = std::max(max_x, x);
@@ -733,7 +743,8 @@ compute_cell_centroids_device(
 /// Compute axis-aligned bounding boxes on device.
 template <class MemorySpace>
 Kokkos::View<ArborX::Box<2>*, MemorySpace>
-compute_cell_aabbs_device(const topology::UnstructuredMesh<MemorySpace>& mesh) {
+compute_cell_aabbs_device(const topology::UnstructuredMesh<MemorySpace>& mesh,
+                          const axis::detail::TripolarGridInfo& tripolar = axis::detail::TripolarGridInfo{}) {
 
     using exec_space = execution_space_for_t<MemorySpace>;
 
@@ -757,12 +768,24 @@ compute_cell_aabbs_device(const topology::UnstructuredMesh<MemorySpace>& mesh) {
 
             for (std::size_t i = start; i < end; ++i) {
                 auto ni = static_cast<std::size_t>(indices[i]);
-                float x = static_cast<float>(coords(ni, 0));
-                float y = static_cast<float>(coords(ni, 1));
-                min_x = (x < min_x) ? x : min_x;
-                min_y = (y < min_y) ? y : min_y;
-                max_x = (x > max_x) ? x : max_x;
-                max_y = (y > max_y) ? y : max_y;
+                double x = coords(ni, 0);
+                double y = coords(ni, 1);
+
+                if (tripolar.is_tripolar && y > tripolar.seam_lat) {
+                    // Analytically reflect coordinate over the polar folded seam on-device
+                    y = 2.0 * tripolar.seam_lat - y;
+                    x = tripolar.seam_lon_center + (tripolar.seam_lon_center - x);
+                    while (x >= 360.0) x -= 360.0;
+                    while (x < 0.0) x += 360.0;
+                }
+
+                float fx = static_cast<float>(x);
+                float fy = static_cast<float>(y);
+
+                min_x = (fx < min_x) ? fx : min_x;
+                min_y = (fy < min_y) ? fy : min_y;
+                max_x = (fx > max_x) ? fx : max_x;
+                max_y = (fy > max_y) ? fy : max_y;
             }
 
             boxes(c) = ArborX::Box<2>{{min_x, min_y}, {max_x, max_y}};

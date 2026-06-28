@@ -59,6 +59,9 @@ option(BUILD_BENCHMARKS "Build the AXIS performance benchmark harness"          
 # Kokkos — the ONLY required third-party dependency (HELM Law #2).
 find_package(Kokkos REQUIRED)
 
+# MPI — REQUIRED for distributed weights generation
+find_package(MPI REQUIRED COMPONENTS CXX)
+
 # KokkosKernels — OPTIONAL accelerator for sparse linear algebra (SpMV, sort).
 # When found, AXIS uses KokkosSparse::spmv for CSR apply instead of hand-rolled
 # TeamPolicy loops. Header-only usage (no ETI).
@@ -138,6 +141,7 @@ set(AXIS_SOURCES
     src/solver/gradient_reconstructor.cpp
     src/solver/vertical_regridder.cpp
     src/solver/vector_regridder.cpp
+    src/distributed/distributed_weight_generator.cpp
 )
 
 # ##############################################################################
@@ -171,6 +175,9 @@ target_compile_features(axis PUBLIC cxx_std_20)
 # Kokkos — PUBLIC so downstream consumers get Kokkos transitively.
 target_link_libraries(axis PUBLIC Kokkos::kokkos)
 
+# MPI — PUBLIC so downstream consumers get MPI include paths and libraries transitively.
+target_link_libraries(axis PUBLIC MPI::MPI_CXX)
+
 # KokkosKernels — PUBLIC for KokkosSparse::spmv in apply.hpp (header-only).
 if(KokkosKernels_FOUND)
     target_link_libraries(axis PUBLIC Kokkos::kokkoskernels)
@@ -179,6 +186,13 @@ endif()
 
 # ArborX — PRIVATE (vendored, header-only BVH for spatial search in WeightGenerator).
 target_link_libraries(axis PRIVATE ArborX::ArborX)
+
+# HALO — PRIVATE boundary exchange library for MPI-distributed weight generation
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../halo/CMakeLists.txt")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../halo" "${CMAKE_CURRENT_BINARY_DIR}/halo_build")
+    target_link_libraries(axis PRIVATE halo)
+    target_compile_definitions(axis PUBLIC AXIS_HAVE_HALO=1)
+endif()
 
 # PROJ — PRIVATE so downstream consumers do NOT link PROJ.
 if(AXIS_ENABLE_PROJ)
