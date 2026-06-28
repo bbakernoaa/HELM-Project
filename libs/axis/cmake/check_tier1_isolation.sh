@@ -133,6 +133,8 @@ scan_pattern() {
         done < <(find "${dir}" \( -name "*.hpp" -o -name "*.cpp" -o -name "*.h" \) \
                    -not -path "*/third_party/*" \
                    -not -path "*/build/*" \
+                   -not -path "*/io/*" \
+                   -not -name "*test_esmf_weight_io.cpp" \
                    -print0)
     done
 }

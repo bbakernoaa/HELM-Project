@@ -78,6 +78,8 @@ set(AXIS_UNIT_TEST_SOURCES
     test_vertical_regridder.cpp
     test_vector_regridder.cpp
     test_tripolar_regridder.cpp
+    test_coastal_renormalization.cpp
+    test_warp_cooperative_clipping.cpp
 )
 
 add_executable(axis_unit_tests ${AXIS_UNIT_TEST_SOURCES})
@@ -87,6 +89,11 @@ target_link_libraries(axis_unit_tests
         axis
         GTest::gtest_main
 )
+
+if(AXIS_HAVE_NETCDF)
+    target_link_libraries(axis_unit_tests PRIVATE axis_io)
+    target_sources(axis_unit_tests PRIVATE test_esmf_weight_io.cpp)
+endif()
 
 target_include_directories(axis_unit_tests
     PRIVATE

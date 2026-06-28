@@ -190,6 +190,40 @@ if(AXIS_ENABLE_PROJ)
     target_compile_definitions(axis PUBLIC AXIS_ENABLE_PROJ=1)
 endif()
 
+# NetCDF — OPTIONAL target for ESMF weight files reading and writing (AXIS-IO)
+option(AXIS_ENABLE_NETCDF "Enable NetCDF I/O and ESMF weight egress support" ON)
+
+if(AXIS_ENABLE_NETCDF)
+    find_package(netCDF COMPONENTS C QUIET)
+    if(NOT netCDF_FOUND)
+        find_package(NetCDF COMPONENTS C QUIET)
+    endif()
+    
+    if(netCDF_FOUND OR NetCDF_FOUND)
+        set(AXIS_HAVE_NETCDF 1)
+        add_library(axis_io STATIC
+            src/io/esmf_weight_io.cpp
+        )
+        add_library(HELM::AXIS_IO ALIAS axis_io)
+        
+        target_link_libraries(axis_io PUBLIC axis)
+        if(TARGET netCDF::netcdf)
+            target_link_libraries(axis_io PRIVATE netCDF::netcdf)
+        elseif(TARGET NetCDF::NetCDF_C)
+            target_link_libraries(axis_io PRIVATE NetCDF::NetCDF_C)
+        else()
+            target_link_libraries(axis_io PRIVATE ${netCDF_LIBRARIES} ${NetCDF_LIBRARIES})
+        endif()
+        
+        target_compile_definitions(axis_io PUBLIC AXIS_HAVE_NETCDF=1)
+        target_compile_definitions(axis PUBLIC AXIS_HAVE_NETCDF=1)
+        
+        message(STATUS "AXIS: NetCDF found — compiling optional axis_io target")
+    else()
+        message(STATUS "AXIS: NetCDF NOT found — optional axis_io target disabled")
+    endif()
+endif()
+
 # ##############################################################################
 # Fortran interop (optional)
 # ##############################################################################

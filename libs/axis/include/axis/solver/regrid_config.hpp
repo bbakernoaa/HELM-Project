@@ -62,6 +62,16 @@ enum class UnmappedAction : std::uint8_t {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ExtrapolationAction — behavior for completely dry destination cells.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Controls extrapolation behavior for completely masked destination points.
+enum class ExtrapolationAction : std::uint8_t {
+    None,       ///< Leave row zero (unmapped) or trigger error policy.
+    NearestWet  ///< Find closest wet source cell and map it with a weight of 1.0 (Default).
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RegridConfig — aggregate configuration for weight generation.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -73,6 +83,9 @@ struct RegridConfig {
     LineType            line_type   = LineType::GreatCircle;
     UnmappedAction      unmapped    = UnmappedAction::Ignore;
     bool                use_limiter = false;  ///< Enable Barth-Jespersen monotonicity limiter (Conservative2ndOrder only)
+    
+    /// @brief Extrapolation method when a destination cell has zero wet source overlaps.
+    ExtrapolationAction extrap_method = ExtrapolationAction::NearestWet;
 };
 
 } // namespace axis::solver

@@ -1279,6 +1279,171 @@ generate_bilinear_device(
 } // namespace (anonymous — device pipeline helpers)
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Coastal Mask Renormalization & Extrapolation Post-Processor
+// ─────────────────────────────────────────────────────────────────────────────
+
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace>
+coastal_renormalize_and_extrapolate(
+    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
+    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
+    InterpolationMatrix<MemorySpace>               matrix,
+    const RegridConfig&                            config) {
+
+    // If source mesh does not have a cell mask View, return original matrix
+    if (src_mesh.cell_mask_view().extent(0) == 0) {
+        return matrix;
+    }
+
+    const std::size_t n_src = matrix.n_src();
+    const std::size_t n_dst = matrix.n_dst();
+    const std::size_t nnz = matrix.nnz();
+
+    auto mask = src_mesh.cell_mask_view();
+    auto h_mask = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), mask);
+
+    auto rows = matrix.factor_row_view();
+    auto cols = matrix.factor_col_view();
+    auto vals = matrix.factor_list_view();
+
+    auto h_rows = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), rows);
+    auto h_cols = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), cols);
+    auto h_vals = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), vals);
+
+    // Each scalar entry W_ji yields exactly 2 entries in W_u and 2 in W_v if vector,
+    // but here we just copy active ones.
+    std::vector<index_t> u_rows, u_cols;
+    std::vector<double> u_vals;
+    u_rows.reserve(nnz);
+    u_cols.reserve(nnz);
+    u_vals.reserve(nnz);
+
+    // Row sums of wet weights
+    std::vector<double> row_sums(n_dst, 0.0);
+    for (std::size_t k = 0; k < nnz; ++k) {
+        index_t j = h_rows(k);
+        index_t i = h_cols(k);
+        double w = h_vals(k);
+
+        if (h_mask(i) > 0) {
+            row_sums[j] += w;
+        }
+    }
+
+    for (std::size_t k = 0; k < nnz; ++k) {
+        index_t j = h_rows(k);
+        index_t i = h_cols(k);
+        double w = h_vals(k);
+
+        if (h_mask(i) > 0) {
+            double s = row_sums[j];
+            if (s > 0.0 && s < 1.0) {
+                w /= s; // Renormalize wet weights
+            }
+            u_rows.push_back(j);
+            u_cols.push_back(i);
+            u_vals.push_back(w);
+        }
+    }
+
+    std::vector<bool> row_has_weights(n_dst, false);
+    for (const auto& r : u_rows) {
+        row_has_weights[static_cast<std::size_t>(r)] = true;
+    }
+
+    if (config.extrap_method == ExtrapolationAction::NearestWet) {
+        // Build ArborX BoundingVolumeHierarchy over unmasked ("wet") source cell centroids
+        using Point2 = ArborX::Point<2>;
+        Kokkos::View<double*, Kokkos::HostSpace> src_cx, src_cy;
+        compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
+
+        std::vector<Point2> wet_points;
+        std::vector<std::size_t> wet_indices;
+        for (std::size_t i = 0; i < n_src; ++i) {
+            if (h_mask(i) != 0) {
+                wet_points.push_back(Point2{static_cast<float>(src_cx(i)),
+                                            static_cast<float>(src_cy(i))});
+                wet_indices.push_back(i);
+            }
+        }
+
+        if (!wet_points.empty()) {
+            Kokkos::View<Point2*, Kokkos::HostSpace> wet_points_view("wet_points", wet_points.size());
+            for (std::size_t i = 0; i < wet_points.size(); ++i) {
+                wet_points_view(i) = wet_points[i];
+            }
+
+            Kokkos::DefaultHostExecutionSpace host_exec;
+            ArborX::BoundingVolumeHierarchy tree(
+                host_exec, ArborX::Experimental::attach_indices(wet_points_view));
+
+            Kokkos::View<double*, Kokkos::HostSpace> dst_cx, dst_cy;
+            compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
+
+            std::vector<std::size_t> dry_rows;
+            for (std::size_t j = 0; j < n_dst; ++j) {
+                if (!row_has_weights[j]) {
+                    dry_rows.push_back(j);
+                }
+            }
+
+            if (!dry_rows.empty()) {
+                Kokkos::View<decltype(ArborX::nearest(Point2{}, 1))*, Kokkos::HostSpace>
+                    queries_view("queries", dry_rows.size());
+                for (std::size_t q = 0; q < dry_rows.size(); ++q) {
+                    std::size_t j = dry_rows[q];
+                    queries_view(q) = ArborX::nearest(
+                        Point2{static_cast<float>(dst_cx(j)),
+                               static_cast<float>(dst_cy(j))},
+                        1);
+                }
+
+                Kokkos::View<typename decltype(tree)::value_type*, Kokkos::HostSpace> values("values", 0);
+                Kokkos::View<int*, Kokkos::HostSpace> offsets("offsets", 0);
+
+                tree.query(host_exec, queries_view, values, offsets);
+
+                for (std::size_t q = 0; q < dry_rows.size(); ++q) {
+                    std::size_t j = dry_rows[q];
+                    int begin = offsets(q);
+                    int end = offsets(q + 1);
+                    if (begin != end) {
+                        std::size_t local_idx = values(begin).index;
+                        std::size_t src_idx = wet_indices[local_idx];
+                        
+                        u_rows.push_back(static_cast<index_t>(j));
+                        u_cols.push_back(static_cast<index_t>(src_idx));
+                        u_vals.push_back(1.0);
+                    }
+                }
+            }
+        }
+    }
+
+    std::size_t final_nnz = u_rows.size();
+    Kokkos::View<index_t*, Kokkos::HostSpace> h_final_rows("h_final_rows", final_nnz);
+    Kokkos::View<index_t*, Kokkos::HostSpace> h_final_cols("h_final_cols", final_nnz);
+    Kokkos::View<double*, Kokkos::HostSpace>  h_final_vals("h_final_vals", final_nnz);
+
+    for (std::size_t k = 0; k < final_nnz; ++k) {
+        h_final_rows(k) = u_rows[k];
+        h_final_cols(k) = u_cols[k];
+        h_final_vals(k) = u_vals[k];
+    }
+
+    auto dev_rows = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_final_rows);
+    auto dev_cols = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_final_cols);
+    auto dev_vals = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_final_vals);
+
+    return InterpolationMatrix<MemorySpace>(
+        dev_vals, dev_rows, dev_cols,
+        matrix.frac_a_view(), matrix.frac_b_view(),
+        matrix.area_a_view(), matrix.area_b_view(),
+        n_src, n_dst
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // generate — top-level dispatch
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1298,23 +1463,32 @@ WeightGenerator::generate(const topology::UnstructuredMesh<MemorySpace>& src_mes
             + ")");
     }
 
+    InterpolationMatrix<MemorySpace> raw_matrix;
     switch (config.method) {
         case InterpolationMethod::Bilinear:
-            return generate_bilinear(src_mesh, dst_mesh, config);
+            raw_matrix = generate_bilinear(src_mesh, dst_mesh, config);
+            break;
         case InterpolationMethod::NearestNeighbor:
-            return generate_nearest(src_mesh, dst_mesh, config);
+            raw_matrix = generate_nearest(src_mesh, dst_mesh, config);
+            break;
         case InterpolationMethod::Bicubic:
-            return generate_bicubic(src_mesh, dst_mesh, config);
+            raw_matrix = generate_bicubic(src_mesh, dst_mesh, config);
+            break;
         case InterpolationMethod::Patch:
-            return generate_patch(src_mesh, dst_mesh, config);
+            raw_matrix = generate_patch(src_mesh, dst_mesh, config);
+            break;
         case InterpolationMethod::Conservative1stOrder:
-            return generate_conservative(src_mesh, dst_mesh, config);
+            raw_matrix = generate_conservative(src_mesh, dst_mesh, config);
+            break;
         case InterpolationMethod::Conservative2ndOrder:
-            return generate_conservative_2nd_order(src_mesh, dst_mesh, config);
+            raw_matrix = generate_conservative_2nd_order(src_mesh, dst_mesh, config);
+            break;
         default:
             throw std::invalid_argument(
                 "WeightGenerator::generate: unknown InterpolationMethod");
     }
+
+    return coastal_renormalize_and_extrapolate<MemorySpace>(src_mesh, dst_mesh, std::move(raw_matrix), config);
 }
 
 
