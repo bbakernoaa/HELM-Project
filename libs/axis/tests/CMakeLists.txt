@@ -75,6 +75,9 @@ set(AXIS_UNIT_TEST_SOURCES
     test_rectilinear_grid_detector.cpp
     test_trig_cache.cpp
     test_spherical_cap_filter.cpp
+    test_vertical_regridder.cpp
+    test_vector_regridder.cpp
+    test_tripolar_regridder.cpp
 )
 
 add_executable(axis_unit_tests ${AXIS_UNIT_TEST_SOURCES})

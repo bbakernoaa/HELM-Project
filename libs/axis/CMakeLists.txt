@@ -119,6 +119,7 @@ endif()
 # guard inside selects the real PROJ implementation or a stub that throws.
 set(AXIS_SOURCES
     src/detail/raii_handles.cpp
+    src/detail/tspack.cpp
     src/topology/unstructured_mesh.cpp
     src/topology/structured_grid.cpp
     src/topology/mesh_factory.cpp
@@ -135,6 +136,8 @@ set(AXIS_SOURCES
     src/solver/halo_pattern.cpp
     src/solver/conservation.cpp
     src/solver/gradient_reconstructor.cpp
+    src/solver/vertical_regridder.cpp
+    src/solver/vector_regridder.cpp
 )
 
 # ##############################################################################

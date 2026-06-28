@@ -305,6 +305,61 @@ RegularGridInfo detect_regular_grid(
     return info;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Tripolar Grid Detection
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @struct TripolarGridInfo
+/// @brief Holds metadata for detected folded tripolar grids.
+struct TripolarGridInfo {
+    bool is_tripolar{false}; ///< True if the mesh has a folded tripolar northern boundary
+    std::size_t ni{0};       ///< Number of columns (cells along x)
+    std::size_t nj{0};       ///< Number of rows (cells along y)
+};
+
+/// @brief Detect whether an unstructured mesh represents a folded tripolar grid.
+/// @param mesh The unstructured mesh to check.
+/// @param ni   Expected number of columns.
+/// @param nj   Expected number of rows.
+/// @return TripolarGridInfo metadata with is_tripolar set to true if folded symmetry is detected.
+template <class MemorySpace>
+inline TripolarGridInfo detect_tripolar_grid(const topology::UnstructuredMesh<MemorySpace>& mesh, std::size_t ni, std::size_t nj) {
+    TripolarGridInfo info;
+    if (mesh.n_nodes() == 0 || ni == 0 || nj == 0) return info;
+
+    // A folded tripolar grid has folded node symmetry along its northernmost boundary row (j = nj)
+    // node(i, nj) == node(ni - i, nj)
+    auto coords = mesh.node_coords_view();
+    auto h_coords = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), coords);
+
+    std::size_t n_nodes_x = ni + 1;
+    std::size_t top_row_start = nj * n_nodes_x;
+
+    if (top_row_start + ni >= mesh.n_nodes()) return info;
+
+    bool folded = true;
+    for (std::size_t i = 0; i <= ni / 2; ++i) {
+        std::size_t idx1 = top_row_start + i;
+        std::size_t idx2 = top_row_start + (ni - i);
+        double lat1 = h_coords(idx1, 1);
+        double lat2 = h_coords(idx2, 1);
+
+        // Folded symmetry check: northernmost row latitudes must match perfectly
+        if (std::abs(lat1 - lat2) > 1.0e-9) {
+            folded = false;
+            break;
+        }
+    }
+
+    if (folded) {
+        info.is_tripolar = true;
+        info.ni = ni;
+        info.nj = nj;
+    }
+
+    return info;
+}
+
 } // namespace axis::detail
 
 #endif // AXIS_DETAIL_REGULAR_GRID_DETECTOR_HPP
