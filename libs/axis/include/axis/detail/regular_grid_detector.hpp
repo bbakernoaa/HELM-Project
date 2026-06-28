@@ -17,14 +17,12 @@
 /// Detection runs on host but RegularGridInfo is device-portable (POD struct).
 /// No heap allocation in the struct itself (HELM Law #2).
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/topology/unstructured_mesh.hpp>
 #include <cmath>
 #include <cstddef>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/unstructured_mesh.hpp>
 
 namespace axis::detail {
 
@@ -40,13 +38,13 @@ namespace axis::detail {
 ///
 /// This struct is a POD type — safe to copy to device memory spaces.
 struct RegularGridInfo {
-    bool        is_regular{false};
-    double      lon_min{0.0};
-    double      lon_max{0.0};
-    double      delta_lon{0.0};
-    double      lat_min{0.0};
-    double      lat_max{0.0};
-    double      delta_lat{0.0};
+    bool is_regular{false};
+    double lon_min{0.0};
+    double lon_max{0.0};
+    double delta_lon{0.0};
+    double lat_min{0.0};
+    double lat_max{0.0};
+    double delta_lat{0.0};
     std::size_t ni{0};  ///< Number of unique longitude cell centers
     std::size_t nj{0};  ///< Number of unique latitude cell centers
 };
@@ -56,17 +54,15 @@ struct RegularGridInfo {
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct RectilinearGridInfo {
-    bool        is_rectilinear{false};
+    bool is_rectilinear{false};
     std::size_t ni{0};
     std::size_t nj{0};
-    Kokkos::View<double*, Kokkos::HostSpace> unique_lons;
-    Kokkos::View<double*, Kokkos::HostSpace> unique_lats;
+    Kokkos::View<double *, Kokkos::HostSpace> unique_lons;
+    Kokkos::View<double *, Kokkos::HostSpace> unique_lats;
 };
 
 template <class MemorySpace>
-RectilinearGridInfo detect_rectilinear_grid(
-    const topology::UnstructuredMesh<MemorySpace>& mesh) {
-
+RectilinearGridInfo detect_rectilinear_grid(const topology::UnstructuredMesh<MemorySpace> &mesh) {
     static_assert(Kokkos::SpaceAccessibility<Kokkos::HostSpace, MemorySpace>::accessible,
                   "detect_rectilinear_grid() requires a host-accessible mesh");
 
@@ -77,12 +73,12 @@ RectilinearGridInfo detect_rectilinear_grid(
         return info;
     }
 
-    const auto& offsets = mesh.conn_offsets_view();
-    const auto& coords  = mesh.node_coords_view();
+    const auto &offsets = mesh.conn_offsets_view();
+    const auto &coords = mesh.node_coords_view();
 
     for (std::size_t c = 0; c < n_cells; ++c) {
         auto start = offsets(c);
-        auto end   = offsets(c + 1);
+        auto end = offsets(c + 1);
         if ((end - start) != 4) {
             return info;  // Must be all quads
         }
@@ -103,7 +99,7 @@ RectilinearGridInfo detect_rectilinear_grid(
     std::sort(all_lats.begin(), all_lats.end());
 
     constexpr double unique_tol = 1.0e-12;
-    auto unique_filter = [&](std::vector<double>& sorted) -> std::vector<double> {
+    auto unique_filter = [&](std::vector<double> &sorted) -> std::vector<double> {
         std::vector<double> unique_vals;
         if (sorted.empty()) return unique_vals;
         unique_vals.push_back(sorted[0]);
@@ -134,8 +130,8 @@ RectilinearGridInfo detect_rectilinear_grid(
     info.ni = ni;
     info.nj = nj;
 
-    info.unique_lons = Kokkos::View<double*, Kokkos::HostSpace>("unique_lons", unique_lons.size());
-    info.unique_lats = Kokkos::View<double*, Kokkos::HostSpace>("unique_lats", unique_lats.size());
+    info.unique_lons = Kokkos::View<double *, Kokkos::HostSpace>("unique_lons", unique_lons.size());
+    info.unique_lats = Kokkos::View<double *, Kokkos::HostSpace>("unique_lats", unique_lats.size());
 
     for (std::size_t i = 0; i < unique_lons.size(); ++i) {
         info.unique_lons(i) = unique_lons[i];
@@ -167,11 +163,8 @@ RectilinearGridInfo detect_rectilinear_grid(
 /// @param mesh The unstructured mesh to examine
 /// @return RegularGridInfo with is_regular=true if the mesh is a uniform grid
 template <class MemorySpace>
-RegularGridInfo detect_regular_grid(
-    const topology::UnstructuredMesh<MemorySpace>& mesh) {
-
-    static_assert(Kokkos::SpaceAccessibility<Kokkos::HostSpace, MemorySpace>::accessible,
-                  "detect_regular_grid() requires a host-accessible mesh");
+RegularGridInfo detect_regular_grid(const topology::UnstructuredMesh<MemorySpace> &mesh) {
+    static_assert(Kokkos::SpaceAccessibility<Kokkos::HostSpace, MemorySpace>::accessible, "detect_regular_grid() requires a host-accessible mesh");
 
     RegularGridInfo info;
 
@@ -181,14 +174,14 @@ RegularGridInfo detect_regular_grid(
     }
 
     // Access raw Kokkos views (host-accessible)
-    const auto& offsets = mesh.conn_offsets_view();
-    const auto& indices = mesh.conn_indices_view();
-    const auto& coords  = mesh.node_coords_view();
+    const auto &offsets = mesh.conn_offsets_view();
+    const auto &indices = mesh.conn_indices_view();
+    const auto &coords = mesh.node_coords_view();
 
     // ── Step 1: Verify all cells are quads (4 vertices each) ──
     for (std::size_t c = 0; c < n_cells; ++c) {
         auto start = offsets(c);
-        auto end   = offsets(c + 1);
+        auto end = offsets(c + 1);
         if ((end - start) != 4) {
             return info;  // Not all quads → not a regular grid
         }
@@ -217,7 +210,7 @@ RegularGridInfo detect_regular_grid(
     // Remove near-duplicates (tolerance-based unique)
     constexpr double unique_tol = 1.0e-12;
 
-    auto unique_filter = [&](std::vector<double>& sorted) -> std::vector<double> {
+    auto unique_filter = [&](std::vector<double> &sorted) -> std::vector<double> {
         std::vector<double> unique_vals;
         if (sorted.empty()) return unique_vals;
         unique_vals.push_back(sorted[0]);
@@ -260,14 +253,14 @@ RegularGridInfo detect_regular_grid(
     }
 
     // ── Step 4: Verify uniformity — max(delta) - min(delta) < 1e-10 * mean(delta) ──
-    auto check_uniform = [](const std::vector<double>& deltas) -> bool {
+    auto check_uniform = [](const std::vector<double> &deltas) -> bool {
         if (deltas.empty()) return false;
 
         double min_d = deltas[0];
         double max_d = deltas[0];
-        double sum   = 0.0;
+        double sum = 0.0;
 
-        for (const auto& d : deltas) {
+        for (const auto &d : deltas) {
             min_d = std::min(min_d, d);
             max_d = std::max(max_d, d);
             sum += d;
@@ -277,7 +270,7 @@ RegularGridInfo detect_regular_grid(
         if (min_d <= 0.0) return false;
 
         double mean_d = sum / static_cast<double>(deltas.size());
-        double range  = max_d - min_d;
+        double range = max_d - min_d;
 
         return range < 1.0e-10 * mean_d;
     };
@@ -288,19 +281,19 @@ RegularGridInfo detect_regular_grid(
 
     // ── All checks passed — fill the RegularGridInfo struct ──
     double lon_sum = 0.0;
-    for (const auto& d : lon_deltas) lon_sum += d;
+    for (const auto &d : lon_deltas) lon_sum += d;
     double lat_sum = 0.0;
-    for (const auto& d : lat_deltas) lat_sum += d;
+    for (const auto &d : lat_deltas) lat_sum += d;
 
     info.is_regular = true;
-    info.lon_min    = unique_lons.front();
-    info.lon_max    = unique_lons.back();
-    info.delta_lon  = lon_sum / static_cast<double>(ni);
-    info.lat_min    = unique_lats.front();
-    info.lat_max    = unique_lats.back();
-    info.delta_lat  = lat_sum / static_cast<double>(nj);
-    info.ni         = ni;
-    info.nj         = nj;
+    info.lon_min = unique_lons.front();
+    info.lon_max = unique_lons.back();
+    info.delta_lon = lon_sum / static_cast<double>(ni);
+    info.lat_min = unique_lats.front();
+    info.lat_max = unique_lats.back();
+    info.delta_lat = lat_sum / static_cast<double>(nj);
+    info.ni = ni;
+    info.nj = nj;
 
     return info;
 }
@@ -325,7 +318,7 @@ struct TripolarGridInfo {
 /// @param nj   Expected number of rows.
 /// @return TripolarGridInfo metadata with is_tripolar set to true if folded symmetry is detected.
 template <class MemorySpace>
-inline TripolarGridInfo detect_tripolar_grid(const topology::UnstructuredMesh<MemorySpace>& mesh, std::size_t ni, std::size_t nj) {
+inline TripolarGridInfo detect_tripolar_grid(const topology::UnstructuredMesh<MemorySpace> &mesh, std::size_t ni, std::size_t nj) {
     TripolarGridInfo info;
     if (mesh.n_nodes() == 0 || ni == 0 || nj == 0) return info;
 
@@ -365,6 +358,6 @@ inline TripolarGridInfo detect_tripolar_grid(const topology::UnstructuredMesh<Me
     return info;
 }
 
-} // namespace axis::detail
+}  // namespace axis::detail
 
-#endif // AXIS_DETAIL_REGULAR_GRID_DETECTOR_HPP
+#endif  // AXIS_DETAIL_REGULAR_GRID_DETECTOR_HPP

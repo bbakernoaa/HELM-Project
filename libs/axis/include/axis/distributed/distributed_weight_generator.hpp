@@ -5,10 +5,11 @@
 #ifndef AXIS_DISTRIBUTED_WEIGHT_GENERATOR_HPP
 #define AXIS_DISTRIBUTED_WEIGHT_GENERATOR_HPP
 
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/regrid_config.hpp>
 #include <mpi.h>
+
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
 
 namespace axis::distributed {
 
@@ -20,21 +21,18 @@ namespace axis::distributed {
 /// local destination mesh partition and maps the results to global sparse CSR arrays.
 template <typename MemorySpace>
 class DistributedWeightGenerator {
-public:
+   public:
     /// @brief Generate an InterpolationMatrix partitioned across MPI ranks.
     /// @param local_src_mesh Source mesh partition owned by this rank.
     /// @param local_dst_mesh Destination mesh partition owned by this rank.
     /// @param config         Regridding configuration.
     /// @param comm           The MPI communicator.
     /// @return A partitioned InterpolationMatrix representing this rank's contribution.
-    static solver::InterpolationMatrix<MemorySpace> generate(
-        const topology::UnstructuredMesh<MemorySpace>& local_src_mesh,
-        const topology::UnstructuredMesh<MemorySpace>& local_dst_mesh,
-        const solver::RegridConfig&                    config,
-        MPI_Comm                                       comm
-    );
+    static solver::InterpolationMatrix<MemorySpace> generate(const topology::UnstructuredMesh<MemorySpace> &local_src_mesh,
+                                                             const topology::UnstructuredMesh<MemorySpace> &local_dst_mesh,
+                                                             const solver::RegridConfig &config, MPI_Comm comm);
 };
 
-} // namespace axis::distributed
+}  // namespace axis::distributed
 
-#endif // AXIS_DISTRIBUTED_WEIGHT_GENERATOR_HPP
+#endif  // AXIS_DISTRIBUTED_WEIGHT_GENERATOR_HPP

@@ -16,23 +16,11 @@
 /// computation, and COO assembly all execute on-device without host round-trips.
 /// A Kokkos::UnorderedMap is used for device-space COO-to-CSR compression.
 
-#include <axis/solver/weight_generator.hpp>
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <string>
-#include <type_traits>
-#include <unordered_map>
-#include <utility>
-#include <vector>
-
 #include <ArborX.hpp>
 #include <Kokkos_Core.hpp>
 #include <Kokkos_UnorderedMap.hpp>
-
+#include <algorithm>
+#include <array>
 #include <axis/detail/dateline_handler.hpp>
 #include <axis/detail/degenerate_cell_handler.hpp>
 #include <axis/detail/morton_sort.hpp>
@@ -42,8 +30,16 @@
 #include <axis/detail/spherical_clipper.hpp>
 #include <axis/detail/spherical_geometry.hpp>
 #include <axis/detail/trig_cache.hpp>
-
 #include <axis/solver/gradient_reconstructor.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace axis::solver {
 
@@ -66,22 +62,19 @@ struct Vec2 {
 /// Extract (x, y) centroids for all cells into separate Kokkos host Views.
 /// coord column 0 → x (lon), coord column 1 → y (lat).
 template <class MemorySpace>
-void compute_cell_centroids_xy(
-    const topology::UnstructuredMesh<MemorySpace>& mesh,
-    Kokkos::View<double*, Kokkos::HostSpace>& cx_out,
-    Kokkos::View<double*, Kokkos::HostSpace>& cy_out) {
-
+void compute_cell_centroids_xy(const topology::UnstructuredMesh<MemorySpace> &mesh, Kokkos::View<double *, Kokkos::HostSpace> &cx_out,
+                               Kokkos::View<double *, Kokkos::HostSpace> &cy_out) {
     const auto n_cells = mesh.n_cells();
-    const auto coords  = mesh.node_coords();   // [n_nodes, ndim]
-    const auto offsets = mesh.conn_offsets();   // [n_cells + 1]
-    const auto indices = mesh.conn_indices();   // [nnz]
+    const auto coords = mesh.node_coords();    // [n_nodes, ndim]
+    const auto offsets = mesh.conn_offsets();  // [n_cells + 1]
+    const auto indices = mesh.conn_indices();  // [nnz]
 
-    cx_out = Kokkos::View<double*, Kokkos::HostSpace>("cx", n_cells);
-    cy_out = Kokkos::View<double*, Kokkos::HostSpace>("cy", n_cells);
+    cx_out = Kokkos::View<double *, Kokkos::HostSpace>("cx", n_cells);
+    cy_out = Kokkos::View<double *, Kokkos::HostSpace>("cy", n_cells);
 
     for (std::size_t c = 0; c < n_cells; ++c) {
         auto start = static_cast<std::size_t>(offsets[c]);
-        auto end   = static_cast<std::size_t>(offsets[c + 1]);
+        auto end = static_cast<std::size_t>(offsets[c + 1]);
         auto n_verts = end - start;
 
         double sx = 0.0, sy = 0.0;
@@ -111,23 +104,21 @@ KOKKOS_FORCEINLINE_FUNCTION double normalize_longitude(double lon) noexcept {
 /// Compute axis-aligned bounding boxes for all cells (min_x, min_y, max_x, max_y).
 /// Returns a host-space View of ArborX::Box<2>.
 template <class MemorySpace>
-Kokkos::View<ArborX::Box<2>*, Kokkos::HostSpace>
-compute_cell_aabbs(const topology::UnstructuredMesh<MemorySpace>& mesh,
-                   const axis::detail::TripolarGridInfo& tripolar = axis::detail::TripolarGridInfo{}) {
-
+Kokkos::View<ArborX::Box<2> *, Kokkos::HostSpace> compute_cell_aabbs(
+    const topology::UnstructuredMesh<MemorySpace> &mesh, const axis::detail::TripolarGridInfo &tripolar = axis::detail::TripolarGridInfo{}) {
     const auto n_cells = mesh.n_cells();
-    const auto coords  = mesh.node_coords();
+    const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
 
-    Kokkos::View<ArborX::Box<2>*, Kokkos::HostSpace> boxes("cell_aabbs", n_cells);
+    Kokkos::View<ArborX::Box<2> *, Kokkos::HostSpace> boxes("cell_aabbs", n_cells);
 
     for (std::size_t c = 0; c < n_cells; ++c) {
         auto start = static_cast<std::size_t>(offsets[c]);
-        auto end   = static_cast<std::size_t>(offsets[c + 1]);
+        auto end = static_cast<std::size_t>(offsets[c + 1]);
 
-        double min_x =  std::numeric_limits<double>::max();
-        double min_y =  std::numeric_limits<double>::max();
+        double min_x = std::numeric_limits<double>::max();
+        double min_y = std::numeric_limits<double>::max();
         double max_x = -std::numeric_limits<double>::max();
         double max_y = -std::numeric_limits<double>::max();
 
@@ -148,9 +139,7 @@ compute_cell_aabbs(const topology::UnstructuredMesh<MemorySpace>& mesh,
             max_y = std::max(max_y, y);
         }
 
-        boxes(c) = ArborX::Box<2>{
-            {static_cast<float>(min_x), static_cast<float>(min_y)},
-            {static_cast<float>(max_x), static_cast<float>(max_y)}};
+        boxes(c) = ArborX::Box<2>{{static_cast<float>(min_x), static_cast<float>(min_y)}, {static_cast<float>(max_x), static_cast<float>(max_y)}};
     }
 
     return boxes;
@@ -160,14 +149,13 @@ compute_cell_aabbs(const topology::UnstructuredMesh<MemorySpace>& mesh,
 
 /// Compute the area of a single cell via the shoelace formula (2-D polygons).
 template <class MemorySpace>
-double compute_single_cell_area(const topology::UnstructuredMesh<MemorySpace>& mesh,
-                                std::size_t cell_idx) {
-    const auto coords  = mesh.node_coords();
+double compute_single_cell_area(const topology::UnstructuredMesh<MemorySpace> &mesh, std::size_t cell_idx) {
+    const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
 
     auto start = static_cast<std::size_t>(offsets[cell_idx]);
-    auto end   = static_cast<std::size_t>(offsets[cell_idx + 1]);
+    auto end = static_cast<std::size_t>(offsets[cell_idx + 1]);
     auto n_nodes = end - start;
 
     if (n_nodes < 3) return 0.0;
@@ -190,8 +178,7 @@ double compute_single_cell_area(const topology::UnstructuredMesh<MemorySpace>& m
 
 /// Get cell areas: use precomputed mesh areas if available, else compute via shoelace.
 template <class MemorySpace>
-std::vector<double>
-get_cell_areas(const topology::UnstructuredMesh<MemorySpace>& mesh) {
+std::vector<double> get_cell_areas(const topology::UnstructuredMesh<MemorySpace> &mesh) {
     const auto n_cells = mesh.n_cells();
     std::vector<double> areas(n_cells);
 
@@ -212,7 +199,7 @@ get_cell_areas(const topology::UnstructuredMesh<MemorySpace>& mesh) {
 // ──────────────────── Sutherland-Hodgman polygon clipping ────────────────────
 
 /// Compute signed area of a polygon (positive = CCW winding).
-inline double polygon_signed_area(const std::vector<Vec2>& poly) {
+inline double polygon_signed_area(const std::vector<Vec2> &poly) {
     double area = 0.0;
     const std::size_t n = poly.size();
     for (std::size_t i = 0; i < n; ++i) {
@@ -224,8 +211,7 @@ inline double polygon_signed_area(const std::vector<Vec2>& poly) {
 
 /// Compute the (unsigned) area of intersection between two 2-D polygons using
 /// the Sutherland-Hodgman algorithm.
-inline double compute_polygon_overlap_area(const std::vector<Vec2>& subject,
-                                           const std::vector<Vec2>& clip) {
+inline double compute_polygon_overlap_area(const std::vector<Vec2> &subject, const std::vector<Vec2> &clip) {
     if (subject.size() < 3 || clip.size() < 3) return 0.0;
 
     std::vector<Vec2> output = subject;
@@ -237,17 +223,15 @@ inline double compute_polygon_overlap_area(const std::vector<Vec2>& subject,
         std::vector<Vec2> input = output;
         output.clear();
 
-        const Vec2& edge_start = clip[i];
-        const Vec2& edge_end   = clip[(i + 1) % clip_n];
+        const Vec2 &edge_start = clip[i];
+        const Vec2 &edge_end = clip[(i + 1) % clip_n];
 
         double ex = edge_end.x - edge_start.x;
         double ey = edge_end.y - edge_start.y;
 
-        auto inside = [&](const Vec2& p) -> bool {
-            return (ex * (p.y - edge_start.y) - ey * (p.x - edge_start.x)) >= 0.0;
-        };
+        auto inside = [&](const Vec2 &p) -> bool { return (ex * (p.y - edge_start.y) - ey * (p.x - edge_start.x)) >= 0.0; };
 
-        auto intersect = [&](const Vec2& a, const Vec2& b) -> Vec2 {
+        auto intersect = [&](const Vec2 &a, const Vec2 &b) -> Vec2 {
             double ax = b.x - a.x;
             double ay = b.y - a.y;
             double denom = ax * ey - ay * ex;
@@ -260,8 +244,8 @@ inline double compute_polygon_overlap_area(const std::vector<Vec2>& subject,
 
         const std::size_t input_n = input.size();
         for (std::size_t j = 0; j < input_n; ++j) {
-            const Vec2& curr = input[j];
-            const Vec2& prev = input[(j + input_n - 1) % input_n];
+            const Vec2 &curr = input[j];
+            const Vec2 &prev = input[(j + input_n - 1) % input_n];
 
             bool curr_in = inside(curr);
             bool prev_in = inside(prev);
@@ -288,15 +272,13 @@ inline double compute_polygon_overlap_area(const std::vector<Vec2>& subject,
 /// longitudes are normalized to a continuous range via DatelineHandler::normalize()
 /// so that flat Sutherland-Hodgman clipping produces correct overlap polygons (Req 9.2).
 template <class MemorySpace>
-std::vector<Vec2>
-extract_cell_polygon(const topology::UnstructuredMesh<MemorySpace>& mesh,
-                     std::size_t cell_idx) {
-    const auto coords  = mesh.node_coords();
+std::vector<Vec2> extract_cell_polygon(const topology::UnstructuredMesh<MemorySpace> &mesh, std::size_t cell_idx) {
+    const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
 
     auto start = static_cast<std::size_t>(offsets[cell_idx]);
-    auto end   = static_cast<std::size_t>(offsets[cell_idx + 1]);
+    auto end = static_cast<std::size_t>(offsets[cell_idx + 1]);
     auto n_verts = static_cast<int>(end - start);
 
     std::vector<Vec2> poly;
@@ -341,18 +323,16 @@ extract_cell_polygon(const topology::UnstructuredMesh<MemorySpace>& mesh,
 ///   - Cartesian3D: returned as-is (assumes data is already on unit sphere, or
 ///     caller is using the flat Cartesian path)
 template <class MemorySpace>
-std::vector<axis::detail::spherical::Vec3>
-extract_cell_polygon_spherical(const topology::UnstructuredMesh<MemorySpace>& mesh,
-                               std::size_t cell_idx) {
-    using axis::detail::spherical::Vec3;
+std::vector<axis::detail::spherical::Vec3> extract_cell_polygon_spherical(const topology::UnstructuredMesh<MemorySpace> &mesh, std::size_t cell_idx) {
     using axis::detail::spherical::lonlat_to_xyz;
+    using axis::detail::spherical::Vec3;
 
-    const auto coords  = mesh.node_coords();
+    const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
 
     auto start = static_cast<std::size_t>(offsets[cell_idx]);
-    auto end   = static_cast<std::size_t>(offsets[cell_idx + 1]);
+    auto end = static_cast<std::size_t>(offsets[cell_idx + 1]);
 
     std::vector<Vec3> poly;
     poly.reserve(end - start);
@@ -394,10 +374,8 @@ extract_cell_polygon_spherical(const topology::UnstructuredMesh<MemorySpace>& me
 /// @param cell_idx    Flat cell index (row-major: ci = cell_idx % ni, cj = cell_idx / ni)
 /// @return            Vector of 4 unit-sphere Vec3 vertices (CCW winding)
 template <class MemorySpace>
-std::vector<axis::detail::spherical::Vec3>
-extract_cell_polygon_spherical_cached(
-    const axis::detail::NodeTrigCache<MemorySpace>& cache,
-    std::size_t cell_idx) {
+std::vector<axis::detail::spherical::Vec3> extract_cell_polygon_spherical_cached(const axis::detail::NodeTrigCache<MemorySpace> &cache,
+                                                                                 std::size_t cell_idx) {
     using axis::detail::spherical::Vec3;
 
     std::vector<Vec3> poly;
@@ -417,24 +395,22 @@ extract_cell_polygon_spherical_cached(
         return Vec3{cached.x, cached.y, cached.z};
     };
 
-    poly.push_back(to_vec3(ci,     cj));
+    poly.push_back(to_vec3(ci, cj));
     poly.push_back(to_vec3(ci + 1, cj));
     poly.push_back(to_vec3(ci + 1, cj + 1));
-    poly.push_back(to_vec3(ci,     cj + 1));
+    poly.push_back(to_vec3(ci, cj + 1));
 
     return poly;
 }
 
 /// Compute the spherical area of a single cell using SphericalPolygon::area().
 template <class MemorySpace>
-double compute_single_cell_area_spherical(
-    const topology::UnstructuredMesh<MemorySpace>& mesh,
-    std::size_t cell_idx) {
+double compute_single_cell_area_spherical(const topology::UnstructuredMesh<MemorySpace> &mesh, std::size_t cell_idx) {
     auto poly = extract_cell_polygon_spherical(mesh, cell_idx);
 
     // Convert to SphericalPolygon for consistent area computation with the clipper
     axis::detail::SphericalPolygon<32> sp;
-    for (const auto& v : poly) {
+    for (const auto &v : poly) {
         sp.push(axis::detail::Vec3{v.x, v.y, v.z});
     }
     return sp.area();
@@ -442,8 +418,7 @@ double compute_single_cell_area_spherical(
 
 /// Get cell areas on the sphere: use precomputed if available, else compute.
 template <class MemorySpace>
-std::vector<double>
-get_cell_areas_spherical(const topology::UnstructuredMesh<MemorySpace>& mesh) {
+std::vector<double> get_cell_areas_spherical(const topology::UnstructuredMesh<MemorySpace> &mesh) {
     const auto n_cells = mesh.n_cells();
     std::vector<double> areas(n_cells);
 
@@ -463,7 +438,7 @@ get_cell_areas_spherical(const topology::UnstructuredMesh<MemorySpace>& mesh) {
 // ─────────────────────── Point-in-polygon test ──────────────────────────────
 
 /// Winding number test: returns true if point (px, py) is inside the polygon.
-inline bool point_in_polygon(double px, double py, const std::vector<Vec2>& poly) {
+inline bool point_in_polygon(double px, double py, const std::vector<Vec2> &poly) {
     const std::size_t n = poly.size();
     if (n < 3) return false;
 
@@ -476,15 +451,13 @@ inline bool point_in_polygon(double px, double py, const std::vector<Vec2>& poly
         if (y0 <= py) {
             if (y1 > py) {
                 // Upward crossing
-                double cross = (poly[j].x - poly[i].x) * (py - poly[i].y)
-                             - (px - poly[i].x) * (poly[j].y - poly[i].y);
+                double cross = (poly[j].x - poly[i].x) * (py - poly[i].y) - (px - poly[i].x) * (poly[j].y - poly[i].y);
                 if (cross > 0.0) ++winding;
             }
         } else {
             if (y1 <= py) {
                 // Downward crossing
-                double cross = (poly[j].x - poly[i].x) * (py - poly[i].y)
-                             - (px - poly[i].x) * (poly[j].y - poly[i].y);
+                double cross = (poly[j].x - poly[i].x) * (py - poly[i].y) - (px - poly[i].x) * (poly[j].y - poly[i].y);
                 if (cross < 0.0) --winding;
             }
         }
@@ -497,10 +470,8 @@ inline bool point_in_polygon(double px, double py, const std::vector<Vec2>& poly
 /// Map physical point (px, py) to reference coordinates (xi, eta) in [-1,1]^2
 /// for a quadrilateral with vertices v0..v3 (in CCW or CW order).
 /// Returns true on convergence, false otherwise.
-inline bool map_to_reference_quad(double px, double py,
-                                  const Vec2& v0, const Vec2& v1,
-                                  const Vec2& v2, const Vec2& v3,
-                                  double& xi_out, double& eta_out) {
+inline bool map_to_reference_quad(double px, double py, const Vec2 &v0, const Vec2 &v1, const Vec2 &v2, const Vec2 &v3, double &xi_out,
+                                  double &eta_out) {
     // Newton iteration to solve:
     //   x(xi,eta) = N0*x0 + N1*x1 + N2*x2 + N3*x3 = px
     //   y(xi,eta) = N0*y0 + N1*y1 + N2*y2 + N3*y3 = py
@@ -533,17 +504,17 @@ inline bool map_to_reference_quad(double px, double py,
 
         // Jacobian: dN/dxi, dN/deta
         double dN0_dxi = -0.25 * (1.0 - eta);
-        double dN1_dxi =  0.25 * (1.0 - eta);
-        double dN2_dxi =  0.25 * (1.0 + eta);
+        double dN1_dxi = 0.25 * (1.0 - eta);
+        double dN2_dxi = 0.25 * (1.0 + eta);
         double dN3_dxi = -0.25 * (1.0 + eta);
 
         double dN0_deta = -0.25 * (1.0 - xi);
         double dN1_deta = -0.25 * (1.0 + xi);
-        double dN2_deta =  0.25 * (1.0 + xi);
-        double dN3_deta =  0.25 * (1.0 - xi);
+        double dN2_deta = 0.25 * (1.0 + xi);
+        double dN3_deta = 0.25 * (1.0 - xi);
 
-        double dx_dxi  = dN0_dxi * v0.x + dN1_dxi * v1.x + dN2_dxi * v2.x + dN3_dxi * v3.x;
-        double dy_dxi  = dN0_dxi * v0.y + dN1_dxi * v1.y + dN2_dxi * v2.y + dN3_dxi * v3.y;
+        double dx_dxi = dN0_dxi * v0.x + dN1_dxi * v1.x + dN2_dxi * v2.x + dN3_dxi * v3.x;
+        double dy_dxi = dN0_dxi * v0.y + dN1_dxi * v1.y + dN2_dxi * v2.y + dN3_dxi * v3.y;
         double dx_deta = dN0_deta * v0.x + dN1_deta * v1.x + dN2_deta * v2.x + dN3_deta * v3.x;
         double dy_deta = dN0_deta * v0.y + dN1_deta * v1.y + dN2_deta * v2.y + dN3_deta * v3.y;
 
@@ -552,14 +523,14 @@ inline bool map_to_reference_quad(double px, double py,
         if (std::abs(det) < 1e-30) return false;
 
         double inv_det = 1.0 / det;
-        double dxi  = inv_det * ( dy_deta * rx - dx_deta * ry);
-        double deta = inv_det * (-dy_dxi  * rx + dx_dxi  * ry);
+        double dxi = inv_det * (dy_deta * rx - dx_deta * ry);
+        double deta = inv_det * (-dy_dxi * rx + dx_dxi * ry);
 
-        xi  += dxi;
+        xi += dxi;
         eta += deta;
 
         // Clamp to prevent divergence
-        xi  = std::max(-2.0, std::min(2.0, xi));
+        xi = std::max(-2.0, std::min(2.0, xi));
         eta = std::max(-2.0, std::min(2.0, eta));
     }
 
@@ -571,9 +542,7 @@ inline bool map_to_reference_quad(double px, double py,
 
 /// Compute barycentric coordinates for point (px, py) in triangle (v0, v1, v2).
 /// Returns true if the point is inside (all coords in [0,1]).
-inline bool barycentric_triangle(double px, double py,
-                                 const Vec2& v0, const Vec2& v1, const Vec2& v2,
-                                 double& l0, double& l1, double& l2) {
+inline bool barycentric_triangle(double px, double py, const Vec2 &v0, const Vec2 &v1, const Vec2 &v2, double &l0, double &l1, double &l2) {
     double denom = (v1.y - v2.y) * (v0.x - v2.x) + (v2.x - v1.x) * (v0.y - v2.y);
     if (std::abs(denom) < 1e-30) {
         l0 = l1 = l2 = 1.0 / 3.0;
@@ -594,7 +563,7 @@ inline bool barycentric_triangle(double px, double py,
 /// partial pivoting. A is n×n stored row-major in a flat vector.
 /// b is the RHS vector of length n. Solution overwrites b.
 /// Returns true on success.
-inline bool dense_solve(std::vector<double>& A, std::vector<double>& b, int n) {
+inline bool dense_solve(std::vector<double> &A, std::vector<double> &b, int n) {
     // Forward elimination with partial pivoting
     for (int col = 0; col < n; ++col) {
         // Find pivot
@@ -608,7 +577,7 @@ inline bool dense_solve(std::vector<double>& A, std::vector<double>& b, int n) {
             }
         }
 
-        if (pivot_val < 1e-14) return false; // Singular
+        if (pivot_val < 1e-14) return false;  // Singular
 
         // Swap rows
         if (pivot_row != col) {
@@ -646,10 +615,7 @@ inline bool dense_solve(std::vector<double>& A, std::vector<double>& b, int n) {
 /// Uses normal equations: (A^T A) x = A^T b.
 /// A is stored row-major [m*n], b is [m], x_out is [n].
 /// Returns true on success.
-inline bool least_squares_solve(const std::vector<double>& A_in, 
-                                const std::vector<double>& b_in,
-                                int m, int n,
-                                std::vector<double>& x_out) {
+inline bool least_squares_solve(const std::vector<double> &A_in, const std::vector<double> &b_in, int m, int n, std::vector<double> &x_out) {
     // Form A^T * A (n×n) and A^T * b (n)
     std::vector<double> AtA(n * n, 0.0);
     std::vector<double> Atb(n, 0.0);
@@ -676,7 +642,7 @@ inline bool least_squares_solve(const std::vector<double>& A_in,
     return true;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Device-space pipeline helpers
@@ -686,8 +652,7 @@ namespace {
 
 /// Compile-time predicate: true when MemorySpace is NOT HostSpace (i.e., device).
 template <class MemorySpace>
-inline constexpr bool is_device_space_v =
-    !std::is_same_v<MemorySpace, Kokkos::HostSpace>;
+inline constexpr bool is_device_space_v = !std::is_same_v<MemorySpace, Kokkos::HostSpace>;
 
 /// Execution space associated with a given memory space.
 /// For HostSpace → DefaultHostExecutionSpace.
@@ -710,24 +675,20 @@ using execution_space_for_t = typename execution_space_for<MemorySpace>::type;
 /// Compute cell centroids on-device into a View<double*[2], MemorySpace>.
 /// coord column 0 → lon/x, coord column 1 → lat/y.
 template <class MemorySpace>
-Kokkos::View<double*[2], MemorySpace>
-compute_cell_centroids_device(
-    const topology::UnstructuredMesh<MemorySpace>& mesh) {
-
+Kokkos::View<double *[2], MemorySpace> compute_cell_centroids_device(const topology::UnstructuredMesh<MemorySpace> &mesh) {
     using exec_space = execution_space_for_t<MemorySpace>;
 
     const auto n_cells = mesh.n_cells();
-    const auto coords  = mesh.node_coords();
+    const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
 
-    Kokkos::View<double*[2], MemorySpace> centroids("centroids_device", n_cells);
+    Kokkos::View<double *[2], MemorySpace> centroids("centroids_device", n_cells);
 
-    Kokkos::parallel_for("compute_centroids",
-        Kokkos::RangePolicy<exec_space>(0, n_cells),
-        KOKKOS_LAMBDA(const std::size_t c) {
+    Kokkos::parallel_for(
+        "compute_centroids", Kokkos::RangePolicy<exec_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
             auto start = static_cast<std::size_t>(offsets[c]);
-            auto end   = static_cast<std::size_t>(offsets[c + 1]);
+            auto end = static_cast<std::size_t>(offsets[c + 1]);
             auto n_verts = end - start;
 
             double sx = 0.0, sy = 0.0;
@@ -749,27 +710,24 @@ compute_cell_centroids_device(
 
 /// Compute axis-aligned bounding boxes on device.
 template <class MemorySpace>
-Kokkos::View<ArborX::Box<2>*, MemorySpace>
-compute_cell_aabbs_device(const topology::UnstructuredMesh<MemorySpace>& mesh,
-                          const axis::detail::TripolarGridInfo& tripolar = axis::detail::TripolarGridInfo{}) {
-
+Kokkos::View<ArborX::Box<2> *, MemorySpace> compute_cell_aabbs_device(
+    const topology::UnstructuredMesh<MemorySpace> &mesh, const axis::detail::TripolarGridInfo &tripolar = axis::detail::TripolarGridInfo{}) {
     using exec_space = execution_space_for_t<MemorySpace>;
 
     const auto n_cells = mesh.n_cells();
-    const auto coords  = mesh.node_coords();
+    const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
 
-    Kokkos::View<ArborX::Box<2>*, MemorySpace> boxes("cell_aabbs_device", n_cells);
+    Kokkos::View<ArborX::Box<2> *, MemorySpace> boxes("cell_aabbs_device", n_cells);
 
-    Kokkos::parallel_for("compute_aabbs",
-        Kokkos::RangePolicy<exec_space>(0, n_cells),
-        KOKKOS_LAMBDA(const std::size_t c) {
+    Kokkos::parallel_for(
+        "compute_aabbs", Kokkos::RangePolicy<exec_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
             auto start = static_cast<std::size_t>(offsets[c]);
-            auto end   = static_cast<std::size_t>(offsets[c + 1]);
+            auto end = static_cast<std::size_t>(offsets[c + 1]);
 
-            float min_x =  1e30f;
-            float min_y =  1e30f;
+            float min_x = 1e30f;
+            float min_y = 1e30f;
             float max_x = -1e30f;
             float max_y = -1e30f;
 
@@ -803,15 +761,11 @@ compute_cell_aabbs_device(const topology::UnstructuredMesh<MemorySpace>& mesh,
 
 /// Compute cell areas (spherical or flat) on device.
 template <class MemorySpace>
-Kokkos::View<double*, MemorySpace>
-compute_cell_areas_device(
-    const topology::UnstructuredMesh<MemorySpace>& mesh,
-    bool use_spherical) {
-
+Kokkos::View<double *, MemorySpace> compute_cell_areas_device(const topology::UnstructuredMesh<MemorySpace> &mesh, bool use_spherical) {
     using exec_space = execution_space_for_t<MemorySpace>;
 
     const auto n_cells = mesh.n_cells();
-    const auto coords  = mesh.node_coords();
+    const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
     auto csys = mesh.coord_system();
@@ -820,20 +774,19 @@ compute_cell_areas_device(
     auto mesh_areas = mesh.cell_areas();
     if (mesh_areas.extent(0) == n_cells) {
         // Deep copy precomputed areas to device (they may already be there)
-        Kokkos::View<double*, MemorySpace> areas("cell_areas_device", n_cells);
+        Kokkos::View<double *, MemorySpace> areas("cell_areas_device", n_cells);
         Kokkos::deep_copy(areas, mesh_areas);
         return areas;
     }
 
-    Kokkos::View<double*, MemorySpace> areas("cell_areas_device", n_cells);
+    Kokkos::View<double *, MemorySpace> areas("cell_areas_device", n_cells);
 
     if (use_spherical) {
         // Spherical area via SphericalPolygon::area() (Girard's theorem)
-        Kokkos::parallel_for("compute_spherical_areas",
-            Kokkos::RangePolicy<exec_space>(0, n_cells),
-            KOKKOS_LAMBDA(const std::size_t c) {
+        Kokkos::parallel_for(
+            "compute_spherical_areas", Kokkos::RangePolicy<exec_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
                 auto start = static_cast<std::size_t>(offsets[c]);
-                auto end   = static_cast<std::size_t>(offsets[c + 1]);
+                auto end = static_cast<std::size_t>(offsets[c + 1]);
 
                 axis::detail::SphericalPolygon<32> sp;
                 for (std::size_t i = start; i < end; ++i) {
@@ -861,14 +814,16 @@ compute_cell_areas_device(
             });
     } else {
         // Flat area via shoelace formula
-        Kokkos::parallel_for("compute_flat_areas",
-            Kokkos::RangePolicy<exec_space>(0, n_cells),
-            KOKKOS_LAMBDA(const std::size_t c) {
+        Kokkos::parallel_for(
+            "compute_flat_areas", Kokkos::RangePolicy<exec_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
                 auto start = static_cast<std::size_t>(offsets[c]);
-                auto end   = static_cast<std::size_t>(offsets[c + 1]);
+                auto end = static_cast<std::size_t>(offsets[c + 1]);
                 auto n_nodes = end - start;
 
-                if (n_nodes < 3) { areas(c) = 0.0; return; }
+                if (n_nodes < 3) {
+                    areas(c) = 0.0;
+                    return;
+                }
 
                 double area = 0.0;
                 for (std::size_t i = 0; i < n_nodes; ++i) {
@@ -896,7 +851,7 @@ compute_cell_areas_device(
 struct COOEntry {
     index_t row;
     index_t col;
-    double  weight;
+    double weight;
 };
 
 // ─────────────────── Device-resident conservative pipeline ───────────────────
@@ -914,12 +869,8 @@ struct COOEntry {
 /// Since the number of overlapping pairs is unknown a-priori, we use a two-pass
 /// approach: first count entries per destination (to size buffers), then fill.
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_conservative_device(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> generate_conservative_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                              const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     using exec_space = execution_space_for_t<MemorySpace>;
     using Box2 = ArborX::Box<2>;
 
@@ -932,25 +883,21 @@ generate_conservative_device(
     auto src_boxes = compute_cell_aabbs_device(src_mesh);
 
     exec_space exec_inst{};
-    auto tree = ArborX::BoundingVolumeHierarchy(
-        exec_inst, ArborX::Experimental::attach_indices(src_boxes));
+    auto tree = ArborX::BoundingVolumeHierarchy(exec_inst, ArborX::Experimental::attach_indices(src_boxes));
 
     // ── Step 2: Build intersection queries from destination cell AABBs ──
     auto dst_boxes = compute_cell_aabbs_device(dst_mesh);
 
     // Create query predicates view — one intersects(box) per dst cell
-    Kokkos::View<decltype(ArborX::intersects(Box2{}))*, MemorySpace>
-        queries("queries_device", n_dst);
+    Kokkos::View<decltype(ArborX::intersects(Box2{})) *, MemorySpace> queries("queries_device", n_dst);
 
-    Kokkos::parallel_for("build_queries",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const index_t j) {
-            queries(j) = ArborX::intersects(dst_boxes(j));
-        });
+    Kokkos::parallel_for(
+        "build_queries", Kokkos::RangePolicy<exec_space>(0, n_dst),
+        KOKKOS_LAMBDA(const index_t j) { queries(j) = ArborX::intersects(dst_boxes(j)); });
 
     // ── Step 3: Execute BVH query on device ──
-    Kokkos::View<typename decltype(tree)::value_type*, MemorySpace> values("values", 0);
-    Kokkos::View<int*, MemorySpace> query_offsets("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, MemorySpace> values("values", 0);
+    Kokkos::View<int *, MemorySpace> query_offsets("offsets", 0);
     tree.query(exec_inst, queries, values, query_offsets);
 
     // ── Step 4: Compute cell areas on device ──
@@ -960,10 +907,10 @@ generate_conservative_device(
     // ── Step 5: Count valid overlap entries (first pass) ──
     // For each candidate pair, check if overlap_area > 0.
     // We need mesh connectivity on device for polygon extraction.
-    const auto src_coords  = src_mesh.node_coords();
+    const auto src_coords = src_mesh.node_coords();
     const auto src_offsets = src_mesh.conn_offsets();
     const auto src_indices_v = src_mesh.conn_indices();
-    const auto dst_coords  = dst_mesh.node_coords();
+    const auto dst_coords = dst_mesh.node_coords();
     const auto dst_offsets = dst_mesh.conn_offsets();
     const auto dst_indices_v = dst_mesh.conn_indices();
     auto src_csys = src_mesh.coord_system();
@@ -976,38 +923,35 @@ generate_conservative_device(
     const bool has_dst_mask = (dst_mask_v.extent(0) == static_cast<std::size_t>(n_dst));
 
     // Count total candidate pairs for buffer sizing
-    auto h_query_offsets = Kokkos::create_mirror_view_and_copy(
-        Kokkos::HostSpace{}, query_offsets);
-    std::size_t total_candidates = static_cast<std::size_t>(
-        h_query_offsets(n_dst));
+    auto h_query_offsets = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, query_offsets);
+    std::size_t total_candidates = static_cast<std::size_t>(h_query_offsets(n_dst));
 
     // Allocate upper-bound COO buffer (at most total_candidates entries)
-    Kokkos::View<COOEntry*, MemorySpace> coo_buffer("coo_buffer", total_candidates);
+    Kokkos::View<COOEntry *, MemorySpace> coo_buffer("coo_buffer", total_candidates);
     Kokkos::View<int, MemorySpace> coo_count("coo_count");
     Kokkos::deep_copy(coo_count, 0);
 
     // Accumulators for frac_a and frac_b
-    Kokkos::View<double*, MemorySpace> frac_a_acc("frac_a_acc", n_src);
-    Kokkos::View<double*, MemorySpace> frac_b_acc("frac_b_acc", n_dst);
+    Kokkos::View<double *, MemorySpace> frac_a_acc("frac_a_acc", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b_acc("frac_b_acc", n_dst);
     Kokkos::deep_copy(frac_a_acc, 0.0);
     Kokkos::deep_copy(frac_b_acc, 0.0);
 
     // ── Step 6: Compute overlaps and assemble COO on device ──
-    Kokkos::parallel_for("compute_overlaps",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const index_t j) {
+    Kokkos::parallel_for(
+        "compute_overlaps", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const index_t j) {
             // Skip masked destination cells (Req 8.2)
             if (has_dst_mask && dst_mask_v(j) == 0) return;
 
             int begin = query_offsets(j);
-            int end   = query_offsets(j + 1);
+            int end = query_offsets(j + 1);
 
             double area_dst = dst_areas(j);
             if (area_dst <= 0.0) return;
 
             // Build destination cell spherical polygon
             auto d_start = static_cast<std::size_t>(dst_offsets[j]);
-            auto d_end   = static_cast<std::size_t>(dst_offsets[j + 1]);
+            auto d_end = static_cast<std::size_t>(dst_offsets[j + 1]);
 
             axis::detail::SphericalPolygon<32> dst_sp;
             for (std::size_t di = d_start; di < d_end; ++di) {
@@ -1044,7 +988,7 @@ generate_conservative_device(
 
                 // Build source cell spherical polygon
                 auto s_start = static_cast<std::size_t>(src_offsets[src_i]);
-                auto s_end   = static_cast<std::size_t>(src_offsets[src_i + 1]);
+                auto s_end = static_cast<std::size_t>(src_offsets[src_i + 1]);
 
                 axis::detail::SphericalPolygon<32> src_sp;
                 for (std::size_t si = s_start; si < s_end; ++si) {
@@ -1070,8 +1014,7 @@ generate_conservative_device(
                 }
 
                 // Compute overlap area using SphericalClipper
-                double overlap_area = axis::detail::SphericalClipper::overlap_area<32>(
-                    src_sp, dst_sp);
+                double overlap_area = axis::detail::SphericalClipper::overlap_area<32>(src_sp, dst_sp);
 
                 if (overlap_area <= 0.0) continue;
 
@@ -1092,28 +1035,24 @@ generate_conservative_device(
     Kokkos::fence();
 
     // ── Step 7: Read back COO count and clamp fractions ──
-    auto h_coo_count = Kokkos::create_mirror_view_and_copy(
-        Kokkos::HostSpace{}, coo_count);
+    auto h_coo_count = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, coo_count);
     std::size_t nnz = static_cast<std::size_t>(h_coo_count());
     if (nnz > total_candidates) nnz = total_candidates;
 
     // Clamp frac_a and frac_b to [0, 1] on device
-    Kokkos::parallel_for("clamp_frac_a",
-        Kokkos::RangePolicy<exec_space>(0, n_src),
-        KOKKOS_LAMBDA(const index_t i) {
+    Kokkos::parallel_for(
+        "clamp_frac_a", Kokkos::RangePolicy<exec_space>(0, n_src), KOKKOS_LAMBDA(const index_t i) {
             if (frac_a_acc(i) > 1.0) frac_a_acc(i) = 1.0;
         });
-    Kokkos::parallel_for("clamp_frac_b",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const index_t j) {
+    Kokkos::parallel_for(
+        "clamp_frac_b", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const index_t j) {
             if (frac_b_acc(j) > 1.0) frac_b_acc(j) = 1.0;
         });
 
     // ── Step 8: Apply FracArea normalization if configured ──
     if (config.norm_type == NormType::FracArea) {
-        Kokkos::parallel_for("fracarea_norm",
-            Kokkos::RangePolicy<exec_space>(0, static_cast<index_t>(nnz)),
-            KOKKOS_LAMBDA(const index_t k) {
+        Kokkos::parallel_for(
+            "fracarea_norm", Kokkos::RangePolicy<exec_space>(0, static_cast<index_t>(nnz)), KOKKOS_LAMBDA(const index_t k) {
                 auto row_j = coo_buffer(k).row;
                 double frac = frac_b_acc(row_j);
                 if (frac > 0.0) {
@@ -1123,27 +1062,24 @@ generate_conservative_device(
     }
 
     // ── Step 9: Extract COO into separate Views on device ──
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
 
-    Kokkos::parallel_for("extract_coo",
-        Kokkos::RangePolicy<exec_space>(0, static_cast<index_t>(nnz)),
-        KOKKOS_LAMBDA(const index_t k) {
+    Kokkos::parallel_for(
+        "extract_coo", Kokkos::RangePolicy<exec_space>(0, static_cast<index_t>(nnz)), KOKKOS_LAMBDA(const index_t k) {
             factor_list(k) = coo_buffer(k).weight;
-            factor_row(k)  = coo_buffer(k).row;
-            factor_col(k)  = coo_buffer(k).col;
+            factor_row(k) = coo_buffer(k).row;
+            factor_col(k) = coo_buffer(k).col;
         });
 
     // ── Step 10: Build area and frac views ──
     // frac_a_acc and frac_b_acc are already on device
     // src_areas and dst_areas are already on device
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a_acc), std::move(frac_b_acc),
-        std::move(src_areas), std::move(dst_areas),
-        static_cast<std::size_t>(n_src), static_cast<std::size_t>(n_dst));
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a_acc),
+                                            std::move(frac_b_acc), std::move(src_areas), std::move(dst_areas), static_cast<std::size_t>(n_src),
+                                            static_cast<std::size_t>(n_dst));
 }
 
 // ─────────────── Device-resident bilinear pipeline ───────────────────────────
@@ -1151,70 +1087,55 @@ generate_conservative_device(
 /// Device-space generate_bilinear implementation.
 /// Uses ArborX nearest-neighbor queries on device and IDW fallback.
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_bilinear_device(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                          const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     using exec_space = execution_space_for_t<MemorySpace>;
     using Point2 = ArborX::Point<2>;
 
     const auto n_src = static_cast<index_t>(src_mesh.n_cells());
     const auto n_dst = static_cast<index_t>(dst_mesh.n_cells());
 
-    const int k_neighbors = static_cast<int>(
-        (n_src < 4) ? n_src : 4);
+    const int k_neighbors = static_cast<int>((n_src < 4) ? n_src : 4);
 
     // ── Compute source centroids on device ──
     auto src_centroids = compute_cell_centroids_device(src_mesh);
 
     // Build point cloud for BVH
-    Kokkos::View<Point2*, MemorySpace> src_points("src_points_device", n_src);
-    Kokkos::parallel_for("build_src_points",
-        Kokkos::RangePolicy<exec_space>(0, n_src),
-        KOKKOS_LAMBDA(const index_t i) {
-            src_points(i) = Point2{static_cast<float>(src_centroids(i, 0)),
-                                   static_cast<float>(src_centroids(i, 1))};
-        });
+    Kokkos::View<Point2 *, MemorySpace> src_points("src_points_device", n_src);
+    Kokkos::parallel_for(
+        "build_src_points", Kokkos::RangePolicy<exec_space>(0, n_src),
+        KOKKOS_LAMBDA(const index_t i) { src_points(i) = Point2{static_cast<float>(src_centroids(i, 0)), static_cast<float>(src_centroids(i, 1))}; });
 
     // ── Build ArborX BVH on device ──
     exec_space exec_inst{};
-    auto tree = ArborX::BoundingVolumeHierarchy(
-        exec_inst, ArborX::Experimental::attach_indices(src_points));
+    auto tree = ArborX::BoundingVolumeHierarchy(exec_inst, ArborX::Experimental::attach_indices(src_points));
 
     // ── Compute destination centroids on device ──
     auto dst_centroids = compute_cell_centroids_device(dst_mesh);
 
     // Build nearest(point, k) queries
-    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1))*, MemorySpace>
-        queries("queries_device", n_dst);
-    Kokkos::parallel_for("build_nn_queries",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const index_t j) {
-            queries(j) = ArborX::nearest(
-                Point2{static_cast<float>(dst_centroids(j, 0)),
-                       static_cast<float>(dst_centroids(j, 1))},
-                k_neighbors);
+    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, MemorySpace> queries("queries_device", n_dst);
+    Kokkos::parallel_for(
+        "build_nn_queries", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const index_t j) {
+            queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_centroids(j, 0)), static_cast<float>(dst_centroids(j, 1))}, k_neighbors);
         });
 
     // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type*, MemorySpace> values("values", 0);
-    Kokkos::View<int*, MemorySpace> query_offsets("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, MemorySpace> values("values", 0);
+    Kokkos::View<int *, MemorySpace> query_offsets("offsets", 0);
     tree.query(exec_inst, queries, values, query_offsets);
 
     // ── Allocate COO buffer (at most n_dst * k_neighbors entries) ──
     std::size_t max_entries = static_cast<std::size_t>(n_dst) * k_neighbors;
-    Kokkos::View<COOEntry*, MemorySpace> coo_buffer("coo_buffer", max_entries);
+    Kokkos::View<COOEntry *, MemorySpace> coo_buffer("coo_buffer", max_entries);
     Kokkos::View<int, MemorySpace> coo_count("coo_count");
     Kokkos::deep_copy(coo_count, 0);
 
     // ── Compute IDW weights on device ──
-    Kokkos::parallel_for("compute_idw_weights",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const index_t j) {
+    Kokkos::parallel_for(
+        "compute_idw_weights", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const index_t j) {
             int begin = query_offsets(j);
-            int end   = query_offsets(j + 1);
+            int end = query_offsets(j + 1);
             int n_nbrs = end - begin;
 
             if (n_nbrs == 0) return;
@@ -1265,29 +1186,27 @@ generate_bilinear_device(
     Kokkos::fence();
 
     // ── Read back nnz ──
-    auto h_coo_count = Kokkos::create_mirror_view_and_copy(
-        Kokkos::HostSpace{}, coo_count);
+    auto h_coo_count = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, coo_count);
     std::size_t nnz = static_cast<std::size_t>(h_coo_count());
     if (nnz > max_entries) nnz = max_entries;
 
     // ── Extract COO into separate Views on device ──
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
 
-    Kokkos::parallel_for("extract_bilinear_coo",
-        Kokkos::RangePolicy<exec_space>(0, static_cast<index_t>(nnz)),
-        KOKKOS_LAMBDA(const index_t k) {
+    Kokkos::parallel_for(
+        "extract_bilinear_coo", Kokkos::RangePolicy<exec_space>(0, static_cast<index_t>(nnz)), KOKKOS_LAMBDA(const index_t k) {
             factor_list(k) = coo_buffer(k).weight;
-            factor_row(k)  = coo_buffer(k).row;
-            factor_col(k)  = coo_buffer(k).col;
+            factor_row(k) = coo_buffer(k).row;
+            factor_col(k) = coo_buffer(k).col;
         });
 
     // ── Build area and frac views (bilinear: area_a = 0, frac = 1) ──
-    Kokkos::View<double*, MemorySpace> frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace> frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace> area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace> area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     Kokkos::deep_copy(frac_a, 1.0);
     Kokkos::deep_copy(frac_b, 1.0);
@@ -1297,27 +1216,21 @@ generate_bilinear_device(
     auto dst_areas_dev = compute_cell_areas_device(dst_mesh, false);
     Kokkos::deep_copy(area_b, dst_areas_dev);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        static_cast<std::size_t>(n_src), static_cast<std::size_t>(n_dst));
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), static_cast<std::size_t>(n_src),
+                                            static_cast<std::size_t>(n_dst));
 }
 
-} // namespace (anonymous — device pipeline helpers)
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Coastal Mask Renormalization & Extrapolation Post-Processor
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-coastal_renormalize_and_extrapolate(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    InterpolationMatrix<MemorySpace>               matrix,
-    const RegridConfig&                            config) {
-
+InterpolationMatrix<MemorySpace> coastal_renormalize_and_extrapolate(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                     const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                     InterpolationMatrix<MemorySpace> matrix, const RegridConfig &config) {
     // If source mesh does not have a cell mask View, return original matrix
     if (src_mesh.cell_mask_view().extent(0) == 0) {
         return matrix;
@@ -1366,7 +1279,7 @@ coastal_renormalize_and_extrapolate(
         if (h_mask(i) > 0) {
             double s = row_sums[j];
             if (s > 0.0 && s < 1.0) {
-                w /= s; // Renormalize wet weights
+                w /= s;  // Renormalize wet weights
             }
             u_rows.push_back(j);
             u_cols.push_back(i);
@@ -1375,37 +1288,35 @@ coastal_renormalize_and_extrapolate(
     }
 
     std::vector<bool> row_has_weights(n_dst, false);
-    for (const auto& r : u_rows) {
+    for (const auto &r : u_rows) {
         row_has_weights[static_cast<std::size_t>(r)] = true;
     }
 
     if (config.extrap_method == ExtrapolationAction::NearestWet) {
         // Build ArborX BoundingVolumeHierarchy over unmasked ("wet") source cell centroids
         using Point2 = ArborX::Point<2>;
-        Kokkos::View<double*, Kokkos::HostSpace> src_cx, src_cy;
+        Kokkos::View<double *, Kokkos::HostSpace> src_cx, src_cy;
         compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
 
         std::vector<Point2> wet_points;
         std::vector<std::size_t> wet_indices;
         for (std::size_t i = 0; i < n_src; ++i) {
             if (h_mask(i) != 0) {
-                wet_points.push_back(Point2{static_cast<float>(src_cx(i)),
-                                            static_cast<float>(src_cy(i))});
+                wet_points.push_back(Point2{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))});
                 wet_indices.push_back(i);
             }
         }
 
         if (!wet_points.empty()) {
-            Kokkos::View<Point2*, Kokkos::HostSpace> wet_points_view("wet_points", wet_points.size());
+            Kokkos::View<Point2 *, Kokkos::HostSpace> wet_points_view("wet_points", wet_points.size());
             for (std::size_t i = 0; i < wet_points.size(); ++i) {
                 wet_points_view(i) = wet_points[i];
             }
 
             Kokkos::DefaultHostExecutionSpace host_exec;
-            ArborX::BoundingVolumeHierarchy tree(
-                host_exec, ArborX::Experimental::attach_indices(wet_points_view));
+            ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(wet_points_view));
 
-            Kokkos::View<double*, Kokkos::HostSpace> dst_cx, dst_cy;
+            Kokkos::View<double *, Kokkos::HostSpace> dst_cx, dst_cy;
             compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
             std::vector<std::size_t> dry_rows;
@@ -1416,18 +1327,14 @@ coastal_renormalize_and_extrapolate(
             }
 
             if (!dry_rows.empty()) {
-                Kokkos::View<decltype(ArborX::nearest(Point2{}, 1))*, Kokkos::HostSpace>
-                    queries_view("queries", dry_rows.size());
+                Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, Kokkos::HostSpace> queries_view("queries", dry_rows.size());
                 for (std::size_t q = 0; q < dry_rows.size(); ++q) {
                     std::size_t j = dry_rows[q];
-                    queries_view(q) = ArborX::nearest(
-                        Point2{static_cast<float>(dst_cx(j)),
-                               static_cast<float>(dst_cy(j))},
-                        1);
+                    queries_view(q) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, 1);
                 }
 
-                Kokkos::View<typename decltype(tree)::value_type*, Kokkos::HostSpace> values("values", 0);
-                Kokkos::View<int*, Kokkos::HostSpace> offsets("offsets", 0);
+                Kokkos::View<typename decltype(tree)::value_type *, Kokkos::HostSpace> values("values", 0);
+                Kokkos::View<int *, Kokkos::HostSpace> offsets("offsets", 0);
 
                 tree.query(host_exec, queries_view, values, offsets);
 
@@ -1438,7 +1345,7 @@ coastal_renormalize_and_extrapolate(
                     if (begin != end) {
                         std::size_t local_idx = values(begin).index;
                         std::size_t src_idx = wet_indices[local_idx];
-                        
+
                         u_rows.push_back(static_cast<index_t>(j));
                         u_cols.push_back(static_cast<index_t>(src_idx));
                         u_vals.push_back(1.0);
@@ -1449,9 +1356,9 @@ coastal_renormalize_and_extrapolate(
     }
 
     std::size_t final_nnz = u_rows.size();
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_final_rows("h_final_rows", final_nnz);
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_final_cols("h_final_cols", final_nnz);
-    Kokkos::View<double*, Kokkos::HostSpace>  h_final_vals("h_final_vals", final_nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_final_rows("h_final_rows", final_nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_final_cols("h_final_cols", final_nnz);
+    Kokkos::View<double *, Kokkos::HostSpace> h_final_vals("h_final_vals", final_nnz);
 
     for (std::size_t k = 0; k < final_nnz; ++k) {
         h_final_rows(k) = u_rows[k];
@@ -1463,12 +1370,8 @@ coastal_renormalize_and_extrapolate(
     auto dev_cols = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_final_cols);
     auto dev_vals = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_final_vals);
 
-    return InterpolationMatrix<MemorySpace>(
-        dev_vals, dev_rows, dev_cols,
-        matrix.frac_a_view(), matrix.frac_b_view(),
-        matrix.area_a_view(), matrix.area_b_view(),
-        n_src, n_dst
-    );
+    return InterpolationMatrix<MemorySpace>(dev_vals, dev_rows, dev_cols, matrix.frac_a_view(), matrix.frac_b_view(), matrix.area_a_view(),
+                                            matrix.area_b_view(), n_src, n_dst);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1476,19 +1379,14 @@ coastal_renormalize_and_extrapolate(
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-WeightGenerator::generate(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-                          const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-                          const RegridConfig& config) {
+InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                           const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     // Coordinate system mismatch check
     if (src_mesh.coord_system() != dst_mesh.coord_system()) {
         throw std::invalid_argument(
             "WeightGenerator::generate: source and destination meshes have "
-            "different CoordinateSystem values (src="
-            + std::to_string(static_cast<int>(src_mesh.coord_system()))
-            + ", dst="
-            + std::to_string(static_cast<int>(dst_mesh.coord_system()))
-            + ")");
+            "different CoordinateSystem values (src=" +
+            std::to_string(static_cast<int>(src_mesh.coord_system())) + ", dst=" + std::to_string(static_cast<int>(dst_mesh.coord_system())) + ")");
     }
 
     InterpolationMatrix<MemorySpace> raw_matrix;
@@ -1512,65 +1410,54 @@ WeightGenerator::generate(const topology::UnstructuredMesh<MemorySpace>& src_mes
             raw_matrix = generate_conservative_2nd_order(src_mesh, dst_mesh, config);
             break;
         default:
-            throw std::invalid_argument(
-                "WeightGenerator::generate: unknown InterpolationMethod");
+            throw std::invalid_argument("WeightGenerator::generate: unknown InterpolationMethod");
     }
 
     return coastal_renormalize_and_extrapolate<MemorySpace>(src_mesh, dst_mesh, std::move(raw_matrix), config);
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generate_nearest — ArborX nearest(point, 1) query
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-WeightGenerator::generate_nearest(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> WeightGenerator::generate_nearest(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                   const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
-    using Point2    = ArborX::Point<2>;
+    using Point2 = ArborX::Point<2>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
 
     // ── Compute source centroids and build ArborX BVH ──
-    Kokkos::View<double*, HostSpace> src_cx, src_cy;
+    Kokkos::View<double *, HostSpace> src_cx, src_cy;
     compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
 
-    Kokkos::View<Point2*, HostSpace> src_points("src_points", n_src);
+    Kokkos::View<Point2 *, HostSpace> src_points("src_points", n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
-        src_points(i) = Point2{static_cast<float>(src_cx(i)),
-                               static_cast<float>(src_cy(i))};
+        src_points(i) = Point2{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))};
     }
 
     Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(
-        host_exec, ArborX::Experimental::attach_indices(src_points));
+    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
 
     // ── Build nearest(point, 1) queries for each dst cell ──
-    Kokkos::View<double*, HostSpace> dst_cx, dst_cy;
+    Kokkos::View<double *, HostSpace> dst_cx, dst_cy;
     compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
-    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1))*, HostSpace>
-        queries("queries", n_dst);
+    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> queries("queries", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::nearest(
-            Point2{static_cast<float>(dst_cx(j)),
-                   static_cast<float>(dst_cy(j))},
-            1);
+        queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, 1);
     }
 
     // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type*, HostSpace> values("values", 0);
-    Kokkos::View<int*, HostSpace> offsets("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    Kokkos::View<int *, HostSpace> offsets("offsets", 0);
     tree.query(host_exec, queries, values, offsets);
 
     // ── Build COO entries ──
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
     weights_vec.reserve(n_dst);
@@ -1579,12 +1466,10 @@ WeightGenerator::generate_nearest(
 
     for (std::size_t j = 0; j < n_dst; ++j) {
         int begin = offsets(j);
-        int end   = offsets(j + 1);
+        int end = offsets(j + 1);
         if (begin == end) {
             if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "WeightGenerator::generate_nearest: unmapped destination cell "
-                    + std::to_string(j));
+                throw std::runtime_error("WeightGenerator::generate_nearest: unmapped destination cell " + std::to_string(j));
             }
             continue;
         }
@@ -1597,26 +1482,26 @@ WeightGenerator::generate_nearest(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         h_factor_list(k) = weights_vec[k];
-        h_factor_row(k)  = rows_vec[k];
-        h_factor_col(k)  = cols_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
     }
 
     auto src_areas = get_cell_areas(src_mesh);
@@ -1639,13 +1524,9 @@ WeightGenerator::generate_nearest(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generate_bilinear — Point-in-cell location + barycentric/shape-function weights
@@ -1669,31 +1550,21 @@ WeightGenerator::generate_nearest(
 // Forward declaration: bilinear regular-grid fast-path (defined in
 // weight_generator_bilinear_rect.cpp).
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_bilinear_rect(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RegularGridInfo& src_grid_info,
-    const detail::RegularGridInfo& dst_grid_info);
+InterpolationMatrix<MemorySpace> generate_bilinear_rect(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                        const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config,
+                                                        const detail::RegularGridInfo &src_grid_info, const detail::RegularGridInfo &dst_grid_info);
 
 // Forward declaration: bilinear non-uniform rectilinear grid fast-path (defined in
 // weight_generator_bilinear_rect_nonuniform.cpp).
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_bilinear_rect_nonuniform(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RectilinearGridInfo& src_rect_info);
+InterpolationMatrix<MemorySpace> generate_bilinear_rect_nonuniform(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                   const RegridConfig &config, const detail::RectilinearGridInfo &src_rect_info);
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-WeightGenerator::generate_bilinear(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                    const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                    const RegridConfig &config) {
     // ── Device-space dispatch ──
     // When MemorySpace is a device space (CudaSpace/HIPSpace), route to the
     // fully device-resident pipeline.
@@ -1703,7 +1574,7 @@ WeightGenerator::generate_bilinear(
 
     // ── Host-space path (original implementation) ──
     using HostSpace = Kokkos::HostSpace;
-    using Point2    = ArborX::Point<2>;
+    using Point2 = ArborX::Point<2>;
 
     // ── Regular-grid fast-path dispatch ──
     // If both source and destination are regular lat-lon grids, use analytic
@@ -1711,8 +1582,7 @@ WeightGenerator::generate_bilinear(
     auto src_grid_info = detail::detect_regular_grid(src_mesh);
     auto dst_grid_info = detail::detect_regular_grid(dst_mesh);
     if (src_grid_info.is_regular && dst_grid_info.is_regular) {
-        auto result = generate_bilinear_rect(src_mesh, dst_mesh, config,
-                                             src_grid_info, dst_grid_info);
+        auto result = generate_bilinear_rect(src_mesh, dst_mesh, config, src_grid_info, dst_grid_info);
         // A default-constructed InterpolationMatrix (n_dst == 0) signals
         // degenerate grid — fall through to BVH. Any matrix with valid
         // n_dst > 0 is a legitimate result (even if nnz == 0 because all
@@ -1739,58 +1609,50 @@ WeightGenerator::generate_bilinear(
     const int k_fallback = static_cast<int>(std::min(static_cast<std::size_t>(4), n_src));
 
     // ── Compute source centroids and build ArborX BVH ──
-    Kokkos::View<double*, HostSpace> src_cx, src_cy;
+    Kokkos::View<double *, HostSpace> src_cx, src_cy;
     compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
 
-    Kokkos::View<Point2*, HostSpace> src_points("src_points", n_src);
+    Kokkos::View<Point2 *, HostSpace> src_points("src_points", n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
-        src_points(i) = Point2{static_cast<float>(src_cx(i)),
-                               static_cast<float>(src_cy(i))};
+        src_points(i) = Point2{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))};
     }
 
     Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(
-        host_exec, ArborX::Experimental::attach_indices(src_points));
+    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
 
     // ── Compute destination centroids ──
-    Kokkos::View<double*, HostSpace> dst_cx, dst_cy;
+    Kokkos::View<double *, HostSpace> dst_cx, dst_cy;
     compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
     // ── Build nearest(point, k_fallback) queries for IDW fallback ──
     // We query k_fallback neighbors; the first is used for point-in-cell test
-    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1))*, HostSpace>
-        queries("queries", n_dst);
+    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> queries("queries", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::nearest(
-            Point2{static_cast<float>(dst_cx(j)),
-                   static_cast<float>(dst_cy(j))},
-            k_fallback);
+        queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, k_fallback);
     }
 
     // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type*, HostSpace> values("values", 0);
-    Kokkos::View<int*, HostSpace> offsets_view("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    Kokkos::View<int *, HostSpace> offsets_view("offsets", 0);
     tree.query(host_exec, queries, values, offsets_view);
 
     // ── Mesh connectivity accessors for point-in-cell ──
-    const auto coords  = src_mesh.node_coords();
+    const auto coords = src_mesh.node_coords();
     const auto conn_off = src_mesh.conn_offsets();
     const auto conn_idx = src_mesh.conn_indices();
 
     // ── Build COO entries ──
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
     for (std::size_t j = 0; j < n_dst; ++j) {
         int begin = offsets_view(j);
-        int end   = offsets_view(j + 1);
+        int end = offsets_view(j + 1);
 
         if (begin == end) {
             if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "WeightGenerator::generate_bilinear: unmapped destination cell "
-                    + std::to_string(j));
+                throw std::runtime_error("WeightGenerator::generate_bilinear: unmapped destination cell " + std::to_string(j));
             }
             continue;
         }
@@ -1814,10 +1676,9 @@ WeightGenerator::generate_bilinear(
             if (n_verts == 4) {
                 // Quad cell: bilinear shape functions via Newton iteration
                 double xi = 0.0, eta = 0.0;
-                if (map_to_reference_quad(px, py, poly[0], poly[1], poly[2], poly[3],
-                                          xi, eta)) {
+                if (map_to_reference_quad(px, py, poly[0], poly[1], poly[2], poly[3], xi, eta)) {
                     // Clamp to [-1, 1] for safety
-                    xi  = std::max(-1.0, std::min(1.0, xi));
+                    xi = std::max(-1.0, std::min(1.0, xi));
                     eta = std::max(-1.0, std::min(1.0, eta));
 
                     double w0 = 0.25 * (1.0 - xi) * (1.0 - eta);
@@ -1909,7 +1770,7 @@ WeightGenerator::generate_bilinear(
 
                         double xi2 = 0.0, eta2 = 0.0;
                         if (map_to_reference_quad(px, py, q0, q1, q2, q3, xi2, eta2)) {
-                            xi2  = std::max(-1.0, std::min(1.0, xi2));
+                            xi2 = std::max(-1.0, std::min(1.0, xi2));
                             eta2 = std::max(-1.0, std::min(1.0, eta2));
 
                             double ww0 = 0.25 * (1.0 - xi2) * (1.0 - eta2);
@@ -1957,7 +1818,9 @@ WeightGenerator::generate_bilinear(
                         l2 = std::max(0.0, l2);
                         double sum = l0 + l1 + l2;
                         if (sum > 0.0) {
-                            l0 /= sum; l1 /= sum; l2 /= sum;
+                            l0 /= sum;
+                            l1 /= sum;
+                            l2 /= sum;
                         } else {
                             l0 = l1 = l2 = 1.0 / 3.0;
                         }
@@ -2012,10 +1875,10 @@ WeightGenerator::generate_bilinear(
                 cols_vec.push_back(static_cast<index_t>(src_idx));
             } else {
                 double sum_inv_dist = 0.0;
-                for (auto& nb : neighbors) {
+                for (auto &nb : neighbors) {
                     sum_inv_dist += 1.0 / nb.dist;
                 }
-                for (auto& nb : neighbors) {
+                for (auto &nb : neighbors) {
                     double w = (1.0 / nb.dist) / sum_inv_dist;
                     weights_vec.push_back(w);
                     rows_vec.push_back(static_cast<index_t>(j));
@@ -2028,26 +1891,26 @@ WeightGenerator::generate_bilinear(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t idx = 0; idx < nnz; ++idx) {
         h_factor_list(idx) = weights_vec[idx];
-        h_factor_row(idx)  = rows_vec[idx];
-        h_factor_col(idx)  = cols_vec[idx];
+        h_factor_row(idx) = rows_vec[idx];
+        h_factor_col(idx) = cols_vec[idx];
     }
 
     // Bilinear sets source areas to 0.0 (ESMF convention)
@@ -2070,13 +1933,9 @@ WeightGenerator::generate_bilinear(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generate_bicubic — 4×4 stencil least-squares bicubic interpolation
@@ -2093,14 +1952,11 @@ WeightGenerator::generate_bilinear(
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-WeightGenerator::generate_bicubic(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> WeightGenerator::generate_bicubic(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                   const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
-    using Point2    = ArborX::Point<2>;
+    using Point2 = ArborX::Point<2>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -2109,47 +1965,41 @@ WeightGenerator::generate_bicubic(
     const int k_stencil = static_cast<int>(std::min(static_cast<std::size_t>(16), n_src));
 
     // ── Compute source centroids and build ArborX BVH ──
-    Kokkos::View<double*, HostSpace> src_cx, src_cy;
+    Kokkos::View<double *, HostSpace> src_cx, src_cy;
     compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
 
-    Kokkos::View<Point2*, HostSpace> src_points("src_points", n_src);
+    Kokkos::View<Point2 *, HostSpace> src_points("src_points", n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
-        src_points(i) = Point2{static_cast<float>(src_cx(i)),
-                               static_cast<float>(src_cy(i))};
+        src_points(i) = Point2{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))};
     }
 
     Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(
-        host_exec, ArborX::Experimental::attach_indices(src_points));
+    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
 
     // ── Compute destination centroids ──
-    Kokkos::View<double*, HostSpace> dst_cx, dst_cy;
+    Kokkos::View<double *, HostSpace> dst_cx, dst_cy;
     compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
     // ── Build nearest(point, k_stencil) queries ──
-    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1))*, HostSpace>
-        queries("queries", n_dst);
+    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> queries("queries", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::nearest(
-            Point2{static_cast<float>(dst_cx(j)),
-                   static_cast<float>(dst_cy(j))},
-            k_stencil);
+        queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, k_stencil);
     }
 
     // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type*, HostSpace> values("values", 0);
-    Kokkos::View<int*, HostSpace> offsets_view("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    Kokkos::View<int *, HostSpace> offsets_view("offsets", 0);
     tree.query(host_exec, queries, values, offsets_view);
 
     // ── Build COO entries with bicubic polynomial weights ──
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
     // Bicubic polynomial: P(x,y) = sum_{i=0}^{3} sum_{j=0}^{3} a_{ij} x^i y^j
     // Total 16 basis functions. For k < 16 source cells, we fall back to
     // a lower-order polynomial fit.
-    constexpr int n_basis_full = 16; // Full bicubic
+    constexpr int n_basis_full = 16;  // Full bicubic
 
     for (std::size_t j = 0; j < n_dst; ++j) {
         int begin = offsets_view(j);
@@ -2158,9 +2008,7 @@ WeightGenerator::generate_bicubic(
 
         if (n_neighbors == 0) {
             if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "WeightGenerator::generate_bicubic: unmapped destination cell "
-                    + std::to_string(j));
+                throw std::runtime_error("WeightGenerator::generate_bicubic: unmapped destination cell " + std::to_string(j));
             }
             continue;
         }
@@ -2320,7 +2168,11 @@ WeightGenerator::generate_bicubic(
                     double dx = xd - src_cx(src_indices[k]);
                     double dy = yd - src_cy(src_indices[k]);
                     double d = std::sqrt(dx * dx + dy * dy);
-                    if (d <= 0.0) { has_zero = true; zero_k = k; break; }
+                    if (d <= 0.0) {
+                        has_zero = true;
+                        zero_k = k;
+                        break;
+                    }
                     sum_inv += 1.0 / d;
                 }
                 if (has_zero) {
@@ -2345,26 +2197,26 @@ WeightGenerator::generate_bicubic(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t idx = 0; idx < nnz; ++idx) {
         h_factor_list(idx) = weights_vec[idx];
-        h_factor_row(idx)  = rows_vec[idx];
-        h_factor_col(idx)  = cols_vec[idx];
+        h_factor_row(idx) = rows_vec[idx];
+        h_factor_col(idx) = cols_vec[idx];
     }
 
     // Bicubic sets source areas to 0.0 (ESMF convention)
@@ -2387,13 +2239,9 @@ WeightGenerator::generate_bicubic(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generate_patch — Least-squares polynomial patch recovery (ESMF REGRID_METHOD_PATCH)
@@ -2409,14 +2257,11 @@ WeightGenerator::generate_bicubic(
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-WeightGenerator::generate_patch(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> WeightGenerator::generate_patch(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                 const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                 const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
-    using Point2    = ArborX::Point<2>;
+    using Point2 = ArborX::Point<2>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -2428,40 +2273,34 @@ WeightGenerator::generate_patch(
     constexpr int n_basis = 6;
 
     // ── Compute source centroids and build ArborX BVH ──
-    Kokkos::View<double*, HostSpace> src_cx, src_cy;
+    Kokkos::View<double *, HostSpace> src_cx, src_cy;
     compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
 
-    Kokkos::View<Point2*, HostSpace> src_points("src_points", n_src);
+    Kokkos::View<Point2 *, HostSpace> src_points("src_points", n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
-        src_points(i) = Point2{static_cast<float>(src_cx(i)),
-                               static_cast<float>(src_cy(i))};
+        src_points(i) = Point2{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))};
     }
 
     Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(
-        host_exec, ArborX::Experimental::attach_indices(src_points));
+    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
 
     // ── Compute destination centroids ──
-    Kokkos::View<double*, HostSpace> dst_cx, dst_cy;
+    Kokkos::View<double *, HostSpace> dst_cx, dst_cy;
     compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
     // ── Build nearest(point, k_stencil) queries ──
-    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1))*, HostSpace>
-        queries("queries", n_dst);
+    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> queries("queries", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::nearest(
-            Point2{static_cast<float>(dst_cx(j)),
-                   static_cast<float>(dst_cy(j))},
-            k_stencil);
+        queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, k_stencil);
     }
 
     // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type*, HostSpace> values("values", 0);
-    Kokkos::View<int*, HostSpace> offsets_view("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    Kokkos::View<int *, HostSpace> offsets_view("offsets", 0);
     tree.query(host_exec, queries, values, offsets_view);
 
     // ── Build COO entries with patch polynomial weights ──
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
@@ -2472,9 +2311,7 @@ WeightGenerator::generate_patch(
 
         if (n_neighbors == 0) {
             if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "WeightGenerator::generate_patch: unmapped destination cell "
-                    + std::to_string(j));
+                throw std::runtime_error("WeightGenerator::generate_patch: unmapped destination cell " + std::to_string(j));
             }
             continue;
         }
@@ -2578,7 +2415,11 @@ WeightGenerator::generate_patch(
                 double dx = xd - src_cx(src_indices[k]);
                 double dy = yd - src_cy(src_indices[k]);
                 double d = std::sqrt(dx * dx + dy * dy);
-                if (d <= 0.0) { has_zero = true; zero_k = k; break; }
+                if (d <= 0.0) {
+                    has_zero = true;
+                    zero_k = k;
+                    break;
+                }
                 sum_inv += 1.0 / d;
             }
             if (has_zero) {
@@ -2602,26 +2443,26 @@ WeightGenerator::generate_patch(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t idx = 0; idx < nnz; ++idx) {
         h_factor_list(idx) = weights_vec[idx];
-        h_factor_row(idx)  = rows_vec[idx];
-        h_factor_col(idx)  = cols_vec[idx];
+        h_factor_row(idx) = rows_vec[idx];
+        h_factor_col(idx) = cols_vec[idx];
     }
 
     // Patch sets source areas to 0.0 (ESMF convention)
@@ -2644,13 +2485,9 @@ WeightGenerator::generate_patch(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generate_conservative — ArborX AABB intersection + SphericalClipper overlap
@@ -2659,32 +2496,23 @@ WeightGenerator::generate_patch(
 // Forward declaration: rectangle fast-path for regular grids (defined in
 // weight_generator_conservative_rect.cpp).
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_conservative_rect(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RegularGridInfo& src_grid_info,
-    const detail::RegularGridInfo& dst_grid_info);
+InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config,
+                                                            const detail::RegularGridInfo &src_grid_info,
+                                                            const detail::RegularGridInfo &dst_grid_info);
 
 // Forward declaration: conservative non-uniform rectilinear grid fast-path (defined in
 // weight_generator_conservative_rect_nonuniform.cpp).
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_conservative_rect_nonuniform(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RectilinearGridInfo& src_rect_info,
-    const detail::RectilinearGridInfo& dst_rect_info);
+InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                       const RegridConfig &config, const detail::RectilinearGridInfo &src_rect_info,
+                                                                       const detail::RectilinearGridInfo &dst_rect_info);
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-WeightGenerator::generate_conservative(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                        const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                        const RegridConfig &config) {
     // ── Device-space dispatch ──
     // When MemorySpace is a device space (CudaSpace/HIPSpace), route to the
     // fully device-resident pipeline that avoids host round-trips.
@@ -2698,8 +2526,7 @@ WeightGenerator::generate_conservative(
     auto src_grid_info = detail::detect_regular_grid(src_mesh);
     auto dst_grid_info = detail::detect_regular_grid(dst_mesh);
     if (src_grid_info.is_regular && dst_grid_info.is_regular) {
-        auto result = generate_conservative_rect(src_mesh, dst_mesh, config,
-                                                 src_grid_info, dst_grid_info);
+        auto result = generate_conservative_rect(src_mesh, dst_mesh, config, src_grid_info, dst_grid_info);
         // If non-empty, use it. If empty (fallback signal from dateline wrap
         // or other edge case), fall through to standard BVH path.
         if (result.nnz() > 0) {
@@ -2714,8 +2541,7 @@ WeightGenerator::generate_conservative(
     auto dst_rect_info = detail::detect_rectilinear_grid(dst_mesh);
     if (src_rect_info.is_rectilinear && dst_rect_info.is_rectilinear &&
         (config.line_type == LineType::Cartesian || src_mesh.coord_system() == topology::CoordinateSystem::Cartesian3D)) {
-        auto result = generate_conservative_rect_nonuniform(src_mesh, dst_mesh, config,
-                                                             src_rect_info, dst_rect_info);
+        auto result = generate_conservative_rect_nonuniform(src_mesh, dst_mesh, config, src_rect_info, dst_rect_info);
         if (result.nnz() > 0) {
             return result;
         }
@@ -2724,7 +2550,7 @@ WeightGenerator::generate_conservative(
     // ── Host-space path (original implementation) ──
 
     using HostSpace = Kokkos::HostSpace;
-    using Box2      = ArborX::Box<2>;
+    using Box2 = ArborX::Box<2>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -2758,21 +2584,19 @@ WeightGenerator::generate_conservative(
     auto src_boxes = compute_cell_aabbs(src_mesh);
 
     Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(
-        host_exec, ArborX::Experimental::attach_indices(src_boxes));
+    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
 
     // ── Build intersection queries from destination cell AABBs ──
     auto dst_boxes = compute_cell_aabbs(dst_mesh);
 
-    Kokkos::View<decltype(ArborX::intersects(Box2{}))*, HostSpace>
-        queries("queries", n_dst);
+    Kokkos::View<decltype(ArborX::intersects(Box2{})) *, HostSpace> queries("queries", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
         queries(j) = ArborX::intersects(dst_boxes(j));
     }
 
     // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type*, HostSpace> values("values", 0);
-    Kokkos::View<int*, HostSpace> offsets_view("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    Kokkos::View<int *, HostSpace> offsets_view("offsets", 0);
     tree.query(host_exec, queries, values, offsets_view);
 
     // ── Get cell areas (spherical or flat) ──
@@ -2790,14 +2614,13 @@ WeightGenerator::generate_conservative(
     // Compute destination cell centroids and produce a Morton-sorted permutation
     // to improve spatial locality in the overlap loop (better cache behaviour for
     // BVH queries on spatially adjacent destination cells).
-    Kokkos::View<double*, Kokkos::HostSpace> dst_cx, dst_cy;
+    Kokkos::View<double *, Kokkos::HostSpace> dst_cx, dst_cy;
     compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
     // morton_sort_indices expects View<const double*, MemorySpace>
-    Kokkos::View<const double*, Kokkos::HostSpace> dst_cx_const(dst_cx);
-    Kokkos::View<const double*, Kokkos::HostSpace> dst_cy_const(dst_cy);
-    auto sorted_dst = detail::morton_sort_indices<Kokkos::HostSpace>(
-        dst_cx_const, dst_cy_const, n_dst);
+    Kokkos::View<const double *, Kokkos::HostSpace> dst_cx_const(dst_cx);
+    Kokkos::View<const double *, Kokkos::HostSpace> dst_cy_const(dst_cy);
+    auto sorted_dst = detail::morton_sort_indices<Kokkos::HostSpace>(dst_cx_const, dst_cy_const, n_dst);
 
     // ── Spherical cap early-exit filter precomputation (Req 3.2, 3.5, 3.6) ──
     // Precompute centroids and angular radii for all cells in both meshes.
@@ -2828,7 +2651,7 @@ WeightGenerator::generate_conservative(
     std::vector<double> frac_b_acc(n_dst, 0.0);
 
     // ── Compute exact overlap for each candidate pair ──
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
@@ -2845,45 +2668,41 @@ WeightGenerator::generate_conservative(
         using exec_space = Kokkos::DefaultHostExecutionSpace;
 
         // Upper bound on COO entries: total number of BVH candidate pairs.
-        const std::size_t max_candidates =
-            static_cast<std::size_t>(offsets_view(n_dst));
+        const std::size_t max_candidates = static_cast<std::size_t>(offsets_view(n_dst));
 
         // Pre-allocate COO buffers (over-sized; actual usage <= max_candidates).
-        Kokkos::View<double*, Kokkos::HostSpace>  coo_weights("coo_weights", max_candidates);
-        Kokkos::View<index_t*, Kokkos::HostSpace> coo_rows("coo_rows", max_candidates);
-        Kokkos::View<index_t*, Kokkos::HostSpace> coo_cols("coo_cols", max_candidates);
+        Kokkos::View<double *, Kokkos::HostSpace> coo_weights("coo_weights", max_candidates);
+        Kokkos::View<index_t *, Kokkos::HostSpace> coo_rows("coo_rows", max_candidates);
+        Kokkos::View<index_t *, Kokkos::HostSpace> coo_cols("coo_cols", max_candidates);
         // Per-entry overlap areas for frac_a/frac_b post-computation.
-        Kokkos::View<double*, Kokkos::HostSpace>  coo_overlap("coo_overlap", max_candidates);
+        Kokkos::View<double *, Kokkos::HostSpace> coo_overlap("coo_overlap", max_candidates);
 
         // Atomic counter for thread-safe COO insertion.
         Kokkos::View<int64_t, Kokkos::HostSpace> coo_count("coo_count");
         Kokkos::deep_copy(coo_count, int64_t{0});
 
         // Access mesh data via Kokkos Views for lambda capture.
-        const auto src_coords_kv  = src_mesh.node_coords_view();
+        const auto src_coords_kv = src_mesh.node_coords_view();
         const auto src_offsets_kv = src_mesh.conn_offsets_view();
         const auto src_indices_kv = src_mesh.conn_indices_view();
-        const auto dst_coords_kv  = dst_mesh.node_coords_view();
+        const auto dst_coords_kv = dst_mesh.node_coords_view();
         const auto dst_offsets_kv = dst_mesh.conn_offsets_view();
         const auto dst_indices_kv = dst_mesh.conn_indices_view();
 
         // Copy cell areas into Kokkos Views for lambda capture.
-        Kokkos::View<double*, Kokkos::HostSpace> src_areas_kv("src_areas_kv", n_src);
-        Kokkos::View<double*, Kokkos::HostSpace> dst_areas_kv("dst_areas_kv", n_dst);
+        Kokkos::View<double *, Kokkos::HostSpace> src_areas_kv("src_areas_kv", n_src);
+        Kokkos::View<double *, Kokkos::HostSpace> dst_areas_kv("dst_areas_kv", n_dst);
         for (std::size_t i = 0; i < n_src; ++i) src_areas_kv(i) = src_areas[i];
         for (std::size_t j = 0; j < n_dst; ++j) dst_areas_kv(j) = dst_areas[j];
 
         // Copy degenerate flags into Kokkos Views for lambda capture.
-        Kokkos::View<int*, Kokkos::HostSpace> src_degen_kv("src_degen", n_src);
-        Kokkos::View<int*, Kokkos::HostSpace> dst_degen_kv("dst_degen", n_dst);
-        for (std::size_t i = 0; i < n_src; ++i)
-            src_degen_kv(i) = src_degenerate[i] ? 1 : 0;
-        for (std::size_t j = 0; j < n_dst; ++j)
-            dst_degen_kv(j) = dst_degenerate[j] ? 1 : 0;
+        Kokkos::View<int *, Kokkos::HostSpace> src_degen_kv("src_degen", n_src);
+        Kokkos::View<int *, Kokkos::HostSpace> dst_degen_kv("dst_degen", n_dst);
+        for (std::size_t i = 0; i < n_src; ++i) src_degen_kv(i) = src_degenerate[i] ? 1 : 0;
+        for (std::size_t j = 0; j < n_dst; ++j) dst_degen_kv(j) = dst_degenerate[j] ? 1 : 0;
 
-        Kokkos::parallel_for("cartesian_overlap",
-            Kokkos::RangePolicy<exec_space>(0, n_dst),
-            KOKKOS_LAMBDA(const std::size_t j) {
+        Kokkos::parallel_for(
+            "cartesian_overlap", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) {
                 // Skip masked destination cells (Req 8.2)
                 if (has_dst_mask && dst_mask[j] == 0) return;
 
@@ -2894,13 +2713,13 @@ WeightGenerator::generate_conservative(
                 if (area_dst_j <= 0.0) return;
 
                 int bvh_begin = offsets_view(j);
-                int bvh_end   = offsets_view(j + 1);
+                int bvh_end = offsets_view(j + 1);
 
                 // Build destination polygon from CSR connectivity.
                 detail::PlanarPolygon<32> dst_poly;
                 {
                     auto d_start = static_cast<std::size_t>(dst_offsets_kv(j));
-                    auto d_end   = static_cast<std::size_t>(dst_offsets_kv(j + 1));
+                    auto d_end = static_cast<std::size_t>(dst_offsets_kv(j + 1));
                     int d_nverts = static_cast<int>(d_end - d_start);
 
                     // Fill polygon vertices with dateline normalization.
@@ -2912,8 +2731,7 @@ WeightGenerator::generate_conservative(
                     }
 
                     // Dateline normalization (Req 9.1, 9.2).
-                    if (count >= 2 &&
-                        detail::DatelineHandler::crosses_dateline(lons, count)) {
+                    if (count >= 2 && detail::DatelineHandler::crosses_dateline(lons, count)) {
                         detail::DatelineHandler::normalize(lons, count);
                     }
 
@@ -2940,7 +2758,7 @@ WeightGenerator::generate_conservative(
                     detail::PlanarPolygon<32> src_poly;
                     {
                         auto s_start = static_cast<std::size_t>(src_offsets_kv(src_i));
-                        auto s_end   = static_cast<std::size_t>(src_offsets_kv(src_i + 1));
+                        auto s_end = static_cast<std::size_t>(src_offsets_kv(src_i + 1));
                         int s_nverts = static_cast<int>(s_end - s_start);
 
                         double lons[32];
@@ -2951,8 +2769,7 @@ WeightGenerator::generate_conservative(
                         }
 
                         // Dateline normalization (Req 9.1, 9.2).
-                        if (count >= 2 &&
-                            detail::DatelineHandler::crosses_dateline(lons, count)) {
+                        if (count >= 2 && detail::DatelineHandler::crosses_dateline(lons, count)) {
                             detail::DatelineHandler::normalize(lons, count);
                         }
 
@@ -2962,8 +2779,7 @@ WeightGenerator::generate_conservative(
                         }
                     }
 
-                    double overlap_area =
-                        detail::PlanarClipper::overlap_area<32>(src_poly, dst_poly);
+                    double overlap_area = detail::PlanarClipper::overlap_area<32>(src_poly, dst_poly);
 
                     if (overlap_area <= 0.0) continue;
 
@@ -3013,9 +2829,7 @@ WeightGenerator::generate_conservative(
                 if (dst_degenerate[j]) continue;
                 if (dst_areas[j] <= 0.0) continue;
                 if (!dst_has_entry[j]) {
-                    throw std::runtime_error(
-                        "WeightGenerator::generate_conservative: unmapped destination cell "
-                        + std::to_string(j));
+                    throw std::runtime_error("WeightGenerator::generate_conservative: unmapped destination cell " + std::to_string(j));
                 }
             }
         }
@@ -3036,14 +2850,12 @@ WeightGenerator::generate_conservative(
             if (dst_degenerate[j]) continue;
 
             int begin = offsets_view(j);
-            int end   = offsets_view(j + 1);
+            int end = offsets_view(j + 1);
 
             double area_dst = dst_areas[j];
             if (area_dst <= 0.0) {
                 if (config.unmapped == UnmappedAction::Error) {
-                    throw std::runtime_error(
-                        "WeightGenerator::generate_conservative: unmapped destination cell "
-                        + std::to_string(j));
+                    throw std::runtime_error("WeightGenerator::generate_conservative: unmapped destination cell " + std::to_string(j));
                 }
                 continue;
             }
@@ -3059,13 +2871,12 @@ WeightGenerator::generate_conservative(
 
             // Use trig-cached extraction for regular grids (Req 4.3), fall back
             // to direct sin/cos for non-regular meshes (Req 4.6).
-            auto dst_poly_s = dst_node_trig.valid
-                ? extract_cell_polygon_spherical_cached(dst_node_trig, j)
-                : extract_cell_polygon_spherical(dst_mesh, j);
+            auto dst_poly_s =
+                dst_node_trig.valid ? extract_cell_polygon_spherical_cached(dst_node_trig, j) : extract_cell_polygon_spherical(dst_mesh, j);
 
             // Convert to SphericalPolygon for the clipper
             axis::detail::SphericalPolygon<32> dst_sp;
-            for (const auto& v : dst_poly_s) {
+            for (const auto &v : dst_poly_s) {
                 dst_sp.push(axis::detail::Vec3{v.x, v.y, v.z});
             }
 
@@ -3085,24 +2896,21 @@ WeightGenerator::generate_conservative(
                 // If the bounding spherical caps of the source and destination
                 // cells are disjoint, their geometric overlap is guaranteed zero.
                 // Skip the expensive SphericalClipper computation in that case.
-                if (detail::spherical_cap_rejects(
-                        src_cap.centroids(src_i), src_cap.angular_radii(src_i),
-                        dst_cap.centroids(j), dst_cap.angular_radii(j))) {
+                if (detail::spherical_cap_rejects(src_cap.centroids(src_i), src_cap.angular_radii(src_i), dst_cap.centroids(j),
+                                                  dst_cap.angular_radii(j))) {
                     continue;
                 }
 
-                auto src_poly_s = src_node_trig.valid
-                    ? extract_cell_polygon_spherical_cached(src_node_trig, src_i)
-                    : extract_cell_polygon_spherical(src_mesh, src_i);
+                auto src_poly_s = src_node_trig.valid ? extract_cell_polygon_spherical_cached(src_node_trig, src_i)
+                                                      : extract_cell_polygon_spherical(src_mesh, src_i);
 
                 // Convert to SphericalPolygon for the clipper
                 axis::detail::SphericalPolygon<32> src_sp;
-                for (const auto& v : src_poly_s) {
+                for (const auto &v : src_poly_s) {
                     src_sp.push(axis::detail::Vec3{v.x, v.y, v.z});
                 }
 
-                double overlap_area = axis::detail::SphericalClipper::overlap_area<32>(
-                    src_sp, dst_sp);
+                double overlap_area = axis::detail::SphericalClipper::overlap_area<32>(src_sp, dst_sp);
 
                 if (overlap_area <= 0.0) continue;
 
@@ -3120,9 +2928,7 @@ WeightGenerator::generate_conservative(
 
             // Throw for unmasked destination cells with zero coverage (Req 8.6)
             if (!has_entry && config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "WeightGenerator::generate_conservative: unmapped destination cell "
-                    + std::to_string(j));
+                throw std::runtime_error("WeightGenerator::generate_conservative: unmapped destination cell " + std::to_string(j));
             }
         }
     }
@@ -3153,26 +2959,26 @@ WeightGenerator::generate_conservative(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         h_factor_list(k) = weights_vec[k];
-        h_factor_row(k)  = rows_vec[k];
-        h_factor_col(k)  = cols_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
     }
 
     for (std::size_t i = 0; i < n_src; ++i) {
@@ -3192,11 +2998,8 @@ WeightGenerator::generate_conservative(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3218,14 +3021,11 @@ WeightGenerator::generate_conservative(
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-WeightGenerator::generate_conservative_2nd_order(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config) {
-
+InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative_2nd_order(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                                  const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                                  const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
-    using Box2      = ArborX::Box<2>;
+    using Box2 = ArborX::Box<2>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -3237,21 +3037,19 @@ WeightGenerator::generate_conservative_2nd_order(
     auto src_boxes = compute_cell_aabbs(src_mesh);
 
     Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(
-        host_exec, ArborX::Experimental::attach_indices(src_boxes));
+    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
 
     // ── Build intersection queries from destination cell AABBs ──
     auto dst_boxes = compute_cell_aabbs(dst_mesh);
 
-    Kokkos::View<decltype(ArborX::intersects(Box2{}))*, HostSpace>
-        queries("queries", n_dst);
+    Kokkos::View<decltype(ArborX::intersects(Box2{})) *, HostSpace> queries("queries", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
         queries(j) = ArborX::intersects(dst_boxes(j));
     }
 
     // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type*, HostSpace> values("values", 0);
-    Kokkos::View<int*, HostSpace> offsets_view("offsets", 0);
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    Kokkos::View<int *, HostSpace> offsets_view("offsets", 0);
     tree.query(host_exec, queries, values, offsets_view);
 
     // ── Get cell areas (spherical or flat) ──
@@ -3266,16 +3064,16 @@ WeightGenerator::generate_conservative_2nd_order(
     }
 
     // ── Compute source cell centroids in Cartesian (x, y, z) for gradient usage ──
-    const auto coords  = src_mesh.node_coords();
+    const auto coords = src_mesh.node_coords();
     const auto offsets = src_mesh.conn_offsets();
     const auto indices = src_mesh.conn_indices();
     auto src_csys = src_mesh.coord_system();
 
     // Store centroids as (x, y, z) in Cartesian coordinates on the unit sphere.
-    Kokkos::View<double*[3], HostSpace> src_centroids("src_centroids", n_src);
+    Kokkos::View<double *[3], HostSpace> src_centroids("src_centroids", n_src);
     for (std::size_t c = 0; c < n_src; ++c) {
         auto start = static_cast<std::size_t>(offsets[c]);
-        auto end   = static_cast<std::size_t>(offsets[c + 1]);
+        auto end = static_cast<std::size_t>(offsets[c + 1]);
         auto n_verts = end - start;
 
         double sx = 0.0, sy = 0.0, sz = 0.0;
@@ -3319,7 +3117,7 @@ WeightGenerator::generate_conservative_2nd_order(
     std::vector<std::size_t> node_cell_count(n_nodes, 0);
     for (std::size_t c = 0; c < n_src; ++c) {
         auto start = static_cast<std::size_t>(offsets[c]);
-        auto end   = static_cast<std::size_t>(offsets[c + 1]);
+        auto end = static_cast<std::size_t>(offsets[c + 1]);
         for (std::size_t i = start; i < end; ++i) {
             auto ni = static_cast<std::size_t>(indices[i]);
             node_cell_count[ni]++;
@@ -3335,7 +3133,7 @@ WeightGenerator::generate_conservative_2nd_order(
     std::vector<std::size_t> node_fill(n_nodes, 0);
     for (std::size_t c = 0; c < n_src; ++c) {
         auto start = static_cast<std::size_t>(offsets[c]);
-        auto end   = static_cast<std::size_t>(offsets[c + 1]);
+        auto end = static_cast<std::size_t>(offsets[c + 1]);
         for (std::size_t i = start; i < end; ++i) {
             auto ni = static_cast<std::size_t>(indices[i]);
             node_cell_indices[node_cell_offsets[ni] + node_fill[ni]] = c;
@@ -3349,7 +3147,7 @@ WeightGenerator::generate_conservative_2nd_order(
 
     for (std::size_t c = 0; c < n_src; ++c) {
         auto start = static_cast<std::size_t>(offsets[c]);
-        auto end   = static_cast<std::size_t>(offsets[c + 1]);
+        auto end = static_cast<std::size_t>(offsets[c + 1]);
 
         // Count shared nodes with each candidate neighbor
         std::unordered_map<std::size_t, int> neighbor_shared;
@@ -3364,7 +3162,7 @@ WeightGenerator::generate_conservative_2nd_order(
         }
 
         // Keep neighbors with >= 2 shared nodes (face adjacency)
-        for (const auto& [nbr, count] : neighbor_shared) {
+        for (const auto &[nbr, count] : neighbor_shared) {
             if (count >= 2) {
                 adj_indices_vec.push_back(static_cast<index_t>(nbr));
             }
@@ -3373,8 +3171,8 @@ WeightGenerator::generate_conservative_2nd_order(
     }
 
     // Convert adjacency to Kokkos views
-    Kokkos::View<index_t*, HostSpace> adj_offsets_kv("adj_offsets", n_src + 1);
-    Kokkos::View<index_t*, HostSpace> adj_indices_kv("adj_indices", adj_indices_vec.size());
+    Kokkos::View<index_t *, HostSpace> adj_offsets_kv("adj_offsets", n_src + 1);
+    Kokkos::View<index_t *, HostSpace> adj_indices_kv("adj_indices", adj_indices_vec.size());
     for (std::size_t i = 0; i <= n_src; ++i) {
         adj_offsets_kv(i) = adj_offsets_vec[i];
     }
@@ -3495,25 +3293,23 @@ WeightGenerator::generate_conservative_2nd_order(
 
     // Raw weight data (before normalization)
     struct OverlapEntry {
-        index_t row;       // dst cell index
-        index_t col;       // src cell index
-        double  area;      // overlap area
-        double  offset_x;  // overlap centroid - src centroid (x)
-        double  offset_y;  // overlap centroid - src centroid (y)
-        double  offset_z;  // overlap centroid - src centroid (z)
+        index_t row;      // dst cell index
+        index_t col;      // src cell index
+        double area;      // overlap area
+        double offset_x;  // overlap centroid - src centroid (x)
+        double offset_y;  // overlap centroid - src centroid (y)
+        double offset_z;  // overlap centroid - src centroid (z)
     };
     std::vector<OverlapEntry> overlap_entries;
 
     for (std::size_t j = 0; j < n_dst; ++j) {
         int begin = offsets_view(j);
-        int end   = offsets_view(j + 1);
+        int end = offsets_view(j + 1);
 
         double area_dst = dst_areas[j];
         if (area_dst <= 0.0) {
             if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "WeightGenerator::generate_conservative_2nd_order: unmapped destination cell "
-                    + std::to_string(j));
+                throw std::runtime_error("WeightGenerator::generate_conservative_2nd_order: unmapped destination cell " + std::to_string(j));
             }
             continue;
         }
@@ -3524,14 +3320,14 @@ WeightGenerator::generate_conservative_2nd_order(
             // ── Spherical path: SphericalClipper for exact overlap ──
             // Note: Dateline-crossing cells and polar cells are inherently handled
             // in XYZ space — no longitude discontinuity exists (Req 9.2, 9.5).
-            using axis::detail::SphericalPolygon;
             using axis::detail::SphericalClipper;
+            using axis::detail::SphericalPolygon;
             using axis::detail::Vec3;
 
             // Build destination polygon for SphericalClipper
             auto dst_poly_raw = extract_cell_polygon_spherical(dst_mesh, j);
             SphericalPolygon<32> dst_poly_sc;
-            for (const auto& v : dst_poly_raw) {
+            for (const auto &v : dst_poly_raw) {
                 dst_poly_sc.push(Vec3{v.x, v.y, v.z});
             }
 
@@ -3543,7 +3339,7 @@ WeightGenerator::generate_conservative_2nd_order(
                 // Build source polygon for SphericalClipper
                 auto src_poly_raw = extract_cell_polygon_spherical(src_mesh, src_i);
                 SphericalPolygon<32> src_poly_sc;
-                for (const auto& v : src_poly_raw) {
+                for (const auto &v : src_poly_raw) {
                     src_poly_sc.push(Vec3{v.x, v.y, v.z});
                 }
 
@@ -3571,12 +3367,7 @@ WeightGenerator::generate_conservative_2nd_order(
                 double off_y = cy - src_centroids(src_i, 1);
                 double off_z = cz - src_centroids(src_i, 2);
 
-                overlap_entries.push_back({
-                    static_cast<index_t>(j),
-                    static_cast<index_t>(src_i),
-                    overlap_area,
-                    off_x, off_y, off_z
-                });
+                overlap_entries.push_back({static_cast<index_t>(j), static_cast<index_t>(src_i), overlap_area, off_x, off_y, off_z});
 
                 has_entry = true;
                 frac_a_acc[src_i] += overlap_area / area_src;
@@ -3605,12 +3396,7 @@ WeightGenerator::generate_conservative_2nd_order(
                 double off_y = 0.0;
                 double off_z = 0.0;
 
-                overlap_entries.push_back({
-                    static_cast<index_t>(j),
-                    static_cast<index_t>(src_i),
-                    overlap_area,
-                    off_x, off_y, off_z
-                });
+                overlap_entries.push_back({static_cast<index_t>(j), static_cast<index_t>(src_i), overlap_area, off_x, off_y, off_z});
 
                 has_entry = true;
                 frac_a_acc[src_i] += overlap_area / area_src;
@@ -3619,9 +3405,7 @@ WeightGenerator::generate_conservative_2nd_order(
         }
 
         if (!has_entry && config.unmapped == UnmappedAction::Error) {
-            throw std::runtime_error(
-                "WeightGenerator::generate_conservative_2nd_order: unmapped destination cell "
-                + std::to_string(j));
+            throw std::runtime_error("WeightGenerator::generate_conservative_2nd_order: unmapped destination cell " + std::to_string(j));
         }
     }
 
@@ -3634,9 +3418,9 @@ WeightGenerator::generate_conservative_2nd_order(
 
     // Compute gradients of source centroid coordinates (x, y, z independently)
     // This gives us the geometric gradient that corrects for centroid offset.
-    Kokkos::View<double*, HostSpace> field_x("field_x", n_src);
-    Kokkos::View<double*, HostSpace> field_y("field_y", n_src);
-    Kokkos::View<double*, HostSpace> field_z("field_z", n_src);
+    Kokkos::View<double *, HostSpace> field_x("field_x", n_src);
+    Kokkos::View<double *, HostSpace> field_y("field_y", n_src);
+    Kokkos::View<double *, HostSpace> field_z("field_z", n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
         field_x(i) = src_centroids(i, 0);
         field_y(i) = src_centroids(i, 1);
@@ -3644,30 +3428,24 @@ WeightGenerator::generate_conservative_2nd_order(
     }
 
     // Cast centroids to const view for GradientReconstructor
-    Kokkos::View<const double*[3], HostSpace> centroids_const(src_centroids);
-    Kokkos::View<const index_t*, HostSpace> adj_off_const(adj_offsets_kv);
-    Kokkos::View<const index_t*, HostSpace> adj_idx_const(adj_indices_kv);
+    Kokkos::View<const double *[3], HostSpace> centroids_const(src_centroids);
+    Kokkos::View<const index_t *, HostSpace> adj_off_const(adj_offsets_kv);
+    Kokkos::View<const index_t *, HostSpace> adj_idx_const(adj_indices_kv);
 
     // Compute gradient of x-coordinate field
-    Kokkos::View<double*[3], HostSpace> grad_x("grad_x", n_src);
-    Kokkos::View<double*[3], HostSpace> grad_y("grad_y", n_src);
-    Kokkos::View<double*[3], HostSpace> grad_z("grad_z", n_src);
+    Kokkos::View<double *[3], HostSpace> grad_x("grad_x", n_src);
+    Kokkos::View<double *[3], HostSpace> grad_y("grad_y", n_src);
+    Kokkos::View<double *[3], HostSpace> grad_z("grad_z", n_src);
 
-    Kokkos::View<const double*, HostSpace> field_x_const(field_x);
-    Kokkos::View<const double*, HostSpace> field_y_const(field_y);
-    Kokkos::View<const double*, HostSpace> field_z_const(field_z);
+    Kokkos::View<const double *, HostSpace> field_x_const(field_x);
+    Kokkos::View<const double *, HostSpace> field_y_const(field_y);
+    Kokkos::View<const double *, HostSpace> field_z_const(field_z);
 
-    GradientReconstructor<HostSpace>::compute(
-        field_x_const, centroids_const, adj_off_const, adj_idx_const,
-        grad_x, config.use_limiter);
+    GradientReconstructor<HostSpace>::compute(field_x_const, centroids_const, adj_off_const, adj_idx_const, grad_x, config.use_limiter);
 
-    GradientReconstructor<HostSpace>::compute(
-        field_y_const, centroids_const, adj_off_const, adj_idx_const,
-        grad_y, config.use_limiter);
+    GradientReconstructor<HostSpace>::compute(field_y_const, centroids_const, adj_off_const, adj_idx_const, grad_y, config.use_limiter);
 
-    GradientReconstructor<HostSpace>::compute(
-        field_z_const, centroids_const, adj_off_const, adj_idx_const,
-        grad_z, config.use_limiter);
+    GradientReconstructor<HostSpace>::compute(field_z_const, centroids_const, adj_off_const, adj_idx_const, grad_z, config.use_limiter);
 
     // ── Apply gradient correction to overlap weights ──
     // For each overlap entry, the correction factor is:
@@ -3707,7 +3485,7 @@ WeightGenerator::generate_conservative_2nd_order(
     //          where grad_x[i] is gradient of the x-coordinate field at cell i
 
     // Compute per-entry effective weights with geometric correction
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
     weights_vec.reserve(overlap_entries.size());
@@ -3718,7 +3496,7 @@ WeightGenerator::generate_conservative_2nd_order(
     // First, compute correction factors
     std::vector<double> corrections(overlap_entries.size());
     for (std::size_t e = 0; e < overlap_entries.size(); ++e) {
-        const auto& entry = overlap_entries[e];
+        const auto &entry = overlap_entries[e];
         auto src_i = static_cast<std::size_t>(entry.col);
 
         // Compute gradient-based correction:
@@ -3729,15 +3507,9 @@ WeightGenerator::generate_conservative_2nd_order(
         // where grad_dim_i = [dg/dx, dg/dy, dg/dz] for the dim-coordinate field
         //
         // Simplified: dot product of offset with the "position gradient"
-        double corr = grad_x(src_i, 0) * entry.offset_x
-                    + grad_x(src_i, 1) * entry.offset_y
-                    + grad_x(src_i, 2) * entry.offset_z
-                    + grad_y(src_i, 0) * entry.offset_x
-                    + grad_y(src_i, 1) * entry.offset_y
-                    + grad_y(src_i, 2) * entry.offset_z
-                    + grad_z(src_i, 0) * entry.offset_x
-                    + grad_z(src_i, 1) * entry.offset_y
-                    + grad_z(src_i, 2) * entry.offset_z;
+        double corr = grad_x(src_i, 0) * entry.offset_x + grad_x(src_i, 1) * entry.offset_y + grad_x(src_i, 2) * entry.offset_z +
+                      grad_y(src_i, 0) * entry.offset_x + grad_y(src_i, 1) * entry.offset_y + grad_y(src_i, 2) * entry.offset_z +
+                      grad_z(src_i, 0) * entry.offset_x + grad_z(src_i, 1) * entry.offset_y + grad_z(src_i, 2) * entry.offset_z;
 
         // The correction factor: 1 + correction_term
         // Clamp to prevent negative weights (physical constraint)
@@ -3753,7 +3525,7 @@ WeightGenerator::generate_conservative_2nd_order(
 
     // Build final weights
     for (std::size_t e = 0; e < overlap_entries.size(); ++e) {
-        const auto& entry = overlap_entries[e];
+        const auto &entry = overlap_entries[e];
         auto j = static_cast<std::size_t>(entry.row);
         double area_dst = dst_areas[j];
 
@@ -3784,26 +3556,26 @@ WeightGenerator::generate_conservative_2nd_order(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         h_factor_list(k) = weights_vec[k];
-        h_factor_row(k)  = rows_vec[k];
-        h_factor_col(k)  = cols_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
     }
 
     for (std::size_t i = 0; i < n_src; ++i) {
@@ -3823,11 +3595,8 @@ WeightGenerator::generate_conservative_2nd_order(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3835,15 +3604,12 @@ WeightGenerator::generate_conservative_2nd_order(
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-std::pair<InterpolationMatrix<MemorySpace>, HaloPattern>
-WeightGenerator::generate(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    Kokkos::View<const index_t*, MemorySpace> src_global_ids,
-    Kokkos::View<const index_t*, MemorySpace> dst_global_ids,
-    const std::vector<int>& owner_of_src) {
-
+std::pair<InterpolationMatrix<MemorySpace>, HaloPattern> WeightGenerator::generate(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                                   const RegridConfig &config,
+                                                                                   Kokkos::View<const index_t *, MemorySpace> src_global_ids,
+                                                                                   Kokkos::View<const index_t *, MemorySpace> dst_global_ids,
+                                                                                   const std::vector<int> &owner_of_src) {
     // ── Step 1: Produce local InterpolationMatrix via single-rank generate ──
     auto local_matrix = generate(src_mesh, dst_mesh, config);
 
@@ -3851,8 +3617,7 @@ WeightGenerator::generate(
     const std::size_t nnz = local_matrix.nnz();
 
     // ── Step 2: Determine local rank by checking ownership ──
-    auto h_src_global_ids = Kokkos::create_mirror_view_and_copy(
-        Kokkos::HostSpace{}, src_global_ids);
+    auto h_src_global_ids = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src_global_ids);
 
     std::unordered_map<index_t, std::size_t> global_to_local;
     global_to_local.reserve(n_local_src);
@@ -3867,12 +3632,11 @@ WeightGenerator::generate(
 
     // ── Step 3: Scan factor_col to find off-rank dependencies ──
     auto factor_col_view = local_matrix.factor_col_view();
-    auto h_factor_col = Kokkos::create_mirror_view_and_copy(
-        Kokkos::HostSpace{}, factor_col_view);
+    auto h_factor_col = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, factor_col_view);
 
     struct RemoteEntry {
         index_t global_id;
-        int     owner_rank;
+        int owner_rank;
     };
 
     std::unordered_map<index_t, RemoteEntry> off_rank_map;
@@ -3898,9 +3662,7 @@ WeightGenerator::generate(
 
     // ── Step 4: Group off-rank sources by owning rank (CSR form) ──
     std::sort(off_rank_local_indices.begin(), off_rank_local_indices.end(),
-        [&](index_t a, index_t b) {
-            return off_rank_map[a].owner_rank < off_rank_map[b].owner_rank;
-        });
+              [&](index_t a, index_t b) { return off_rank_map[a].owner_rank < off_rank_map[b].owner_rank; });
 
     HaloPattern pattern;
 
@@ -3913,12 +3675,10 @@ WeightGenerator::generate(
                 pattern.rank_offsets.push_back(static_cast<index_t>(i));
                 prev_rank = rank;
             }
-            pattern.needed_global_src_ids.push_back(
-                off_rank_map[off_rank_local_indices[i]].global_id);
+            pattern.needed_global_src_ids.push_back(off_rank_map[off_rank_local_indices[i]].global_id);
             pattern.gather_slot.push_back(static_cast<index_t>(i));
         }
-        pattern.rank_offsets.push_back(
-            static_cast<index_t>(off_rank_local_indices.size()));
+        pattern.rank_offsets.push_back(static_cast<index_t>(off_rank_local_indices.size()));
     } else {
         pattern.rank_offsets.push_back(0);
     }
@@ -3930,7 +3690,7 @@ WeightGenerator::generate(
         col_remap[local_col] = static_cast<index_t>(n_local_src + i);
     }
 
-    Kokkos::View<index_t*, MemorySpace> new_factor_col("factor_col_remapped", nnz);
+    Kokkos::View<index_t *, MemorySpace> new_factor_col("factor_col_remapped", nnz);
     auto h_new_factor_col = Kokkos::create_mirror_view(new_factor_col);
 
     for (std::size_t k = 0; k < nnz; ++k) {
@@ -3946,18 +3706,18 @@ WeightGenerator::generate(
 
     // ── Step 6: Build remapped InterpolationMatrix ──
     auto factor_list_orig = local_matrix.factor_list_view();
-    auto factor_row_orig  = local_matrix.factor_row_view();
-    auto frac_a_orig      = local_matrix.frac_a_view();
-    auto frac_b_orig      = local_matrix.frac_b_view();
-    auto area_a_orig      = local_matrix.area_a_view();
-    auto area_b_orig      = local_matrix.area_b_view();
+    auto factor_row_orig = local_matrix.factor_row_view();
+    auto frac_a_orig = local_matrix.frac_a_view();
+    auto frac_b_orig = local_matrix.frac_b_view();
+    auto area_a_orig = local_matrix.area_a_view();
+    auto area_b_orig = local_matrix.area_b_view();
 
-    Kokkos::View<double*, MemorySpace>  new_factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> new_factor_row("factor_row", nnz);
-    Kokkos::View<double*, MemorySpace>  new_frac_a("frac_a", frac_a_orig.extent(0));
-    Kokkos::View<double*, MemorySpace>  new_frac_b("frac_b", frac_b_orig.extent(0));
-    Kokkos::View<double*, MemorySpace>  new_area_a("area_a", area_a_orig.extent(0));
-    Kokkos::View<double*, MemorySpace>  new_area_b("area_b", area_b_orig.extent(0));
+    Kokkos::View<double *, MemorySpace> new_factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> new_factor_row("factor_row", nnz);
+    Kokkos::View<double *, MemorySpace> new_frac_a("frac_a", frac_a_orig.extent(0));
+    Kokkos::View<double *, MemorySpace> new_frac_b("frac_b", frac_b_orig.extent(0));
+    Kokkos::View<double *, MemorySpace> new_area_a("area_a", area_a_orig.extent(0));
+    Kokkos::View<double *, MemorySpace> new_area_b("area_b", area_b_orig.extent(0));
 
     Kokkos::deep_copy(new_factor_list, factor_list_orig);
     Kokkos::deep_copy(new_factor_row, factor_row_orig);
@@ -3968,16 +3728,9 @@ WeightGenerator::generate(
 
     std::size_t n_src_extended = n_local_src + off_rank_local_indices.size();
 
-    InterpolationMatrix<MemorySpace> remapped_matrix(
-        std::move(new_factor_list),
-        std::move(new_factor_row),
-        std::move(new_factor_col),
-        std::move(new_frac_a),
-        std::move(new_frac_b),
-        std::move(new_area_a),
-        std::move(new_area_b),
-        n_src_extended,
-        local_matrix.n_dst());
+    InterpolationMatrix<MemorySpace> remapped_matrix(std::move(new_factor_list), std::move(new_factor_row), std::move(new_factor_col),
+                                                     std::move(new_frac_a), std::move(new_frac_b), std::move(new_area_a), std::move(new_area_b),
+                                                     n_src_extended, local_matrix.n_dst());
 
     return {std::move(remapped_matrix), std::move(pattern)};
 }
@@ -3986,55 +3739,30 @@ WeightGenerator::generate(
 // Explicit template instantiations
 // ─────────────────────────────────────────────────────────────────────────────
 
-template InterpolationMatrix<Kokkos::HostSpace>
-WeightGenerator::generate<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&);
+template InterpolationMatrix<Kokkos::HostSpace> WeightGenerator::generate<Kokkos::HostSpace>(const topology::UnstructuredMesh<Kokkos::HostSpace> &,
+                                                                                             const topology::UnstructuredMesh<Kokkos::HostSpace> &,
+                                                                                             const RegridConfig &);
 
-template InterpolationMatrix<Kokkos::HostSpace>
-WeightGenerator::generate_bilinear<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&);
+template InterpolationMatrix<Kokkos::HostSpace> WeightGenerator::generate_bilinear<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &);
 
-template InterpolationMatrix<Kokkos::HostSpace>
-WeightGenerator::generate_nearest<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&);
+template InterpolationMatrix<Kokkos::HostSpace> WeightGenerator::generate_nearest<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &);
 
-template InterpolationMatrix<Kokkos::HostSpace>
-WeightGenerator::generate_bicubic<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&);
+template InterpolationMatrix<Kokkos::HostSpace> WeightGenerator::generate_bicubic<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &);
 
-template InterpolationMatrix<Kokkos::HostSpace>
-WeightGenerator::generate_patch<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&);
+template InterpolationMatrix<Kokkos::HostSpace> WeightGenerator::generate_patch<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &);
 
-template InterpolationMatrix<Kokkos::HostSpace>
-WeightGenerator::generate_conservative<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&);
+template InterpolationMatrix<Kokkos::HostSpace> WeightGenerator::generate_conservative<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &);
 
-template InterpolationMatrix<Kokkos::HostSpace>
-WeightGenerator::generate_conservative_2nd_order<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&);
+template InterpolationMatrix<Kokkos::HostSpace> WeightGenerator::generate_conservative_2nd_order<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &);
 
-template std::pair<InterpolationMatrix<Kokkos::HostSpace>, HaloPattern>
-WeightGenerator::generate<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&,
-    Kokkos::View<const index_t*, Kokkos::HostSpace>,
-    Kokkos::View<const index_t*, Kokkos::HostSpace>,
-    const std::vector<int>&);
+template std::pair<InterpolationMatrix<Kokkos::HostSpace>, HaloPattern> WeightGenerator::generate<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &,
+    Kokkos::View<const index_t *, Kokkos::HostSpace>, Kokkos::View<const index_t *, Kokkos::HostSpace>, const std::vector<int> &);
 
-} // namespace axis::solver
+}  // namespace axis::solver

@@ -3,11 +3,12 @@
 // Copyright (c) HELM Project Contributors
 
 #include <gtest/gtest.h>
+#include <mpi.h>
+
 #include <Kokkos_Core.hpp>
 #include <axis/distributed/distributed_weight_generator.hpp>
-#include <axis/topology/structured_grid.hpp>
 #include <axis/solver/apply.hpp>
-#include <mpi.h>
+#include <axis/topology/structured_grid.hpp>
 #include <cmath>
 
 namespace axis::test {
@@ -40,26 +41,25 @@ TEST(DistributedWeightGeneratorTest, GlobalRowMappingTwoRanks) {
     const std::size_t src_n_points = src_ni * src_nj;
 
     // 1. Create a global source grid on both ranks
-    Kokkos::View<double*, MemSpace> src_cx("src_cx", src_n_points);
-    Kokkos::View<double*, MemSpace> src_cy("src_cy", src_n_points);
+    Kokkos::View<double *, MemSpace> src_cx("src_cx", src_n_points);
+    Kokkos::View<double *, MemSpace> src_cy("src_cy", src_n_points);
     for (std::size_t idx = 0; idx < src_n_points; ++idx) {
         src_cx(idx) = static_cast<double>(idx % src_ni);
         src_cy(idx) = static_cast<double>(idx / src_ni);
     }
-    topology::StructuredGrid<MemSpace> src_grid(
-        src_ni, src_nj, src_cx, src_cy, topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> src_grid(src_ni, src_nj, src_cx, src_cy, topology::CoordinateSystem::SphericalDeg);
     auto src_mesh = src_grid.to_unstructured();
 
     // 2. Destination Grid: Total size is 4x2 = 8 cells.
     //    We partition it horizontally across 2 ranks:
     //    - Rank 0 gets cells for x from 0 to 1 (cols 0, 1) -> 2x2 = 4 cells
     //    - Rank 1 gets cells for x from 2 to 3 (cols 2, 3) -> 2x2 = 4 cells
-    const std::size_t dst_ni = 2; // Local column count per rank
-    const std::size_t dst_nj = 2; // Local row count per rank
+    const std::size_t dst_ni = 2;  // Local column count per rank
+    const std::size_t dst_nj = 2;  // Local row count per rank
     const std::size_t dst_n_points_local = dst_ni * dst_nj;
 
-    Kokkos::View<double*, MemSpace> dst_cx_local("dst_cx_local", dst_n_points_local);
-    Kokkos::View<double*, MemSpace> dst_cy_local("dst_cy_local", dst_n_points_local);
+    Kokkos::View<double *, MemSpace> dst_cx_local("dst_cx_local", dst_n_points_local);
+    Kokkos::View<double *, MemSpace> dst_cy_local("dst_cy_local", dst_n_points_local);
 
     double x_offset = (rank == 0) ? 0.0 : 2.0;
 
@@ -71,8 +71,7 @@ TEST(DistributedWeightGeneratorTest, GlobalRowMappingTwoRanks) {
         }
     }
 
-    topology::StructuredGrid<MemSpace> dst_grid_local(
-        dst_ni, dst_nj, dst_cx_local, dst_cy_local, topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> dst_grid_local(dst_ni, dst_nj, dst_cx_local, dst_cy_local, topology::CoordinateSystem::SphericalDeg);
     auto dst_mesh_local = dst_grid_local.to_unstructured();
 
     // 3. Generate distributed weights using MPI_COMM_WORLD
@@ -80,12 +79,11 @@ TEST(DistributedWeightGeneratorTest, GlobalRowMappingTwoRanks) {
     config.method = InterpolationMethod::Bilinear;
     config.unmapped = UnmappedAction::Ignore;
 
-    auto W_dist = distributed::DistributedWeightGenerator<MemSpace>::generate(
-        src_mesh, dst_mesh_local, config, MPI_COMM_WORLD);
+    auto W_dist = distributed::DistributedWeightGenerator<MemSpace>::generate(src_mesh, dst_mesh_local, config, MPI_COMM_WORLD);
 
     // 4. Assert globally mapped matrix properties
     EXPECT_EQ(W_dist.n_src(), src_n_points);
-    EXPECT_EQ(W_dist.n_dst(), 8); // Global destination count across both ranks (4 + 4)
+    EXPECT_EQ(W_dist.n_dst(), 8);  // Global destination count across both ranks (4 + 4)
 
     auto rows = W_dist.factor_row_view();
     auto h_rows = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), rows);
@@ -102,4 +100,4 @@ TEST(DistributedWeightGeneratorTest, GlobalRowMappingTwoRanks) {
     }
 }
 
-} // namespace axis::test
+}  // namespace axis::test
