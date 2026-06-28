@@ -14,17 +14,17 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <set>
-#include <algorithm>
 #include <unordered_map>
 #include <vector>
 
 #include "../src/fortran/handle_registry.hpp"
 
-using halo::fortran::Handle_Registry;
 using halo::fortran::HALO_HANDLE_INVALID;
+using halo::fortran::Handle_Registry;
 
 namespace {
 
@@ -50,7 +50,7 @@ int g_max_issued_token = HALO_HANDLE_INVALID;
 // **Validates: Requirements 14.3, 14.4, 14.16**
 
 RC_GTEST_PROP(HandleRegistryProperty21, RoundTrip, ()) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     // Number of register/release operations to perform this iteration.
     const int num_ops = *rc::gen::inRange(1, 101);
@@ -59,21 +59,20 @@ RC_GTEST_PROP(HandleRegistryProperty21, RoundTrip, ()) {
     //   live           -> token -> registered pointer (currently registered)
     //   live_tokens    -> the live tokens, for random release selection
     //   storage        -> owns dummy objects so their addresses stay stable
-    std::unordered_map<int, void*> live;
+    std::unordered_map<int, void *> live;
     std::vector<int> live_tokens;
     std::vector<std::unique_ptr<int>> storage;
 
     for (int op = 0; op < num_ops; ++op) {
         // Choose register vs release. Release is only possible when something
         // is live; otherwise we must register.
-        const bool do_register =
-            live_tokens.empty() ? true : *rc::gen::arbitrary<bool>();
+        const bool do_register = live_tokens.empty() ? true : *rc::gen::arbitrary<bool>();
 
         if (do_register) {
             // Create a unique, address-stable dummy object to register.
             const int value = *rc::gen::arbitrary<int>();
             storage.push_back(std::make_unique<int>(value));
-            void* ptr = static_cast<void*>(storage.back().get());
+            void *ptr = static_cast<void *>(storage.back().get());
 
             const int token = reg.register_handle(ptr);
 
@@ -101,13 +100,12 @@ RC_GTEST_PROP(HandleRegistryProperty21, RoundTrip, ()) {
             RC_ASSERT(reg.valid(token));
         } else {
             // Release a randomly chosen live token.
-            const int idx = *rc::gen::inRange(
-                0, static_cast<int>(live_tokens.size()));
+            const int idx = *rc::gen::inRange(0, static_cast<int>(live_tokens.size()));
             const int token = live_tokens[static_cast<std::size_t>(idx)];
-            void* const expected = live[token];
+            void *const expected = live[token];
 
             // release() returns the originally registered pointer.
-            void* const released = reg.release(token);
+            void *const released = reg.release(token);
             const bool released_matches = (released == expected);
             RC_ASSERT(released_matches);
 
@@ -123,7 +121,7 @@ RC_GTEST_PROP(HandleRegistryProperty21, RoundTrip, ()) {
 
         // Invariant after every operation: every still-live token continues to
         // resolve to the exact pointer it was registered with.
-        for (const auto& [tok, p] : live) {
+        for (const auto &[tok, p] : live) {
             const bool still_matches = (reg.lookup(tok) == p);
             RC_ASSERT(still_matches);
             RC_ASSERT(reg.valid(tok));
@@ -137,8 +135,7 @@ RC_GTEST_PROP(HandleRegistryProperty21, RoundTrip, ()) {
 
     // (d) A token the monotonic counter has not yet reached is never-registered
     // and must resolve to nullptr / report invalid.
-    const int never_registered =
-        g_max_issued_token + *rc::gen::inRange(1, 1000001);
+    const int never_registered = g_max_issued_token + *rc::gen::inRange(1, 1000001);
     const bool never_lookup_null = (reg.lookup(never_registered) == nullptr);
     RC_ASSERT(never_lookup_null);
     RC_ASSERT(!reg.valid(never_registered));
@@ -160,22 +157,21 @@ RC_GTEST_PROP(HandleRegistryProperty21, RoundTrip, ()) {
 // **Validates: Requirements 14.3, 14.4, 14.16**
 
 RC_GTEST_PROP(HandleRegistryProperty21, ReleasedTokensNeverReissued, ()) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     const int cycles = *rc::gen::inRange(1, 51);
 
     int prev_token = HALO_HANDLE_INVALID;
     int dummy = 0;
     for (int i = 0; i < cycles; ++i) {
-        const int token = reg.register_handle(static_cast<void*>(&dummy));
+        const int token = reg.register_handle(static_cast<void *>(&dummy));
 
         // Strictly increasing -> never reissued, always positive.
         RC_ASSERT(token > prev_token);
         RC_ASSERT(token > HALO_HANDLE_INVALID);
 
         // Releasing returns our pointer and invalidates the token.
-        const bool released_matches =
-            (reg.release(token) == static_cast<void*>(&dummy));
+        const bool released_matches = (reg.release(token) == static_cast<void *>(&dummy));
         RC_ASSERT(released_matches);
         RC_ASSERT(!reg.valid(token));
         const bool lookup_is_null = (reg.lookup(token) == nullptr);
@@ -198,7 +194,7 @@ RC_GTEST_PROP(HandleRegistryProperty21, ReleasedTokensNeverReissued, ()) {
 // **Validates: Requirements 14.3, 14.4, 14.16**
 
 RC_GTEST_PROP(HandleRegistryProperty21, NonPositiveTokensAreInvalid, ()) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     // Generate any non-positive token: zero or negative.
     const int token = *rc::gen::inRange(-1000000, 1);  // [-1000000, 0]

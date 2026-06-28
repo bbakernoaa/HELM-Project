@@ -4,8 +4,6 @@
 //
 // **Validates: Requirements 10.2, 10.3, 10.4, 10.7, 10.9, 2.5, 2.8**
 
-#include "handle_registry.hpp"
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
@@ -14,10 +12,12 @@
 #include <set>
 #include <vector>
 
+#include "handle_registry.hpp"
+
 namespace {
 
 /// Helper: register N dummy objects into the registry, returning their handles.
-std::vector<int> register_n(span::detail::HandleRegistry& reg, std::size_t n) {
+std::vector<int> register_n(span::detail::HandleRegistry &reg, std::size_t n) {
     std::vector<int> handles;
     handles.reserve(n);
     for (std::size_t i = 0; i < n; ++i) {
@@ -29,20 +29,20 @@ std::vector<int> register_n(span::detail::HandleRegistry& reg, std::size_t n) {
 }
 
 /// Helper: unregister all handles from the registry.
-void unregister_all(span::detail::HandleRegistry& reg, const std::vector<int>& handles) {
+void unregister_all(span::detail::HandleRegistry &reg, const std::vector<int> &handles) {
     for (int h : handles) {
         reg.unregister(h);
     }
 }
 
-} // namespace
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // Property (a)+(b): All handles are positive and unique; handle 0 is never assigned.
 // Validates: Requirements 10.2, 10.3, 10.9
 // ---------------------------------------------------------------------------
 RC_GTEST_PROP(HandleRegistry, UniquenessAndPositivity, ()) {
-    auto& reg = span::detail::HandleRegistry::instance();
+    auto &reg = span::detail::HandleRegistry::instance();
     const auto n = *rc::gen::inRange<std::size_t>(1, 100);
 
     auto handles = register_n(reg, n);
@@ -68,7 +68,7 @@ RC_GTEST_PROP(HandleRegistry, UniquenessAndPositivity, ()) {
 // Validates: Requirements 10.4, 10.7, 2.5
 // ---------------------------------------------------------------------------
 RC_GTEST_PROP(HandleRegistry, UnregisterInvalidatesLookup, ()) {
-    auto& reg = span::detail::HandleRegistry::instance();
+    auto &reg = span::detail::HandleRegistry::instance();
     const auto n = *rc::gen::inRange<std::size_t>(1, 50);
 
     auto handles = register_n(reg, n);
@@ -108,7 +108,7 @@ RC_GTEST_PROP(HandleRegistry, UnregisterInvalidatesLookup, ()) {
 // Validates: Requirements 10.4, 10.9, 2.8
 // ---------------------------------------------------------------------------
 RC_GTEST_PROP(HandleRegistry, HandleReuseIsolation, ()) {
-    auto& reg = span::detail::HandleRegistry::instance();
+    auto &reg = span::detail::HandleRegistry::instance();
 
     // Register an object
     auto obj1 = std::make_shared<int>(42);
@@ -118,7 +118,7 @@ RC_GTEST_PROP(HandleRegistry, HandleReuseIsolation, ()) {
     // Verify lookup returns obj1
     {
         auto looked_up = reg.lookup(h);
-        bool is_obj1 = (looked_up.get() == static_cast<void*>(obj1.get()));
+        bool is_obj1 = (looked_up.get() == static_cast<void *>(obj1.get()));
         RC_ASSERT(is_obj1);
     }
 
@@ -137,8 +137,8 @@ RC_GTEST_PROP(HandleRegistry, HandleReuseIsolation, ()) {
     // (d) If the handle is reused, lookup returns the NEW object
     if (h2 == h) {
         auto looked_up = reg.lookup(h2);
-        bool points_to_obj2 = (looked_up.get() == static_cast<void*>(obj2.get()));
-        bool not_obj1 = (looked_up.get() != static_cast<void*>(obj1.get()));
+        bool points_to_obj2 = (looked_up.get() == static_cast<void *>(obj2.get()));
+        bool not_obj1 = (looked_up.get() != static_cast<void *>(obj1.get()));
         RC_ASSERT(points_to_obj2);
         RC_ASSERT(not_obj1);
     }
@@ -147,7 +147,7 @@ RC_GTEST_PROP(HandleRegistry, HandleReuseIsolation, ()) {
     RC_ASSERT(h2 > 0);
     {
         auto looked_up = reg.lookup(h2);
-        bool points_to_obj2 = (looked_up.get() == static_cast<void*>(obj2.get()));
+        bool points_to_obj2 = (looked_up.get() == static_cast<void *>(obj2.get()));
         RC_ASSERT(points_to_obj2);
     }
 

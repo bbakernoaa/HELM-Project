@@ -28,9 +28,15 @@ using halo::testing::MPI_Spy;
 // ─── Helper: Cast MPI handle pointer to void* for recording ─────────────────
 namespace {
 
-inline void* as_handle(MPI_Comm* p) { return static_cast<void*>(p); }
-inline void* as_handle(MPI_Request* p) { return static_cast<void*>(p); }
-inline void* as_handle(MPI_Win* p) { return static_cast<void*>(p); }
+inline void *as_handle(MPI_Comm *p) {
+    return static_cast<void *>(p);
+}
+inline void *as_handle(MPI_Request *p) {
+    return static_cast<void *>(p);
+}
+inline void *as_handle(MPI_Win *p) {
+    return static_cast<void *>(p);
+}
 
 }  // anonymous namespace
 
@@ -42,7 +48,7 @@ extern "C" {
 // ─── MPI_Finalized ──────────────────────────────────────────────────────────
 // Override MPI_Finalized to always report MPI as NOT finalized in test mode.
 // This ensures RAII destructors proceed with their cleanup logic.
-int MPI_Finalized(int* flag) {
+int MPI_Finalized(int *flag) {
     if (flag != nullptr) {
         *flag = 0;  // MPI is never "finalized" in test mode
     }
@@ -52,7 +58,7 @@ int MPI_Finalized(int* flag) {
 // ─── MPI_Initialized ────────────────────────────────────────────────────────
 // Override MPI_Initialized to always report MPI as initialized in test mode.
 // This allows Environment::initialize() to proceed without a real MPI runtime.
-int MPI_Initialized(int* flag) {
+int MPI_Initialized(int *flag) {
     if (flag != nullptr) {
         *flag = 1;  // MPI is always "initialized" in test mode
     }
@@ -62,8 +68,8 @@ int MPI_Initialized(int* flag) {
 // ─── MPI_Query_thread ───────────────────────────────────────────────────────
 // Override MPI_Query_thread to return the configured thread level from MPI_Spy.
 // Records the call for verification in property tests.
-int MPI_Query_thread(int* provided) {
-    auto& spy = MPI_Spy::instance();
+int MPI_Query_thread(int *provided) {
+    auto &spy = MPI_Spy::instance();
     spy.record_query_thread();
     if (provided != nullptr) {
         *provided = spy.thread_level();
@@ -74,7 +80,7 @@ int MPI_Query_thread(int* provided) {
 // ─── MPI_Comm_test_inter ─────────────────────────────────────────────────────
 // Override to prevent OpenMPI internal calls from aborting due to MPI not being
 // initialized. Returns "not an intercommunicator" for all handles.
-int MPI_Comm_test_inter(MPI_Comm comm, int* flag) {
+int MPI_Comm_test_inter(MPI_Comm comm, int *flag) {
     if (flag != nullptr) {
         *flag = 0;  // Not an intercommunicator
     }
@@ -83,7 +89,7 @@ int MPI_Comm_test_inter(MPI_Comm comm, int* flag) {
 
 // ─── MPI_Comm_rank ──────────────────────────────────────────────────────────
 // Override to return a deterministic rank without requiring real MPI runtime.
-int MPI_Comm_rank(MPI_Comm comm, int* rank) {
+int MPI_Comm_rank(MPI_Comm comm, int *rank) {
     if (rank != nullptr) {
         *rank = 0;  // Always rank 0 in mock mode
     }
@@ -92,7 +98,7 @@ int MPI_Comm_rank(MPI_Comm comm, int* rank) {
 
 // ─── MPI_Comm_size ──────────────────────────────────────────────────────────
 // Override to return a deterministic size without requiring real MPI runtime.
-int MPI_Comm_size(MPI_Comm comm, int* size) {
+int MPI_Comm_size(MPI_Comm comm, int *size) {
     if (size != nullptr) {
         *size = 4;  // Always 4 processes in mock mode
     }
@@ -101,7 +107,7 @@ int MPI_Comm_size(MPI_Comm comm, int* size) {
 
 // ─── MPI_Comm_split ─────────────────────────────────────────────────────────
 // Override to return a synthetic communicator without requiring real MPI runtime.
-int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm) {
+int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) {
     if (newcomm != nullptr) {
         if (color == MPI_UNDEFINED) {
             *newcomm = MPI_COMM_NULL;
@@ -117,7 +123,7 @@ int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm) {
 
 // ─── MPI_Comm_dup ───────────────────────────────────────────────────────────
 // Override to return a synthetic communicator without requiring real MPI runtime.
-int MPI_Comm_dup(MPI_Comm comm, MPI_Comm* newcomm) {
+int MPI_Comm_dup(MPI_Comm comm, MPI_Comm *newcomm) {
     if (newcomm != nullptr) {
         // Return a synthetic non-null communicator
         static char dup_sentinel[256];
@@ -129,8 +135,8 @@ int MPI_Comm_dup(MPI_Comm comm, MPI_Comm* newcomm) {
 
 // ─── MPI_Error_string ───────────────────────────────────────────────────────
 // Override to provide error strings without requiring real MPI runtime.
-int MPI_Error_string(int errorcode, char* string, int* resultlen) {
-    const char* msg = "Mock MPI error";
+int MPI_Error_string(int errorcode, char *string, int *resultlen) {
+    const char *msg = "Mock MPI error";
     if (string != nullptr) {
         std::strncpy(string, msg, MPI_MAX_ERROR_STRING);
     }
@@ -142,11 +148,11 @@ int MPI_Error_string(int errorcode, char* string, int* resultlen) {
 
 // ─── MPI_Comm_get_attr ──────────────────────────────────────────────────────
 // Override to provide MPI_TAG_UB without requiring real MPI runtime.
-int MPI_Comm_get_attr(MPI_Comm comm, int keyval, void* attribute_val, int* flag) {
+int MPI_Comm_get_attr(MPI_Comm comm, int keyval, void *attribute_val, int *flag) {
     if (keyval == MPI_TAG_UB) {
         static int tag_ub = 32767;  // Standard minimum MPI_TAG_UB
         if (attribute_val != nullptr) {
-            *static_cast<int**>(attribute_val) = &tag_ub;
+            *static_cast<int **>(attribute_val) = &tag_ub;
         }
         if (flag != nullptr) {
             *flag = 1;
@@ -169,9 +175,8 @@ int MPI_Comm_set_errhandler(MPI_Comm comm, MPI_Errhandler errhandler) {
 }
 
 // ─── MPI_Comm_free ──────────────────────────────────────────────────────────
-int MPI_Comm_free(MPI_Comm* comm) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Comm_free, as_handle(comm));
+int MPI_Comm_free(MPI_Comm *comm) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Comm_free, as_handle(comm));
     if (err != MPI_SUCCESS) return err;
 
     // Simulate the free: set handle to MPI_COMM_NULL
@@ -182,9 +187,8 @@ int MPI_Comm_free(MPI_Comm* comm) {
 }
 
 // ─── MPI_Request_free ───────────────────────────────────────────────────────
-int MPI_Request_free(MPI_Request* request) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Request_free, as_handle(request));
+int MPI_Request_free(MPI_Request *request) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Request_free, as_handle(request));
     if (err != MPI_SUCCESS) return err;
 
     // Simulate the free: set handle to MPI_REQUEST_NULL
@@ -195,9 +199,8 @@ int MPI_Request_free(MPI_Request* request) {
 }
 
 // ─── MPI_Cancel ─────────────────────────────────────────────────────────────
-int MPI_Cancel(MPI_Request* request) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Cancel, as_handle(request));
+int MPI_Cancel(MPI_Request *request) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Cancel, as_handle(request));
     if (err != MPI_SUCCESS) return err;
 
     // Cancel is a no-op in mock mode (request remains valid until freed)
@@ -205,9 +208,8 @@ int MPI_Cancel(MPI_Request* request) {
 }
 
 // ─── MPI_Wait ───────────────────────────────────────────────────────────────
-int MPI_Wait(MPI_Request* request, MPI_Status* status) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Wait, as_handle(request));
+int MPI_Wait(MPI_Request *request, MPI_Status *status) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Wait, as_handle(request));
     if (err != MPI_SUCCESS) return err;
 
     // Simulate completion: set request to MPI_REQUEST_NULL
@@ -222,9 +224,8 @@ int MPI_Wait(MPI_Request* request, MPI_Status* status) {
 }
 
 // ─── MPI_Test ───────────────────────────────────────────────────────────────
-int MPI_Test(MPI_Request* request, int* flag, MPI_Status* status) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Test, as_handle(request));
+int MPI_Test(MPI_Request *request, int *flag, MPI_Status *status) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Test, as_handle(request));
     if (err != MPI_SUCCESS) return err;
 
     // In mock mode, operations always complete immediately
@@ -241,9 +242,8 @@ int MPI_Test(MPI_Request* request, int* flag, MPI_Status* status) {
 }
 
 // ─── MPI_Win_free ───────────────────────────────────────────────────────────
-int MPI_Win_free(MPI_Win* win) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Win_free, as_handle(win));
+int MPI_Win_free(MPI_Win *win) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Win_free, as_handle(win));
     if (err != MPI_SUCCESS) return err;
 
     // Simulate the free: set handle to MPI_WIN_NULL
@@ -257,10 +257,7 @@ int MPI_Win_free(MPI_Win* win) {
 int MPI_Win_fence(int assert_arg, MPI_Win win) {
     // Record with the assertion value as the arg field.
     // MPI_Win is a pointer type in OpenMPI, so cast directly to void*.
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Win_fence,
-        static_cast<void*>(win),
-        assert_arg);
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Win_fence, static_cast<void *>(win), assert_arg);
     if (err != MPI_SUCCESS) return err;
 
     return MPI_SUCCESS;
@@ -286,10 +283,8 @@ MPI_Request next_sentinel_request() {
 }  // anonymous namespace
 
 // ─── MPI_Irecv ──────────────────────────────────────────────────────────────
-int MPI_Irecv(void* buf, int count, MPI_Datatype datatype,
-              int source, int tag, MPI_Comm comm, MPI_Request* request) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Irecv, buf, source);
+int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Request *request) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Irecv, buf, source);
     if (err != MPI_SUCCESS) return err;
 
     // Provide a non-null sentinel request so RAII wrappers can track it
@@ -300,10 +295,8 @@ int MPI_Irecv(void* buf, int count, MPI_Datatype datatype,
 }
 
 // ─── MPI_Isend ──────────────────────────────────────────────────────────────
-int MPI_Isend(const void* buf, int count, MPI_Datatype datatype,
-              int dest, int tag, MPI_Comm comm, MPI_Request* request) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Isend, const_cast<void*>(buf), dest);
+int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request *request) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Isend, const_cast<void *>(buf), dest);
     if (err != MPI_SUCCESS) return err;
 
     // Provide a non-null sentinel request value
@@ -314,11 +307,8 @@ int MPI_Isend(const void* buf, int count, MPI_Datatype datatype,
 }
 
 // ─── MPI_Waitall ────────────────────────────────────────────────────────────
-int MPI_Waitall(int count, MPI_Request array_of_requests[],
-                MPI_Status array_of_statuses[]) {
-    int err = MPI_Spy::instance().record(
-        MPI_Call_Record::Type::Waitall,
-        static_cast<void*>(array_of_requests), count);
+int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Waitall, static_cast<void *>(array_of_requests), count);
     if (err != MPI_SUCCESS) return err;
 
     // Simulate completion: set all requests to MPI_REQUEST_NULL

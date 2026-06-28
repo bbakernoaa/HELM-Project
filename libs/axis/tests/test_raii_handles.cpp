@@ -5,12 +5,11 @@
 
 #include <gtest/gtest.h>
 
+#include <axis/detail/raii_handles.hpp>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <string>
-
-#include <axis/detail/raii_handles.hpp>
 
 namespace axis::test {
 
@@ -18,7 +17,7 @@ namespace axis::test {
 // and the content is readable afterward.
 TEST(RaiiHandles, FileHandleWritesAndCloses) {
     std::string tmp_path = std::string(std::tmpnam(nullptr)) + ".txt";
-    const char* test_content = "Hello AXIS\n";
+    const char *test_content = "Hello AXIS\n";
 
     {
         axis::detail::File_Handle fh(tmp_path.c_str(), "w");
@@ -39,9 +38,7 @@ TEST(RaiiHandles, FileHandleWritesAndCloses) {
 
 // Test: File_Handle with an invalid path throws std::runtime_error
 TEST(RaiiHandles, FileHandleInvalidPathThrows) {
-    EXPECT_THROW(
-        axis::detail::File_Handle("/nonexistent/dir/file.txt", "r"),
-        std::runtime_error);
+    EXPECT_THROW(axis::detail::File_Handle("/nonexistent/dir/file.txt", "r"), std::runtime_error);
 }
 
 // Test: File_Handle is move-only — moved-from handle is null
@@ -62,9 +59,7 @@ TEST(RaiiHandles, FileHandleMoveTransfersOwnership) {
 #ifdef AXIS_ENABLE_PROJ
 // Test: Proj_Handle with invalid proj_string throws std::runtime_error
 TEST(RaiiHandles, ProjHandleInvalidStringThrows) {
-    EXPECT_THROW(
-        axis::detail::Proj_Handle("not_a_valid_proj_string"),
-        std::runtime_error);
+    EXPECT_THROW(axis::detail::Proj_Handle("not_a_valid_proj_string"), std::runtime_error);
 }
 
 // Test: Proj_Handle with valid longlat string succeeds
@@ -77,7 +72,7 @@ TEST(RaiiHandles, ProjHandleValidStringSucceeds) {
 // Test: Proj_Handle move transfers ownership
 TEST(RaiiHandles, ProjHandleMoveTransfersOwnership) {
     axis::detail::Proj_Handle ph1("+proj=longlat +datum=WGS84");
-    auto* raw = ph1.get();
+    auto *raw = ph1.get();
 
     axis::detail::Proj_Handle ph2(std::move(ph1));
     EXPECT_FALSE(static_cast<bool>(ph1));

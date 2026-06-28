@@ -7,15 +7,15 @@
 /// 3. Deserializes and verifies bitwise-identical apply results
 /// 4. Verifies conservation (integral preservation)
 
+#include <Kokkos_Core.hpp>
 #include <axis/axis.hpp>
 #include <axis/solver/weight_cache.hpp>
-#include <Kokkos_Core.hpp>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     Kokkos::ScopeGuard kokkos(argc, argv);
 
     // =========================================================================
@@ -31,8 +31,7 @@ int main(int argc, char* argv[]) {
     axis::solver::WeightGenerator gen;
     auto matrix = gen.generate(src_mesh, dst_mesh, config);
 
-    std::printf("Generated conservative weights: nnz = %zu\n",
-                static_cast<std::size_t>(matrix.nnz()));
+    std::printf("Generated conservative weights: nnz = %zu\n", static_cast<std::size_t>(matrix.nnz()));
 
     // =========================================================================
     // Step 2: Serialize weights to a buffer
@@ -46,28 +45,25 @@ int main(int argc, char* argv[]) {
     // =========================================================================
     // Step 3: Deserialize and verify round-trip
     // =========================================================================
-    auto matrix2 = axis::solver::WeightCache::deserialize<Kokkos::HostSpace>(
-        cache.data(), cache.size());
+    auto matrix2 = axis::solver::WeightCache::deserialize<Kokkos::HostSpace>(cache.data(), cache.size());
 
     // Create a test field
-    Kokkos::View<double*> src_field("src_field", src_mesh.n_cells());
-    Kokkos::parallel_for(
-        "init_field", src_mesh.n_cells(),
-        KOKKOS_LAMBDA(int i) { src_field(i) = static_cast<double>(i) * 0.01; });
+    Kokkos::View<double *> src_field("src_field", src_mesh.n_cells());
+    Kokkos::parallel_for("init_field", src_mesh.n_cells(), KOKKOS_LAMBDA(int i) { src_field(i) = static_cast<double>(i) * 0.01; });
 
     // Apply with original matrix
-    Kokkos::View<double*> dst_a("dst_a", dst_mesh.n_cells());
+    Kokkos::View<double *> dst_a("dst_a", dst_mesh.n_cells());
     axis::solver::apply(matrix, src_field, dst_a);
 
     // Apply with deserialized matrix
-    Kokkos::View<double*> dst_b("dst_b", dst_mesh.n_cells());
+    Kokkos::View<double *> dst_b("dst_b", dst_mesh.n_cells());
     axis::solver::apply(matrix2, src_field, dst_b);
 
     // Verify bitwise-identical results
     double max_diff = 0.0;
     Kokkos::parallel_reduce(
         "check_roundtrip", dst_mesh.n_cells(),
-        KOKKOS_LAMBDA(int i, double& diff) {
+        KOKKOS_LAMBDA(int i, double &diff) {
             double d = Kokkos::abs(dst_a(i) - dst_b(i));
             if (d > diff) diff = d;
         },
@@ -85,22 +81,13 @@ int main(int argc, char* argv[]) {
     // =========================================================================
     double src_integral = 0.0;
     Kokkos::parallel_reduce(
-        "src_integral", src_mesh.n_cells(),
-        KOKKOS_LAMBDA(int i, double& sum) {
-            sum += src_field(i) * src_mesh.cell_area(i);
-        },
-        src_integral);
+        "src_integral", src_mesh.n_cells(), KOKKOS_LAMBDA(int i, double &sum) { sum += src_field(i) * src_mesh.cell_area(i); }, src_integral);
 
     double dst_integral = 0.0;
     Kokkos::parallel_reduce(
-        "dst_integral", dst_mesh.n_cells(),
-        KOKKOS_LAMBDA(int i, double& sum) {
-            sum += dst_a(i) * dst_mesh.cell_area(i);
-        },
-        dst_integral);
+        "dst_integral", dst_mesh.n_cells(), KOKKOS_LAMBDA(int i, double &sum) { sum += dst_a(i) * dst_mesh.cell_area(i); }, dst_integral);
 
-    double conservation_error = std::abs(src_integral - dst_integral) /
-                                std::abs(src_integral);
+    double conservation_error = std::abs(src_integral - dst_integral) / std::abs(src_integral);
     std::printf("Conservation error: %.2e\n", conservation_error);
 
     if (conservation_error > 1e-12) {

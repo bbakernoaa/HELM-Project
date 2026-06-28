@@ -14,12 +14,11 @@
 // **Validates: Requirements 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.11**
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <span/field_view.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <span/field_view.hpp>
 #include <vector>
 
 namespace {
@@ -27,21 +26,20 @@ namespace {
 enum class Op { MarkHostDirty, MarkDeviceDirty, SyncForDevice, SyncForHost };
 
 rc::Gen<Op> genOp() {
-    return rc::gen::element(Op::MarkHostDirty, Op::MarkDeviceDirty,
-                            Op::SyncForDevice, Op::SyncForHost);
+    return rc::gen::element(Op::MarkHostDirty, Op::MarkDeviceDirty, Op::SyncForDevice, Op::SyncForHost);
 }
 
 // Model: compute expected state after applying operation to current state
 span::CoherencyState model_transition(span::CoherencyState current, Op op) {
     switch (op) {
-        case Op::MarkHostDirty:   return span::CoherencyState::HOST_DIRTY;
-        case Op::MarkDeviceDirty: return span::CoherencyState::DEVICE_DIRTY;
+        case Op::MarkHostDirty:
+            return span::CoherencyState::HOST_DIRTY;
+        case Op::MarkDeviceDirty:
+            return span::CoherencyState::DEVICE_DIRTY;
         case Op::SyncForDevice:
-            return (current == span::CoherencyState::HOST_DIRTY)
-                   ? span::CoherencyState::HOST_CLEAN : current;
+            return (current == span::CoherencyState::HOST_DIRTY) ? span::CoherencyState::HOST_CLEAN : current;
         case Op::SyncForHost:
-            return (current == span::CoherencyState::DEVICE_DIRTY)
-                   ? span::CoherencyState::HOST_CLEAN : current;
+            return (current == span::CoherencyState::DEVICE_DIRTY) ? span::CoherencyState::HOST_CLEAN : current;
     }
     return current;
 }
@@ -52,12 +50,10 @@ span::CoherencyState model_transition(span::CoherencyState current, Op op) {
 bool invariant_at_most_one_dirty(span::CoherencyState state) {
     // The state is a single enum value, so it is inherently impossible to be
     // both HOST_DIRTY and DEVICE_DIRTY. We verify it is one of the valid values.
-    return state == span::CoherencyState::HOST_CLEAN ||
-           state == span::CoherencyState::HOST_DIRTY ||
-           state == span::CoherencyState::DEVICE_DIRTY;
+    return state == span::CoherencyState::HOST_CLEAN || state == span::CoherencyState::HOST_DIRTY || state == span::CoherencyState::DEVICE_DIRTY;
 }
 
-} // namespace
+}  // namespace
 
 // ─── Dual-Pointer: Full State Machine Sequence ──────────────────────────────
 
@@ -78,10 +74,18 @@ RC_GTEST_PROP(CoherencyStateMachine, DualPointerSequence, ()) {
     for (auto op : ops) {
         // Apply operation to the real FieldView
         switch (op) {
-            case Op::MarkHostDirty:   fv.mark_host_dirty(); break;
-            case Op::MarkDeviceDirty: fv.mark_device_dirty(); break;
-            case Op::SyncForDevice:   fv.sync_for_device(); break;
-            case Op::SyncForHost:     fv.sync_for_host(); break;
+            case Op::MarkHostDirty:
+                fv.mark_host_dirty();
+                break;
+            case Op::MarkDeviceDirty:
+                fv.mark_device_dirty();
+                break;
+            case Op::SyncForDevice:
+                fv.sync_for_device();
+                break;
+            case Op::SyncForHost:
+                fv.sync_for_host();
+                break;
         }
 
         // Compute expected state via the model

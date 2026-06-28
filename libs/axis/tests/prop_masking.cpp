@@ -11,34 +11,29 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/solver/weight_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cstddef>
+#include <vector>
 
 namespace {
 
 /// Build a simple ni x nj Cartesian regular-grid UnstructuredMesh on HostSpace.
 /// Uses Cartesian3D coordinate system (matches LineType::Cartesian requirement).
-axis::topology::UnstructuredMesh<Kokkos::HostSpace>
-build_cartesian_mesh(std::size_t ni, std::size_t nj,
-                     double x_start, double y_start,
-                     double dx, double dy,
-                     Kokkos::View<int*, Kokkos::HostSpace> mask = {}) {
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_cartesian_mesh(std::size_t ni, std::size_t nj, double x_start, double y_start, double dx,
+                                                                         double dy, Kokkos::View<int *, Kokkos::HostSpace> mask = {}) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_x("cx", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_y("cy", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_x("crx", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_y("cry", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_x("cx", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_y("cy", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_x("crx", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_y("cry", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -56,22 +51,15 @@ build_cartesian_mesh(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_x, center_y,
-        axis::topology::CoordinateSystem::Cartesian3D);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_x, center_y, axis::topology::CoordinateSystem::Cartesian3D);
     grid.set_corners(corner_x, corner_y);
 
     auto mesh = grid.to_unstructured();
 
     // If a mask was provided, rebuild with the mask
     if (mask.extent(0) > 0) {
-        return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(
-            mesh.node_coords_view(),
-            mesh.conn_offsets_view(),
-            mesh.conn_indices_view(),
-            mesh.coord_system(),
-            mesh.cell_areas_view(),
-            std::move(mask));
+        return axis::topology::UnstructuredMesh<Kokkos::HostSpace>(mesh.node_coords_view(), mesh.conn_offsets_view(), mesh.conn_indices_view(),
+                                                                   mesh.coord_system(), mesh.cell_areas_view(), std::move(mask));
     }
 
     return mesh;
@@ -100,8 +88,7 @@ RC_GTEST_PROP(PropMasking, MaskedSourceCellsExcludedFromWeights, ()) {
 
     // Generate a random mask: each cell independently 0 or 1
     // Ensure at least one cell is masked and at least one is active
-    auto mask_vec = *rc::gen::container<std::vector<int>>(
-        n_src_cells, rc::gen::inRange(0, 2));
+    auto mask_vec = *rc::gen::container<std::vector<int>>(n_src_cells, rc::gen::inRange(0, 2));
 
     // Force at least one masked cell
     const auto mask_idx = *rc::gen::inRange<std::size_t>(0, n_src_cells);
@@ -117,7 +104,7 @@ RC_GTEST_PROP(PropMasking, MaskedSourceCellsExcludedFromWeights, ()) {
     }
 
     // Build the source mask Kokkos view
-    Kokkos::View<int*, Kokkos::HostSpace> src_mask("src_mask", n_src_cells);
+    Kokkos::View<int *, Kokkos::HostSpace> src_mask("src_mask", n_src_cells);
     for (std::size_t i = 0; i < n_src_cells; ++i) {
         src_mask(i) = mask_vec[i];
     }
@@ -147,8 +134,7 @@ RC_GTEST_PROP(PropMasking, MaskedSourceCellsExcludedFromWeights, ()) {
     config.line_type = axis::solver::LineType::Cartesian;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
 
     // Verify: no weight entry references any masked source cell
     const auto nnz = matrix.nnz();
@@ -156,7 +142,7 @@ RC_GTEST_PROP(PropMasking, MaskedSourceCellsExcludedFromWeights, ()) {
 
     for (std::size_t k = 0; k < nnz; ++k) {
         const auto col_idx = static_cast<std::size_t>(factor_col[k]);
-        for (const auto& masked_idx : masked_cells) {
+        for (const auto &masked_idx : masked_cells) {
             RC_ASSERT(col_idx != masked_idx);
         }
     }
@@ -165,7 +151,7 @@ RC_GTEST_PROP(PropMasking, MaskedSourceCellsExcludedFromWeights, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -178,7 +164,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

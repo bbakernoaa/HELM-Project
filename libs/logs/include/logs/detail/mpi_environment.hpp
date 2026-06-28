@@ -10,10 +10,10 @@
 ///
 /// Requirements: 2.1, 2.7, 11.3, 11.9
 
+#include <mpi.h>
+
 #include <atomic>
 #include <mutex>
-
-#include <mpi.h>
 
 namespace logs::detail {
 
@@ -30,7 +30,7 @@ class Serialized_MPI_Guard;
 /// detect() stores the communicator, queries rank exactly once, and
 /// queries the MPI thread level if MPI is initialized.
 class Mpi_Environment {
-public:
+   public:
     Mpi_Environment() noexcept;
 
     /// Detect rank and thread level for the given communicator.
@@ -60,16 +60,16 @@ public:
     /// Returns the stored communicator (MPI_COMM_NULL if unconfigured).
     [[nodiscard]] MPI_Comm communicator() const noexcept;
 
-private:
+   private:
     std::atomic<int> rank_{-1};
     std::atomic<int> thread_level_{MPI_THREAD_SINGLE};
-    MPI_Comm         comm_{MPI_COMM_NULL};
-    bool             has_comm_{false};
+    MPI_Comm comm_{MPI_COMM_NULL};
+    bool has_comm_{false};
     mutable std::mutex serialization_mutex_;
 
     friend class Serialized_MPI_Guard;
 };
 
-} // namespace logs::detail
+}  // namespace logs::detail
 
-#endif // LOGS_DETAIL_MPI_ENVIRONMENT_HPP
+#endif  // LOGS_DETAIL_MPI_ENVIRONMENT_HPP

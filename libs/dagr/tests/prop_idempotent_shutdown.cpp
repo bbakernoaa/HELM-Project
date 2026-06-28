@@ -18,24 +18,24 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
 #include <dagr/detail/event_loop.hpp>
 #include <dagr/detail/rank_pool.hpp>
 #include <dagr/detail/task_node.hpp>
 #include <dagr/pipeline_config.hpp>
-#include "generators.hpp"
-
-#include <algorithm>
-#include <atomic>
-#include <cstdint>
 #include <deque>
 #include <set>
 #include <string>
 #include <vector>
 
+#include "generators.hpp"
+
 namespace {
 
 /// Build TaskNode vector from a Generated_DAG, computing pending_deps from edges.
-std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_DAG& dag) {
+std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_DAG &dag) {
     const auto node_count = static_cast<std::uint32_t>(dag.task_names.size());
 
     std::vector<dagr::detail::TaskNode> nodes(node_count);
@@ -49,7 +49,7 @@ std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_
     }
 
     // Build adjacency lists and compute in-degrees
-    for (const auto& edge : dag.edges) {
+    for (const auto &edge : dag.edges) {
         if (edge.producer_id < node_count && edge.consumer_id < node_count) {
             nodes[edge.producer_id].dependents.push_back(edge.consumer_id);
             nodes[edge.consumer_id].pending_deps.fetch_add(1, std::memory_order_relaxed);
@@ -69,35 +69,26 @@ std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_
 /// emissions — each call to the shutdown body increments it, proving that
 /// subsequent shutdown calls never reach the body (thus emit no LOGS).
 class Testable_Shutdown_Orchestrator {
-public:
-    Testable_Shutdown_Orchestrator(
-        dagr::detail::Event_Loop::Config el_cfg,
-        std::vector<dagr::detail::TaskNode>& nodes,
-        dagr::detail::Rank_Pool& rank_pool)
-        : nodes_(nodes)
-        , rank_pool_(rank_pool)
-        , event_loop_(el_cfg, nodes, rank_pool)
-        , shut_down_(false)
-        , log_emission_count_(0)
-    {
+   public:
+    Testable_Shutdown_Orchestrator(dagr::detail::Event_Loop::Config el_cfg, std::vector<dagr::detail::TaskNode> &nodes,
+                                   dagr::detail::Rank_Pool &rank_pool)
+        : nodes_(nodes), rank_pool_(rank_pool), event_loop_(el_cfg, nodes, rank_pool), shut_down_(false), log_emission_count_(0) {
         // Set up immediate-completion callback: all dispatched tasks complete
         // immediately to simulate a "completed execution" state
-        event_loop_.set_dispatch_callback(
-            [this](std::uint32_t node_id, const std::set<int>& /*ranks*/) -> bool {
-                dispatched_queue_.push_back(node_id);
-                return true;
-            });
+        event_loop_.set_dispatch_callback([this](std::uint32_t node_id, const std::set<int> & /*ranks*/) -> bool {
+            dispatched_queue_.push_back(node_id);
+            return true;
+        });
 
-        event_loop_.set_completion_callback(
-            [this]() -> std::vector<std::pair<std::uint32_t, bool>> {
-                std::vector<std::pair<std::uint32_t, bool>> completions;
-                // Complete all dispatched tasks immediately
-                for (auto id : dispatched_queue_) {
-                    completions.emplace_back(id, true);
-                }
-                dispatched_queue_.clear();
-                return completions;
-            });
+        event_loop_.set_completion_callback([this]() -> std::vector<std::pair<std::uint32_t, bool>> {
+            std::vector<std::pair<std::uint32_t, bool>> completions;
+            // Complete all dispatched tasks immediately
+            for (auto id : dispatched_queue_) {
+                completions.emplace_back(id, true);
+            }
+            dispatched_queue_.clear();
+            return completions;
+        });
     }
 
     /// Run the DAG to completion (all nodes reach terminal state).
@@ -143,21 +134,29 @@ public:
         ++log_emission_count_;
     }
 
-    [[nodiscard]] bool is_shutdown() const noexcept { return shut_down_; }
-    [[nodiscard]] std::uint32_t available_ranks() const noexcept { return rank_pool_.available_ranks(); }
-    [[nodiscard]] std::uint32_t total_ranks() const noexcept { return rank_pool_.total_ranks(); }
-    [[nodiscard]] std::uint32_t log_emission_count() const noexcept { return log_emission_count_; }
+    [[nodiscard]] bool is_shutdown() const noexcept {
+        return shut_down_;
+    }
+    [[nodiscard]] std::uint32_t available_ranks() const noexcept {
+        return rank_pool_.available_ranks();
+    }
+    [[nodiscard]] std::uint32_t total_ranks() const noexcept {
+        return rank_pool_.total_ranks();
+    }
+    [[nodiscard]] std::uint32_t log_emission_count() const noexcept {
+        return log_emission_count_;
+    }
 
-private:
-    std::vector<dagr::detail::TaskNode>& nodes_;
-    dagr::detail::Rank_Pool&             rank_pool_;
-    dagr::detail::Event_Loop             event_loop_;
-    bool                                 shut_down_;
-    std::uint32_t                        log_emission_count_;
-    std::deque<std::uint32_t>            dispatched_queue_;
+   private:
+    std::vector<dagr::detail::TaskNode> &nodes_;
+    dagr::detail::Rank_Pool &rank_pool_;
+    dagr::detail::Event_Loop event_loop_;
+    bool shut_down_;
+    std::uint32_t log_emission_count_;
+    std::deque<std::uint32_t> dispatched_queue_;
 };
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─── Property 6a: shutdown() does not throw on any call ──────────────────────
 // ─── Property 6b: available_ranks() == total_ranks() after shutdown ───────────
@@ -182,7 +181,7 @@ RC_GTEST_PROP(IdempotentShutdown, MultipleShutdownCallsAreIdempotent, ()) {
     // Configure Event_Loop with random valid parameters
     dagr::detail::Event_Loop::Config cfg;
     cfg.max_concurrency = *rc::gen::inRange<std::uint32_t>(1, 65);
-    cfg.deadlock_timeout_s = 3600; // Disable deadlock detection for test speed
+    cfg.deadlock_timeout_s = 3600;  // Disable deadlock detection for test speed
 
     // Create the testable orchestrator
     Testable_Shutdown_Orchestrator orch(cfg, nodes, rank_pool);
@@ -207,7 +206,7 @@ RC_GTEST_PROP(IdempotentShutdown, MultipleShutdownCallsAreIdempotent, ()) {
 
     // Record the log emission count after the first shutdown
     std::uint32_t logs_after_first_shutdown = orch.log_emission_count();
-    RC_ASSERT(logs_after_first_shutdown > 0); // First shutdown DID emit logs
+    RC_ASSERT(logs_after_first_shutdown > 0);  // First shutdown DID emit logs
 
     // ─── Subsequent shutdown calls (idempotent no-ops) ───────────────────
 

@@ -26,44 +26,41 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/ingest/grid_descriptor.hpp>
+#include <axis/topology/mesh_factory.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/mesh_factory.hpp>
-#include <axis/ingest/grid_descriptor.hpp>
-
 namespace {
 
-using axis::ingest::GridDescriptor;
-using axis::ingest::ConventionKind;
-using axis::ingest::BufferViews;
-using axis::ingest::CfParams;
-using axis::ingest::UgridParams;
-using axis::ingest::GribParams;
-using axis::ingest::ProjectedParams;
-using axis::ingest::NamedGridParams;
-using axis::ingest::GridRulesParams;
 using axis::field_view;
 using axis::index_t;
+using axis::ingest::BufferViews;
+using axis::ingest::CfParams;
+using axis::ingest::ConventionKind;
+using axis::ingest::GribParams;
+using axis::ingest::GridDescriptor;
+using axis::ingest::GridRulesParams;
+using axis::ingest::NamedGridParams;
+using axis::ingest::ProjectedParams;
+using axis::ingest::UgridParams;
 
 // ─── Helper: verify that from_descriptor throws std::invalid_argument
 // containing the expected substring in what(). ────────────────────────────────
 
-void expect_throws_naming(const GridDescriptor& desc, const std::string& field) {
+void expect_throws_naming(const GridDescriptor &desc, const std::string &field) {
     try {
         axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
         RC_FAIL("Expected std::invalid_argument but no exception was thrown");
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
         RC_ASSERT(msg.find(field) != std::string::npos);
-    } catch (const std::exception& e) {
-        RC_FAIL("Expected std::invalid_argument but got different exception: "
-                + std::string(e.what()));
+    } catch (const std::exception &e) {
+        RC_FAIL("Expected std::invalid_argument but got different exception: " + std::string(e.what()));
     }
 }
 
@@ -171,10 +168,8 @@ RC_GTEST_PROP(PropDescriptorValidation, UgridEmptyNodeCoords, ()) {
     GridDescriptor desc{};
     desc.kind = ConventionKind::UGRID;
     // node_coords left default (empty)
-    desc.buffers.conn_offsets = field_view<const index_t, 1>(
-        offsets.data(), offsets.size());
-    desc.buffers.conn_indices = field_view<const index_t, 1>(
-        indices.data(), indices.size());
+    desc.buffers.conn_offsets = field_view<const index_t, 1>(offsets.data(), offsets.size());
+    desc.buffers.conn_indices = field_view<const index_t, 1>(indices.data(), indices.size());
 
     expect_throws_naming(desc, "node_coords");
 }
@@ -200,17 +195,14 @@ RC_GTEST_PROP(PropDescriptorValidation, UgridEmptyConnectivity, ()) {
 
     GridDescriptor desc{};
     desc.kind = ConventionKind::UGRID;
-    desc.buffers.node_coords = field_view<const double, 2>(
-        coords.data(), n_nodes, 2);
+    desc.buffers.node_coords = field_view<const double, 2>(coords.data(), n_nodes, 2);
 
     if (empty_offsets) {
         // Leave conn_offsets default (empty), provide conn_indices
-        desc.buffers.conn_indices = field_view<const index_t, 1>(
-            indices.data(), indices.size());
+        desc.buffers.conn_indices = field_view<const index_t, 1>(indices.data(), indices.size());
     } else {
         // Provide conn_offsets, leave conn_indices default (empty)
-        desc.buffers.conn_offsets = field_view<const index_t, 1>(
-            offsets.data(), offsets.size());
+        desc.buffers.conn_offsets = field_view<const index_t, 1>(offsets.data(), offsets.size());
     }
 
     const std::string expected_field = empty_offsets ? "conn_offsets" : "conn_indices";
@@ -322,16 +314,14 @@ RC_GTEST_PROP(PropDescriptorValidation, UnknownConventionKind, ()) {
     try {
         axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
         RC_FAIL("Expected std::invalid_argument but no exception was thrown");
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         // Verify we get a meaningful error about the unknown kind
         std::string msg = e.what();
         RC_ASSERT(!msg.empty());
         // The message should mention "ConventionKind" or the numeric value
-        RC_ASSERT(msg.find("ConventionKind") != std::string::npos ||
-                  msg.find(std::to_string(raw_kind)) != std::string::npos);
-    } catch (const std::exception& e) {
-        RC_FAIL("Expected std::invalid_argument but got different exception: "
-                + std::string(e.what()));
+        RC_ASSERT(msg.find("ConventionKind") != std::string::npos || msg.find(std::to_string(raw_kind)) != std::string::npos);
+    } catch (const std::exception &e) {
+        RC_FAIL("Expected std::invalid_argument but got different exception: " + std::string(e.what()));
     }
 }
 
@@ -339,7 +329,7 @@ RC_GTEST_PROP(PropDescriptorValidation, UnknownConventionKind, ()) {
 // Property tests require Kokkos initialized for MeshFactory operations.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -353,7 +343,6 @@ public:
 };
 
 // Register the Kokkos environment with GTest
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

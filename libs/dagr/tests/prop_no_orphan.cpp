@@ -12,21 +12,21 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <dagr/detail/event_loop.hpp>
 #include <dagr/detail/rank_pool.hpp>
 #include <dagr/detail/task_node.hpp>
-#include "generators.hpp"
-
-#include <algorithm>
-#include <cstdint>
 #include <queue>
 #include <set>
 #include <vector>
 
+#include "generators.hpp"
+
 namespace {
 
 /// Build TaskNode vector from a Generated_DAG, computing pending_deps from edges.
-std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_DAG& dag) {
+std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_DAG &dag) {
     const auto node_count = static_cast<std::uint32_t>(dag.task_names.size());
 
     std::vector<dagr::detail::TaskNode> nodes(node_count);
@@ -40,7 +40,7 @@ std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_
     }
 
     // Build adjacency lists and compute in-degrees
-    for (const auto& edge : dag.edges) {
+    for (const auto &edge : dag.edges) {
         if (edge.producer_id < node_count && edge.consumer_id < node_count) {
             nodes[edge.producer_id].dependents.push_back(edge.consumer_id);
             nodes[edge.consumer_id].pending_deps.fetch_add(1, std::memory_order_relaxed);
@@ -54,14 +54,14 @@ std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_
 /// Uses dynamic programming over topological order via Kahn's algorithm.
 /// Returns the number of edges on the longest path (i.e., longest_path_length).
 /// A single-node DAG has longest path 0. A chain of N nodes has longest path N-1.
-std::uint32_t compute_longest_path(const dagr::gen::Generated_DAG& dag) {
+std::uint32_t compute_longest_path(const dagr::gen::Generated_DAG &dag) {
     const auto node_count = static_cast<std::uint32_t>(dag.task_names.size());
 
     // Build adjacency list and in-degree array
     std::vector<std::vector<std::uint32_t>> adj(node_count);
     std::vector<std::uint32_t> in_degree(node_count, 0);
 
-    for (const auto& edge : dag.edges) {
+    for (const auto &edge : dag.edges) {
         if (edge.producer_id < node_count && edge.consumer_id < node_count) {
             adj[edge.producer_id].push_back(edge.consumer_id);
             ++in_degree[edge.consumer_id];
@@ -100,7 +100,7 @@ std::uint32_t compute_longest_path(const dagr::gen::Generated_DAG& dag) {
     return longest;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 /// **Validates: Requirements 3.7, 13.2**
 RC_GTEST_PROP(NoOrphan, AllNodesReachTerminalWithinLongestPathPlusOne, ()) {
@@ -127,7 +127,7 @@ RC_GTEST_PROP(NoOrphan, AllNodesReachTerminalWithinLongestPathPlusOne, ()) {
     // so the only limiting factor is dependency structure (longest path)
     dagr::detail::Event_Loop::Config cfg;
     cfg.max_concurrency = std::min<std::uint32_t>(node_count, 1024);
-    cfg.deadlock_timeout_s = 3600; // Effectively disable deadlock detection
+    cfg.deadlock_timeout_s = 3600;  // Effectively disable deadlock detection
 
     dagr::detail::Event_Loop loop(cfg, nodes, rank_pool);
 
@@ -136,22 +136,20 @@ RC_GTEST_PROP(NoOrphan, AllNodesReachTerminalWithinLongestPathPlusOne, ()) {
     // is limited only by the DAG's dependency depth (longest path).
     std::vector<std::uint32_t> dispatched_this_cycle;
 
-    loop.set_dispatch_callback(
-        [&](std::uint32_t node_id, const std::set<int>& /*ranks*/) -> bool {
-            dispatched_this_cycle.push_back(node_id);
-            return true;
-        });
+    loop.set_dispatch_callback([&](std::uint32_t node_id, const std::set<int> & /*ranks*/) -> bool {
+        dispatched_this_cycle.push_back(node_id);
+        return true;
+    });
 
-    loop.set_completion_callback(
-        [&]() -> std::vector<std::pair<std::uint32_t, bool>> {
-            std::vector<std::pair<std::uint32_t, bool>> completions;
-            completions.reserve(dispatched_this_cycle.size());
-            for (std::uint32_t id : dispatched_this_cycle) {
-                completions.emplace_back(id, true);
-            }
-            dispatched_this_cycle.clear();
-            return completions;
-        });
+    loop.set_completion_callback([&]() -> std::vector<std::pair<std::uint32_t, bool>> {
+        std::vector<std::pair<std::uint32_t, bool>> completions;
+        completions.reserve(dispatched_this_cycle.size());
+        for (std::uint32_t id : dispatched_this_cycle) {
+            completions.emplace_back(id, true);
+        }
+        dispatched_this_cycle.clear();
+        return completions;
+    });
 
     // Run the Event_Loop, counting scheduling cycles.
     // The maximum allowed is (longest_path + 1) cycles.
@@ -167,10 +165,9 @@ RC_GTEST_PROP(NoOrphan, AllNodesReachTerminalWithinLongestPathPlusOne, ()) {
     }
 
     // Property assertion 1: ALL nodes must reach terminal state (no orphans)
-    for (const auto& node : nodes) {
-        RC_ASSERT(node.status == dagr::detail::Task_Status::completed
-                || node.status == dagr::detail::Task_Status::failed
-                || node.status == dagr::detail::Task_Status::cancelled);
+    for (const auto &node : nodes) {
+        RC_ASSERT(node.status == dagr::detail::Task_Status::completed || node.status == dagr::detail::Task_Status::failed ||
+                  node.status == dagr::detail::Task_Status::cancelled);
     }
 
     // Property assertion 2: Completion must happen within (longest_path + 1) cycles

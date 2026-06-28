@@ -28,19 +28,19 @@ extern "C" {
 
 // ─── MPI_Comm_rank ──────────────────────────────────────────────────────────
 // Override to return the configured rank from MPI_Spy and record the call.
-int MPI_Comm_rank(MPI_Comm comm, int* rank) {
+int MPI_Comm_rank(MPI_Comm comm, int *rank) {
     return MPI_Spy::instance().record_comm_rank(comm, rank);
 }
 
 // ─── MPI_Query_thread ───────────────────────────────────────────────────────
 // Override to return the configured thread level from MPI_Spy and record.
-int MPI_Query_thread(int* provided) {
+int MPI_Query_thread(int *provided) {
     return MPI_Spy::instance().record_query_thread(provided);
 }
 
 // ─── MPI_Initialized ────────────────────────────────────────────────────────
 // Override to return the configured initialized state from MPI_Spy and record.
-int MPI_Initialized(int* flag) {
+int MPI_Initialized(int *flag) {
     return MPI_Spy::instance().record_initialized(flag);
 }
 
@@ -55,7 +55,7 @@ int MPI_Abort(MPI_Comm comm, int errorcode) {
 
 // ─── MPI_Comm_size ──────────────────────────────────────────────────────────
 // Override to return a deterministic size without requiring real MPI runtime.
-int MPI_Comm_size(MPI_Comm comm, int* size) {
+int MPI_Comm_size(MPI_Comm comm, int *size) {
     if (size != nullptr) {
         *size = 4;
     }
@@ -64,7 +64,7 @@ int MPI_Comm_size(MPI_Comm comm, int* size) {
 
 // ─── MPI_Finalized ──────────────────────────────────────────────────────────
 // Override to always report MPI as NOT finalized in test mode.
-int MPI_Finalized(int* flag) {
+int MPI_Finalized(int *flag) {
     if (flag != nullptr) {
         *flag = 0;
     }
@@ -73,7 +73,7 @@ int MPI_Finalized(int* flag) {
 
 // ─── MPI_Comm_test_inter ────────────────────────────────────────────────────
 // Override to prevent internal MPI calls from failing. Returns "not inter-comm".
-int MPI_Comm_test_inter(MPI_Comm comm, int* flag) {
+int MPI_Comm_test_inter(MPI_Comm comm, int *flag) {
     if (flag != nullptr) {
         *flag = 0;
     }

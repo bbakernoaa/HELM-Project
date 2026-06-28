@@ -13,15 +13,14 @@
 
 #include <Kokkos_Core.hpp>
 #include <blend/helm_math_blend.hpp>
+#include <vector>
 
 #include "generators.hpp"
-
-#include <vector>
 
 // ── Kokkos lifecycle management ───────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         Kokkos::initialize();
     }
@@ -30,20 +29,20 @@ public:
     }
 };
 
-static ::testing::Environment* const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static ::testing::Environment *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 // ── Property: output always equals exactly one of the two inputs ──────────────
 
 RC_GTEST_PROP(StepSelectCorrectness, OutputEqualsOneOfInputs, ()) {
-    const std::size_t n       = *blend::gen::array_length();
-    const auto        left_v  = *blend::gen::field_data(n);
-    const auto        right_v = *blend::gen::field_data(n);
-    const double      alpha   = *blend::gen::alpha_wide();
+    const std::size_t n = *blend::gen::array_length();
+    const auto left_v = *blend::gen::field_data(n);
+    const auto right_v = *blend::gen::field_data(n);
+    const double alpha = *blend::gen::alpha_wide();
 
     std::vector<double> target(n, 0.0);
 
-    span::FieldView v_left(const_cast<double*>(left_v.data()), n);
-    span::FieldView v_right(const_cast<double*>(right_v.data()), n);
+    span::FieldView v_left(const_cast<double *>(left_v.data()), n);
+    span::FieldView v_right(const_cast<double *>(right_v.data()), n);
     span::FieldView v_target(target.data(), n);
 
     blend::StepBlendKernel::apply(v_left, v_right, v_target, alpha);
@@ -57,18 +56,18 @@ RC_GTEST_PROP(StepSelectCorrectness, OutputEqualsOneOfInputs, ()) {
 // ── Property: output is uniformly left when alpha < 0.5 ──────────────────────
 
 RC_GTEST_PROP(StepSelectCorrectness, AlphaLtHalfAlwaysLeft, ()) {
-    const std::size_t n       = *blend::gen::array_length();
-    const auto        left_v  = *blend::gen::field_data(n);
-    const auto        right_v = *blend::gen::field_data(n);
+    const std::size_t n = *blend::gen::array_length();
+    const auto left_v = *blend::gen::field_data(n);
+    const auto right_v = *blend::gen::field_data(n);
 
     // Generate alpha strictly in [0, 0.5)
-    const int   raw   = *rc::gen::inRange<int>(0, 5000);
+    const int raw = *rc::gen::inRange<int>(0, 5000);
     const double alpha = static_cast<double>(raw) / 10000.0;  // [0.0, 0.4999]
 
     std::vector<double> target(n, 0.0);
 
-    span::FieldView v_left(const_cast<double*>(left_v.data()), n);
-    span::FieldView v_right(const_cast<double*>(right_v.data()), n);
+    span::FieldView v_left(const_cast<double *>(left_v.data()), n);
+    span::FieldView v_right(const_cast<double *>(right_v.data()), n);
     span::FieldView v_target(target.data(), n);
 
     blend::StepBlendKernel::apply(v_left, v_right, v_target, alpha);
@@ -82,18 +81,18 @@ RC_GTEST_PROP(StepSelectCorrectness, AlphaLtHalfAlwaysLeft, ()) {
 // ── Property: output is uniformly right when alpha >= 0.5 ────────────────────
 
 RC_GTEST_PROP(StepSelectCorrectness, AlphaGeqHalfAlwaysRight, ()) {
-    const std::size_t n       = *blend::gen::array_length();
-    const auto        left_v  = *blend::gen::field_data(n);
-    const auto        right_v = *blend::gen::field_data(n);
+    const std::size_t n = *blend::gen::array_length();
+    const auto left_v = *blend::gen::field_data(n);
+    const auto right_v = *blend::gen::field_data(n);
 
     // Generate alpha in [0.5, 1.0]
-    const int    raw   = *rc::gen::inRange<int>(5000, 10001);
+    const int raw = *rc::gen::inRange<int>(5000, 10001);
     const double alpha = static_cast<double>(raw) / 10000.0;
 
     std::vector<double> target(n, 0.0);
 
-    span::FieldView v_left(const_cast<double*>(left_v.data()), n);
-    span::FieldView v_right(const_cast<double*>(right_v.data()), n);
+    span::FieldView v_left(const_cast<double *>(left_v.data()), n);
+    span::FieldView v_right(const_cast<double *>(right_v.data()), n);
     span::FieldView v_target(target.data(), n);
 
     blend::StepBlendKernel::apply(v_left, v_right, v_target, alpha);

@@ -21,16 +21,10 @@
 
 #include <mpi.h>
 
+#include <Kokkos_Core.hpp>
 #include <chrono>
 #include <cstddef>
 #include <functional>
-#include <memory>
-#include <stdexcept>
-#include <type_traits>
-#include <vector>
-
-#include <Kokkos_Core.hpp>
-
 #include <halo/communicator.hpp>
 #include <halo/detail/memory_traits.hpp>
 #include <halo/detail/mpi_datatype.hpp>
@@ -41,6 +35,10 @@
 #include <halo/halo_handle.hpp>
 #include <halo/request_guard.hpp>
 #include <halo/structured_halo_plan.hpp>
+#include <memory>
+#include <stdexcept>
+#include <type_traits>
+#include <vector>
 
 namespace halo {
 
@@ -60,7 +58,7 @@ namespace detail {
 /// @param comm_size Total number of processes in the communicator.
 /// @return A tag value in [0, MPI_TAG_UB).
 inline int structured_compute_tag(int sender, int receiver, int comm_size) noexcept {
-    int* tag_ub_ptr = nullptr;
+    int *tag_ub_ptr = nullptr;
     int flag = 0;
     MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &tag_ub_ptr, &flag);
     int tag_ub = (flag && tag_ub_ptr != nullptr) ? *tag_ub_ptr : 32767;
@@ -76,29 +74,25 @@ inline int structured_compute_tag(int sender, int receiver, int comm_size) noexc
 /// Dispatches to the appropriate Kokkos::subview call based on view rank.
 /// Returns a subview matching the region's index ranges.
 template <typename ViewType, int Rank>
-auto make_subview(ViewType& view, const Region<Rank>& region) {
+auto make_subview(ViewType &view, const Region<Rank> &region) {
     if constexpr (Rank == 1) {
-        return Kokkos::subview(view,
-            Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second));
+        return Kokkos::subview(view, Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second));
     } else if constexpr (Rank == 2) {
-        return Kokkos::subview(view,
-            Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second),
-            Kokkos::make_pair(region.ranges[1].first, region.ranges[1].second));
+        return Kokkos::subview(view, Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second),
+                               Kokkos::make_pair(region.ranges[1].first, region.ranges[1].second));
     } else if constexpr (Rank == 3) {
-        return Kokkos::subview(view,
-            Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second),
-            Kokkos::make_pair(region.ranges[1].first, region.ranges[1].second),
-            Kokkos::make_pair(region.ranges[2].first, region.ranges[2].second));
+        return Kokkos::subview(view, Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second),
+                               Kokkos::make_pair(region.ranges[1].first, region.ranges[1].second),
+                               Kokkos::make_pair(region.ranges[2].first, region.ranges[2].second));
     } else if constexpr (Rank == 4) {
-        return Kokkos::subview(view,
-            Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second),
-            Kokkos::make_pair(region.ranges[1].first, region.ranges[1].second),
-            Kokkos::make_pair(region.ranges[2].first, region.ranges[2].second),
-            Kokkos::make_pair(region.ranges[3].first, region.ranges[3].second));
+        return Kokkos::subview(view, Kokkos::make_pair(region.ranges[0].first, region.ranges[0].second),
+                               Kokkos::make_pair(region.ranges[1].first, region.ranges[1].second),
+                               Kokkos::make_pair(region.ranges[2].first, region.ranges[2].second),
+                               Kokkos::make_pair(region.ranges[3].first, region.ranges[3].second));
     }
 }
 
-} // namespace detail
+}  // namespace detail
 
 /// @brief Blocking structured halo exchange.
 ///
@@ -115,12 +109,10 @@ auto make_subview(ViewType& view, const Region<Rank>& region) {
 ///
 /// @throws std::runtime_error if any MPI operation fails.
 template <typename ViewType>
-void exchange_structured_blocking(
-    const Structured_Halo_Plan<ViewType::rank>& plan, ViewType& view)
-{
+void exchange_structured_blocking(const Structured_Halo_Plan<ViewType::rank> &plan, ViewType &view) {
     constexpr int Rank = ViewType::rank;
     using value_type = typename ViewType::non_const_value_type;
-    using buffer_view_t = Kokkos::View<value_type*, typename ViewType::memory_space>;
+    using buffer_view_t = Kokkos::View<value_type *, typename ViewType::memory_space>;
 
     // Early return if no active neighbors
     if (plan.active_neighbor_count() == 0) {
@@ -141,19 +133,15 @@ void exchange_structured_blocking(
                 total_bytes += plan.recv_region(f).size() * sizeof(value_type);
             }
         }
-        Diagnostics::emit(Exchange_Event{
-            Exchange_Event::Phase::begin,
-            plan.communicator().rank(),
-            static_cast<int>(plan.active_neighbor_count()),
-            total_bytes,
-            std::chrono::nanoseconds{0},
-            /*is_async=*/false});
+        Diagnostics::emit(Exchange_Event{Exchange_Event::Phase::begin, plan.communicator().rank(), static_cast<int>(plan.active_neighbor_count()),
+                                         total_bytes, std::chrono::nanoseconds{0},
+                                         /*is_async=*/false});
     }
 
     // Acquire serialization guard for thread safety
     detail::Serialized_MPI_Guard guard;
 
-    const auto& comm = plan.communicator();
+    const auto &comm = plan.communicator();
     const int my_rank = comm.rank();
     const int comm_size = comm.size();
     const MPI_Comm mpi_comm = comm.handle();
@@ -168,11 +156,10 @@ void exchange_structured_blocking(
             send_buffers.emplace_back();  // placeholder
             continue;
         }
-        const auto& send_region = plan.send_region(f);
+        const auto &send_region = plan.send_region(f);
         const std::size_t count = send_region.size();
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing,
-                          "structured_send_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_send_buf"), count);
 
         auto subview = detail::make_subview(view, send_region);
         detail::pack(subview, buf);
@@ -192,23 +179,15 @@ void exchange_structured_blocking(
             recv_buffers.emplace_back();  // placeholder
             continue;
         }
-        const auto& recv_region = plan.recv_region(f);
+        const auto &recv_region = plan.recv_region(f);
         const std::size_t count = recv_region.size();
         const int neighbor = plan.neighbor_rank(f);
         const int tag = detail::structured_compute_tag(neighbor, my_rank, comm_size);
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing,
-                          "structured_recv_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_recv_buf"), count);
 
         MPI_Request req = MPI_REQUEST_NULL;
-        int rc = MPI_Irecv(
-            buf.data(),
-            static_cast<int>(count),
-            mpi_dtype,
-            neighbor,
-            tag,
-            mpi_comm,
-            &req);
+        int rc = MPI_Irecv(buf.data(), static_cast<int>(count), mpi_dtype, neighbor, tag, mpi_comm, &req);
 
         if (rc != MPI_SUCCESS) {
             detail::handle_mpi_error(rc, neighbor, "MPI_Irecv (structured)");
@@ -223,20 +202,13 @@ void exchange_structured_blocking(
         if (!plan.has_neighbor(f)) {
             continue;
         }
-        const auto& send_region = plan.send_region(f);
+        const auto &send_region = plan.send_region(f);
         const std::size_t count = send_region.size();
         const int neighbor = plan.neighbor_rank(f);
         const int tag = detail::structured_compute_tag(my_rank, neighbor, comm_size);
 
         MPI_Request req = MPI_REQUEST_NULL;
-        int rc = MPI_Isend(
-            send_buffers[f].data(),
-            static_cast<int>(count),
-            mpi_dtype,
-            neighbor,
-            tag,
-            mpi_comm,
-            &req);
+        int rc = MPI_Isend(send_buffers[f].data(), static_cast<int>(count), mpi_dtype, neighbor, tag, mpi_comm, &req);
 
         if (rc != MPI_SUCCESS) {
             detail::handle_mpi_error(rc, neighbor, "MPI_Isend (structured)");
@@ -246,10 +218,7 @@ void exchange_structured_blocking(
     }
 
     // ─── Phase 4: Wait for all requests ─────────────────────────────────────
-    int rc = MPI_Waitall(
-        static_cast<int>(requests.size()),
-        requests.data(),
-        MPI_STATUSES_IGNORE);
+    int rc = MPI_Waitall(static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE);
 
     if (rc != MPI_SUCCESS) {
         detail::handle_mpi_error(rc, my_rank, "MPI_Waitall (structured)");
@@ -260,7 +229,7 @@ void exchange_structured_blocking(
         if (!plan.has_neighbor(f)) {
             continue;
         }
-        const auto& recv_region = plan.recv_region(f);
+        const auto &recv_region = plan.recv_region(f);
         auto subview = detail::make_subview(view, recv_region);
         detail::unpack(recv_buffers[f], subview);
     }
@@ -275,13 +244,9 @@ void exchange_structured_blocking(
                 total_bytes += plan.recv_region(f).size() * sizeof(value_type);
             }
         }
-        Diagnostics::emit(Exchange_Event{
-            Exchange_Event::Phase::end,
-            plan.communicator().rank(),
-            static_cast<int>(plan.active_neighbor_count()),
-            total_bytes,
-            std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
-            /*is_async=*/false});
+        Diagnostics::emit(Exchange_Event{Exchange_Event::Phase::end, plan.communicator().rank(), static_cast<int>(plan.active_neighbor_count()),
+                                         total_bytes, std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
+                                         /*is_async=*/false});
     }
 }
 
@@ -303,12 +268,10 @@ void exchange_structured_blocking(
 ///
 /// @throws std::runtime_error if any MPI operation fails.
 template <typename ViewType>
-[[nodiscard]] Halo_Handle exchange_structured_async(
-    const Structured_Halo_Plan<ViewType::rank>& plan, ViewType& view)
-{
+[[nodiscard]] Halo_Handle exchange_structured_async(const Structured_Halo_Plan<ViewType::rank> &plan, ViewType &view) {
     constexpr int Rank = ViewType::rank;
     using value_type = typename ViewType::non_const_value_type;
-    using buffer_view_t = Kokkos::View<value_type*, typename ViewType::memory_space>;
+    using buffer_view_t = Kokkos::View<value_type *, typename ViewType::memory_space>;
 
     // Early return for no active neighbors
     if (plan.active_neighbor_count() == 0) {
@@ -328,19 +291,15 @@ template <typename ViewType>
                 total_bytes += plan.recv_region(f).size() * sizeof(value_type);
             }
         }
-        Diagnostics::emit(Exchange_Event{
-            Exchange_Event::Phase::begin,
-            plan.communicator().rank(),
-            static_cast<int>(plan.active_neighbor_count()),
-            total_bytes,
-            std::chrono::nanoseconds{0},
-            /*is_async=*/true});
+        Diagnostics::emit(Exchange_Event{Exchange_Event::Phase::begin, plan.communicator().rank(), static_cast<int>(plan.active_neighbor_count()),
+                                         total_bytes, std::chrono::nanoseconds{0},
+                                         /*is_async=*/true});
     }
 
     // Acquire serialization guard for thread safety
     detail::Serialized_MPI_Guard guard;
 
-    const auto& comm = plan.communicator();
+    const auto &comm = plan.communicator();
     const int my_rank = comm.rank();
     const int comm_size = comm.size();
     const MPI_Comm mpi_comm = comm.handle();
@@ -360,11 +319,10 @@ template <typename ViewType>
             send_buffers->emplace_back();  // placeholder
             continue;
         }
-        const auto& send_region = plan.send_region(f);
+        const auto &send_region = plan.send_region(f);
         const std::size_t count = send_region.size();
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing,
-                          "structured_send_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_send_buf"), count);
 
         auto subview = detail::make_subview(view, send_region);
         detail::pack(subview, buf);
@@ -381,23 +339,15 @@ template <typename ViewType>
             recv_buffers->emplace_back();  // placeholder
             continue;
         }
-        const auto& recv_region = plan.recv_region(f);
+        const auto &recv_region = plan.recv_region(f);
         const std::size_t count = recv_region.size();
         const int neighbor = plan.neighbor_rank(f);
         const int tag = detail::structured_compute_tag(neighbor, my_rank, comm_size);
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing,
-                          "structured_recv_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_recv_buf"), count);
 
         MPI_Request req = MPI_REQUEST_NULL;
-        int rc = MPI_Irecv(
-            buf.data(),
-            static_cast<int>(count),
-            mpi_dtype,
-            neighbor,
-            tag,
-            mpi_comm,
-            &req);
+        int rc = MPI_Irecv(buf.data(), static_cast<int>(count), mpi_dtype, neighbor, tag, mpi_comm, &req);
 
         if (rc != MPI_SUCCESS) {
             detail::handle_mpi_error(rc, neighbor, "MPI_Irecv (structured async)");
@@ -412,20 +362,13 @@ template <typename ViewType>
         if (!plan.has_neighbor(f)) {
             continue;
         }
-        const auto& send_region = plan.send_region(f);
+        const auto &send_region = plan.send_region(f);
         const std::size_t count = send_region.size();
         const int neighbor = plan.neighbor_rank(f);
         const int tag = detail::structured_compute_tag(my_rank, neighbor, comm_size);
 
         MPI_Request req = MPI_REQUEST_NULL;
-        int rc = MPI_Isend(
-            (*send_buffers)[f].data(),
-            static_cast<int>(count),
-            mpi_dtype,
-            neighbor,
-            tag,
-            mpi_comm,
-            &req);
+        int rc = MPI_Isend((*send_buffers)[f].data(), static_cast<int>(count), mpi_dtype, neighbor, tag, mpi_comm, &req);
 
         if (rc != MPI_SUCCESS) {
             detail::handle_mpi_error(rc, neighbor, "MPI_Isend (structured async)");
@@ -457,11 +400,10 @@ template <typename ViewType>
     }
 
     auto staged = std::make_unique<Halo_Handle::Staged_Recv>();
-    staged->post_recv_copy = [recv_buffers, send_buffers, face_info,
-                              &view]() {
+    staged->post_recv_copy = [recv_buffers, send_buffers, face_info, &view]() {
         constexpr int NF = Structured_Halo_Plan<Rank>::num_faces_value;
         for (int f = 0; f < NF; ++f) {
-            const auto& fi = (*face_info)[f];
+            const auto &fi = (*face_info)[f];
             if (!fi.active) {
                 continue;
             }
@@ -482,13 +424,9 @@ template <typename ViewType>
                 total_bytes += plan.recv_region(f).size() * sizeof(value_type);
             }
         }
-        Diagnostics::emit(Exchange_Event{
-            Exchange_Event::Phase::end,
-            plan.communicator().rank(),
-            static_cast<int>(plan.active_neighbor_count()),
-            total_bytes,
-            std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
-            /*is_async=*/true});
+        Diagnostics::emit(Exchange_Event{Exchange_Event::Phase::end, plan.communicator().rank(), static_cast<int>(plan.active_neighbor_count()),
+                                         total_bytes, std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
+                                         /*is_async=*/true});
     }
 
     return handle;
@@ -516,12 +454,10 @@ template <typename ViewType>
 ///
 /// @throws std::runtime_error if any MPI operation fails.
 template <typename ViewType>
-void exchange_neighbor_collective(
-    Structured_Halo_Plan<ViewType::rank>& plan, ViewType& view)
-{
+void exchange_neighbor_collective(Structured_Halo_Plan<ViewType::rank> &plan, ViewType &view) {
     constexpr int Rank = ViewType::rank;
     using value_type = typename ViewType::non_const_value_type;
-    using buffer_view_t = Kokkos::View<value_type*, typename ViewType::memory_space>;
+    using buffer_view_t = Kokkos::View<value_type *, typename ViewType::memory_space>;
 
     // Early return if no active neighbors
     if (plan.active_neighbor_count() == 0) {
@@ -556,13 +492,9 @@ void exchange_neighbor_collective(
                 total_bytes += plan.recv_region(f).size() * sizeof(value_type);
             }
         }
-        Diagnostics::emit(Exchange_Event{
-            Exchange_Event::Phase::begin,
-            plan.communicator().rank(),
-            static_cast<int>(plan.active_neighbor_count()),
-            total_bytes,
-            std::chrono::nanoseconds{0},
-            /*is_async=*/false});
+        Diagnostics::emit(Exchange_Event{Exchange_Event::Phase::begin, plan.communicator().rank(), static_cast<int>(plan.active_neighbor_count()),
+                                         total_bytes, std::chrono::nanoseconds{0},
+                                         /*is_async=*/false});
     }
 
     // Acquire serialization guard for thread safety
@@ -602,8 +534,7 @@ void exchange_neighbor_collective(
     }
 
     // Allocate concatenated send buffer and pack all regions
-    buffer_view_t send_buffer(Kokkos::view_alloc(Kokkos::WithoutInitializing,
-                              "neighbor_coll_send_buf"), total_send_count);
+    buffer_view_t send_buffer(Kokkos::view_alloc(Kokkos::WithoutInitializing, "neighbor_coll_send_buf"), total_send_count);
 
     for (int i = 0; i < num_neighbors; ++i) {
         int f = active_faces[i];
@@ -611,8 +542,7 @@ void exchange_neighbor_collective(
         std::size_t offset = static_cast<std::size_t>(send_displs[i]);
 
         // Create a subview of the send buffer for this neighbor
-        auto buf_slice = Kokkos::subview(send_buffer,
-            Kokkos::make_pair(offset, offset + count));
+        auto buf_slice = Kokkos::subview(send_buffer, Kokkos::make_pair(offset, offset + count));
 
         auto subview = detail::make_subview(view, plan.send_region(f));
         detail::pack(subview, buf_slice);
@@ -631,18 +561,14 @@ void exchange_neighbor_collective(
         total_recv_count += count;
     }
 
-    buffer_view_t recv_buffer(Kokkos::view_alloc(Kokkos::WithoutInitializing,
-                              "neighbor_coll_recv_buf"), total_recv_count);
+    buffer_view_t recv_buffer(Kokkos::view_alloc(Kokkos::WithoutInitializing, "neighbor_coll_recv_buf"), total_recv_count);
 
     // ─── Phase 3: MPI_Neighbor_alltoallv ────────────────────────────────────
-    int rc = MPI_Neighbor_alltoallv(
-        send_buffer.data(), send_counts.data(), send_displs.data(), mpi_dtype,
-        recv_buffer.data(), recv_counts.data(), recv_displs.data(), mpi_dtype,
-        topo_comm);
+    int rc = MPI_Neighbor_alltoallv(send_buffer.data(), send_counts.data(), send_displs.data(), mpi_dtype, recv_buffer.data(), recv_counts.data(),
+                                    recv_displs.data(), mpi_dtype, topo_comm);
 
     if (rc != MPI_SUCCESS) {
-        detail::handle_mpi_error(rc, plan.communicator().rank(),
-                                 "MPI_Neighbor_alltoallv (structured)");
+        detail::handle_mpi_error(rc, plan.communicator().rank(), "MPI_Neighbor_alltoallv (structured)");
     }
 
     // ─── Phase 4: Unpack receive buffer into halo regions ───────────────────
@@ -651,8 +577,7 @@ void exchange_neighbor_collective(
         std::size_t count = static_cast<std::size_t>(recv_counts[i]);
         std::size_t offset = static_cast<std::size_t>(recv_displs[i]);
 
-        auto buf_slice = Kokkos::subview(recv_buffer,
-            Kokkos::make_pair(offset, offset + count));
+        auto buf_slice = Kokkos::subview(recv_buffer, Kokkos::make_pair(offset, offset + count));
 
         auto subview = detail::make_subview(view, plan.recv_region(f));
         detail::unpack(buf_slice, subview);
@@ -668,18 +593,14 @@ void exchange_neighbor_collective(
                 total_bytes += plan.recv_region(f).size() * sizeof(value_type);
             }
         }
-        Diagnostics::emit(Exchange_Event{
-            Exchange_Event::Phase::end,
-            plan.communicator().rank(),
-            static_cast<int>(plan.active_neighbor_count()),
-            total_bytes,
-            std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
-            /*is_async=*/false});
+        Diagnostics::emit(Exchange_Event{Exchange_Event::Phase::end, plan.communicator().rank(), static_cast<int>(plan.active_neighbor_count()),
+                                         total_bytes, std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
+                                         /*is_async=*/false});
     }
 
-#endif // MPI_VERSION < 3
+#endif  // MPI_VERSION < 3
 }
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_EXCHANGE_STRUCTURED_HPP
+#endif  // HALO_EXCHANGE_STRUCTURED_HPP

@@ -47,10 +47,10 @@ uint64_t morton_encode_2d(uint32_t x, uint32_t y) noexcept {
     auto spread = [](uint32_t v) -> uint64_t {
         uint64_t r = v;
         r = (r | (r << 16)) & 0x0000FFFF0000FFFF;
-        r = (r | (r <<  8)) & 0x00FF00FF00FF00FF;
-        r = (r | (r <<  4)) & 0x0F0F0F0F0F0F0F0F;
-        r = (r | (r <<  2)) & 0x3333333333333333;
-        r = (r | (r <<  1)) & 0x5555555555555555;
+        r = (r | (r << 8)) & 0x00FF00FF00FF00FF;
+        r = (r | (r << 4)) & 0x0F0F0F0F0F0F0F0F;
+        r = (r | (r << 2)) & 0x3333333333333333;
+        r = (r | (r << 1)) & 0x5555555555555555;
         return r;
     };
     return spread(x) | (spread(y) << 1);
@@ -96,17 +96,13 @@ uint32_t normalize_coord(double val, double min_val, double max_val) noexcept {
 /// @param n_dst         Number of destination cells.
 /// @return View<index_t*, MemorySpace> containing the Morton-sorted permutation.
 template <class MemorySpace>
-Kokkos::View<int64_t*, MemorySpace>
-morton_sort_indices(
-    const Kokkos::View<const double*, MemorySpace>& centroids_x,
-    const Kokkos::View<const double*, MemorySpace>& centroids_y,
-    const std::size_t n_dst) {
-
+Kokkos::View<int64_t *, MemorySpace> morton_sort_indices(const Kokkos::View<const double *, MemorySpace> &centroids_x,
+                                                         const Kokkos::View<const double *, MemorySpace> &centroids_y, const std::size_t n_dst) {
     using exec_space = exec_space_t<MemorySpace>;
     using index_t = int64_t;
 
     // Handle degenerate case
-    Kokkos::View<index_t*, MemorySpace> sorted_dst("sorted_dst", n_dst);
+    Kokkos::View<index_t *, MemorySpace> sorted_dst("sorted_dst", n_dst);
     if (n_dst == 0) return sorted_dst;
 
     // ── Step 1: Find bounding box of centroids ──
@@ -114,33 +110,30 @@ morton_sort_indices(
     double lon_min = 0.0, lon_max = 0.0;
     double lat_min = 0.0, lat_max = 0.0;
 
-    Kokkos::parallel_reduce("morton_lon_minmax",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const std::size_t j, double& lmin, double& lmax) {
+    Kokkos::parallel_reduce(
+        "morton_lon_minmax", Kokkos::RangePolicy<exec_space>(0, n_dst),
+        KOKKOS_LAMBDA(const std::size_t j, double &lmin, double &lmax) {
             double v = centroids_x(j);
             if (v < lmin) lmin = v;
             if (v > lmax) lmax = v;
         },
-        Kokkos::Min<double>(lon_min),
-        Kokkos::Max<double>(lon_max));
+        Kokkos::Min<double>(lon_min), Kokkos::Max<double>(lon_max));
 
-    Kokkos::parallel_reduce("morton_lat_minmax",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const std::size_t j, double& lmin, double& lmax) {
+    Kokkos::parallel_reduce(
+        "morton_lat_minmax", Kokkos::RangePolicy<exec_space>(0, n_dst),
+        KOKKOS_LAMBDA(const std::size_t j, double &lmin, double &lmax) {
             double v = centroids_y(j);
             if (v < lmin) lmin = v;
             if (v > lmax) lmax = v;
         },
-        Kokkos::Min<double>(lat_min),
-        Kokkos::Max<double>(lat_max));
+        Kokkos::Min<double>(lat_min), Kokkos::Max<double>(lat_max));
 
     // ── Step 2: Compute Morton codes ──
 
-    Kokkos::View<uint64_t*, MemorySpace> morton_keys("morton_keys", n_dst);
+    Kokkos::View<uint64_t *, MemorySpace> morton_keys("morton_keys", n_dst);
 
-    Kokkos::parallel_for("compute_morton",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const std::size_t j) {
+    Kokkos::parallel_for(
+        "compute_morton", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) {
             uint32_t ix = normalize_coord(centroids_x(j), lon_min, lon_max);
             uint32_t iy = normalize_coord(centroids_y(j), lat_min, lat_max);
             morton_keys(j) = morton_encode_2d(ix, iy);
@@ -148,11 +141,8 @@ morton_sort_indices(
 
     // ── Step 3: Initialize identity permutation ──
 
-    Kokkos::parallel_for("init_perm",
-        Kokkos::RangePolicy<exec_space>(0, n_dst),
-        KOKKOS_LAMBDA(const std::size_t j) {
-            sorted_dst(j) = static_cast<index_t>(j);
-        });
+    Kokkos::parallel_for(
+        "init_perm", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) { sorted_dst(j) = static_cast<index_t>(j); });
 
     // ── Step 4: Sort permutation by Morton key ──
     // Use a simple selection approach: create a key-value pair view and sort.
@@ -165,24 +155,19 @@ morton_sort_indices(
     // structure and produce the permutation on host, or use BinSort.
 
     // Use Kokkos BinSort for device-portable key-value sorting.
-    using KeyViewType = Kokkos::View<uint64_t*, MemorySpace>;
+    using KeyViewType = Kokkos::View<uint64_t *, MemorySpace>;
 
     // Create a combined key-index view for sorting
     // We'll use a simple approach: sort on host for now (morton sort is a
     // pre-processing step before the overlap loop, not in the hot path).
 
     // Mirror to host for sorting
-    auto keys_host = Kokkos::create_mirror_view_and_copy(
-        Kokkos::HostSpace{}, morton_keys);
-    auto perm_host = Kokkos::create_mirror_view_and_copy(
-        Kokkos::HostSpace{}, sorted_dst);
+    auto keys_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, morton_keys);
+    auto perm_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, sorted_dst);
 
     // Simple insertion sort for small n, or std::sort for larger
     // Use indices array sorted by key comparison
-    std::sort(perm_host.data(), perm_host.data() + n_dst,
-        [&keys_host](index_t a, index_t b) {
-            return keys_host(a) < keys_host(b);
-        });
+    std::sort(perm_host.data(), perm_host.data() + n_dst, [&keys_host](index_t a, index_t b) { return keys_host(a) < keys_host(b); });
 
     // Copy sorted permutation back to device
     Kokkos::deep_copy(sorted_dst, perm_host);
@@ -190,6 +175,6 @@ morton_sort_indices(
     return sorted_dst;
 }
 
-} // namespace axis::detail
+}  // namespace axis::detail
 
-#endif // AXIS_DETAIL_MORTON_SORT_HPP
+#endif  // AXIS_DETAIL_MORTON_SORT_HPP

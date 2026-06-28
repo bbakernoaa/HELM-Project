@@ -26,11 +26,11 @@ namespace halo {
 /// Move-only semantics enforce unique ownership. The source of a move is set
 /// to MPI_REQUEST_NULL.
 class Request_Guard {
-public:
+   public:
     /// @brief Construct from a raw MPI_Request handle. Takes ownership.
     /// @param req Reference to the MPI_Request. The source is set to
     ///            MPI_REQUEST_NULL after ownership transfer.
-    explicit Request_Guard(MPI_Request& req) noexcept;
+    explicit Request_Guard(MPI_Request &req) noexcept;
 
     /// @brief Default construct (empty, holds MPI_REQUEST_NULL).
     Request_Guard() noexcept = default;
@@ -42,16 +42,16 @@ public:
     ~Request_Guard();
 
     /// @brief Move constructor. Transfers ownership; source becomes MPI_REQUEST_NULL.
-    Request_Guard(Request_Guard&& other) noexcept;
+    Request_Guard(Request_Guard &&other) noexcept;
 
     /// @brief Move assignment. Transfers ownership; source becomes MPI_REQUEST_NULL.
-    Request_Guard& operator=(Request_Guard&& other) noexcept;
+    Request_Guard &operator=(Request_Guard &&other) noexcept;
 
     /// @brief Copy construction is deleted (unique ownership).
-    Request_Guard(const Request_Guard&) = delete;
+    Request_Guard(const Request_Guard &) = delete;
 
     /// @brief Copy assignment is deleted (unique ownership).
-    Request_Guard& operator=(const Request_Guard&) = delete;
+    Request_Guard &operator=(const Request_Guard &) = delete;
 
     /// @brief Non-blocking test for operation completion.
     /// @return true if the operation has completed or if the handle is
@@ -67,13 +67,13 @@ public:
     ///         MPI_REQUEST_NULL value if moved-from or default-constructed.
     /// @note Does not extend the lifetime of this Request_Guard. Callers must
     /// ensure this object outlives any use of the returned pointer.
-    [[nodiscard]] MPI_Request* handle() noexcept;
+    [[nodiscard]] MPI_Request *handle() noexcept;
 
-private:
+   private:
     MPI_Request req_{MPI_REQUEST_NULL};
     int uncaught_on_entry_{0};  ///< Snapshot of std::uncaught_exceptions() at construction.
 };
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_REQUEST_GUARD_HPP
+#endif  // HALO_REQUEST_GUARD_HPP

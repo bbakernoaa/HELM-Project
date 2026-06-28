@@ -43,7 +43,7 @@ namespace span {
 /// @tparam T  Element type of the buffered arrays.
 template <typename T>
 class TripleBuffer {
-public:
+   public:
     /// @brief Construct a triple buffer from three pre-allocated pointer tracks.
     ///
     /// @param buf_write   Initial Write buffer pointer.
@@ -57,10 +57,7 @@ public:
     ///
     /// @throws std::invalid_argument if any pointer is null, n_elements is 0,
     ///         or pointers are not distinct.
-    TripleBuffer(T* buf_write, T* buf_read, T* buf_io, std::size_t n_elements)
-        : n_elements_(n_elements)
-        , io_locked_(false) {
-
+    TripleBuffer(T *buf_write, T *buf_read, T *buf_io, std::size_t n_elements) : n_elements_(n_elements), io_locked_(false) {
         // Validate non-null
         if (buf_write == nullptr) {
             throw std::invalid_argument("TripleBuffer: buf_write must not be null");
@@ -83,8 +80,8 @@ public:
         }
 
         buffers_[WRITE] = buf_write;
-        buffers_[READ]  = buf_read;
-        buffers_[IO]    = buf_io;
+        buffers_[READ] = buf_read;
+        buffers_[IO] = buf_io;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -97,7 +94,9 @@ public:
     /// This pointer is stable until swap_buffers_for_amio() rotates it.
     ///
     /// @return Pointer to the active Write buffer.
-    [[nodiscard]] T* write_ptr() const noexcept { return buffers_[WRITE]; }
+    [[nodiscard]] T *write_ptr() const noexcept {
+        return buffers_[WRITE];
+    }
 
     /// @brief Get the current read buffer pointer.
     ///
@@ -105,7 +104,9 @@ public:
     /// a swap). Available for read-only consumption.
     ///
     /// @return Pointer to the Read buffer.
-    [[nodiscard]] T* read_ptr() const noexcept { return buffers_[READ]; }
+    [[nodiscard]] T *read_ptr() const noexcept {
+        return buffers_[READ];
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // AMIO-thread interface
@@ -117,7 +118,9 @@ public:
     /// locked for AMIO background consumption.
     ///
     /// @return Pointer to the IO buffer.
-    [[nodiscard]] T* io_ptr() const noexcept { return buffers_[IO]; }
+    [[nodiscard]] T *io_ptr() const noexcept {
+        return buffers_[IO];
+    }
 
     /// @brief Rotate pointer tracks for AMIO consumption.
     ///
@@ -143,14 +146,14 @@ public:
 
         // Rotation: Write→Read→IO→Write
         // Save old pointers
-        T* old_write = buffers_[WRITE];
-        T* old_read  = buffers_[READ];
-        T* old_io    = buffers_[IO];
+        T *old_write = buffers_[WRITE];
+        T *old_read = buffers_[READ];
+        T *old_io = buffers_[IO];
 
         // Apply rotation
-        buffers_[READ]  = old_write;  // old Write → new Read
-        buffers_[IO]    = old_read;   // old Read  → new IO
-        buffers_[WRITE] = old_io;     // old IO    → new Write
+        buffers_[READ] = old_write;  // old Write → new Read
+        buffers_[IO] = old_read;     // old Read  → new IO
+        buffers_[WRITE] = old_io;    // old IO    → new Write
 
         io_locked_ = true;
 
@@ -183,20 +186,22 @@ public:
     }
 
     /// @brief Number of elements in each buffer track.
-    [[nodiscard]] std::size_t size() const noexcept { return n_elements_; }
+    [[nodiscard]] std::size_t size() const noexcept {
+        return n_elements_;
+    }
 
-private:
+   private:
     // Track indices
     static constexpr int WRITE = 0;
-    static constexpr int READ  = 1;
-    static constexpr int IO    = 2;
+    static constexpr int READ = 1;
+    static constexpr int IO = 2;
 
-    T*               buffers_[3]  = {};
-    std::size_t      n_elements_  = 0;
+    T *buffers_[3] = {};
+    std::size_t n_elements_ = 0;
     mutable std::mutex mutex_;
-    bool             io_locked_   = false;
+    bool io_locked_ = false;
 };
 
-} // namespace span
+}  // namespace span
 
-#endif // SPAN_TRIPLE_BUFFER_HPP
+#endif  // SPAN_TRIPLE_BUFFER_HPP

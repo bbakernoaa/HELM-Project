@@ -5,9 +5,8 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-#include <cmath>
-
 #include <axis/detail/planar_clipper.hpp>
+#include <cmath>
 
 namespace axis::test {
 

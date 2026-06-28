@@ -24,8 +24,8 @@
 /// No heap allocation — safe for Kokkos parallel kernels (HELM Law #2).
 
 #include <Kokkos_Core.hpp>
-
 #include <axis/topology/unstructured_mesh.hpp>
+
 #include "memory_traits.hpp"
 #include "spherical_clipper.hpp"  // Vec3, dot, normalize, etc.
 
@@ -36,8 +36,8 @@ namespace axis::detail {
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace cap_detail {
-    inline constexpr double pi = 3.14159265358979323846;
-    inline constexpr double deg2rad = pi / 180.0;
+inline constexpr double pi = 3.14159265358979323846;
+inline constexpr double deg2rad = pi / 180.0;
 }  // namespace cap_detail
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,8 +50,8 @@ namespace cap_detail {
 /// angular radius equal to the maximum arc-distance from centroid to any vertex.
 template <class MemorySpace>
 struct CapData {
-    Kokkos::View<Vec3*, MemorySpace>   centroids;      ///< Unit-sphere centroids [n_cells]
-    Kokkos::View<double*, MemorySpace> angular_radii;  ///< Angular radii in radians [n_cells]
+    Kokkos::View<Vec3 *, MemorySpace> centroids;        ///< Unit-sphere centroids [n_cells]
+    Kokkos::View<double *, MemorySpace> angular_radii;  ///< Angular radii in radians [n_cells]
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,9 +63,7 @@ struct CapData {
 KOKKOS_INLINE_FUNCTION
 Vec3 lonlat_to_xyz_device(double lon_rad, double lat_rad) noexcept {
     double cos_lat = Kokkos::cos(lat_rad);
-    return Vec3{cos_lat * Kokkos::cos(lon_rad),
-                cos_lat * Kokkos::sin(lon_rad),
-                Kokkos::sin(lat_rad)};
+    return Vec3{cos_lat * Kokkos::cos(lon_rad), cos_lat * Kokkos::sin(lon_rad), Kokkos::sin(lat_rad)};
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,16 +83,10 @@ Vec3 lonlat_to_xyz_device(double lon_rad, double lat_rad) noexcept {
 /// @param is_degrees     True if coordinates are in degrees, false if radians
 /// @return Unit-sphere centroid (normalized mean of vertex XYZ positions)
 KOKKOS_INLINE_FUNCTION
-Vec3 compute_cell_centroid_xyz(
-    const double* node_coords_ptr,
-    const std::size_t n_nodes,
-    const axis::index_t* conn_offsets_ptr,
-    const axis::index_t* conn_indices_ptr,
-    const std::size_t cell_idx,
-    bool is_degrees) noexcept {
-
+Vec3 compute_cell_centroid_xyz(const double *node_coords_ptr, const std::size_t n_nodes, const axis::index_t *conn_offsets_ptr,
+                               const axis::index_t *conn_indices_ptr, const std::size_t cell_idx, bool is_degrees) noexcept {
     const axis::index_t begin = conn_offsets_ptr[cell_idx];
-    const axis::index_t end   = conn_offsets_ptr[cell_idx + 1];
+    const axis::index_t end = conn_offsets_ptr[cell_idx + 1];
     const int n_verts = static_cast<int>(end - begin);
 
     if (n_verts < 1) return Vec3{0.0, 0.0, 0.0};
@@ -147,17 +139,10 @@ Vec3 compute_cell_centroid_xyz(
 /// @param is_degrees        True if coordinates are in degrees
 /// @return Angular radius in radians
 KOKKOS_INLINE_FUNCTION
-double compute_angular_radius(
-    const Vec3& centroid,
-    const double* node_coords_ptr,
-    const std::size_t n_nodes,
-    const axis::index_t* conn_offsets_ptr,
-    const axis::index_t* conn_indices_ptr,
-    const std::size_t cell_idx,
-    bool is_degrees) noexcept {
-
+double compute_angular_radius(const Vec3 &centroid, const double *node_coords_ptr, const std::size_t n_nodes, const axis::index_t *conn_offsets_ptr,
+                              const axis::index_t *conn_indices_ptr, const std::size_t cell_idx, bool is_degrees) noexcept {
     const axis::index_t begin = conn_offsets_ptr[cell_idx];
-    const axis::index_t end   = conn_offsets_ptr[cell_idx + 1];
+    const axis::index_t end = conn_offsets_ptr[cell_idx + 1];
     const int n_verts = static_cast<int>(end - begin);
 
     double max_angle = 0.0;
@@ -203,8 +188,7 @@ double compute_angular_radius(
 /// @param radius_d    Angular radius of the destination cell (radians)
 /// @return true if the pair can be safely skipped (caps are disjoint)
 KOKKOS_INLINE_FUNCTION
-bool spherical_cap_rejects(const Vec3& centroid_s, double radius_s,
-                           const Vec3& centroid_d, double radius_d) noexcept {
+bool spherical_cap_rejects(const Vec3 &centroid_s, double radius_s, const Vec3 &centroid_d, double radius_d) noexcept {
     double cos_dist = dot(centroid_s, centroid_d);
     // Clamp for numerical safety
     cos_dist = Kokkos::fmin(1.0, Kokkos::fmax(-1.0, cos_dist));
@@ -227,51 +211,36 @@ bool spherical_cap_rejects(const Vec3& centroid_s, double radius_s,
 /// @param mesh          The unstructured mesh to precompute cap data for.
 /// @return CapData containing Views of centroids [n_cells] and radii [n_cells].
 template <class MemorySpace>
-CapData<MemorySpace> precompute_cap_data(
-    const axis::topology::UnstructuredMesh<MemorySpace>& mesh) {
-
+CapData<MemorySpace> precompute_cap_data(const axis::topology::UnstructuredMesh<MemorySpace> &mesh) {
     using exec_space = exec_space_t<MemorySpace>;
 
     const std::size_t n_cells = mesh.n_cells();
     const std::size_t n_nodes = mesh.n_nodes();
 
     // Determine if coordinates are in degrees
-    const bool is_degrees =
-        (mesh.coord_system() == axis::topology::CoordinateSystem::SphericalDeg);
+    const bool is_degrees = (mesh.coord_system() == axis::topology::CoordinateSystem::SphericalDeg);
 
     // Allocate output views
-    Kokkos::View<Vec3*, MemorySpace> centroids("cap_centroids", n_cells);
-    Kokkos::View<double*, MemorySpace> angular_radii("cap_angular_radii", n_cells);
+    Kokkos::View<Vec3 *, MemorySpace> centroids("cap_centroids", n_cells);
+    Kokkos::View<double *, MemorySpace> angular_radii("cap_angular_radii", n_cells);
 
     // Get raw pointers for device-portable access
-    const auto& node_coords_view = mesh.node_coords_view();
-    const auto& offsets_view = mesh.conn_offsets_view();
-    const auto& indices_view = mesh.conn_indices_view();
+    const auto &node_coords_view = mesh.node_coords_view();
+    const auto &offsets_view = mesh.conn_offsets_view();
+    const auto &indices_view = mesh.conn_indices_view();
 
     // Compute centroids and angular radii in parallel
-    Kokkos::parallel_for("precompute_cap_data",
-        Kokkos::RangePolicy<exec_space>(0, n_cells),
-        KOKKOS_LAMBDA(const std::size_t cell_idx) {
+    Kokkos::parallel_for(
+        "precompute_cap_data", Kokkos::RangePolicy<exec_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t cell_idx) {
             // Compute centroid
-            Vec3 centroid = compute_cell_centroid_xyz(
-                node_coords_view.data(),
-                n_nodes,
-                offsets_view.data(),
-                indices_view.data(),
-                cell_idx,
-                is_degrees);
+            Vec3 centroid =
+                compute_cell_centroid_xyz(node_coords_view.data(), n_nodes, offsets_view.data(), indices_view.data(), cell_idx, is_degrees);
 
             centroids(cell_idx) = centroid;
 
             // Compute angular radius
-            double radius = compute_angular_radius(
-                centroid,
-                node_coords_view.data(),
-                n_nodes,
-                offsets_view.data(),
-                indices_view.data(),
-                cell_idx,
-                is_degrees);
+            double radius =
+                compute_angular_radius(centroid, node_coords_view.data(), n_nodes, offsets_view.data(), indices_view.data(), cell_idx, is_degrees);
 
             angular_radii(cell_idx) = radius;
         });

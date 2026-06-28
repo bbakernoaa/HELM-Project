@@ -3,11 +3,6 @@
 // Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11,
 //               2.12, 2.13, 8.4, 8.5, 8.6, 8.7, 8.9, 10.7
 
-#include "dagr/pipeline_config.hpp"
-
-#include "conf/conf.hpp"
-#include "logs/logs.hpp"
-
 #include <algorithm>
 #include <cstdint>
 #include <deque>
@@ -19,6 +14,10 @@
 #include <unordered_set>
 #include <vector>
 
+#include "conf/conf.hpp"
+#include "dagr/pipeline_config.hpp"
+#include "logs/logs.hpp"
+
 namespace dagr {
 
 namespace {
@@ -26,7 +25,7 @@ namespace {
 /// Thread-local logger instance for parse_pipeline diagnostics.
 /// In the full HELM build this would be the shared Logger; for now we
 /// instantiate a local one so the code compiles standalone.
-logs::Logger& logger() {
+logs::Logger &logger() {
     static logs::Logger instance;
     return instance;
 }
@@ -35,7 +34,7 @@ logs::Logger& logger() {
 /// tick::Duration. Supported suffix: 's' (seconds). The value before the
 /// suffix must be a positive integer.
 /// Returns tick::Duration{0} on parse failure (caller validates positivity).
-tick::Duration parse_snapshot_interval(const std::string& raw) {
+tick::Duration parse_snapshot_interval(const std::string &raw) {
     if (raw.empty()) {
         return tick::Duration{0};
     }
@@ -81,22 +80,22 @@ tick::Duration parse_snapshot_interval(const std::string& raw) {
 }
 
 /// Map a temporal_profile string to the enum. Returns nullopt on unrecognized.
-std::optional<Temporal_Profile> parse_temporal_profile(const std::string& str) {
+std::optional<Temporal_Profile> parse_temporal_profile(const std::string &str) {
     if (str == "linear") return Temporal_Profile::linear;
-    if (str == "step")   return Temporal_Profile::step;
+    if (str == "step") return Temporal_Profile::step;
     return std::nullopt;
 }
 
 /// Map an out_of_bounds_policy string to the enum. Returns nullopt on unrecognized.
-std::optional<OutOfBounds_Policy> parse_oob_policy(const std::string& str) {
+std::optional<OutOfBounds_Policy> parse_oob_policy(const std::string &str) {
     if (str == "clamp") return OutOfBounds_Policy::clamp;
     if (str == "cycle") return OutOfBounds_Policy::cycle;
     return std::nullopt;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
-Pipeline_Config parse_pipeline(const std::filesystem::path& yaml_path) {
+Pipeline_Config parse_pipeline(const std::filesystem::path &yaml_path) {
     // Req 2.1, 2.2: Load YAML via conf::Config::from_file.
     // Allow conf::Conf_Error to propagate on missing file or malformed YAML.
     auto cfg = conf::Config::from_file(yaml_path.string());
@@ -105,16 +104,13 @@ Pipeline_Config parse_pipeline(const std::filesystem::path& yaml_path) {
 
     // ── Settings extraction ──────────────────────────────────────────────────
     if (cfg.has("settings.max_concurrency")) {
-        result.max_concurrency = static_cast<std::uint32_t>(
-            cfg.get_int("settings.max_concurrency"));
+        result.max_concurrency = static_cast<std::uint32_t>(cfg.get_int("settings.max_concurrency"));
     }
     if (cfg.has("settings.deadlock_timeout")) {
-        result.deadlock_timeout_s = static_cast<std::uint32_t>(
-            cfg.get_int("settings.deadlock_timeout"));
+        result.deadlock_timeout_s = static_cast<std::uint32_t>(cfg.get_int("settings.deadlock_timeout"));
     }
     if (cfg.has("settings.shutdown_timeout")) {
-        result.shutdown_timeout_s = static_cast<std::uint32_t>(
-            cfg.get_int("settings.shutdown_timeout"));
+        result.shutdown_timeout_s = static_cast<std::uint32_t>(cfg.get_int("settings.shutdown_timeout"));
     }
 
     // ── Streams extraction (Req 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9) ─────────
@@ -126,58 +122,42 @@ Pipeline_Config parse_pipeline(const std::filesystem::path& yaml_path) {
 
         // Extract stream name
         if (!cfg.has(prefix + ".name")) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream at index " + std::to_string(i)
-                + " is missing required field 'name'");
-            throw std::invalid_argument(
-                "stream at index " + std::to_string(i) + ": missing required field 'name'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream at index " + std::to_string(i) + " is missing required field 'name'");
+            throw std::invalid_argument("stream at index " + std::to_string(i) + ": missing required field 'name'");
         }
         const std::string name = cfg.get_string(prefix + ".name");
 
         // Req 2.9: Validate no duplicate stream names
         if (seen_names.count(name) > 0) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: duplicate stream name '" + name + "'");
-            throw std::invalid_argument(
-                "duplicate stream name: '" + name + "'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: duplicate stream name '" + name + "'");
+            throw std::invalid_argument("duplicate stream name: '" + name + "'");
         }
         seen_names.insert(name);
 
         // Req 2.8: Check required fields exist
         if (!cfg.has(prefix + ".temporal_profile")) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name + "' missing required field 'temporal_profile'");
-            throw std::invalid_argument(
-                "stream '" + name + "': missing required field 'temporal_profile'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream '" + name + "' missing required field 'temporal_profile'");
+            throw std::invalid_argument("stream '" + name + "': missing required field 'temporal_profile'");
         }
         if (!cfg.has(prefix + ".out_of_bounds_policy")) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name + "' missing required field 'out_of_bounds_policy'");
-            throw std::invalid_argument(
-                "stream '" + name + "': missing required field 'out_of_bounds_policy'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream '" + name + "' missing required field 'out_of_bounds_policy'");
+            throw std::invalid_argument("stream '" + name + "': missing required field 'out_of_bounds_policy'");
         }
         if (!cfg.has(prefix + ".dataset_path")) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name + "' missing required field 'dataset_path'");
-            throw std::invalid_argument(
-                "stream '" + name + "': missing required field 'dataset_path'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream '" + name + "' missing required field 'dataset_path'");
+            throw std::invalid_argument("stream '" + name + "': missing required field 'dataset_path'");
         }
         if (!cfg.has(prefix + ".snapshot_interval")) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name + "' missing required field 'snapshot_interval'");
-            throw std::invalid_argument(
-                "stream '" + name + "': missing required field 'snapshot_interval'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream '" + name + "' missing required field 'snapshot_interval'");
+            throw std::invalid_argument("stream '" + name + "': missing required field 'snapshot_interval'");
         }
 
         // Req 2.6, 8.4, 8.5: Parse temporal_profile
         const std::string tp_str = cfg.get_string(prefix + ".temporal_profile");
         auto tp = parse_temporal_profile(tp_str);
         if (!tp.has_value()) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name
-                + "' has unrecognized temporal_profile '" + tp_str + "'");
-            throw std::invalid_argument(
-                "stream '" + name + "': unrecognized temporal_profile '" + tp_str + "'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream '" + name + "' has unrecognized temporal_profile '" + tp_str + "'");
+            throw std::invalid_argument("stream '" + name + "': unrecognized temporal_profile '" + tp_str + "'");
         }
 
         // Req 2.7, 8.6, 8.7: Parse out_of_bounds_policy
@@ -185,20 +165,16 @@ Pipeline_Config parse_pipeline(const std::filesystem::path& yaml_path) {
         auto oob = parse_oob_policy(oob_str);
         if (!oob.has_value()) {
             logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name
-                + "' has unrecognized out_of_bounds_policy '" + oob_str + "'");
-            throw std::invalid_argument(
-                "stream '" + name + "': unrecognized out_of_bounds_policy '" + oob_str + "'");
+                         "parse_pipeline: stream '" + name + "' has unrecognized out_of_bounds_policy '" + oob_str + "'");
+            throw std::invalid_argument("stream '" + name + "': unrecognized out_of_bounds_policy '" + oob_str + "'");
         }
 
         // Req 2.5: Extract dataset_path
         const std::string ds_path = cfg.get_string(prefix + ".dataset_path");
         // Req 8.9: Validate dataset_path is not empty
         if (ds_path.empty()) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name + "' has empty dataset_path");
-            throw std::invalid_argument(
-                "stream '" + name + "': dataset_path must not be empty");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream '" + name + "' has empty dataset_path");
+            throw std::invalid_argument("stream '" + name + "': dataset_path must not be empty");
         }
 
         // Req 2.5: Extract snapshot_interval as opaque duration token
@@ -206,22 +182,18 @@ Pipeline_Config parse_pipeline(const std::filesystem::path& yaml_path) {
         tick::Duration interval = parse_snapshot_interval(interval_str);
         // Req 8.9: Validate snapshot_interval is positive (> 0 nanos)
         if (interval.nanos() <= 0) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: stream '" + name
-                + "' has invalid snapshot_interval '" + interval_str + "'");
-            throw std::invalid_argument(
-                "stream '" + name + "': snapshot_interval must be positive (got '"
-                + interval_str + "')");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: stream '" + name + "' has invalid snapshot_interval '" + interval_str + "'");
+            throw std::invalid_argument("stream '" + name + "': snapshot_interval must be positive (got '" + interval_str + "')");
         }
 
         // Req 2.13: Do NOT validate dataset_path existence at parse time.
 
         // Build Stream_Descriptor (Req 2.10: preserve declaration order)
         Stream_Descriptor desc;
-        desc.name              = name;
-        desc.temporal_profile  = tp.value();
-        desc.oob_policy        = oob.value();
-        desc.dataset_path      = std::filesystem::path{ds_path};
+        desc.name = name;
+        desc.temporal_profile = tp.value();
+        desc.oob_policy = oob.value();
+        desc.dataset_path = std::filesystem::path{ds_path};
         desc.snapshot_interval = interval;
 
         result.streams.push_back(std::move(desc));
@@ -248,23 +220,19 @@ Pipeline_Config parse_pipeline(const std::filesystem::path& yaml_path) {
     for (std::size_t i = 0; i < dep_count; ++i) {
         const std::string prefix = "dependencies." + std::to_string(i);
         const std::string from_name = cfg.get_string(prefix + ".from");
-        const std::string to_name   = cfg.get_string(prefix + ".to");
+        const std::string to_name = cfg.get_string(prefix + ".to");
 
         // Look up task indices
         auto from_it = task_index.find(from_name);
-        auto to_it   = task_index.find(to_name);
+        auto to_it = task_index.find(to_name);
 
         if (from_it == task_index.end()) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: dependency references unknown task '" + from_name + "'");
-            throw std::invalid_argument(
-                "dependency references unknown task '" + from_name + "'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: dependency references unknown task '" + from_name + "'");
+            throw std::invalid_argument("dependency references unknown task '" + from_name + "'");
         }
         if (to_it == task_index.end()) {
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: dependency references unknown task '" + to_name + "'");
-            throw std::invalid_argument(
-                "dependency references unknown task '" + to_name + "'");
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: dependency references unknown task '" + to_name + "'");
+            throw std::invalid_argument("dependency references unknown task '" + to_name + "'");
         }
 
         const std::uint32_t producer_id = from_it->second;
@@ -317,14 +285,12 @@ Pipeline_Config parse_pipeline(const std::filesystem::path& yaml_path) {
                 }
             }
 
-            logger().log(logs::Severity_Level::WARNING,
-                "parse_pipeline: cycle detected in task dependencies: " + cycle_path);
-            throw std::invalid_argument(
-                "cycle detected in task dependencies: " + cycle_path);
+            logger().log(logs::Severity_Level::WARNING, "parse_pipeline: cycle detected in task dependencies: " + cycle_path);
+            throw std::invalid_argument("cycle detected in task dependencies: " + cycle_path);
         }
     }
 
     return result;
 }
 
-} // namespace dagr
+}  // namespace dagr

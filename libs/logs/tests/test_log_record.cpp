@@ -4,13 +4,12 @@
 /// Uses RapidCheck + Google Test to verify universal correctness properties
 /// over arbitrary Log_Record constructions.
 
-#include <logs/log_record.hpp>
-#include <logs/source_location.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <logs/log_record.hpp>
+#include <logs/source_location.hpp>
 #include <optional>
 #include <string>
 #include <vector>
@@ -19,17 +18,15 @@ namespace {
 
 /// Generate a random valid Severity_Level (int 0–4 cast to enum).
 rc::Gen<logs::Severity_Level> genSeverityLevel() {
-    return rc::gen::map(rc::gen::inRange(0, 5), [](int v) {
-        return static_cast<logs::Severity_Level>(v);
-    });
+    return rc::gen::map(rc::gen::inRange(0, 5), [](int v) { return static_cast<logs::Severity_Level>(v); });
 }
 
 /// Generate an arbitrary Source_Location with line >= 1.
 rc::Gen<logs::Source_Location> genSourceLocation() {
     return rc::gen::exec([]() {
         logs::Source_Location loc;
-        loc.file     = *rc::gen::arbitrary<std::string>();
-        loc.line     = *rc::gen::inRange(1, 100000);
+        loc.file = *rc::gen::arbitrary<std::string>();
+        loc.line = *rc::gen::inRange(1, 100000);
         loc.function = *rc::gen::arbitrary<std::string>();
         return loc;
     });
@@ -65,19 +62,15 @@ rc::Gen<std::optional<std::string>> genOptionalStackTrace() {
 /// For any severity, message, rank, optional location, context-label sequence,
 /// and optional stack trace, verify all accessors return values equal to
 /// constructor inputs with message preserved byte-for-byte.
-RC_GTEST_PROP(LogRecordConstruction,
-              PreservesAllFields,
-              ()) {
-    const auto severity       = *genSeverityLevel();
-    const auto message        = *rc::gen::arbitrary<std::string>();
-    const auto rank           = *rc::gen::arbitrary<int>();
-    const auto location       = *genOptionalLocation();
+RC_GTEST_PROP(LogRecordConstruction, PreservesAllFields, ()) {
+    const auto severity = *genSeverityLevel();
+    const auto message = *rc::gen::arbitrary<std::string>();
+    const auto rank = *rc::gen::arbitrary<int>();
+    const auto location = *genOptionalLocation();
     const auto context_labels = *rc::gen::arbitrary<std::vector<std::string>>();
-    const auto stack_trace    = *genOptionalStackTrace();
+    const auto stack_trace = *genOptionalStackTrace();
 
-    const logs::Log_Record record{
-        severity, message, rank, location, context_labels, stack_trace
-    };
+    const logs::Log_Record record{severity, message, rank, location, context_labels, stack_trace};
 
     // Severity preserved
     RC_ASSERT(record.severity() == severity);
@@ -108,16 +101,11 @@ RC_GTEST_PROP(LogRecordConstruction,
 
 /// Verify message is preserved byte-for-byte including embedded nulls and
 /// arbitrary byte values.
-RC_GTEST_PROP(LogRecordConstruction,
-              MessageByteForBytePreservation,
-              ()) {
+RC_GTEST_PROP(LogRecordConstruction, MessageByteForBytePreservation, ()) {
     const auto message = *rc::gen::arbitrary<std::string>();
-    const auto rank    = *rc::gen::arbitrary<int>();
+    const auto rank = *rc::gen::arbitrary<int>();
 
-    const logs::Log_Record record{
-        logs::Severity_Level::INFO, message, rank,
-        std::nullopt, {}, std::nullopt
-    };
+    const logs::Log_Record record{logs::Severity_Level::INFO, message, rank, std::nullopt, {}, std::nullopt};
 
     // Byte-for-byte equality: same length and same content
     RC_ASSERT(record.message().size() == message.size());
@@ -128,19 +116,15 @@ RC_GTEST_PROP(LogRecordConstruction,
 
 /// Verify that copying a Log_Record preserves all fields identically
 /// (immutability guarantee).
-RC_GTEST_PROP(LogRecordConstruction,
-              CopyPreservesFields,
-              ()) {
-    const auto severity       = *genSeverityLevel();
-    const auto message        = *rc::gen::arbitrary<std::string>();
-    const auto rank           = *rc::gen::arbitrary<int>();
-    const auto location       = *genOptionalLocation();
+RC_GTEST_PROP(LogRecordConstruction, CopyPreservesFields, ()) {
+    const auto severity = *genSeverityLevel();
+    const auto message = *rc::gen::arbitrary<std::string>();
+    const auto rank = *rc::gen::arbitrary<int>();
+    const auto location = *genOptionalLocation();
     const auto context_labels = *rc::gen::arbitrary<std::vector<std::string>>();
-    const auto stack_trace    = *genOptionalStackTrace();
+    const auto stack_trace = *genOptionalStackTrace();
 
-    const logs::Log_Record original{
-        severity, message, rank, location, context_labels, stack_trace
-    };
+    const logs::Log_Record original{severity, message, rank, location, context_labels, stack_trace};
 
     const logs::Log_Record copy{original};  // NOLINT(performance-unnecessary-copy-initialization)
 
@@ -167,22 +151,19 @@ RC_GTEST_PROP(LogRecordConstruction,
 
 /// For any Log_Record constructed without source-location (std::nullopt),
 /// verify the stored location is std::nullopt — never fabricated.
-RC_GTEST_PROP(LogRecordSourceLocation,
-              AbsentLocationIsNeverFabricated,
-              ()) {
-    const auto severity       = *genSeverityLevel();
-    const auto message        = *rc::gen::arbitrary<std::string>();
-    const auto rank           = *rc::gen::arbitrary<int>();
+RC_GTEST_PROP(LogRecordSourceLocation, AbsentLocationIsNeverFabricated, ()) {
+    const auto severity = *genSeverityLevel();
+    const auto message = *rc::gen::arbitrary<std::string>();
+    const auto rank = *rc::gen::arbitrary<int>();
     const auto context_labels = *rc::gen::arbitrary<std::vector<std::string>>();
-    const auto stack_trace    = *genOptionalStackTrace();
+    const auto stack_trace = *genOptionalStackTrace();
 
     // Construct with std::nullopt as the location argument.
-    const logs::Log_Record record{
-        severity, message, rank, std::nullopt, context_labels, stack_trace};
+    const logs::Log_Record record{severity, message, rank, std::nullopt, context_labels, stack_trace};
 
     // The stored location must be absent — never fabricated.
     RC_ASSERT(record.location() == std::nullopt);
     RC_ASSERT(record.location().has_value() == false);
 }
 
-} // namespace
+}  // namespace

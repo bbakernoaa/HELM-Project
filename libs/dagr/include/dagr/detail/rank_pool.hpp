@@ -24,7 +24,7 @@ namespace dagr::detail {
 /// Thread safety: all public methods are safe to call concurrently
 /// without external synchronization (Req 5.4).
 class Rank_Pool {
-public:
+   public:
     /// Construct a Rank_Pool managing the given set of MPI rank identifiers.
     /// All ranks are initially available.
     /// @param ranks  Set of MPI rank identifiers to manage
@@ -42,17 +42,17 @@ public:
     /// Return previously allocated ranks to the pool.
     /// Flips bits back to available state.
     /// @param ranks  Set of rank IDs to release
-    void release(const std::set<int>& ranks);
+    void release(const std::set<int> &ranks);
 
     /// Add newly yielded ranks to the pool.
     /// Extends the bitset and rank_ids mapping. Increments total and available.
     /// @param ranks  Set of new MPI rank identifiers to add
-    void add_ranks(const std::set<int>& ranks);
+    void add_ranks(const std::set<int> &ranks);
 
     /// Remove only available (non-allocated) ranks from the pool.
     /// @param ranks  Set of rank IDs to attempt removal
     /// @return Set of ranks actually removed (subset of input that were available)
-    std::set<int> remove_available(const std::set<int>& ranks);
+    std::set<int> remove_available(const std::set<int> &ranks);
 
     /// @return Total number of ranks managed by this pool.
     [[nodiscard]] std::uint32_t total_ranks() const noexcept;
@@ -63,7 +63,7 @@ public:
     /// @return Number of ranks currently allocated to in-flight tasks.
     [[nodiscard]] std::uint32_t allocated_ranks() const noexcept;
 
-private:
+   private:
     /// Per-rank availability flag: true = available, false = allocated.
     /// Stored as heap-allocated atomics to allow vector resizing.
     std::vector<std::unique_ptr<std::atomic<bool>>> bitset_;
@@ -83,4 +83,4 @@ private:
     mutable std::mutex structural_mutex_;
 };
 
-} // namespace dagr::detail
+}  // namespace dagr::detail

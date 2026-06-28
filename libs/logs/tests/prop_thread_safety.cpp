@@ -10,17 +10,17 @@
 ///
 /// **Validates: Requirements 11.1, 11.2, 11.8**
 
-#include <logs/logger.hpp>
-#include "in_memory_sink.hpp"
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <algorithm>
+#include <logs/logger.hpp>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "in_memory_sink.hpp"
 
 namespace {
 
@@ -30,7 +30,7 @@ namespace {
 /// - Starts with "[RANK:" prefix
 /// - Ends with exactly one newline at the end
 /// - Contains no embedded newlines before the trailing one
-[[nodiscard]] bool is_valid_record(const std::string& entry) {
+[[nodiscard]] bool is_valid_record(const std::string &entry) {
     if (entry.empty()) return false;
 
     // Must end with exactly one newline.
@@ -53,9 +53,7 @@ namespace {
 
 /// Multi-threaded submissions to a shared Logger: verify emitted count equals
 /// submitted count and no record's text is interleaved with another.
-RC_GTEST_PROP(ConcurrentRecordCountIntegrity,
-              CountEqualsSubmittedAndNoInterleaving,
-              ()) {
+RC_GTEST_PROP(ConcurrentRecordCountIntegrity, CountEqualsSubmittedAndNoInterleaving, ()) {
     // Generate random N threads (2-16) and M messages per thread (100-1000).
     const auto num_threads = *rc::gen::inRange(2, 17);
     const auto msgs_per_thread = *rc::gen::inRange(100, 1001);
@@ -75,37 +73,32 @@ RC_GTEST_PROP(ConcurrentRecordCountIntegrity,
         threads.emplace_back([&logger, t, msgs_per_thread]() {
             for (int m = 0; m < msgs_per_thread; ++m) {
                 // Each message is uniquely identifiable by thread and index.
-                std::string msg = "T" + std::to_string(t) +
-                                  "_M" + std::to_string(m);
+                std::string msg = "T" + std::to_string(t) + "_M" + std::to_string(m);
                 logger.log(logs::Severity_Level::INFO, msg);
             }
         });
     }
 
     // Join all threads.
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
     // Property 1: Total count == N * M (no lost, no duplicated records).
-    const std::size_t expected_count =
-        static_cast<std::size_t>(num_threads) *
-        static_cast<std::size_t>(msgs_per_thread);
+    const std::size_t expected_count = static_cast<std::size_t>(num_threads) * static_cast<std::size_t>(msgs_per_thread);
 
     RC_ASSERT(mem_sink.count() == expected_count);
 
     // Property 2: Each entry is a complete, non-interleaved record.
     const auto entries = mem_sink.entries();
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         RC_ASSERT(is_valid_record(entry));
     }
 }
 
 /// Verify that every submitted record appears exactly once in the output
 /// (no duplication, no loss) under concurrent submission.
-RC_GTEST_PROP(ConcurrentRecordCountIntegrity,
-              AllRecordsAppearExactlyOnce,
-              ()) {
+RC_GTEST_PROP(ConcurrentRecordCountIntegrity, AllRecordsAppearExactlyOnce, ()) {
     // Use smaller ranges for this property since we check exact content.
     const auto num_threads = *rc::gen::inRange(2, 9);
     const auto msgs_per_thread = *rc::gen::inRange(100, 501);
@@ -122,21 +115,18 @@ RC_GTEST_PROP(ConcurrentRecordCountIntegrity,
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&logger, t, msgs_per_thread]() {
             for (int m = 0; m < msgs_per_thread; ++m) {
-                std::string msg = "T" + std::to_string(t) +
-                                  "_M" + std::to_string(m);
+                std::string msg = "T" + std::to_string(t) + "_M" + std::to_string(m);
                 logger.log(logs::Severity_Level::INFO, msg);
             }
         });
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
     const auto entries = mem_sink.entries();
-    const std::size_t expected_count =
-        static_cast<std::size_t>(num_threads) *
-        static_cast<std::size_t>(msgs_per_thread);
+    const std::size_t expected_count = static_cast<std::size_t>(num_threads) * static_cast<std::size_t>(msgs_per_thread);
 
     RC_ASSERT(entries.size() == expected_count);
 
@@ -145,7 +135,7 @@ RC_GTEST_PROP(ConcurrentRecordCountIntegrity,
     std::vector<std::string> messages;
     messages.reserve(entries.size());
 
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         // The message is after the last ']' + space, before '\n'.
         auto last_bracket = entry.rfind(']');
         if (last_bracket == std::string::npos) {
@@ -172,12 +162,10 @@ RC_GTEST_PROP(ConcurrentRecordCountIntegrity,
     // Check that all expected messages are present.
     for (int t = 0; t < num_threads; ++t) {
         for (int m = 0; m < msgs_per_thread; ++m) {
-            std::string expected_msg = "T" + std::to_string(t) +
-                                       "_M" + std::to_string(m);
-            RC_ASSERT(std::binary_search(messages.begin(), messages.end(),
-                                         expected_msg));
+            std::string expected_msg = "T" + std::to_string(t) + "_M" + std::to_string(m);
+            RC_ASSERT(std::binary_search(messages.begin(), messages.end(), expected_msg));
         }
     }
 }
 
-} // namespace
+}  // namespace

@@ -21,13 +21,11 @@
 /// Light inline accessors live in this header; the .cpp provides explicit
 /// template instantiations for common memory spaces.
 
-#include <algorithm>
-#include <cstddef>
-
 #include <Kokkos_Core.hpp>
 #include <Kokkos_Sort.hpp>
-
+#include <algorithm>
 #include <axis/types.hpp>
+#include <cstddef>
 
 namespace axis::solver {
 
@@ -61,7 +59,7 @@ struct IndexPair {
 ///         (Kokkos::HostSpace, CudaSpace, HIPSpace, etc.)
 template <class MemorySpace = Kokkos::HostSpace>
 class InterpolationMatrix {
-public:
+   public:
     using memory_space = MemorySpace;
 
     /// Default-construct an empty matrix.
@@ -78,26 +76,19 @@ public:
     /// @param area_b       Destination cell areas [n_dst]
     /// @param n_src        Number of source cells (n_a in ESMF terms)
     /// @param n_dst        Number of destination cells (n_b in ESMF terms)
-    InterpolationMatrix(
-        Kokkos::View<double*, MemorySpace>  factor_list,
-        Kokkos::View<index_t*, MemorySpace> factor_row,
-        Kokkos::View<index_t*, MemorySpace> factor_col,
-        Kokkos::View<double*, MemorySpace>  frac_a,
-        Kokkos::View<double*, MemorySpace>  frac_b,
-        Kokkos::View<double*, MemorySpace>  area_a,
-        Kokkos::View<double*, MemorySpace>  area_b,
-        std::size_t n_src,
-        std::size_t n_dst)
-        : factor_list_(std::move(factor_list))
-        , factor_row_(std::move(factor_row))
-        , factor_col_(std::move(factor_col))
-        , frac_a_(std::move(frac_a))
-        , frac_b_(std::move(frac_b))
-        , area_a_(std::move(area_a))
-        , area_b_(std::move(area_b))
-        , n_src_(n_src)
-        , n_dst_(n_dst)
-    {}
+    InterpolationMatrix(Kokkos::View<double *, MemorySpace> factor_list, Kokkos::View<index_t *, MemorySpace> factor_row,
+                        Kokkos::View<index_t *, MemorySpace> factor_col, Kokkos::View<double *, MemorySpace> frac_a,
+                        Kokkos::View<double *, MemorySpace> frac_b, Kokkos::View<double *, MemorySpace> area_a,
+                        Kokkos::View<double *, MemorySpace> area_b, std::size_t n_src, std::size_t n_dst)
+        : factor_list_(std::move(factor_list)),
+          factor_row_(std::move(factor_row)),
+          factor_col_(std::move(factor_col)),
+          frac_a_(std::move(frac_a)),
+          frac_b_(std::move(frac_b)),
+          area_a_(std::move(area_a)),
+          area_b_(std::move(area_b)),
+          n_src_(n_src),
+          n_dst_(n_dst) {}
 
     // ─────────────────────────────────────────────────────────────────────────
     // Scalar accessors
@@ -127,25 +118,19 @@ public:
 
     /// Interpolation weights S: [nnz].
     [[nodiscard]] field_view<const double, 1> factor_list() const noexcept {
-        return field_view<const double, 1>{
-            factor_list_.data(),
-            factor_list_.extent(0)};
+        return field_view<const double, 1>{factor_list_.data(), factor_list_.extent(0)};
     }
 
     /// Source (column) indices: [nnz]. Each entry is the source cell index
     /// for the corresponding weight in factor_list.
     [[nodiscard]] field_view<const index_t, 1> factor_col() const noexcept {
-        return field_view<const index_t, 1>{
-            factor_col_.data(),
-            factor_col_.extent(0)};
+        return field_view<const index_t, 1>{factor_col_.data(), factor_col_.extent(0)};
     }
 
     /// Destination (row) indices: [nnz]. Each entry is the destination cell
     /// index for the corresponding weight in factor_list.
     [[nodiscard]] field_view<const index_t, 1> factor_row() const noexcept {
-        return field_view<const index_t, 1>{
-            factor_row_.data(),
-            factor_row_.extent(0)};
+        return field_view<const index_t, 1>{factor_row_.data(), factor_row_.extent(0)};
     }
 
     /// Combined (row, col) index pair accessor for the k-th nonzero.
@@ -157,31 +142,23 @@ public:
     /// Source fractions: [n_src]. frac_a[i] is the fraction of source cell i
     /// covered by the destination mesh.
     [[nodiscard]] field_view<const double, 1> frac_a() const noexcept {
-        return field_view<const double, 1>{
-            frac_a_.data(),
-            frac_a_.extent(0)};
+        return field_view<const double, 1>{frac_a_.data(), frac_a_.extent(0)};
     }
 
     /// Destination fractions: [n_dst]. frac_b[j] is the fraction of
     /// destination cell j covered by the source mesh.
     [[nodiscard]] field_view<const double, 1> frac_b() const noexcept {
-        return field_view<const double, 1>{
-            frac_b_.data(),
-            frac_b_.extent(0)};
+        return field_view<const double, 1>{frac_b_.data(), frac_b_.extent(0)};
     }
 
     /// Source cell areas: [n_src].
     [[nodiscard]] field_view<const double, 1> area_a() const noexcept {
-        return field_view<const double, 1>{
-            area_a_.data(),
-            area_a_.extent(0)};
+        return field_view<const double, 1>{area_a_.data(), area_a_.extent(0)};
     }
 
     /// Destination cell areas: [n_dst].
     [[nodiscard]] field_view<const double, 1> area_b() const noexcept {
-        return field_view<const double, 1>{
-            area_b_.data(),
-            area_b_.extent(0)};
+        return field_view<const double, 1>{area_b_.data(), area_b_.extent(0)};
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -207,12 +184,9 @@ public:
 
         if (n_nz == 0) {
             // Empty matrix: just allocate zero-sized CSR arrays
-            row_ptr_ = Kokkos::View<index_t*, MemorySpace>(
-                "csr_row_ptr", n_rows + 1);
-            col_idx_ = Kokkos::View<index_t*, MemorySpace>(
-                "csr_col_idx", 0);
-            csr_vals_ = Kokkos::View<double*, MemorySpace>(
-                "csr_vals", 0);
+            row_ptr_ = Kokkos::View<index_t *, MemorySpace>("csr_row_ptr", n_rows + 1);
+            col_idx_ = Kokkos::View<index_t *, MemorySpace>("csr_col_idx", 0);
+            csr_vals_ = Kokkos::View<double *, MemorySpace>("csr_vals", 0);
             // row_ptr is already zero-initialized by Kokkos
             has_csr_ = true;
             return;
@@ -223,21 +197,15 @@ public:
         // apply the permutation to build CSR arrays on the target space.
 
         // Create host mirrors of row and col indices
-        auto h_row = Kokkos::create_mirror_view_and_copy(
-            Kokkos::HostSpace{}, factor_row_);
-        auto h_col = Kokkos::create_mirror_view_and_copy(
-            Kokkos::HostSpace{}, factor_col_);
-        auto h_vals = Kokkos::create_mirror_view_and_copy(
-            Kokkos::HostSpace{}, factor_list_);
+        auto h_row = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, factor_row_);
+        auto h_col = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, factor_col_);
+        auto h_vals = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, factor_list_);
 
         // Build permutation indices on host
-        Kokkos::View<index_t*, Kokkos::HostSpace> h_perm("perm", n_nz);
+        Kokkos::View<index_t *, Kokkos::HostSpace> h_perm("perm", n_nz);
         Kokkos::parallel_for(
-            "init_perm",
-            Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace>(0, n_nz),
-            KOKKOS_LAMBDA(const std::size_t i) {
-                h_perm(i) = static_cast<index_t>(i);
-            });
+            "init_perm", Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace>(0, n_nz),
+            KOKKOS_LAMBDA(const std::size_t i) { h_perm(i) = static_cast<index_t>(i); });
         Kokkos::fence();
 
         // Sort permutation by (row, col) using std::sort on the host
@@ -245,20 +213,15 @@ public:
         auto h_perm_ptr = h_perm.data();
         auto h_row_ptr = h_row.data();
         auto h_col_ptr = h_col.data();
-        std::sort(h_perm_ptr, h_perm_ptr + n_nz,
-            [h_row_ptr, h_col_ptr](index_t a, index_t b) {
-                if (h_row_ptr[a] != h_row_ptr[b])
-                    return h_row_ptr[a] < h_row_ptr[b];
-                return h_col_ptr[a] < h_col_ptr[b];
-            });
+        std::sort(h_perm_ptr, h_perm_ptr + n_nz, [h_row_ptr, h_col_ptr](index_t a, index_t b) {
+            if (h_row_ptr[a] != h_row_ptr[b]) return h_row_ptr[a] < h_row_ptr[b];
+            return h_col_ptr[a] < h_col_ptr[b];
+        });
 
         // --- Step 2: Build CSR arrays on host ---
-        Kokkos::View<index_t*, Kokkos::HostSpace> h_row_ptr_csr(
-            "h_csr_row_ptr", n_rows + 1);
-        Kokkos::View<index_t*, Kokkos::HostSpace> h_col_idx(
-            "h_csr_col_idx", n_nz);
-        Kokkos::View<double*, Kokkos::HostSpace> h_csr_vals(
-            "h_csr_vals", n_nz);
+        Kokkos::View<index_t *, Kokkos::HostSpace> h_row_ptr_csr("h_csr_row_ptr", n_rows + 1);
+        Kokkos::View<index_t *, Kokkos::HostSpace> h_col_idx("h_csr_col_idx", n_nz);
+        Kokkos::View<double *, Kokkos::HostSpace> h_csr_vals("h_csr_vals", n_nz);
 
         // Count entries per row
         for (std::size_t k = 0; k < n_nz; ++k) {
@@ -279,12 +242,9 @@ public:
         }
 
         // --- Step 3: Copy CSR arrays to target MemorySpace ---
-        row_ptr_ = Kokkos::View<index_t*, MemorySpace>(
-            "csr_row_ptr", n_rows + 1);
-        col_idx_ = Kokkos::View<index_t*, MemorySpace>(
-            "csr_col_idx", n_nz);
-        csr_vals_ = Kokkos::View<double*, MemorySpace>(
-            "csr_vals", n_nz);
+        row_ptr_ = Kokkos::View<index_t *, MemorySpace>("csr_row_ptr", n_rows + 1);
+        col_idx_ = Kokkos::View<index_t *, MemorySpace>("csr_col_idx", n_nz);
+        csr_vals_ = Kokkos::View<double *, MemorySpace>("csr_vals", n_nz);
 
         Kokkos::deep_copy(row_ptr_, h_row_ptr_csr);
         Kokkos::deep_copy(col_idx_, h_col_idx);
@@ -301,19 +261,19 @@ public:
     /// CSR row pointer array: [n_dst+1].
     /// row_ptr[j] to row_ptr[j+1] spans the entries for destination cell j.
     /// @pre is_csr() == true
-    [[nodiscard]] Kokkos::View<const index_t*, MemorySpace> row_ptr() const noexcept {
+    [[nodiscard]] Kokkos::View<const index_t *, MemorySpace> row_ptr() const noexcept {
         return row_ptr_;
     }
 
     /// CSR column index array: [nnz]. Sorted by column within each row.
     /// @pre is_csr() == true
-    [[nodiscard]] Kokkos::View<const index_t*, MemorySpace> col_idx() const noexcept {
+    [[nodiscard]] Kokkos::View<const index_t *, MemorySpace> col_idx() const noexcept {
         return col_idx_;
     }
 
     /// CSR values array: [nnz]. Entries correspond to col_idx positions.
     /// @pre is_csr() == true
-    [[nodiscard]] Kokkos::View<const double*, MemorySpace> csr_values() const noexcept {
+    [[nodiscard]] Kokkos::View<const double *, MemorySpace> csr_values() const noexcept {
         return csr_vals_;
     }
 
@@ -322,33 +282,47 @@ public:
     // conservation accounting that need direct View access)
     // ─────────────────────────────────────────────────────────────────────────
 
-    [[nodiscard]] const auto& factor_list_view() const noexcept { return factor_list_; }
-    [[nodiscard]] const auto& factor_row_view() const noexcept { return factor_row_; }
-    [[nodiscard]] const auto& factor_col_view() const noexcept { return factor_col_; }
-    [[nodiscard]] const auto& frac_a_view() const noexcept { return frac_a_; }
-    [[nodiscard]] const auto& frac_b_view() const noexcept { return frac_b_; }
-    [[nodiscard]] const auto& area_a_view() const noexcept { return area_a_; }
-    [[nodiscard]] const auto& area_b_view() const noexcept { return area_b_; }
+    [[nodiscard]] const auto &factor_list_view() const noexcept {
+        return factor_list_;
+    }
+    [[nodiscard]] const auto &factor_row_view() const noexcept {
+        return factor_row_;
+    }
+    [[nodiscard]] const auto &factor_col_view() const noexcept {
+        return factor_col_;
+    }
+    [[nodiscard]] const auto &frac_a_view() const noexcept {
+        return frac_a_;
+    }
+    [[nodiscard]] const auto &frac_b_view() const noexcept {
+        return frac_b_;
+    }
+    [[nodiscard]] const auto &area_a_view() const noexcept {
+        return area_a_;
+    }
+    [[nodiscard]] const auto &area_b_view() const noexcept {
+        return area_b_;
+    }
 
-private:
+   private:
     // COO storage
-    Kokkos::View<double*, MemorySpace>  factor_list_;   ///< weights [nnz]
-    Kokkos::View<index_t*, MemorySpace> factor_row_;    ///< destination indices [nnz]
-    Kokkos::View<index_t*, MemorySpace> factor_col_;    ///< source indices [nnz]
-    Kokkos::View<double*, MemorySpace>  frac_a_;        ///< source fractions [n_src]
-    Kokkos::View<double*, MemorySpace>  frac_b_;        ///< destination fractions [n_dst]
-    Kokkos::View<double*, MemorySpace>  area_a_;        ///< source cell areas [n_src]
-    Kokkos::View<double*, MemorySpace>  area_b_;        ///< destination cell areas [n_dst]
+    Kokkos::View<double *, MemorySpace> factor_list_;  ///< weights [nnz]
+    Kokkos::View<index_t *, MemorySpace> factor_row_;  ///< destination indices [nnz]
+    Kokkos::View<index_t *, MemorySpace> factor_col_;  ///< source indices [nnz]
+    Kokkos::View<double *, MemorySpace> frac_a_;       ///< source fractions [n_src]
+    Kokkos::View<double *, MemorySpace> frac_b_;       ///< destination fractions [n_dst]
+    Kokkos::View<double *, MemorySpace> area_a_;       ///< source cell areas [n_src]
+    Kokkos::View<double *, MemorySpace> area_b_;       ///< destination cell areas [n_dst]
     std::size_t n_src_{0};
     std::size_t n_dst_{0};
 
     // CSR storage (populated by to_csr())
-    Kokkos::View<index_t*, MemorySpace> row_ptr_;       ///< row pointers [n_dst+1]
-    Kokkos::View<index_t*, MemorySpace> col_idx_;       ///< column indices [nnz]
-    Kokkos::View<double*, MemorySpace>  csr_vals_;      ///< values [nnz]
-    bool has_csr_{false};                               ///< CSR representation available
+    Kokkos::View<index_t *, MemorySpace> row_ptr_;  ///< row pointers [n_dst+1]
+    Kokkos::View<index_t *, MemorySpace> col_idx_;  ///< column indices [nnz]
+    Kokkos::View<double *, MemorySpace> csr_vals_;  ///< values [nnz]
+    bool has_csr_{false};                           ///< CSR representation available
 };
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_INTERPOLATION_MATRIX_HPP
+#endif  // AXIS_SOLVER_INTERPOLATION_MATRIX_HPP

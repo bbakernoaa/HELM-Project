@@ -12,16 +12,14 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/ingest/scrip_egress.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cstddef>
+#include <vector>
 
 namespace {
 
@@ -31,20 +29,16 @@ using MemSpace = Kokkos::HostSpace;
 // Creates a planar grid of quads in SphericalDeg coordinates for testing.
 // Each cell is a unit square at (i, 0)-(i+1, 0)-(i+1, 1)-(i, 1).
 
-axis::topology::UnstructuredMesh<MemSpace>
-buildSimpleMesh(std::size_t n_cells) {
+axis::topology::UnstructuredMesh<MemSpace> buildSimpleMesh(std::size_t n_cells) {
     // Each cell has 4 unique nodes (no sharing for simplicity)
     const std::size_t n_nodes = n_cells * 4;
     const std::size_t ndim = 2;
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemSpace>
-        node_coords("node_coords", n_nodes, ndim);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> node_coords("node_coords", n_nodes, ndim);
 
-    Kokkos::View<axis::index_t*, MemSpace>
-        conn_offsets("conn_offsets", n_cells + 1);
+    Kokkos::View<axis::index_t *, MemSpace> conn_offsets("conn_offsets", n_cells + 1);
 
-    Kokkos::View<axis::index_t*, MemSpace>
-        conn_indices("conn_indices", n_cells * 4);
+    Kokkos::View<axis::index_t *, MemSpace> conn_indices("conn_indices", n_cells * 4);
 
     for (std::size_t c = 0; c < n_cells; ++c) {
         const std::size_t base_node = c * 4;
@@ -69,11 +63,8 @@ buildSimpleMesh(std::size_t n_cells) {
     }
     conn_offsets(n_cells) = static_cast<axis::index_t>(n_cells * 4);
 
-    return axis::topology::UnstructuredMesh<MemSpace>(
-        std::move(node_coords),
-        std::move(conn_offsets),
-        std::move(conn_indices),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    return axis::topology::UnstructuredMesh<MemSpace>(std::move(node_coords), std::move(conn_offsets), std::move(conn_indices),
+                                                      axis::topology::CoordinateSystem::SphericalDeg);
 }
 
 // ─── Helper: Build a random InterpolationMatrix with valid indices ────────────
@@ -91,30 +82,31 @@ MatrixData generateRandomMatrix() {
     const auto max_nnz = std::min(n_src * n_dst, static_cast<std::size_t>(50));
     const auto nnz = *rc::gen::inRange<std::size_t>(1, max_nnz + 1);
 
-    Kokkos::View<double*, MemSpace>       fl("fl", nnz);
-    Kokkos::View<axis::index_t*, MemSpace> fr("fr", nnz);
-    Kokkos::View<axis::index_t*, MemSpace> fc("fc", nnz);
-    Kokkos::View<double*, MemSpace>       fa("fa", n_src);
-    Kokkos::View<double*, MemSpace>       fb("fb", n_dst);
-    Kokkos::View<double*, MemSpace>       aa("aa", n_src);
-    Kokkos::View<double*, MemSpace>       ab("ab", n_dst);
+    Kokkos::View<double *, MemSpace> fl("fl", nnz);
+    Kokkos::View<axis::index_t *, MemSpace> fr("fr", nnz);
+    Kokkos::View<axis::index_t *, MemSpace> fc("fc", nnz);
+    Kokkos::View<double *, MemSpace> fa("fa", n_src);
+    Kokkos::View<double *, MemSpace> fb("fb", n_dst);
+    Kokkos::View<double *, MemSpace> aa("aa", n_src);
+    Kokkos::View<double *, MemSpace> ab("ab", n_dst);
 
     for (std::size_t k = 0; k < nnz; ++k) {
-        fl(k) = *rc::gen::map(rc::gen::inRange(-10000, 10001),
-                              [](int v) { return static_cast<double>(v) / 1000.0; });
-        fr(k) = static_cast<axis::index_t>(
-            *rc::gen::inRange<std::size_t>(0, n_dst));
-        fc(k) = static_cast<axis::index_t>(
-            *rc::gen::inRange<std::size_t>(0, n_src));
+        fl(k) = *rc::gen::map(rc::gen::inRange(-10000, 10001), [](int v) { return static_cast<double>(v) / 1000.0; });
+        fr(k) = static_cast<axis::index_t>(*rc::gen::inRange<std::size_t>(0, n_dst));
+        fc(k) = static_cast<axis::index_t>(*rc::gen::inRange<std::size_t>(0, n_src));
     }
 
-    for (std::size_t i = 0; i < n_src; ++i) { fa(i) = 1.0; aa(i) = 1.0; }
-    for (std::size_t j = 0; j < n_dst; ++j) { fb(j) = 1.0; ab(j) = 1.0; }
+    for (std::size_t i = 0; i < n_src; ++i) {
+        fa(i) = 1.0;
+        aa(i) = 1.0;
+    }
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        fb(j) = 1.0;
+        ab(j) = 1.0;
+    }
 
-    axis::solver::InterpolationMatrix<MemSpace> matrix(
-        std::move(fl), std::move(fr), std::move(fc),
-        std::move(fa), std::move(fb), std::move(aa), std::move(ab),
-        n_src, n_dst);
+    axis::solver::InterpolationMatrix<MemSpace> matrix(std::move(fl), std::move(fr), std::move(fc), std::move(fa), std::move(fb), std::move(aa),
+                                                       std::move(ab), n_src, n_dst);
 
     return MatrixData{std::move(matrix), n_src, n_dst, nnz};
 }
@@ -138,7 +130,7 @@ RC_GTEST_PROP(PropScripEgress, ColIs1BasedOffset, ()) {
     config.method = axis::solver::InterpolationMethod::Bilinear;
 
     auto result = axis::ingest::scrip_egress(data.matrix, src_mesh, dst_mesh, config);
-    const auto& egress = result.get();
+    const auto &egress = result.get();
 
     // Verify n_s matches
     RC_ASSERT(egress.n_s == data.nnz);
@@ -164,7 +156,7 @@ RC_GTEST_PROP(PropScripEgress, RowIs1BasedOffset, ()) {
     config.method = axis::solver::InterpolationMethod::Conservative1stOrder;
 
     auto result = axis::ingest::scrip_egress(data.matrix, src_mesh, dst_mesh, config);
-    const auto& egress = result.get();
+    const auto &egress = result.get();
 
     RC_ASSERT(egress.n_s == data.nnz);
 
@@ -189,7 +181,7 @@ RC_GTEST_PROP(PropScripEgress, AllIndicesAtLeastOne, ()) {
     config.method = axis::solver::InterpolationMethod::NearestNeighbor;
 
     auto result = axis::ingest::scrip_egress(data.matrix, src_mesh, dst_mesh, config);
-    const auto& egress = result.get();
+    const auto &egress = result.get();
 
     RC_ASSERT(egress.n_s == data.nnz);
 
@@ -203,7 +195,7 @@ RC_GTEST_PROP(PropScripEgress, AllIndicesAtLeastOne, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -216,7 +208,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

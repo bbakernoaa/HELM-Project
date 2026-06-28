@@ -11,80 +11,66 @@
 ///
 /// Requirements: 13.5
 
+#include <mpi.h>
+
 #include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <variant>
 #include <vector>
 
-#include <mpi.h>
-
 namespace logs::testing {
 
 // ─── Call Record Types ──────────────────────────────────────────────────────
 
 /// Enumeration of intercepted MPI function types.
-enum class MPI_Call_Type : std::uint8_t {
-    COMM_RANK,
-    QUERY_THREAD,
-    INITIALIZED,
-    ABORT,
-    GATHER,
-    ALLGATHER
-};
+enum class MPI_Call_Type : std::uint8_t { COMM_RANK, QUERY_THREAD, INITIALIZED, ABORT, GATHER, ALLGATHER };
 
 /// Arguments specific to MPI_Comm_rank calls.
 struct Comm_Rank_Args {
     MPI_Comm comm;
-    int      rank_out; ///< The rank value that was returned.
+    int rank_out;  ///< The rank value that was returned.
 };
 
 /// Arguments specific to MPI_Query_thread calls.
 struct Query_Thread_Args {
-    int provided_out; ///< The thread level that was returned.
+    int provided_out;  ///< The thread level that was returned.
 };
 
 /// Arguments specific to MPI_Initialized calls.
 struct Initialized_Args {
-    int flag_out; ///< The initialized flag that was returned.
+    int flag_out;  ///< The initialized flag that was returned.
 };
 
 /// Arguments specific to MPI_Abort calls.
 struct Abort_Args {
     MPI_Comm comm;
-    int      errorcode;
+    int errorcode;
 };
 
 /// Arguments specific to MPI_Gather calls.
 struct Gather_Args {
     MPI_Comm comm;
-    int      root;
-    int      sendcount;
-    int      recvcount;
+    int root;
+    int sendcount;
+    int recvcount;
 };
 
 /// Arguments specific to MPI_Allgather calls.
 struct Allgather_Args {
     MPI_Comm comm;
-    int      sendcount;
-    int      recvcount;
+    int sendcount;
+    int recvcount;
 };
 
 /// Variant holding the arguments for any intercepted MPI call.
-using MPI_Call_Args = std::variant<
-    Comm_Rank_Args,
-    Query_Thread_Args,
-    Initialized_Args,
-    Abort_Args,
-    Gather_Args,
-    Allgather_Args
->;
+using MPI_Call_Args = std::variant<Comm_Rank_Args, Query_Thread_Args, Initialized_Args, Abort_Args, Gather_Args, Allgather_Args>;
 
 /// A single recorded MPI call with type, arguments, and ordering.
 struct MPI_Call_Record {
-    MPI_Call_Type type;       ///< Which MPI function was called.
-    MPI_Call_Args args;       ///< Function-specific arguments.
-    std::uint64_t sequence;   ///< Monotonically increasing call order.
+    MPI_Call_Type type;      ///< Which MPI function was called.
+    MPI_Call_Args args;      ///< Function-specific arguments.
+    std::uint64_t sequence;  ///< Monotonically increasing call order.
 };
 
 // ─── MPI_Spy Singleton ──────────────────────────────────────────────────────
@@ -100,9 +86,9 @@ struct MPI_Call_Record {
 ///   // assert on calls
 ///
 class MPI_Spy {
-public:
+   public:
     /// Access the global singleton instance (thread-safe).
-    static MPI_Spy& instance() noexcept {
+    static MPI_Spy &instance() noexcept {
         static MPI_Spy s_instance;
         return s_instance;
     }
@@ -161,7 +147,7 @@ public:
     // ─── Call Recording ─────────────────────────────────────────────────
 
     /// Record a MPI_Comm_rank call and return the configured rank/error.
-    int record_comm_rank(MPI_Comm comm, int* rank_out) noexcept {
+    int record_comm_rank(MPI_Comm comm, int *rank_out) noexcept {
         int error = comm_rank_error_.load(std::memory_order_relaxed);
         int r = rank_.load(std::memory_order_relaxed);
 
@@ -169,17 +155,13 @@ public:
             *rank_out = r;
         }
 
-        MPI_Call_Record rec{
-            MPI_Call_Type::COMM_RANK,
-            Comm_Rank_Args{comm, (error == MPI_SUCCESS) ? r : -1},
-            next_sequence()
-        };
+        MPI_Call_Record rec{MPI_Call_Type::COMM_RANK, Comm_Rank_Args{comm, (error == MPI_SUCCESS) ? r : -1}, next_sequence()};
         push(rec);
         return error;
     }
 
     /// Record a MPI_Query_thread call and return the configured level/error.
-    int record_query_thread(int* provided) noexcept {
+    int record_query_thread(int *provided) noexcept {
         int error = query_thread_error_.load(std::memory_order_relaxed);
         int level = thread_level_.load(std::memory_order_relaxed);
 
@@ -187,67 +169,45 @@ public:
             *provided = level;
         }
 
-        MPI_Call_Record rec{
-            MPI_Call_Type::QUERY_THREAD,
-            Query_Thread_Args{(error == MPI_SUCCESS) ? level : 0},
-            next_sequence()
-        };
+        MPI_Call_Record rec{MPI_Call_Type::QUERY_THREAD, Query_Thread_Args{(error == MPI_SUCCESS) ? level : 0}, next_sequence()};
         push(rec);
         return error;
     }
 
     /// Record a MPI_Initialized call and return the configured state.
-    int record_initialized(int* flag) noexcept {
+    int record_initialized(int *flag) noexcept {
         bool init = initialized_.load(std::memory_order_relaxed);
         if (flag) {
             *flag = init ? 1 : 0;
         }
 
-        MPI_Call_Record rec{
-            MPI_Call_Type::INITIALIZED,
-            Initialized_Args{init ? 1 : 0},
-            next_sequence()
-        };
+        MPI_Call_Record rec{MPI_Call_Type::INITIALIZED, Initialized_Args{init ? 1 : 0}, next_sequence()};
         push(rec);
-        return MPI_SUCCESS; // MPI_Initialized always returns SUCCESS
+        return MPI_SUCCESS;  // MPI_Initialized always returns SUCCESS
     }
 
     /// Record a MPI_Abort call. Does NOT actually terminate.
     int record_abort(MPI_Comm comm, int errorcode) noexcept {
-        MPI_Call_Record rec{
-            MPI_Call_Type::ABORT,
-            Abort_Args{comm, errorcode},
-            next_sequence()
-        };
+        MPI_Call_Record rec{MPI_Call_Type::ABORT, Abort_Args{comm, errorcode}, next_sequence()};
         push(rec);
         abort_called_.store(true, std::memory_order_release);
         return MPI_SUCCESS;
     }
 
     /// Record a MPI_Gather call and return the configured error.
-    int record_gather(MPI_Comm comm, int root,
-                      int sendcount, int recvcount) noexcept {
+    int record_gather(MPI_Comm comm, int root, int sendcount, int recvcount) noexcept {
         int error = gather_error_.load(std::memory_order_relaxed);
 
-        MPI_Call_Record rec{
-            MPI_Call_Type::GATHER,
-            Gather_Args{comm, root, sendcount, recvcount},
-            next_sequence()
-        };
+        MPI_Call_Record rec{MPI_Call_Type::GATHER, Gather_Args{comm, root, sendcount, recvcount}, next_sequence()};
         push(rec);
         return error;
     }
 
     /// Record a MPI_Allgather call and return the configured error.
-    int record_allgather(MPI_Comm comm,
-                         int sendcount, int recvcount) noexcept {
+    int record_allgather(MPI_Comm comm, int sendcount, int recvcount) noexcept {
         int error = allgather_error_.load(std::memory_order_relaxed);
 
-        MPI_Call_Record rec{
-            MPI_Call_Type::ALLGATHER,
-            Allgather_Args{comm, sendcount, recvcount},
-            next_sequence()
-        };
+        MPI_Call_Record rec{MPI_Call_Type::ALLGATHER, Allgather_Args{comm, sendcount, recvcount}, next_sequence()};
         push(rec);
         return error;
     }
@@ -261,11 +221,10 @@ public:
     }
 
     /// Return only calls of a specific type.
-    [[nodiscard]] std::vector<MPI_Call_Record> calls_of_type(
-            MPI_Call_Type type) const {
+    [[nodiscard]] std::vector<MPI_Call_Record> calls_of_type(MPI_Call_Type type) const {
         std::lock_guard lock(mutex_);
         std::vector<MPI_Call_Record> result;
-        for (const auto& c : calls_) {
+        for (const auto &c : calls_) {
             if (c.type == type) {
                 result.push_back(c);
             }
@@ -283,8 +242,10 @@ public:
     [[nodiscard]] std::size_t call_count(MPI_Call_Type type) const noexcept {
         std::lock_guard lock(mutex_);
         std::size_t count = 0;
-        for (const auto& c : calls_) {
-            if (c.type == type) { ++count; }
+        for (const auto &c : calls_) {
+            if (c.type == type) {
+                ++count;
+            }
         }
         return count;
     }
@@ -311,13 +272,13 @@ public:
         abort_called_.store(false, std::memory_order_relaxed);
     }
 
-private:
+   private:
     MPI_Spy() noexcept = default;
     ~MPI_Spy() = default;
-    MPI_Spy(const MPI_Spy&) = delete;
-    MPI_Spy& operator=(const MPI_Spy&) = delete;
+    MPI_Spy(const MPI_Spy &) = delete;
+    MPI_Spy &operator=(const MPI_Spy &) = delete;
 
-    void push(const MPI_Call_Record& rec) noexcept {
+    void push(const MPI_Call_Record &rec) noexcept {
         std::lock_guard lock(mutex_);
         calls_.push_back(rec);
     }
@@ -328,13 +289,13 @@ private:
 
     // ─── State ──────────────────────────────────────────────────────────
 
-    mutable std::mutex          mutex_;
+    mutable std::mutex mutex_;
     std::vector<MPI_Call_Record> calls_;
-    std::atomic<std::uint64_t>  sequence_{0};
+    std::atomic<std::uint64_t> sequence_{0};
 
     // Configurable return values
-    std::atomic<int>  rank_{0};
-    std::atomic<int>  thread_level_{MPI_THREAD_SINGLE};
+    std::atomic<int> rank_{0};
+    std::atomic<int> thread_level_{MPI_THREAD_SINGLE};
     std::atomic<bool> initialized_{true};
 
     // Error injection
@@ -347,6 +308,6 @@ private:
     std::atomic<bool> abort_called_{false};
 };
 
-} // namespace logs::testing
+}  // namespace logs::testing
 
-#endif // LOGS_TESTS_MPI_INTERPOSITION_HPP
+#endif  // LOGS_TESTS_MPI_INTERPOSITION_HPP

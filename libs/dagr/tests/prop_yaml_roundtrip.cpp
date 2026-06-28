@@ -14,14 +14,14 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <dagr/pipeline_config.hpp>
-#include "generators.hpp"
-
 #include <cstdio>
+#include <dagr/pipeline_config.hpp>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
+
+#include "generators.hpp"
 
 namespace {
 
@@ -41,14 +41,10 @@ auto roundtrip_stream_descriptor(int index) {
         name = "s" + std::to_string(index) + "_" + name;
 
         // Random temporal profile
-        auto profile = *rc::gen::inRange<int>(0, 2) == 0
-                           ? dagr::Temporal_Profile::linear
-                           : dagr::Temporal_Profile::step;
+        auto profile = *rc::gen::inRange<int>(0, 2) == 0 ? dagr::Temporal_Profile::linear : dagr::Temporal_Profile::step;
 
         // Random out-of-bounds policy
-        auto oob = *rc::gen::inRange<int>(0, 2) == 0
-                       ? dagr::OutOfBounds_Policy::clamp
-                       : dagr::OutOfBounds_Policy::cycle;
+        auto oob = *rc::gen::inRange<int>(0, 2) == 0 ? dagr::OutOfBounds_Policy::clamp : dagr::OutOfBounds_Policy::cycle;
 
         // Generate a non-empty dataset path (alphanumeric)
         auto path_len = *rc::gen::inRange(3, 30);
@@ -63,19 +59,13 @@ auto roundtrip_stream_descriptor(int index) {
         auto interval_seconds = *rc::gen::inRange<std::int64_t>(1, 86401);
         auto snapshot_interval = tick::seconds(interval_seconds);
 
-        return dagr::Stream_Descriptor{
-            std::move(name),
-            profile,
-            oob,
-            std::filesystem::path{std::move(path_str)},
-            snapshot_interval
-        };
+        return dagr::Stream_Descriptor{std::move(name), profile, oob, std::filesystem::path{std::move(path_str)}, snapshot_interval};
     });
 }
 
 /// Serialize a vector of Stream_Descriptors to YAML in the format expected
 /// by parse_pipeline (via conf::Config::from_file).
-std::string serialize_to_yaml(const std::vector<dagr::Stream_Descriptor>& streams) {
+std::string serialize_to_yaml(const std::vector<dagr::Stream_Descriptor> &streams) {
     std::string yaml;
     yaml += "settings:\n";
     yaml += "  max_concurrency: 32\n";
@@ -83,7 +73,7 @@ std::string serialize_to_yaml(const std::vector<dagr::Stream_Descriptor>& stream
     yaml += "  shutdown_timeout: 30\n";
 
     yaml += "streams:\n";
-    for (const auto& sd : streams) {
+    for (const auto &sd : streams) {
         yaml += "  - name: " + sd.name + "\n";
 
         // temporal_profile enum → string
@@ -117,10 +107,9 @@ std::string serialize_to_yaml(const std::vector<dagr::Stream_Descriptor>& stream
 /// RAII temp file helper: creates a unique temp file, writes content, and
 /// removes the file on destruction.
 class Temp_YAML_File {
-public:
-    explicit Temp_YAML_File(const std::string& content) {
-        path_ = std::filesystem::temp_directory_path() /
-                ("dagr_roundtrip_" + std::to_string(counter_++) + ".yaml");
+   public:
+    explicit Temp_YAML_File(const std::string &content) {
+        path_ = std::filesystem::temp_directory_path() / ("dagr_roundtrip_" + std::to_string(counter_++) + ".yaml");
         std::ofstream ofs(path_);
         ofs << content;
         ofs.close();
@@ -131,17 +120,19 @@ public:
         std::filesystem::remove(path_, ec);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
+    [[nodiscard]] const std::filesystem::path &path() const noexcept {
+        return path_;
+    }
 
-    Temp_YAML_File(const Temp_YAML_File&) = delete;
-    Temp_YAML_File& operator=(const Temp_YAML_File&) = delete;
+    Temp_YAML_File(const Temp_YAML_File &) = delete;
+    Temp_YAML_File &operator=(const Temp_YAML_File &) = delete;
 
-private:
+   private:
     std::filesystem::path path_;
     static inline int counter_ = 0;
 };
 
-} // anonymous namespace
+}  // anonymous namespace
 
 /// **Validates: Requirements 2.3, 2.4, 2.5, 2.10, 8.4, 8.5, 8.6, 8.7, 8.8**
 RC_GTEST_PROP(YAMLRoundTrip, StreamDescriptorsPreserved, ()) {
@@ -169,8 +160,8 @@ RC_GTEST_PROP(YAMLRoundTrip, StreamDescriptorsPreserved, ()) {
 
     // Verify each stream descriptor matches in order (Req 2.10: order preservation)
     for (std::size_t i = 0; i < config.streams.size(); ++i) {
-        const auto& parsed = config.streams[i];
-        const auto& expected = original_streams[i];
+        const auto &parsed = config.streams[i];
+        const auto &expected = original_streams[i];
 
         // Req 2.3: stream name preserved
         RC_ASSERT(parsed.name == expected.name);

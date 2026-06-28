@@ -30,18 +30,18 @@ namespace axis::fortran {
 ///   auto obj  = reg.lookup(token);
 ///   reg.release(token);
 class Handle_Registry {
-public:
+   public:
     /// Access the process-wide singleton instance.
-    static Handle_Registry& instance() {
+    static Handle_Registry &instance() {
         static Handle_Registry singleton;
         return singleton;
     }
 
     // Non-copyable, non-movable (singleton)
-    Handle_Registry(const Handle_Registry&) = delete;
-    Handle_Registry& operator=(const Handle_Registry&) = delete;
-    Handle_Registry(Handle_Registry&&) = delete;
-    Handle_Registry& operator=(Handle_Registry&&) = delete;
+    Handle_Registry(const Handle_Registry &) = delete;
+    Handle_Registry &operator=(const Handle_Registry &) = delete;
+    Handle_Registry(Handle_Registry &&) = delete;
+    Handle_Registry &operator=(Handle_Registry &&) = delete;
 
     /// Register an object and return a unique integer token (> 0).
     ///
@@ -91,7 +91,7 @@ public:
         handles_.erase(token);
     }
 
-private:
+   private:
     Handle_Registry() = default;
 
     mutable std::mutex mutex_;
@@ -99,6 +99,6 @@ private:
     int next_token_ = 1;  ///< 0 is reserved as INVALID
 };
 
-} // namespace axis::fortran
+}  // namespace axis::fortran
 
-#endif // AXIS_FORTRAN_HANDLE_REGISTRY_HPP
+#endif  // AXIS_FORTRAN_HANDLE_REGISTRY_HPP

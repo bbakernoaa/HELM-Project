@@ -7,16 +7,17 @@
 ///        bilinear weight computation.
 
 #include <gtest/gtest.h>
+
 #include <axis/detail/gnomonic_projector.hpp>
 #include <cmath>
 
-using axis::detail::GnomonicProjector;
-using axis::detail::Vec3;
-using axis::detail::normalize;
-using axis::detail::dot;
-using axis::detail::length;
 using axis::detail::add;
+using axis::detail::dot;
+using axis::detail::GnomonicProjector;
+using axis::detail::length;
+using axis::detail::normalize;
 using axis::detail::scale;
+using axis::detail::Vec3;
 
 namespace {
 
@@ -25,12 +26,10 @@ Vec3 latlon_to_xyz(double lat_deg, double lon_deg) {
     constexpr double deg2rad = M_PI / 180.0;
     double lat = lat_deg * deg2rad;
     double lon = lon_deg * deg2rad;
-    return {std::cos(lat) * std::cos(lon),
-            std::cos(lat) * std::sin(lon),
-            std::sin(lat)};
+    return {std::cos(lat) * std::cos(lon), std::cos(lat) * std::sin(lon), std::sin(lat)};
 }
 
-} // namespace
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Forward/Inverse Round-Trip Tests
@@ -39,7 +38,7 @@ Vec3 latlon_to_xyz(double lat_deg, double lon_deg) {
 TEST(GnomonicProjector, ForwardInverseRoundTrip) {
     // Project a point and then reconstruct — should recover original.
     Vec3 center = latlon_to_xyz(45.0, 30.0);
-    Vec3 point  = latlon_to_xyz(46.0, 31.0);
+    Vec3 point = latlon_to_xyz(46.0, 31.0);
 
     double u, v;
     GnomonicProjector::forward(center, point, u, v);
@@ -52,7 +51,7 @@ TEST(GnomonicProjector, ForwardInverseRoundTrip) {
 
 TEST(GnomonicProjector, ForwardInverseAtEquator) {
     Vec3 center = latlon_to_xyz(0.0, 0.0);
-    Vec3 point  = latlon_to_xyz(1.0, 1.0);
+    Vec3 point = latlon_to_xyz(1.0, 1.0);
 
     double u, v;
     GnomonicProjector::forward(center, point, u, v);
@@ -64,7 +63,7 @@ TEST(GnomonicProjector, ForwardInverseAtEquator) {
 TEST(GnomonicProjector, ForwardInverseNearPole) {
     // Requirement 2.4: near-pole robustness.
     Vec3 center = latlon_to_xyz(89.0, 45.0);
-    Vec3 point  = latlon_to_xyz(88.5, 50.0);
+    Vec3 point = latlon_to_xyz(88.5, 50.0);
 
     double u, v;
     GnomonicProjector::forward(center, point, u, v);
@@ -87,7 +86,7 @@ TEST(GnomonicProjector, ForwardCenterProjectsToOrigin) {
 TEST(GnomonicProjector, ForwardOppositeHemisphere) {
     // Point on opposite hemisphere should project to (0,0).
     Vec3 center = latlon_to_xyz(45.0, 0.0);
-    Vec3 point  = latlon_to_xyz(-46.0, 180.0);  // roughly antipodal
+    Vec3 point = latlon_to_xyz(-46.0, 180.0);  // roughly antipodal
 
     double u, v;
     GnomonicProjector::forward(center, point, u, v);
@@ -107,8 +106,7 @@ TEST(GnomonicProjector, BilinearWeightsAtCenter) {
     double quad_v[4] = {-1.0, -1.0, 1.0, 1.0};
 
     double weights[4];
-    bool converged = GnomonicProjector::bilinear_weights(
-        quad_u, quad_v, 0.0, 0.0, weights);
+    bool converged = GnomonicProjector::bilinear_weights(quad_u, quad_v, 0.0, 0.0, weights);
 
     EXPECT_TRUE(converged);
     for (int i = 0; i < 4; ++i) {
@@ -122,8 +120,7 @@ TEST(GnomonicProjector, BilinearWeightsAtVertex) {
     double quad_v[4] = {-1.0, -1.0, 1.0, 1.0};
 
     double weights[4];
-    bool converged = GnomonicProjector::bilinear_weights(
-        quad_u, quad_v, -1.0, -1.0, weights);
+    bool converged = GnomonicProjector::bilinear_weights(quad_u, quad_v, -1.0, -1.0, weights);
 
     EXPECT_TRUE(converged);
     EXPECT_NEAR(weights[0], 1.0, 1e-12);
@@ -138,8 +135,7 @@ TEST(GnomonicProjector, BilinearWeightsSumToOne) {
     double quad_v[4] = {-1.0, -1.0, 1.0, 1.0};
 
     double weights[4];
-    bool converged = GnomonicProjector::bilinear_weights(
-        quad_u, quad_v, 0.3, -0.5, weights);
+    bool converged = GnomonicProjector::bilinear_weights(quad_u, quad_v, 0.3, -0.5, weights);
 
     EXPECT_TRUE(converged);
     double sum = weights[0] + weights[1] + weights[2] + weights[3];
@@ -161,8 +157,7 @@ TEST(GnomonicProjector, BilinearWeightsNonSquareQuad) {
     double cv = (quad_v[0] + quad_v[1] + quad_v[2] + quad_v[3]) / 4.0;
 
     double weights[4];
-    bool converged = GnomonicProjector::bilinear_weights(
-        quad_u, quad_v, cu, cv, weights);
+    bool converged = GnomonicProjector::bilinear_weights(quad_u, quad_v, cu, cv, weights);
 
     EXPECT_TRUE(converged);
     double sum = weights[0] + weights[1] + weights[2] + weights[3];
@@ -178,8 +173,7 @@ TEST(GnomonicProjector, BilinearWeightsReproducePoint) {
     double pv = 0.05;
 
     double weights[4];
-    bool converged = GnomonicProjector::bilinear_weights(
-        quad_u, quad_v, pu, pv, weights);
+    bool converged = GnomonicProjector::bilinear_weights(quad_u, quad_v, pu, pv, weights);
 
     EXPECT_TRUE(converged);
 
@@ -250,8 +244,7 @@ TEST(GnomonicProjector, NearPoleWeightsNonNegativeAndSumToOne) {
     GnomonicProjector::forward(center, target, pu, pv);
 
     double weights[4];
-    bool converged = GnomonicProjector::bilinear_weights(
-        quad_u, quad_v, pu, pv, weights);
+    bool converged = GnomonicProjector::bilinear_weights(quad_u, quad_v, pu, pv, weights);
 
     // Should converge for a well-formed quad.
     EXPECT_TRUE(converged);

@@ -6,15 +6,15 @@
 ///
 /// **Validates: Requirements 2.3, 1.6**
 
-#include <logs/logger.hpp>
-#include "in_memory_sink.hpp"
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <logs/logger.hpp>
 #include <string>
 #include <string_view>
+
+#include "in_memory_sink.hpp"
 
 namespace {
 
@@ -22,29 +22,24 @@ namespace {
 
 /// Generate a non-FATAL severity (to avoid process termination).
 rc::Gen<logs::Severity_Level> genNonFatalSeverity() {
-    return rc::gen::map(rc::gen::inRange(0, 4), [](int v) {
-        return static_cast<logs::Severity_Level>(v);
-    });
+    return rc::gen::map(rc::gen::inRange(0, 4), [](int v) { return static_cast<logs::Severity_Level>(v); });
 }
 
 /// Generate a printable message string without brackets.
 /// Range 33-90 avoids '[' (91), ']' (93), and control chars.
 rc::Gen<std::string> genMessage() {
-    return rc::gen::map(
-        rc::gen::container<std::string>(rc::gen::inRange(33, 91)),
-        [](std::string s) {
-            if (s.empty()) s = "x";
-            return s;
-        }
-    );
+    return rc::gen::map(rc::gen::container<std::string>(rc::gen::inRange(33, 91)), [](std::string s) {
+        if (s.empty()) s = "x";
+        return s;
+    });
 }
 
 // ─── Parsing Helpers ────────────────────────────────────────────────────────
 
 /// Extract the rank field. Returns -1 for "----", -999 on parse failure.
-int parse_rank(const std::string& formatted) {
+int parse_rank(const std::string &formatted) {
     // Expected: starts with "[RANK:" and contains closing ']'
-    if (formatted.size() < 11) return -999; // "[RANK:----]" is 11 chars minimum
+    if (formatted.size() < 11) return -999;  // "[RANK:----]" is 11 chars minimum
     if (formatted.compare(0, 6, "[RANK:") != 0) return -999;
 
     auto close = formatted.find(']', 6);
@@ -61,7 +56,7 @@ int parse_rank(const std::string& formatted) {
 }
 
 /// Extract the severity label.
-std::string parse_severity(const std::string& formatted) {
+std::string parse_severity(const std::string &formatted) {
     // First ']' ends the rank field; then look for the next '[...]'
     auto rank_close = formatted.find(']');
     if (rank_close == std::string::npos) return "";
@@ -76,7 +71,7 @@ std::string parse_severity(const std::string& formatted) {
 }
 
 /// Extract the message: everything after last ']' + space, before '\n'.
-std::string parse_message(const std::string& formatted) {
+std::string parse_message(const std::string &formatted) {
     auto last_bracket = formatted.rfind(']');
     if (last_bracket == std::string::npos) return "";
 
@@ -99,9 +94,7 @@ std::string parse_message(const std::string& formatted) {
 
 /// Verify rank, severity label, and message can be recovered from formatted
 /// output when no communicator is configured (rank == -1).
-RC_GTEST_PROP(RecordFormattingRoundTrip,
-              UnconfiguredRankRoundTrips,
-              ()) {
+RC_GTEST_PROP(RecordFormattingRoundTrip, UnconfiguredRankRoundTrips, ()) {
     const auto severity = *genNonFatalSeverity();
     const auto message = *genMessage();
 
@@ -115,7 +108,7 @@ RC_GTEST_PROP(RecordFormattingRoundTrip,
 
     RC_ASSERT(mem_sink.count() == 1);
     const auto entries = mem_sink.entries();
-    const std::string& formatted = entries[0];
+    const std::string &formatted = entries[0];
 
     // Verify rank: unconfigured -> [RANK:----] -> parsed as -1
     RC_ASSERT(parse_rank(formatted) == -1);
@@ -128,9 +121,7 @@ RC_GTEST_PROP(RecordFormattingRoundTrip,
 }
 
 /// Severity label in formatted output always matches to_string().
-RC_GTEST_PROP(RecordFormattingRoundTrip,
-              SeverityLabelMatchesToString,
-              ()) {
+RC_GTEST_PROP(RecordFormattingRoundTrip, SeverityLabelMatchesToString, ()) {
     const auto severity = *genNonFatalSeverity();
     const auto message = *genMessage();
 
@@ -148,9 +139,7 @@ RC_GTEST_PROP(RecordFormattingRoundTrip,
 }
 
 /// The message field is preserved byte-for-byte through formatting.
-RC_GTEST_PROP(RecordFormattingRoundTrip,
-              MessagePreservedVerbatim,
-              ()) {
+RC_GTEST_PROP(RecordFormattingRoundTrip, MessagePreservedVerbatim, ()) {
     const auto severity = *genNonFatalSeverity();
     const auto message = *genMessage();
 
@@ -168,9 +157,7 @@ RC_GTEST_PROP(RecordFormattingRoundTrip,
 }
 
 /// The formatted output always ends with a newline character.
-RC_GTEST_PROP(RecordFormattingRoundTrip,
-              FormattedOutputEndsWithNewline,
-              ()) {
+RC_GTEST_PROP(RecordFormattingRoundTrip, FormattedOutputEndsWithNewline, ()) {
     const auto severity = *genNonFatalSeverity();
     const auto message = *genMessage();
 
@@ -189,9 +176,7 @@ RC_GTEST_PROP(RecordFormattingRoundTrip,
 }
 
 /// The rank field always starts at position 0 (fixed position, Requirement 2.3).
-RC_GTEST_PROP(RecordFormattingRoundTrip,
-              RankFieldAtFixedPosition,
-              ()) {
+RC_GTEST_PROP(RecordFormattingRoundTrip, RankFieldAtFixedPosition, ()) {
     const auto severity = *genNonFatalSeverity();
     const auto message = *genMessage();
 
@@ -227,7 +212,7 @@ TEST(RecordFormattingRoundTrip, DeterministicRoundTrip) {
 
     // 3. Known values
     const auto known_severity = logs::Severity_Level::INFO;
-    const int known_rank = logger.rank(); // -1 (unconfigured)
+    const int known_rank = logger.rank();  // -1 (unconfigured)
     const std::string known_message = "round_trip_test_msg";
 
     // 4. Log the record
@@ -236,7 +221,7 @@ TEST(RecordFormattingRoundTrip, DeterministicRoundTrip) {
     // 5. Extract the formatted entry from the In_Memory_Sink
     ASSERT_EQ(mem_sink.count(), 1u);
     const auto entries = mem_sink.entries();
-    const std::string& formatted = entries[0];
+    const std::string &formatted = entries[0];
 
     // 6. Parse fields at fixed positions and verify equality
     // Verify: extracted rank == configured rank (-1)
@@ -249,4 +234,4 @@ TEST(RecordFormattingRoundTrip, DeterministicRoundTrip) {
     EXPECT_EQ(parse_message(formatted), known_message);
 }
 
-} // namespace
+}  // namespace

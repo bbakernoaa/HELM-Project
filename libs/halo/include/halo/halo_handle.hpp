@@ -19,16 +19,16 @@
 /// use of its internal requests.
 
 #include <functional>
+#include <halo/request_guard.hpp>
 #include <memory>
 #include <vector>
-
-#include <halo/request_guard.hpp>
 
 namespace halo {
 
 // Forward declarations for friend access
 class Halo_Plan;
-template <int Rank> class Structured_Halo_Plan;
+template <int Rank>
+class Structured_Halo_Plan;
 
 /// @brief Async halo exchange completion handle.
 ///
@@ -41,7 +41,7 @@ template <int Rank> class Structured_Halo_Plan;
 /// Move-only: copy construction and copy assignment are deleted.
 /// The destructor calls wait() to ensure all pending operations complete.
 class Halo_Handle {
-public:
+   public:
     /// @brief Default construct an empty handle (no pending operations).
     Halo_Handle() = default;
 
@@ -51,17 +51,17 @@ public:
 
     /// @brief Move constructor. Transfers ownership of all pending operations.
     /// The source is left in a valid empty state.
-    Halo_Handle(Halo_Handle&& other) noexcept;
+    Halo_Handle(Halo_Handle &&other) noexcept;
 
     /// @brief Move assignment. Waits on current operations (if any), then
     /// transfers ownership from other. The source is left in a valid empty state.
-    Halo_Handle& operator=(Halo_Handle&& other) noexcept;
+    Halo_Handle &operator=(Halo_Handle &&other) noexcept;
 
     /// @brief Copy construction is deleted (unique ownership of MPI requests).
-    Halo_Handle(const Halo_Handle&) = delete;
+    Halo_Handle(const Halo_Handle &) = delete;
 
     /// @brief Copy assignment is deleted (unique ownership of MPI requests).
-    Halo_Handle& operator=(const Halo_Handle&) = delete;
+    Halo_Handle &operator=(const Halo_Handle &) = delete;
 
     /// @brief Non-blocking test for completion of all pending operations.
     ///
@@ -84,15 +84,14 @@ public:
     ///         or moved-from state).
     [[nodiscard]] bool empty() const noexcept;
 
-private:
+   private:
     // exchange_async is a friend so it can populate the handle's internals.
     template <typename ViewType>
-    friend Halo_Handle exchange_async(const Halo_Plan&, ViewType&);
+    friend Halo_Handle exchange_async(const Halo_Plan &, ViewType &);
 
     // exchange_structured_async is a friend so it can populate the handle's internals.
     template <typename ViewType>
-    friend Halo_Handle exchange_structured_async(
-        const Structured_Halo_Plan<ViewType::rank>&, ViewType&);
+    friend Halo_Handle exchange_structured_async(const Structured_Halo_Plan<ViewType::rank> &, ViewType &);
 
     // Test-only friend for Property 18: allows injecting staged_recv state.
     friend class Halo_Handle_Test_Access;
@@ -124,6 +123,6 @@ private:
     void finalize_staged_recv_();
 };
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_HALO_HANDLE_HPP
+#endif  // HALO_HALO_HANDLE_HPP

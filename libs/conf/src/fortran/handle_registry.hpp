@@ -43,10 +43,10 @@ inline constexpr int CONF_HANDLE_INVALID = 0;
 ///   delete static_cast<MyType*>(released);
 /// @endcode
 class Handle_Registry {
-public:
+   public:
     /// @brief Access the singleton instance.
     /// @return Reference to the global Handle_Registry.
-    static Handle_Registry& instance() {
+    static Handle_Registry &instance() {
         static Handle_Registry reg;
         return reg;
     }
@@ -58,7 +58,7 @@ public:
     ///
     /// @param ptr Pointer to the C++ object to register. Must not be nullptr.
     /// @return A unique positive integer token identifying the registered object.
-    int register_handle(void* ptr) {
+    int register_handle(void *ptr) {
         std::lock_guard<std::mutex> lock(mutex_);
         int token = next_token_++;
         handles_[token] = ptr;
@@ -70,7 +70,7 @@ public:
     /// @param token The integer token previously returned by register_handle.
     /// @return The registered pointer, or nullptr if the token is invalid
     ///         or has been released.
-    void* lookup(int token) const {
+    void *lookup(int token) const {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = handles_.find(token);
         return (it != handles_.end()) ? it->second : nullptr;
@@ -84,11 +84,11 @@ public:
     /// @param token The integer token to release.
     /// @return The previously registered pointer, or nullptr if the token
     ///         was not found (already released or never registered).
-    void* release(int token) {
+    void *release(int token) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = handles_.find(token);
         if (it == handles_.end()) return nullptr;
-        void* ptr = it->second;
+        void *ptr = it->second;
         handles_.erase(it);
         return ptr;
     }
@@ -103,19 +103,19 @@ public:
     }
 
     // Non-copyable, non-movable singleton.
-    Handle_Registry(const Handle_Registry&) = delete;
-    Handle_Registry& operator=(const Handle_Registry&) = delete;
-    Handle_Registry(Handle_Registry&&) = delete;
-    Handle_Registry& operator=(Handle_Registry&&) = delete;
+    Handle_Registry(const Handle_Registry &) = delete;
+    Handle_Registry &operator=(const Handle_Registry &) = delete;
+    Handle_Registry(Handle_Registry &&) = delete;
+    Handle_Registry &operator=(Handle_Registry &&) = delete;
 
-private:
+   private:
     Handle_Registry() = default;
 
     mutable std::mutex mutex_;
-    std::unordered_map<int, void*> handles_;
+    std::unordered_map<int, void *> handles_;
     int next_token_{1};  // 0 reserved as CONF_HANDLE_INVALID
 };
 
-} // namespace conf::fortran
+}  // namespace conf::fortran
 
-#endif // CONF_FORTRAN_HANDLE_REGISTRY_HPP
+#endif  // CONF_FORTRAN_HANDLE_REGISTRY_HPP

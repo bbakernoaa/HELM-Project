@@ -4,13 +4,12 @@
 /// Uses RapidCheck + Google Test to verify universal correctness properties
 /// for Consolidation_Key equality and Rank_Range compaction.
 
-#include <logs/detail/consolidation.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <algorithm>
+#include <logs/detail/consolidation.hpp>
 #include <numeric>
 #include <set>
 #include <vector>
@@ -27,9 +26,9 @@ namespace {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Helper: collect the union of all integers covered by a set of Rank_Ranges.
-static std::set<int> union_of_ranges(const std::vector<logs::detail::Rank_Range>& ranges) {
+static std::set<int> union_of_ranges(const std::vector<logs::detail::Rank_Range> &ranges) {
     std::set<int> result;
-    for (const auto& r : ranges) {
+    for (const auto &r : ranges) {
         for (int v = r.first; v <= r.last; ++v) {
             result.insert(v);
         }
@@ -38,32 +37,26 @@ static std::set<int> union_of_ranges(const std::vector<logs::detail::Rank_Range>
 }
 
 /// Helper: deduplicate and sort a vector of ints (to compute expected coverage).
-static std::set<int> deduplicated_set(const std::vector<int>& ranks) {
+static std::set<int> deduplicated_set(const std::vector<int> &ranks) {
     return std::set<int>(ranks.begin(), ranks.end());
 }
 
 /// Covering: the union of all ranges equals the deduplicated sorted input.
-RC_GTEST_PROP(CompactRanges,
-              Covering,
-              ()) {
-    const auto ranks = *rc::gen::container<std::vector<int>>(
-        rc::gen::inRange(-100, 100));
+RC_GTEST_PROP(CompactRanges, Covering, ()) {
+    const auto ranks = *rc::gen::container<std::vector<int>>(rc::gen::inRange(-100, 100));
 
     const auto ranges = logs::detail::compact_ranges(ranks);
 
     const auto expected = deduplicated_set(ranks);
-    const auto actual   = union_of_ranges(ranges);
+    const auto actual = union_of_ranges(ranges);
 
     RC_ASSERT(actual == expected);
 }
 
 /// Maximal: no two adjacent ranges could be merged (there's a gap > 1 between
 /// consecutive ranges).
-RC_GTEST_PROP(CompactRanges,
-              Maximal,
-              ()) {
-    const auto ranks = *rc::gen::container<std::vector<int>>(
-        rc::gen::inRange(-100, 100));
+RC_GTEST_PROP(CompactRanges, Maximal, ()) {
+    const auto ranks = *rc::gen::container<std::vector<int>>(rc::gen::inRange(-100, 100));
 
     RC_PRE(!ranks.empty());
 
@@ -77,11 +70,8 @@ RC_GTEST_PROP(CompactRanges,
 }
 
 /// Non-overlapping: ranges don't overlap.
-RC_GTEST_PROP(CompactRanges,
-              NonOverlapping,
-              ()) {
-    const auto ranks = *rc::gen::container<std::vector<int>>(
-        rc::gen::inRange(-100, 100));
+RC_GTEST_PROP(CompactRanges, NonOverlapping, ()) {
+    const auto ranks = *rc::gen::container<std::vector<int>>(rc::gen::inRange(-100, 100));
 
     RC_PRE(!ranks.empty());
 
@@ -94,11 +84,8 @@ RC_GTEST_PROP(CompactRanges,
 }
 
 /// Ordered ascending: ranges are sorted by first rank.
-RC_GTEST_PROP(CompactRanges,
-              OrderedAscending,
-              ()) {
-    const auto ranks = *rc::gen::container<std::vector<int>>(
-        rc::gen::inRange(-100, 100));
+RC_GTEST_PROP(CompactRanges, OrderedAscending, ()) {
+    const auto ranks = *rc::gen::container<std::vector<int>>(rc::gen::inRange(-100, 100));
 
     RC_PRE(!ranks.empty());
 
@@ -111,18 +98,15 @@ RC_GTEST_PROP(CompactRanges,
 
 /// Contiguous within spans: for each range, all ints from first to last are
 /// present in the original input (after deduplication).
-RC_GTEST_PROP(CompactRanges,
-              ContiguousWithinSpans,
-              ()) {
-    const auto ranks = *rc::gen::container<std::vector<int>>(
-        rc::gen::inRange(-100, 100));
+RC_GTEST_PROP(CompactRanges, ContiguousWithinSpans, ()) {
+    const auto ranks = *rc::gen::container<std::vector<int>>(rc::gen::inRange(-100, 100));
 
     RC_PRE(!ranks.empty());
 
-    const auto ranges     = logs::detail::compact_ranges(ranks);
-    const auto rank_set   = deduplicated_set(ranks);
+    const auto ranges = logs::detail::compact_ranges(ranks);
+    const auto rank_set = deduplicated_set(ranks);
 
-    for (const auto& r : ranges) {
+    for (const auto &r : ranges) {
         RC_ASSERT(r.first <= r.last);
         for (int v = r.first; v <= r.last; ++v) {
             RC_ASSERT(rank_set.count(v) == 1);
@@ -137,9 +121,7 @@ TEST(CompactRanges, EmptyInputProducesEmptyOutput) {
 }
 
 /// Single rank produces a single-element range [r, r].
-RC_GTEST_PROP(CompactRanges,
-              SingleRankSingleRange,
-              ()) {
+RC_GTEST_PROP(CompactRanges, SingleRankSingleRange, ()) {
     const auto r = *rc::gen::inRange(-1000, 1000);
 
     const auto ranges = logs::detail::compact_ranges({r});
@@ -151,11 +133,8 @@ RC_GTEST_PROP(CompactRanges,
 
 /// Duplicate ranks don't affect the result (idempotent with respect to
 /// deduplication).
-RC_GTEST_PROP(CompactRanges,
-              DuplicatesIdempotent,
-              ()) {
-    auto ranks = *rc::gen::container<std::vector<int>>(
-        rc::gen::inRange(-50, 50));
+RC_GTEST_PROP(CompactRanges, DuplicatesIdempotent, ()) {
+    auto ranks = *rc::gen::container<std::vector<int>>(rc::gen::inRange(-50, 50));
 
     RC_PRE(!ranks.empty());
 
@@ -164,7 +143,7 @@ RC_GTEST_PROP(CompactRanges,
     doubled.insert(doubled.end(), ranks.begin(), ranks.end());
 
     const auto ranges_original = logs::detail::compact_ranges(ranks);
-    const auto ranges_doubled  = logs::detail::compact_ranges(doubled);
+    const auto ranges_doubled = logs::detail::compact_ranges(doubled);
 
     RC_ASSERT(ranges_original.size() == ranges_doubled.size());
     for (std::size_t i = 0; i < ranges_original.size(); ++i) {
@@ -173,4 +152,4 @@ RC_GTEST_PROP(CompactRanges,
     }
 }
 
-} // namespace
+}  // namespace

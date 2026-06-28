@@ -1,17 +1,15 @@
 #include "halo/request_guard.hpp"
 
-#include <exception>
 #include <mpi.h>
+
+#include <exception>
 #include <utility>
 
 namespace halo {
 
 // ─── Construction ────────────────────────────────────────────────────────────
 
-Request_Guard::Request_Guard(MPI_Request& req) noexcept
-    : req_{req}
-    , uncaught_on_entry_{std::uncaught_exceptions()}
-{
+Request_Guard::Request_Guard(MPI_Request &req) noexcept : req_{req}, uncaught_on_entry_{std::uncaught_exceptions()} {
     req = MPI_REQUEST_NULL;
 }
 
@@ -36,12 +34,10 @@ Request_Guard::~Request_Guard() {
 
 // ─── Move Semantics ──────────────────────────────────────────────────────────
 
-Request_Guard::Request_Guard(Request_Guard&& other) noexcept
-    : req_{std::exchange(other.req_, MPI_REQUEST_NULL)}
-    , uncaught_on_entry_{other.uncaught_on_entry_}
-{}
+Request_Guard::Request_Guard(Request_Guard &&other) noexcept
+    : req_{std::exchange(other.req_, MPI_REQUEST_NULL)}, uncaught_on_entry_{other.uncaught_on_entry_} {}
 
-Request_Guard& Request_Guard::operator=(Request_Guard&& other) noexcept {
+Request_Guard &Request_Guard::operator=(Request_Guard &&other) noexcept {
     if (this != &other) {
         // Complete or cancel the currently held request before taking the new one.
         if (req_ != MPI_REQUEST_NULL) {
@@ -82,8 +78,8 @@ void Request_Guard::wait() {
 
 // ─── Handle Accessor ─────────────────────────────────────────────────────────
 
-MPI_Request* Request_Guard::handle() noexcept {
+MPI_Request *Request_Guard::handle() noexcept {
     return &req_;
 }
 
-} // namespace halo
+}  // namespace halo

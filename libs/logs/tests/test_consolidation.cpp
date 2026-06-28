@@ -16,13 +16,13 @@
 ///   7. Call consolidate() again — verify sink receives ZERO new output
 ///      (buffer was cleared by the first consolidation)
 
-#include <logs/logger.hpp>
-#include "in_memory_sink.hpp"
-
 #include <gtest/gtest.h>
 
+#include <logs/logger.hpp>
 #include <string>
 #include <vector>
+
+#include "in_memory_sink.hpp"
 
 namespace {
 
@@ -53,8 +53,7 @@ TEST(ConsolidationBufferLifecycle, SecondConsolidationProducesZeroOutput) {
     // 4. Emit N records (5 INFO messages).
     constexpr int N = 5;
     for (int i = 0; i < N; ++i) {
-        logger.log(logs::Severity_Level::INFO,
-                   "lifecycle test message " + std::to_string(i));
+        logger.log(logs::Severity_Level::INFO, "lifecycle test message " + std::to_string(i));
     }
 
     // Records are dispatched to sinks immediately during log() and also
@@ -72,9 +71,8 @@ TEST(ConsolidationBufferLifecycle, SecondConsolidationProducesZeroOutput) {
     logger.consolidate();
 
     // Verify sink received no new writes from the second consolidation.
-    EXPECT_EQ(mem_sink.count(), 0u)
-        << "Second consolidate() should produce zero output because the "
-           "buffer was cleared by the first consolidation (Requirement 4.7).";
+    EXPECT_EQ(mem_sink.count(), 0u) << "Second consolidate() should produce zero output because the "
+                                       "buffer was cleared by the first consolidation (Requirement 4.7).";
 }
 
 /// Consolidation processes ALL buffered records — verify the count matches.
@@ -105,8 +103,7 @@ TEST(ConsolidationBufferLifecycle, FirstConsolidationProcessesAllBuffered) {
     mem_sink.clear();
     logger.consolidate();
 
-    EXPECT_EQ(mem_sink.count(), 0u)
-        << "Buffer must be empty after first consolidation cleared it.";
+    EXPECT_EQ(mem_sink.count(), 0u) << "Buffer must be empty after first consolidation cleared it.";
 }
 
 /// Multiple consolidation cycles: each cycle processes only records emitted
@@ -127,8 +124,7 @@ TEST(ConsolidationBufferLifecycle, MultipleCyclesBufferIndependence) {
     // Verify buffer cleared — second consolidate produces nothing.
     mem_sink.clear();
     logger.consolidate();
-    EXPECT_EQ(mem_sink.count(), 0u)
-        << "After cycle 1 consolidation, buffer should be empty.";
+    EXPECT_EQ(mem_sink.count(), 0u) << "After cycle 1 consolidation, buffer should be empty.";
 
     // Cycle 2: emit 2 new records.
     mem_sink.clear();
@@ -145,8 +141,7 @@ TEST(ConsolidationBufferLifecycle, MultipleCyclesBufferIndependence) {
     // Buffer cleared again — third consolidate produces nothing.
     mem_sink.clear();
     logger.consolidate();
-    EXPECT_EQ(mem_sink.count(), 0u)
-        << "After cycle 2 consolidation, buffer should be empty.";
+    EXPECT_EQ(mem_sink.count(), 0u) << "After cycle 2 consolidation, buffer should be empty.";
 }
 
 /// With no records buffered (fresh logger), consolidation produces nothing.
@@ -161,8 +156,7 @@ TEST(ConsolidationBufferLifecycle, EmptyBufferConsolidationProducesNothing) {
     logger.consolidate();
 
     // Sink should have received nothing.
-    EXPECT_EQ(mem_sink.count(), 0u)
-        << "Consolidation on an empty buffer should produce zero output.";
+    EXPECT_EQ(mem_sink.count(), 0u) << "Consolidation on an empty buffer should produce zero output.";
 }
 
 /// Records below threshold are not buffered, so consolidation doesn't
@@ -187,12 +181,10 @@ TEST(ConsolidationBufferLifecycle, FilteredRecordsNotBuffered) {
     logger.consolidate();
 
     // Still nothing.
-    EXPECT_EQ(mem_sink.count(), 0u)
-        << "Filtered records should not be buffered for consolidation.";
+    EXPECT_EQ(mem_sink.count(), 0u) << "Filtered records should not be buffered for consolidation.";
 }
 
-} // namespace
-
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Property 15: Consolidation Preserves Severity and Message
@@ -203,29 +195,24 @@ TEST(ConsolidationBufferLifecycle, FilteredRecordsNotBuffered) {
 // (byte-for-byte).
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <logs/detail/consolidation.hpp>
-#include <logs/log_record.hpp>
-
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <logs/detail/consolidation.hpp>
+#include <logs/log_record.hpp>
 #include <set>
 #include <utility>
 
 namespace {
 
-RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
-              LocalConsolidationPreservesKeyFields,
-              ()) {
+RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage, LocalConsolidationPreservesKeyFields, ()) {
     // Generate arbitrary severity and message.
     const int raw_severity = *rc::gen::inRange(0, 5);
     const auto severity = static_cast<logs::Severity_Level>(raw_severity);
 
     // Generate a non-empty message with arbitrary printable ASCII characters.
-    const auto message = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(
-            rc::gen::map(rc::gen::inRange(32, 127),
-                         [](int c) { return static_cast<char>(c); })));
+    const auto message =
+        *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::map(rc::gen::inRange(32, 127), [](int c) { return static_cast<char>(c); })));
 
     // Generate multiple records with the same severity+message but different ranks.
     const auto num_records = *rc::gen::inRange(2, 10);
@@ -233,13 +220,11 @@ RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
     std::vector<logs::Log_Record> records;
     records.reserve(static_cast<std::size_t>(num_records));
     for (int i = 0; i < num_records; ++i) {
-        records.emplace_back(
-            severity,
-            message,
-            i,                          // distinct rank per record
-            std::nullopt,               // no source location
-            std::vector<std::string>{}, // no context labels
-            std::nullopt                // no stack trace
+        records.emplace_back(severity, message,
+                             i,                           // distinct rank per record
+                             std::nullopt,                // no source location
+                             std::vector<std::string>{},  // no context labels
+                             std::nullopt                 // no stack trace
         );
     }
 
@@ -258,23 +243,17 @@ RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
     RC_ASSERT(consolidated[0].key.message.size() == message.size());
 }
 
-RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
-              MultipleKeysEachPreserved,
-              ()) {
+RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage, MultipleKeysEachPreserved, ()) {
     // Generate two distinct severity+message combinations.
     const int raw_sev1 = *rc::gen::inRange(0, 5);
     const int raw_sev2 = *rc::gen::inRange(0, 5);
     const auto sev1 = static_cast<logs::Severity_Level>(raw_sev1);
     const auto sev2 = static_cast<logs::Severity_Level>(raw_sev2);
 
-    const auto msg1 = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(
-            rc::gen::map(rc::gen::inRange(32, 127),
-                         [](int c) { return static_cast<char>(c); })));
-    auto msg2 = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(
-            rc::gen::map(rc::gen::inRange(32, 127),
-                         [](int c) { return static_cast<char>(c); })));
+    const auto msg1 =
+        *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::map(rc::gen::inRange(32, 127), [](int c) { return static_cast<char>(c); })));
+    auto msg2 =
+        *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::map(rc::gen::inRange(32, 127), [](int c) { return static_cast<char>(c); })));
 
     // Ensure the two keys are actually distinct.
     if (raw_sev1 == raw_sev2 && msg1 == msg2) {
@@ -283,14 +262,10 @@ RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
 
     // Create records for both keys with varying ranks.
     std::vector<logs::Log_Record> records;
-    records.emplace_back(sev1, msg1, 0, std::nullopt,
-                         std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(sev1, msg1, 1, std::nullopt,
-                         std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(sev2, msg2, 2, std::nullopt,
-                         std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(sev2, msg2, 3, std::nullopt,
-                         std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(sev1, msg1, 0, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(sev1, msg1, 1, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(sev2, msg2, 2, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(sev2, msg2, 3, std::nullopt, std::vector<std::string>{}, std::nullopt);
 
     // Consolidate locally.
     logs::detail::Consolidation_Engine engine;
@@ -302,7 +277,7 @@ RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
     // Verify each representative preserves its original severity and message.
     bool found_key1 = false;
     bool found_key2 = false;
-    for (const auto& rep : consolidated) {
+    for (const auto &rep : consolidated) {
         if (rep.key.severity == sev1 && rep.key.message == msg1) {
             found_key1 = true;
         }
@@ -314,24 +289,18 @@ RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
     RC_ASSERT(found_key2);
 }
 
-RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
-              MessagePreservedByteForByte,
-              ()) {
+RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage, MessagePreservedByteForByte, ()) {
     // Test with messages containing various characters including spaces,
     // punctuation, and near-boundary bytes.
-    const auto severity = static_cast<logs::Severity_Level>(
-        *rc::gen::inRange(0, 5));
+    const auto severity = static_cast<logs::Severity_Level>(*rc::gen::inRange(0, 5));
 
     // Generate a message that may contain any byte value 1..126.
-    const auto message = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(
-            rc::gen::map(rc::gen::inRange(1, 127),
-                         [](int c) { return static_cast<char>(c); })));
+    const auto message =
+        *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::map(rc::gen::inRange(1, 127), [](int c) { return static_cast<char>(c); })));
 
     // Create a single record (edge case: single contributor).
     std::vector<logs::Log_Record> records;
-    records.emplace_back(severity, message, 42, std::nullopt,
-                         std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(severity, message, 42, std::nullopt, std::vector<std::string>{}, std::nullopt);
 
     logs::detail::Consolidation_Engine engine;
     auto consolidated = engine.consolidate_local(records);
@@ -358,25 +327,20 @@ RC_GTEST_PROP(ConsolidationPreservesSeverityAndMessage,
 /// For multiple records sharing the SAME severity+message but DIFFERENT ranks,
 /// consolidate_local produces exactly ONE Consolidated_Record for that key,
 /// and the rank_count equals the number of records injected.
-RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
-              SingleKeyMultipleRanks,
-              ()) {
+RC_GTEST_PROP(ExactlyOneRepresentativePerKey, SingleKeyMultipleRanks, ()) {
     // Generate between 2 and 20 distinct "ranks" contributing the same key.
     const auto num_ranks = *rc::gen::inRange(2, 21);
 
     // Fixed severity and message for the shared key.
-    const auto sev_int = *rc::gen::inRange(0, 5); // DEBUG..FATAL
+    const auto sev_int = *rc::gen::inRange(0, 5);  // DEBUG..FATAL
     const auto severity = static_cast<logs::Severity_Level>(sev_int);
-    const auto message = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
+    const auto message = *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
 
     // Build records from multiple "ranks" sharing the same key.
     std::vector<logs::Log_Record> records;
     records.reserve(static_cast<std::size_t>(num_ranks));
     for (int r = 0; r < num_ranks; ++r) {
-        records.emplace_back(severity, std::string(message), r,
-                             std::nullopt, std::vector<std::string>{},
-                             std::nullopt);
+        records.emplace_back(severity, std::string(message), r, std::nullopt, std::vector<std::string>{}, std::nullopt);
     }
 
     // Consolidate locally.
@@ -396,19 +360,15 @@ RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
 
 /// For records with 2 distinct (severity, message) pairs from multiple ranks,
 /// consolidate_local produces exactly 2 representatives.
-RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
-              TwoKeysFromMultipleRanks,
-              ()) {
+RC_GTEST_PROP(ExactlyOneRepresentativePerKey, TwoKeysFromMultipleRanks, ()) {
     // Generate two distinct keys.
     const auto sev_int1 = *rc::gen::inRange(0, 5);
     const auto severity1 = static_cast<logs::Severity_Level>(sev_int1);
-    const auto message1 = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
+    const auto message1 = *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
 
     const auto sev_int2 = *rc::gen::inRange(0, 5);
     const auto severity2 = static_cast<logs::Severity_Level>(sev_int2);
-    const auto message2 = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
+    const auto message2 = *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
 
     // Ensure the two keys are actually distinct.
     RC_PRE(sev_int1 != sev_int2 || message1 != message2);
@@ -420,14 +380,10 @@ RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
     std::vector<logs::Log_Record> records;
 
     for (int i = 0; i < count1; ++i) {
-        records.emplace_back(severity1, std::string(message1), i,
-                             std::nullopt, std::vector<std::string>{},
-                             std::nullopt);
+        records.emplace_back(severity1, std::string(message1), i, std::nullopt, std::vector<std::string>{}, std::nullopt);
     }
     for (int i = 0; i < count2; ++i) {
-        records.emplace_back(severity2, std::string(message2), 100 + i,
-                             std::nullopt, std::vector<std::string>{},
-                             std::nullopt);
+        records.emplace_back(severity2, std::string(message2), 100 + i, std::nullopt, std::vector<std::string>{}, std::nullopt);
     }
 
     // Consolidate locally.
@@ -440,7 +396,7 @@ RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
     // Verify each key is present exactly once and rank counts are correct.
     bool found_key1 = false;
     bool found_key2 = false;
-    for (const auto& rec : result) {
+    for (const auto &rec : result) {
         if (rec.key.severity == severity1 && rec.key.message == message1) {
             RC_ASSERT(!found_key1);  // Not a duplicate.
             found_key1 = true;
@@ -459,9 +415,7 @@ RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
 }
 
 /// For N distinct keys each appearing M times, verify exactly N representatives.
-RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
-              NKeysProducesNRepresentatives,
-              ()) {
+RC_GTEST_PROP(ExactlyOneRepresentativePerKey, NKeysProducesNRepresentatives, ()) {
     const auto num_keys = *rc::gen::inRange(1, 10);
     const auto reps_per_key = *rc::gen::inRange(2, 8);
 
@@ -472,8 +426,7 @@ RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
     for (int k = 0; k < num_keys; ++k) {
         auto sev_int = *rc::gen::inRange(0, 5);
         auto severity = static_cast<logs::Severity_Level>(sev_int);
-        auto message = *rc::gen::nonEmpty(
-            rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
+        auto message = *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
 
         // Ensure uniqueness among generated keys.
         if (key_set.count({sev_int, message})) {
@@ -486,11 +439,9 @@ RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
     // Build records: each key repeated from different ranks.
     std::vector<logs::Log_Record> records;
     int rank_counter = 0;
-    for (const auto& [sev, msg] : keys) {
+    for (const auto &[sev, msg] : keys) {
         for (int r = 0; r < reps_per_key; ++r) {
-            records.emplace_back(sev, std::string(msg), rank_counter++,
-                                 std::nullopt, std::vector<std::string>{},
-                                 std::nullopt);
+            records.emplace_back(sev, std::string(msg), rank_counter++, std::nullopt, std::vector<std::string>{}, std::nullopt);
         }
     }
 
@@ -501,13 +452,12 @@ RC_GTEST_PROP(ExactlyOneRepresentativePerKey,
     RC_ASSERT(static_cast<int>(result.size()) == num_keys);
 
     // Each representative has rank_count == reps_per_key.
-    for (const auto& rep : result) {
+    for (const auto &rep : result) {
         RC_ASSERT(rep.rank_count == reps_per_key);
     }
 }
 
-} // namespace
-
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Property 16: Consolidation Transports Only Keys and Ranks
@@ -539,71 +489,52 @@ namespace {
 template <typename T, typename = void>
 struct has_location : std::false_type {};
 template <typename T>
-struct has_location<T, std::void_t<decltype(std::declval<T>().location)>>
-    : std::true_type {};
+struct has_location<T, std::void_t<decltype(std::declval<T>().location)>> : std::true_type {};
 
 template <typename T, typename = void>
 struct has_stack_trace : std::false_type {};
 template <typename T>
-struct has_stack_trace<T, std::void_t<decltype(std::declval<T>().stack_trace)>>
-    : std::true_type {};
+struct has_stack_trace<T, std::void_t<decltype(std::declval<T>().stack_trace)>> : std::true_type {};
 
 template <typename T, typename = void>
 struct has_context_labels : std::false_type {};
 template <typename T>
-struct has_context_labels<T, std::void_t<decltype(std::declval<T>().context_labels)>>
-    : std::true_type {};
+struct has_context_labels<T, std::void_t<decltype(std::declval<T>().context_labels)>> : std::true_type {};
 
 /// Compile-time structural proof that Consolidated_Record carries no metadata.
 TEST(ConsolidationTransportsOnlyKeysAndRanks, StructuralProofNoMetadataFields) {
     // Consolidated_Record must NOT have location, stack_trace, or context_labels.
-    static_assert(!has_location<logs::detail::Consolidated_Record>::value,
-        "Consolidated_Record must not contain a 'location' field");
-    static_assert(!has_stack_trace<logs::detail::Consolidated_Record>::value,
-        "Consolidated_Record must not contain a 'stack_trace' field");
-    static_assert(!has_context_labels<logs::detail::Consolidated_Record>::value,
-        "Consolidated_Record must not contain a 'context_labels' field");
+    static_assert(!has_location<logs::detail::Consolidated_Record>::value, "Consolidated_Record must not contain a 'location' field");
+    static_assert(!has_stack_trace<logs::detail::Consolidated_Record>::value, "Consolidated_Record must not contain a 'stack_trace' field");
+    static_assert(!has_context_labels<logs::detail::Consolidated_Record>::value, "Consolidated_Record must not contain a 'context_labels' field");
 
     // Consolidated_Record only has: key (Consolidation_Key), rank_count, ranges.
     // Consolidation_Key only has: severity + message.
-    static_assert(!has_location<logs::detail::Consolidation_Key>::value,
-        "Consolidation_Key must not contain a 'location' field");
-    static_assert(!has_stack_trace<logs::detail::Consolidation_Key>::value,
-        "Consolidation_Key must not contain a 'stack_trace' field");
-    static_assert(!has_context_labels<logs::detail::Consolidation_Key>::value,
-        "Consolidation_Key must not contain a 'context_labels' field");
+    static_assert(!has_location<logs::detail::Consolidation_Key>::value, "Consolidation_Key must not contain a 'location' field");
+    static_assert(!has_stack_trace<logs::detail::Consolidation_Key>::value, "Consolidation_Key must not contain a 'stack_trace' field");
+    static_assert(!has_context_labels<logs::detail::Consolidation_Key>::value, "Consolidation_Key must not contain a 'context_labels' field");
 
     SUCCEED();
 }
 
 /// Property test: Records with rich metadata consolidate to representatives
 /// containing ONLY key (severity + message) and rank information.
-RC_GTEST_PROP(ConsolidationTransportsOnlyKeysAndRanks,
-              RichMetadataRecordsConsolidateToKeyAndRankOnly,
-              ()) {
+RC_GTEST_PROP(ConsolidationTransportsOnlyKeysAndRanks, RichMetadataRecordsConsolidateToKeyAndRankOnly, ()) {
     // Generate a severity and message for the consolidation key.
-    const auto severity = static_cast<logs::Severity_Level>(
-        *rc::gen::inRange(0, 5));
-    const auto message = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(
-            rc::gen::map(rc::gen::inRange(32, 127),
-                         [](int c) { return static_cast<char>(c); })));
+    const auto severity = static_cast<logs::Severity_Level>(*rc::gen::inRange(0, 5));
+    const auto message =
+        *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::map(rc::gen::inRange(32, 127), [](int c) { return static_cast<char>(c); })));
 
     // Generate rich metadata: source location, stack trace, context labels.
-    const auto file = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
+    const auto file = *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
     const auto line = *rc::gen::inRange(1, 10000);
-    const auto function = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
-    const auto stack_trace = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(
-            rc::gen::map(rc::gen::inRange(32, 127),
-                         [](int c) { return static_cast<char>(c); })));
+    const auto function = *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(97, 123)));
+    const auto stack_trace =
+        *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::map(rc::gen::inRange(32, 127), [](int c) { return static_cast<char>(c); })));
     const auto num_labels = *rc::gen::inRange(1, 5);
     std::vector<std::string> context_labels;
     for (int i = 0; i < num_labels; ++i) {
-        context_labels.push_back(*rc::gen::nonEmpty(
-            rc::gen::container<std::string>(rc::gen::inRange(97, 123))));
+        context_labels.push_back(*rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(97, 123))));
     }
 
     // Generate multiple ranks contributing records with rich metadata.
@@ -612,13 +543,11 @@ RC_GTEST_PROP(ConsolidationTransportsOnlyKeysAndRanks,
     std::vector<logs::Log_Record> records;
     records.reserve(static_cast<std::size_t>(num_records));
     for (int r = 0; r < num_records; ++r) {
-        records.emplace_back(
-            severity,
-            message,
-            r,                                           // distinct rank
-            logs::Source_Location{file, line, function}, // source location
-            context_labels,                              // context labels
-            stack_trace                                  // stack trace
+        records.emplace_back(severity, message,
+                             r,                                            // distinct rank
+                             logs::Source_Location{file, line, function},  // source location
+                             context_labels,                               // context labels
+                             stack_trace                                   // stack trace
         );
     }
 
@@ -651,29 +580,17 @@ RC_GTEST_PROP(ConsolidationTransportsOnlyKeysAndRanks,
 /// Property test: Records with and without metadata consolidate identically
 /// when they share the same severity + message key. This proves the
 /// serialization format ignores non-key fields.
-RC_GTEST_PROP(ConsolidationTransportsOnlyKeysAndRanks,
-              MetadataIrrelevantToConsolidation,
-              ()) {
-    const auto severity = static_cast<logs::Severity_Level>(
-        *rc::gen::inRange(0, 5));
-    const auto message = *rc::gen::nonEmpty(
-        rc::gen::container<std::string>(
-            rc::gen::map(rc::gen::inRange(32, 127),
-                         [](int c) { return static_cast<char>(c); })));
+RC_GTEST_PROP(ConsolidationTransportsOnlyKeysAndRanks, MetadataIrrelevantToConsolidation, ()) {
+    const auto severity = static_cast<logs::Severity_Level>(*rc::gen::inRange(0, 5));
+    const auto message =
+        *rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::map(rc::gen::inRange(32, 127), [](int c) { return static_cast<char>(c); })));
 
     // Record A: with rich metadata (location, trace, labels).
-    logs::Log_Record rich_record(
-        severity, message, 0,
-        logs::Source_Location{"file.cpp", 42, "do_thing"},
-        std::vector<std::string>{"outer", "inner"},
-        std::string{"frame0\nframe1\nframe2"});
+    logs::Log_Record rich_record(severity, message, 0, logs::Source_Location{"file.cpp", 42, "do_thing"}, std::vector<std::string>{"outer", "inner"},
+                                 std::string{"frame0\nframe1\nframe2"});
 
     // Record B: bare record — same severity+message, no metadata.
-    logs::Log_Record bare_record(
-        severity, message, 1,
-        std::nullopt,
-        std::vector<std::string>{},
-        std::nullopt);
+    logs::Log_Record bare_record(severity, message, 1, std::nullopt, std::vector<std::string>{}, std::nullopt);
 
     // Both share the same consolidation key — they should consolidate together.
     std::vector<logs::Log_Record> records{rich_record, bare_record};
@@ -695,8 +612,7 @@ RC_GTEST_PROP(ConsolidationTransportsOnlyKeysAndRanks,
     RC_ASSERT(consolidated[0].ranges[0].last == -1);
 }
 
-} // namespace
-
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Consolidation Distinct Keys Test
@@ -720,39 +636,31 @@ TEST(ConsolidationDistinctKeys, TwoKeysProducesTwoRepresentatives) {
     std::vector<logs::Log_Record> records;
 
     // Key A: severity ERROR, message "Error A", from ranks 0, 1, 2.
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error A"), 0,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error A"), 1,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error A"), 2,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error A"), 0, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error A"), 1, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error A"), 2, std::nullopt, std::vector<std::string>{}, std::nullopt);
 
     // Key B: severity ERROR, message "Error B", from ranks 3, 4.
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error B"), 3,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error B"), 4,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error B"), 3, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Error B"), 4, std::nullopt, std::vector<std::string>{}, std::nullopt);
 
     // Consolidate locally (no MPI communicator).
     logs::detail::Consolidation_Engine engine;
     auto consolidated = engine.consolidate_local(records);
 
     // Verify: exactly 2 Consolidated_Records produced (one per distinct key).
-    ASSERT_EQ(consolidated.size(), 2u)
-        << "Expected exactly 2 representatives for 2 distinct keys.";
+    ASSERT_EQ(consolidated.size(), 2u) << "Expected exactly 2 representatives for 2 distinct keys.";
 
     // Find representatives for each key.
-    const logs::detail::Consolidated_Record* rep_a = nullptr;
-    const logs::detail::Consolidated_Record* rep_b = nullptr;
+    const logs::detail::Consolidated_Record *rep_a = nullptr;
+    const logs::detail::Consolidated_Record *rep_b = nullptr;
 
-    for (const auto& rep : consolidated) {
+    for (const auto &rep : consolidated) {
         if (rep.key.message == "Error A") {
-            ASSERT_EQ(rep_a, nullptr)
-                << "Duplicate representative for 'Error A' — cross-key contamination.";
+            ASSERT_EQ(rep_a, nullptr) << "Duplicate representative for 'Error A' — cross-key contamination.";
             rep_a = &rep;
         } else if (rep.key.message == "Error B") {
-            ASSERT_EQ(rep_b, nullptr)
-                << "Duplicate representative for 'Error B' — cross-key contamination.";
+            ASSERT_EQ(rep_b, nullptr) << "Duplicate representative for 'Error B' — cross-key contamination.";
             rep_b = &rep;
         } else {
             FAIL() << "Unexpected key in consolidated result: " << rep.key.message;
@@ -763,20 +671,17 @@ TEST(ConsolidationDistinctKeys, TwoKeysProducesTwoRepresentatives) {
     ASSERT_NE(rep_b, nullptr) << "Missing representative for 'Error B'.";
 
     // Verify: "Error A" representative has rank_count == 3.
-    EXPECT_EQ(rep_a->rank_count, 3)
-        << "Error A had 3 contributing records; rank_count should be 3.";
+    EXPECT_EQ(rep_a->rank_count, 3) << "Error A had 3 contributing records; rank_count should be 3.";
     EXPECT_EQ(rep_a->key.severity, logs::Severity_Level::ERROR);
 
     // Verify: "Error B" representative has rank_count == 2.
-    EXPECT_EQ(rep_b->rank_count, 2)
-        << "Error B had 2 contributing records; rank_count should be 2.";
+    EXPECT_EQ(rep_b->rank_count, 2) << "Error B had 2 contributing records; rank_count should be 2.";
     EXPECT_EQ(rep_b->key.severity, logs::Severity_Level::ERROR);
 
     // Verify: no cross-key contamination — each representative's rank_count
     // matches ONLY its own contributing records. If contamination occurred,
     // one key would have an inflated count or we'd see unexpected keys above.
-    EXPECT_EQ(rep_a->rank_count + rep_b->rank_count, 5)
-        << "Total rank count across representatives must equal total records (5).";
+    EXPECT_EQ(rep_a->rank_count + rep_b->rank_count, 5) << "Total rank count across representatives must equal total records (5).";
 
     // Local consolidation uses sentinel rank -1 ranges (Requirement 4.9).
     ASSERT_EQ(rep_a->ranges.size(), 1u);
@@ -794,30 +699,24 @@ TEST(ConsolidationDistinctKeys, SameMessageDifferentSeverityAreDistinctKeys) {
     std::vector<logs::Log_Record> records;
 
     // Key A: WARNING + "Connection timeout" from ranks 0, 1.
-    records.emplace_back(logs::Severity_Level::WARNING, std::string("Connection timeout"), 0,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(logs::Severity_Level::WARNING, std::string("Connection timeout"), 1,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::WARNING, std::string("Connection timeout"), 0, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::WARNING, std::string("Connection timeout"), 1, std::nullopt, std::vector<std::string>{}, std::nullopt);
 
     // Key B: ERROR + "Connection timeout" from ranks 2, 3, 4.
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Connection timeout"), 2,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Connection timeout"), 3,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
-    records.emplace_back(logs::Severity_Level::ERROR, std::string("Connection timeout"), 4,
-                         std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Connection timeout"), 2, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Connection timeout"), 3, std::nullopt, std::vector<std::string>{}, std::nullopt);
+    records.emplace_back(logs::Severity_Level::ERROR, std::string("Connection timeout"), 4, std::nullopt, std::vector<std::string>{}, std::nullopt);
 
     logs::detail::Consolidation_Engine engine;
     auto consolidated = engine.consolidate_local(records);
 
     // Exactly 2 representatives — severity is part of the key.
-    ASSERT_EQ(consolidated.size(), 2u)
-        << "Same message with different severity should produce distinct keys.";
+    ASSERT_EQ(consolidated.size(), 2u) << "Same message with different severity should produce distinct keys.";
 
-    const logs::detail::Consolidated_Record* rep_warn = nullptr;
-    const logs::detail::Consolidated_Record* rep_err = nullptr;
+    const logs::detail::Consolidated_Record *rep_warn = nullptr;
+    const logs::detail::Consolidated_Record *rep_err = nullptr;
 
-    for (const auto& rep : consolidated) {
+    for (const auto &rep : consolidated) {
         EXPECT_EQ(rep.key.message, "Connection timeout");
         if (rep.key.severity == logs::Severity_Level::WARNING) {
             rep_warn = &rep;
@@ -841,20 +740,17 @@ TEST(ConsolidationDistinctKeys, AllRecordsAccountedForAcrossRepresentatives) {
 
     // Key 1: DEBUG + "init phase" — 4 records.
     for (int r = 0; r < 4; ++r) {
-        records.emplace_back(logs::Severity_Level::DEBUG, std::string("init phase"), r,
-                             std::nullopt, std::vector<std::string>{}, std::nullopt);
+        records.emplace_back(logs::Severity_Level::DEBUG, std::string("init phase"), r, std::nullopt, std::vector<std::string>{}, std::nullopt);
     }
 
     // Key 2: INFO + "processing" — 3 records.
     for (int r = 10; r < 13; ++r) {
-        records.emplace_back(logs::Severity_Level::INFO, std::string("processing"), r,
-                             std::nullopt, std::vector<std::string>{}, std::nullopt);
+        records.emplace_back(logs::Severity_Level::INFO, std::string("processing"), r, std::nullopt, std::vector<std::string>{}, std::nullopt);
     }
 
     // Key 3: ERROR + "timeout" — 2 records.
     for (int r = 20; r < 22; ++r) {
-        records.emplace_back(logs::Severity_Level::ERROR, std::string("timeout"), r,
-                             std::nullopt, std::vector<std::string>{}, std::nullopt);
+        records.emplace_back(logs::Severity_Level::ERROR, std::string("timeout"), r, std::nullopt, std::vector<std::string>{}, std::nullopt);
     }
 
     logs::detail::Consolidation_Engine engine;
@@ -865,14 +761,13 @@ TEST(ConsolidationDistinctKeys, AllRecordsAccountedForAcrossRepresentatives) {
 
     // Total rank_count across all representatives must equal total input (9).
     int total_count = 0;
-    for (const auto& rep : consolidated) {
+    for (const auto &rep : consolidated) {
         total_count += rep.rank_count;
     }
-    EXPECT_EQ(total_count, 9)
-        << "Sum of rank_counts must equal total number of input records.";
+    EXPECT_EQ(total_count, 9) << "Sum of rank_counts must equal total number of input records.";
 
     // Verify each key's count individually.
-    for (const auto& rep : consolidated) {
+    for (const auto &rep : consolidated) {
         if (rep.key.message == "init phase") {
             EXPECT_EQ(rep.rank_count, 4);
             EXPECT_EQ(rep.key.severity, logs::Severity_Level::DEBUG);
@@ -888,8 +783,7 @@ TEST(ConsolidationDistinctKeys, AllRecordsAccountedForAcrossRepresentatives) {
     }
 }
 
-} // namespace
-
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 21.2: Consolidation Contiguous-Span Test
@@ -999,13 +893,11 @@ TEST(ConsolidationContiguousSpan, ConsolidateLocalProducesOneRepresentativeWithC
     std::vector<logs::Log_Record> records;
     records.reserve(N);
     for (int i = 0; i < N; ++i) {
-        records.emplace_back(
-            logs::Severity_Level::ERROR,
-            "contiguous span test message",
-            R + i,                          // ranks 3, 4, 5, 6
-            std::nullopt,                   // no source location
-            std::vector<std::string>{},     // no context labels
-            std::nullopt                    // no stack trace
+        records.emplace_back(logs::Severity_Level::ERROR, "contiguous span test message",
+                             R + i,                       // ranks 3, 4, 5, 6
+                             std::nullopt,                // no source location
+                             std::vector<std::string>{},  // no context labels
+                             std::nullopt                 // no stack trace
         );
     }
 
@@ -1041,8 +933,7 @@ TEST(ConsolidationContiguousSpan, CompactRangesMatchesExpectedForConsolidationIn
     EXPECT_EQ(ranges[0].to_string(), "3-6");
 }
 
-} // namespace
-
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 21.7: Single-Rank Consolidation Test
@@ -1092,13 +983,11 @@ TEST(ConsolidationSingleRank, ConsolidateLocalSameRankProducesOneRepresentative)
     std::vector<logs::Log_Record> records;
     records.reserve(NUM_RECORDS);
     for (int i = 0; i < NUM_RECORDS; ++i) {
-        records.emplace_back(
-            logs::Severity_Level::WARNING,
-            "single rank repeated message",
-            RANK,                           // all from rank 7
-            std::nullopt,                   // no source location
-            std::vector<std::string>{},     // no context labels
-            std::nullopt                    // no stack trace
+        records.emplace_back(logs::Severity_Level::WARNING, "single rank repeated message",
+                             RANK,                        // all from rank 7
+                             std::nullopt,                // no source location
+                             std::vector<std::string>{},  // no context labels
+                             std::nullopt                 // no stack trace
         );
     }
 
@@ -1137,4 +1026,4 @@ TEST(ConsolidationSingleRank, CompactRangesDuplicateSingleRankDeduplicates) {
     EXPECT_EQ(ranges[0].last, 7);
 }
 
-} // namespace
+}  // namespace

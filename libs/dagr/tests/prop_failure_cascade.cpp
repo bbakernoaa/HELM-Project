@@ -12,24 +12,21 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <cstdint>
 #include <dagr/detail/event_loop.hpp>
 #include <dagr/detail/rank_pool.hpp>
 #include <dagr/detail/task_node.hpp>
-#include "generators.hpp"
-
-#include <cstdint>
 #include <deque>
 #include <set>
 #include <vector>
+
+#include "generators.hpp"
 
 namespace {
 
 /// Compute the set of all transitively reachable downstream nodes from a
 /// given source node using BFS over the dependents adjacency lists.
-std::set<std::uint32_t> compute_downstream_reachable(
-    const std::vector<dagr::detail::TaskNode>& nodes,
-    std::uint32_t source_id)
-{
+std::set<std::uint32_t> compute_downstream_reachable(const std::vector<dagr::detail::TaskNode> &nodes, std::uint32_t source_id) {
     std::set<std::uint32_t> reachable;
     std::deque<std::uint32_t> queue;
 
@@ -42,7 +39,7 @@ std::set<std::uint32_t> compute_downstream_reachable(
         queue.pop_front();
 
         if (reachable.count(current) > 0) {
-            continue; // already visited
+            continue;  // already visited
         }
 
         reachable.insert(current);
@@ -57,7 +54,7 @@ std::set<std::uint32_t> compute_downstream_reachable(
     return reachable;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 /// **Validates: Requirements 4.8, 4.9, 4.10, 6.6**
 RC_GTEST_PROP(FailureCascade, TransitiveCancellationOnFailure, ()) {
@@ -80,7 +77,7 @@ RC_GTEST_PROP(FailureCascade, TransitiveCancellationOnFailure, ()) {
     }
 
     // Build adjacency (dependents) and compute in-degrees from edges
-    for (const auto& edge : dag.edges) {
+    for (const auto &edge : dag.edges) {
         if (edge.producer_id < node_count && edge.consumer_id < node_count) {
             nodes[edge.producer_id].dependents.push_back(edge.consumer_id);
             nodes[edge.consumer_id].pending_deps.fetch_add(1, std::memory_order_relaxed);
@@ -89,8 +86,7 @@ RC_GTEST_PROP(FailureCascade, TransitiveCancellationOnFailure, ()) {
 
     // Compute expected downstream reachable set BEFORE execution
     // (topology doesn't change during execution)
-    std::set<std::uint32_t> expected_cancelled =
-        compute_downstream_reachable(nodes, fail_node_id);
+    std::set<std::uint32_t> expected_cancelled = compute_downstream_reachable(nodes, fail_node_id);
 
     // Create a rank pool with enough ranks for all nodes
     std::set<int> rank_ids;
@@ -101,7 +97,7 @@ RC_GTEST_PROP(FailureCascade, TransitiveCancellationOnFailure, ()) {
 
     // Configure Event_Loop with generous concurrency
     dagr::detail::Event_Loop::Config cfg;
-    cfg.max_concurrency = node_count; // allow all to dispatch
+    cfg.max_concurrency = node_count;  // allow all to dispatch
     cfg.deadlock_timeout_s = 60;
 
     dagr::detail::Event_Loop loop(cfg, nodes, rank_pool);
@@ -115,32 +111,30 @@ RC_GTEST_PROP(FailureCascade, TransitiveCancellationOnFailure, ()) {
     std::vector<std::pair<std::uint32_t, bool>> pending_completions;
 
     // Dispatch callback: fail the chosen node, succeed all others
-    loop.set_dispatch_callback(
-        [&](std::uint32_t node_id, const std::set<int>& /*ranks*/) -> bool {
-            dispatched_nodes.insert(node_id);
+    loop.set_dispatch_callback([&](std::uint32_t node_id, const std::set<int> & /*ranks*/) -> bool {
+        dispatched_nodes.insert(node_id);
 
-            if (failure_occurred) {
-                dispatched_after_failure.insert(node_id);
-            }
+        if (failure_occurred) {
+            dispatched_after_failure.insert(node_id);
+        }
 
-            if (node_id == fail_node_id) {
-                // This node fails — return false to indicate failure
-                failure_occurred = true;
-                return false;
-            }
+        if (node_id == fail_node_id) {
+            // This node fails — return false to indicate failure
+            failure_occurred = true;
+            return false;
+        }
 
-            // All other nodes succeed — queue for completion
-            pending_completions.push_back({node_id, true});
-            return true;
-        });
+        // All other nodes succeed — queue for completion
+        pending_completions.push_back({node_id, true});
+        return true;
+    });
 
     // Completion callback: report queued completions
-    loop.set_completion_callback(
-        [&]() -> std::vector<std::pair<std::uint32_t, bool>> {
-            auto completions = std::move(pending_completions);
-            pending_completions.clear();
-            return completions;
-        });
+    loop.set_completion_callback([&]() -> std::vector<std::pair<std::uint32_t, bool>> {
+        auto completions = std::move(pending_completions);
+        pending_completions.clear();
+        return completions;
+    });
 
     // Run the event loop to completion
     // Limit cycles to prevent infinite loops (DAG should complete in at most node_count cycles)

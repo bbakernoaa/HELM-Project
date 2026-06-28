@@ -6,7 +6,6 @@
 #include <gtest/gtest.h>
 
 #include <axis/detail/spherical_geometry.hpp>
-
 #include <cmath>
 #include <vector>
 
@@ -152,9 +151,7 @@ TEST(SphericalGeometry, ConstLatIntersectionMeridianCrossingEquator) {
     // The intersection should be at (0°, 0°) = (1, 0, 0).
     bool found_origin = false;
     for (int i = 0; i < count; ++i) {
-        if (std::abs(pts[i].x - 1.0) < 1e-10 &&
-            std::abs(pts[i].y) < 1e-10 &&
-            std::abs(pts[i].z) < 1e-10) {
+        if (std::abs(pts[i].x - 1.0) < 1e-10 && std::abs(pts[i].y) < 1e-10 && std::abs(pts[i].z) < 1e-10) {
             found_origin = true;
         }
     }
@@ -169,11 +166,7 @@ TEST(SphericalGeometry, SphericalTriangleAreaOctant) {
     // Spherical triangle covering one octant of the sphere:
     // Vertices: (0°,0°), (90°,0°), (0°,90°)
     // Area should be π/2 steradians (one eighth of 4π).
-    std::vector<Vec3> tri = {
-        lonlat_to_xyz(0.0, 0.0),
-        lonlat_to_xyz(pi / 2.0, 0.0),
-        lonlat_to_xyz(0.0, pi / 2.0)
-    };
+    std::vector<Vec3> tri = {lonlat_to_xyz(0.0, 0.0), lonlat_to_xyz(pi / 2.0, 0.0), lonlat_to_xyz(0.0, pi / 2.0)};
 
     double area = spherical_polygon_area(tri);
     EXPECT_NEAR(area, pi / 2.0, 1e-10);
@@ -187,11 +180,7 @@ TEST(SphericalGeometry, SphericalTriangleAreaSmall) {
     double dlat = 1.0 * deg2rad;
     double dlon = 1.0 * deg2rad;
 
-    std::vector<Vec3> tri = {
-        lonlat_to_xyz(lon0, lat0),
-        lonlat_to_xyz(lon0 + dlon, lat0),
-        lonlat_to_xyz(lon0, lat0 + dlat)
-    };
+    std::vector<Vec3> tri = {lonlat_to_xyz(lon0, lat0), lonlat_to_xyz(lon0 + dlon, lat0), lonlat_to_xyz(lon0, lat0 + dlat)};
 
     double area = spherical_polygon_area(tri);
 
@@ -204,12 +193,7 @@ TEST(SphericalGeometry, SphericalQuadAreaHemisphere) {
     // A quad covering a quarter of the sphere (one face of a cubed sphere-like partition).
     // Equatorial band from 0° to 90° lon, 0° to 90° lat.
     // Exact area = π steradians.
-    std::vector<Vec3> quad = {
-        lonlat_to_xyz(0.0, 0.0),
-        lonlat_to_xyz(pi / 2.0, 0.0),
-        lonlat_to_xyz(pi / 2.0, pi / 2.0),
-        lonlat_to_xyz(0.0, pi / 2.0)
-    };
+    std::vector<Vec3> quad = {lonlat_to_xyz(0.0, 0.0), lonlat_to_xyz(pi / 2.0, 0.0), lonlat_to_xyz(pi / 2.0, pi / 2.0), lonlat_to_xyz(0.0, pi / 2.0)};
 
     double area = spherical_polygon_area(quad);
     // A spherical quadrilateral from (0,0) to (90°,90°) covers 1/8 of the sphere.
@@ -223,12 +207,7 @@ TEST(SphericalGeometry, SphericalQuadAreaHemisphere) {
 
 TEST(SphericalGeometry, ClipIdenticalPolygons) {
     // Clipping a polygon against itself should return (approximately) itself.
-    std::vector<Vec3> poly = {
-        lonlat_to_xyz(0.0, 0.0),
-        lonlat_to_xyz(pi / 4.0, 0.0),
-        lonlat_to_xyz(pi / 4.0, pi / 4.0),
-        lonlat_to_xyz(0.0, pi / 4.0)
-    };
+    std::vector<Vec3> poly = {lonlat_to_xyz(0.0, 0.0), lonlat_to_xyz(pi / 4.0, 0.0), lonlat_to_xyz(pi / 4.0, pi / 4.0), lonlat_to_xyz(0.0, pi / 4.0)};
 
     auto clipped = spherical_clip_polygon(poly, poly);
     EXPECT_GE(clipped.size(), 3u);
@@ -241,19 +220,11 @@ TEST(SphericalGeometry, ClipIdenticalPolygons) {
 
 TEST(SphericalGeometry, ClipNonOverlapping) {
     // Two polygons on opposite sides of the sphere.
-    std::vector<Vec3> poly_a = {
-        lonlat_to_xyz(0.0, 0.0),
-        lonlat_to_xyz(10.0 * deg2rad, 0.0),
-        lonlat_to_xyz(10.0 * deg2rad, 10.0 * deg2rad),
-        lonlat_to_xyz(0.0, 10.0 * deg2rad)
-    };
+    std::vector<Vec3> poly_a = {lonlat_to_xyz(0.0, 0.0), lonlat_to_xyz(10.0 * deg2rad, 0.0), lonlat_to_xyz(10.0 * deg2rad, 10.0 * deg2rad),
+                                lonlat_to_xyz(0.0, 10.0 * deg2rad)};
 
-    std::vector<Vec3> poly_b = {
-        lonlat_to_xyz(pi, 0.0),
-        lonlat_to_xyz(pi + 10.0 * deg2rad, 0.0),
-        lonlat_to_xyz(pi + 10.0 * deg2rad, 10.0 * deg2rad),
-        lonlat_to_xyz(pi, 10.0 * deg2rad)
-    };
+    std::vector<Vec3> poly_b = {lonlat_to_xyz(pi, 0.0), lonlat_to_xyz(pi + 10.0 * deg2rad, 0.0), lonlat_to_xyz(pi + 10.0 * deg2rad, 10.0 * deg2rad),
+                                lonlat_to_xyz(pi, 10.0 * deg2rad)};
 
     auto clipped = spherical_clip_polygon(poly_a, poly_b);
     // Should be empty or have zero area.
@@ -270,19 +241,11 @@ TEST(SphericalGeometry, ClipPartialOverlap) {
     // Poly A: [0°,10°] lon × [0°,10°] lat
     // Poly B: [5°,15°] lon × [0°,10°] lat
     // Overlap: [5°,10°] lon × [0°,10°] lat (half of A).
-    std::vector<Vec3> poly_a = {
-        lonlat_to_xyz(0.0, 0.0),
-        lonlat_to_xyz(10.0 * deg2rad, 0.0),
-        lonlat_to_xyz(10.0 * deg2rad, 10.0 * deg2rad),
-        lonlat_to_xyz(0.0, 10.0 * deg2rad)
-    };
+    std::vector<Vec3> poly_a = {lonlat_to_xyz(0.0, 0.0), lonlat_to_xyz(10.0 * deg2rad, 0.0), lonlat_to_xyz(10.0 * deg2rad, 10.0 * deg2rad),
+                                lonlat_to_xyz(0.0, 10.0 * deg2rad)};
 
-    std::vector<Vec3> poly_b = {
-        lonlat_to_xyz(5.0 * deg2rad, 0.0),
-        lonlat_to_xyz(15.0 * deg2rad, 0.0),
-        lonlat_to_xyz(15.0 * deg2rad, 10.0 * deg2rad),
-        lonlat_to_xyz(5.0 * deg2rad, 10.0 * deg2rad)
-    };
+    std::vector<Vec3> poly_b = {lonlat_to_xyz(5.0 * deg2rad, 0.0), lonlat_to_xyz(15.0 * deg2rad, 0.0), lonlat_to_xyz(15.0 * deg2rad, 10.0 * deg2rad),
+                                lonlat_to_xyz(5.0 * deg2rad, 10.0 * deg2rad)};
 
     double overlap_area = spherical_polygon_overlap_area(poly_a, poly_b);
     double area_a = spherical_polygon_area(poly_a);
@@ -303,7 +266,7 @@ TEST(SphericalGeometry, PolygonLonLatDegToXyz) {
     EXPECT_EQ(verts.size(), 4u);
 
     // All should be on unit sphere.
-    for (const auto& v : verts) {
+    for (const auto &v : verts) {
         EXPECT_NEAR(norm(v), 1.0, 1e-15);
     }
 }

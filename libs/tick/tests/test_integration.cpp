@@ -2,6 +2,7 @@
 // Validates cross-component workflows: calendar + arithmetic + alarms + sync + windows
 
 #include <gtest/gtest.h>
+
 #include <tick/tick.hpp>
 #include <vector>
 
@@ -62,7 +63,7 @@ TEST(Integration, GregorianAdvanceAcrossLeapYear) {
 
 TEST(Integration, AlarmRingsAtMultiples) {
     auto base = tick::Gregorian_Calendar::to_time_point({2026, 1, 1, 0, 0, 0, 0});
-    auto interval = tick::hours(6); // ring every 6 hours
+    auto interval = tick::hours(6);  // ring every 6 hours
     tick::Interval_Alarm alarm{interval, base};
 
     // Should ring at base + 0, 6h, 12h, 18h, 24h
@@ -109,9 +110,9 @@ TEST(Integration, AlarmNextRingProgression) {
 TEST(Integration, HeartbeatAndPhaseAlignment) {
     // Real ESM timesteps: atmosphere 5min, ocean 15min, land 30min
     std::vector<tick::Duration> steps = {
-        tick::seconds(300),   // atmosphere: 5 min
-        tick::seconds(900),   // ocean: 15 min
-        tick::seconds(1800)   // land: 30 min
+        tick::seconds(300),  // atmosphere: 5 min
+        tick::seconds(900),  // ocean: 15 min
+        tick::seconds(1800)  // land: 30 min
     };
 
     auto heartbeat = tick::compute_heartbeat(steps);
@@ -123,7 +124,7 @@ TEST(Integration, HeartbeatAndPhaseAlignment) {
     EXPECT_EQ(sync_period, tick::seconds(1800));
 
     // All models should be phase-aligned at heartbeat multiples
-    auto base = tick::Time_Point{0}; // epoch
+    auto base = tick::Time_Point{0};  // epoch
     for (int k = 0; k <= 10; ++k) {
         auto t = base + heartbeat * k;
         EXPECT_TRUE(tick::is_phase_aligned(t, base, heartbeat));
@@ -138,7 +139,7 @@ TEST(Integration, HeartbeatAndPhaseAlignment) {
 
     // At LCM (1800s), ALL models are simultaneously aligned
     auto lcm_time = base + sync_period;
-    for (const auto& step : steps) {
+    for (const auto &step : steps) {
         EXPECT_TRUE(tick::is_phase_aligned(lcm_time, base, step));
     }
 }
@@ -146,9 +147,9 @@ TEST(Integration, HeartbeatAndPhaseAlignment) {
 TEST(Integration, HeartbeatDividesAllSteps) {
     // A more complex ESM configuration
     std::vector<tick::Duration> steps = {
-        tick::seconds(120),   // fast physics: 2 min
-        tick::seconds(600),   // radiation: 10 min
-        tick::seconds(3600)   // chemistry: 1 hour
+        tick::seconds(120),  // fast physics: 2 min
+        tick::seconds(600),  // radiation: 10 min
+        tick::seconds(3600)  // chemistry: 1 hour
     };
 
     auto heartbeat = tick::compute_heartbeat(steps);
@@ -156,7 +157,7 @@ TEST(Integration, HeartbeatDividesAllSteps) {
     EXPECT_EQ(heartbeat, tick::seconds(120));
 
     // Verify heartbeat divides every step exactly
-    for (const auto& step : steps) {
+    for (const auto &step : steps) {
         EXPECT_EQ(step.nanos() % heartbeat.nanos(), 0);
     }
 }

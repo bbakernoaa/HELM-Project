@@ -60,12 +60,11 @@ using view_memory_space_t = typename ViewType::memory_space;
 /// When HALO_GPU_AWARE_MPI is defined, device pointers can be passed directly
 /// to MPI, so staging is never required.
 template <typename ViewType>
-inline constexpr bool requires_staging_v =
-    is_device_space_v<view_memory_space_t<ViewType>>
+inline constexpr bool requires_staging_v = is_device_space_v<view_memory_space_t<ViewType>>
 #ifdef HALO_GPU_AWARE_MPI
-    && false;  // GPU-aware MPI available: never stage
+                                           && false;  // GPU-aware MPI available: never stage
 #else
-    ;          // No GPU-aware MPI: always stage device views
+    ;  // No GPU-aware MPI: always stage device views
 #endif
 
 // ─── Host Mirror Type ───────────────────────────────────────────────────────
@@ -74,6 +73,6 @@ inline constexpr bool requires_staging_v =
 template <typename ViewType>
 using host_mirror_t = typename ViewType::HostMirror;
 
-} // namespace halo::detail
+}  // namespace halo::detail
 
-#endif // HALO_DETAIL_MEMORY_TRAITS_HPP
+#endif  // HALO_DETAIL_MEMORY_TRAITS_HPP

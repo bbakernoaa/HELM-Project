@@ -15,18 +15,16 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/detail/planar_clipper.hpp>
 #include <cmath>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/planar_clipper.hpp>
-
 namespace {
 
-using axis::detail::PlanarPolygon;
 using axis::detail::PlanarClipper;
+using axis::detail::PlanarPolygon;
 
 // ─── Reference Implementation (heap-based std::vector Sutherland-Hodgman) ────
 // This is the "existing sequential" reference that the design document refers to
@@ -39,7 +37,7 @@ struct Vec2 {
 };
 
 /// Shoelace formula for unsigned area of a polygon given as std::vector<Vec2>.
-double shoelace_area(const std::vector<Vec2>& poly) {
+double shoelace_area(const std::vector<Vec2> &poly) {
     if (poly.size() < 3) return 0.0;
     double a = 0.0;
     int n = static_cast<int>(poly.size());
@@ -52,16 +50,12 @@ double shoelace_area(const std::vector<Vec2>& poly) {
 
 /// Signed distance from point (px, py) to the directed edge from
 /// (ex0, ey0) in direction (edx, edy).
-double ref_signed_distance(double px, double py,
-                           double ex0, double ey0,
-                           double edx, double edy) {
+double ref_signed_distance(double px, double py, double ex0, double ey0, double edx, double edy) {
     return edx * (py - ey0) - edy * (px - ex0);
 }
 
 /// Clip polygon against a single directed edge using std::vector (heap).
-std::vector<Vec2> ref_clip_against_edge(const std::vector<Vec2>& input,
-                                        double ex0, double ey0,
-                                        double edx, double edy) {
+std::vector<Vec2> ref_clip_against_edge(const std::vector<Vec2> &input, double ex0, double ey0, double edx, double edy) {
     std::vector<Vec2> output;
     if (input.empty()) return output;
 
@@ -103,8 +97,7 @@ std::vector<Vec2> ref_clip_against_edge(const std::vector<Vec2>& input,
 /// Reference sequential Sutherland-Hodgman polygon overlap area using
 /// heap-allocated std::vector<Vec2>. This is the "compute_polygon_overlap_area"
 /// that PlanarClipper::overlap_area() must match.
-double compute_polygon_overlap_area(const std::vector<Vec2>& subject,
-                                    const std::vector<Vec2>& clip) {
+double compute_polygon_overlap_area(const std::vector<Vec2> &subject, const std::vector<Vec2> &clip) {
     if (subject.size() < 3 || clip.size() < 3) return 0.0;
 
     std::vector<Vec2> current = subject;
@@ -133,9 +126,7 @@ double compute_polygon_overlap_area(const std::vector<Vec2>& subject,
 
 /// Generate a convex polygon as a regular n-gon centered at (cx, cy) with
 /// given radius, slightly perturbed.
-std::vector<Vec2> make_convex_polygon(double cx, double cy, double radius,
-                                      int n_verts,
-                                      const std::vector<double>& perturbations) {
+std::vector<Vec2> make_convex_polygon(double cx, double cy, double radius, int n_verts, const std::vector<double> &perturbations) {
     std::vector<Vec2> poly;
     poly.reserve(n_verts);
     constexpr double two_pi = 2.0 * 3.14159265358979323846;
@@ -152,9 +143,7 @@ std::vector<Vec2> make_convex_polygon(double cx, double cy, double radius,
 
 /// Generate a concave polygon by creating a star-like shape.
 /// Alternates between outer radius and inner radius.
-std::vector<Vec2> make_concave_polygon(double cx, double cy,
-                                       double outer_radius, double inner_radius,
-                                       int n_points) {
+std::vector<Vec2> make_concave_polygon(double cx, double cy, double outer_radius, double inner_radius, int n_points) {
     std::vector<Vec2> poly;
     poly.reserve(n_points);
     constexpr double two_pi = 2.0 * 3.14159265358979323846;
@@ -167,9 +156,9 @@ std::vector<Vec2> make_concave_polygon(double cx, double cy,
 }
 
 /// Convert std::vector<Vec2> to PlanarPolygon<32>.
-PlanarPolygon<32> to_planar_polygon(const std::vector<Vec2>& verts) {
+PlanarPolygon<32> to_planar_polygon(const std::vector<Vec2> &verts) {
     PlanarPolygon<32> poly;
-    for (const auto& v : verts) {
+    for (const auto &v : verts) {
         poly.push(v.x, v.y);
     }
     return poly;
@@ -199,32 +188,24 @@ RC_GTEST_PROP(PropPlanarClipper, ConvexPolygonEquivalence, ()) {
     int n_verts_b = *rc::gen::inRange(3, 17);
 
     // Generate centers in [-10, 10]
-    double cx_a = *rc::gen::map(rc::gen::inRange(-1000, 1001),
-                                [](int v) { return v * 0.01; });
-    double cy_a = *rc::gen::map(rc::gen::inRange(-1000, 1001),
-                                [](int v) { return v * 0.01; });
-    double cx_b = *rc::gen::map(rc::gen::inRange(-1000, 1001),
-                                [](int v) { return v * 0.01; });
-    double cy_b = *rc::gen::map(rc::gen::inRange(-1000, 1001),
-                                [](int v) { return v * 0.01; });
+    double cx_a = *rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return v * 0.01; });
+    double cy_a = *rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return v * 0.01; });
+    double cx_b = *rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return v * 0.01; });
+    double cy_b = *rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return v * 0.01; });
 
     // Generate radii in [0.1, 5.0]
-    double radius_a = *rc::gen::map(rc::gen::inRange(10, 500),
-                                    [](int v) { return v * 0.01; });
-    double radius_b = *rc::gen::map(rc::gen::inRange(10, 500),
-                                    [](int v) { return v * 0.01; });
+    double radius_a = *rc::gen::map(rc::gen::inRange(10, 500), [](int v) { return v * 0.01; });
+    double radius_b = *rc::gen::map(rc::gen::inRange(10, 500), [](int v) { return v * 0.01; });
 
     // Perturbations for convex polygon vertices (keep within ±30% so polygon stays convex)
     std::vector<double> perturb_a;
     for (int i = 0; i < n_verts_a; ++i) {
-        double p = *rc::gen::map(rc::gen::inRange(-100, 101),
-                                 [](int v) { return v * 0.001; });
+        double p = *rc::gen::map(rc::gen::inRange(-100, 101), [](int v) { return v * 0.001; });
         perturb_a.push_back(p);
     }
     std::vector<double> perturb_b;
     for (int i = 0; i < n_verts_b; ++i) {
-        double p = *rc::gen::map(rc::gen::inRange(-100, 101),
-                                 [](int v) { return v * 0.001; });
+        double p = *rc::gen::map(rc::gen::inRange(-100, 101), [](int v) { return v * 0.001; });
         perturb_b.push_back(p);
     }
 
@@ -262,26 +243,18 @@ RC_GTEST_PROP(PropPlanarClipper, ConcavePolygonEquivalence, ()) {
     n_verts_b = std::min(n_verts_b, 32);
 
     // Centers
-    double cx_a = *rc::gen::map(rc::gen::inRange(-500, 501),
-                                [](int v) { return v * 0.01; });
-    double cy_a = *rc::gen::map(rc::gen::inRange(-500, 501),
-                                [](int v) { return v * 0.01; });
-    double cx_b = *rc::gen::map(rc::gen::inRange(-500, 501),
-                                [](int v) { return v * 0.01; });
-    double cy_b = *rc::gen::map(rc::gen::inRange(-500, 501),
-                                [](int v) { return v * 0.01; });
+    double cx_a = *rc::gen::map(rc::gen::inRange(-500, 501), [](int v) { return v * 0.01; });
+    double cy_a = *rc::gen::map(rc::gen::inRange(-500, 501), [](int v) { return v * 0.01; });
+    double cx_b = *rc::gen::map(rc::gen::inRange(-500, 501), [](int v) { return v * 0.01; });
+    double cy_b = *rc::gen::map(rc::gen::inRange(-500, 501), [](int v) { return v * 0.01; });
 
     // Outer radii in [0.5, 4.0]
-    double outer_a = *rc::gen::map(rc::gen::inRange(50, 400),
-                                   [](int v) { return v * 0.01; });
-    double outer_b = *rc::gen::map(rc::gen::inRange(50, 400),
-                                   [](int v) { return v * 0.01; });
+    double outer_a = *rc::gen::map(rc::gen::inRange(50, 400), [](int v) { return v * 0.01; });
+    double outer_b = *rc::gen::map(rc::gen::inRange(50, 400), [](int v) { return v * 0.01; });
 
     // Inner radii as fraction of outer: [0.2, 0.8]
-    double inner_frac_a = *rc::gen::map(rc::gen::inRange(20, 80),
-                                        [](int v) { return v * 0.01; });
-    double inner_frac_b = *rc::gen::map(rc::gen::inRange(20, 80),
-                                        [](int v) { return v * 0.01; });
+    double inner_frac_a = *rc::gen::map(rc::gen::inRange(20, 80), [](int v) { return v * 0.01; });
+    double inner_frac_b = *rc::gen::map(rc::gen::inRange(20, 80), [](int v) { return v * 0.01; });
     double inner_a = outer_a * inner_frac_a;
     double inner_b = outer_b * inner_frac_b;
 
@@ -309,17 +282,13 @@ RC_GTEST_PROP(PropPlanarClipper, ConcavePolygonEquivalence, ()) {
 RC_GTEST_PROP(PropPlanarClipper, MixedConvexConcaveEquivalence, ()) {
     // Convex polygon (subject)
     int n_verts_convex = *rc::gen::inRange(3, 12);
-    double cx_conv = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                   [](int v) { return v * 0.01; });
-    double cy_conv = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                   [](int v) { return v * 0.01; });
-    double r_conv = *rc::gen::map(rc::gen::inRange(20, 300),
-                                  [](int v) { return v * 0.01; });
+    double cx_conv = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double cy_conv = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double r_conv = *rc::gen::map(rc::gen::inRange(20, 300), [](int v) { return v * 0.01; });
 
     std::vector<double> perturb;
     for (int i = 0; i < n_verts_convex; ++i) {
-        double p = *rc::gen::map(rc::gen::inRange(-80, 81),
-                                 [](int v) { return v * 0.001; });
+        double p = *rc::gen::map(rc::gen::inRange(-80, 81), [](int v) { return v * 0.001; });
         perturb.push_back(p);
     }
 
@@ -328,14 +297,10 @@ RC_GTEST_PROP(PropPlanarClipper, MixedConvexConcaveEquivalence, ()) {
     int n_verts_concave = half_pts * 2;
     n_verts_concave = std::min(n_verts_concave, 32);
 
-    double cx_conc = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                   [](int v) { return v * 0.01; });
-    double cy_conc = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                   [](int v) { return v * 0.01; });
-    double outer = *rc::gen::map(rc::gen::inRange(30, 300),
-                                 [](int v) { return v * 0.01; });
-    double inner_frac = *rc::gen::map(rc::gen::inRange(25, 75),
-                                      [](int v) { return v * 0.01; });
+    double cx_conc = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double cy_conc = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double outer = *rc::gen::map(rc::gen::inRange(30, 300), [](int v) { return v * 0.01; });
+    double inner_frac = *rc::gen::map(rc::gen::inRange(25, 75), [](int v) { return v * 0.01; });
     double inner = outer * inner_frac;
 
     auto verts_a = make_convex_polygon(cx_conv, cy_conv, r_conv, n_verts_convex, perturb);
@@ -362,27 +327,19 @@ RC_GTEST_PROP(PropPlanarClipper, OverlapAreaCommutativity, ()) {
     int n_a = *rc::gen::inRange(3, 12);
     int n_b = *rc::gen::inRange(3, 12);
 
-    double cx_a = *rc::gen::map(rc::gen::inRange(-200, 201),
-                                [](int v) { return v * 0.01; });
-    double cy_a = *rc::gen::map(rc::gen::inRange(-200, 201),
-                                [](int v) { return v * 0.01; });
-    double cx_b = *rc::gen::map(rc::gen::inRange(-200, 201),
-                                [](int v) { return v * 0.01; });
-    double cy_b = *rc::gen::map(rc::gen::inRange(-200, 201),
-                                [](int v) { return v * 0.01; });
-    double r_a = *rc::gen::map(rc::gen::inRange(10, 200),
-                               [](int v) { return v * 0.01; });
-    double r_b = *rc::gen::map(rc::gen::inRange(10, 200),
-                               [](int v) { return v * 0.01; });
+    double cx_a = *rc::gen::map(rc::gen::inRange(-200, 201), [](int v) { return v * 0.01; });
+    double cy_a = *rc::gen::map(rc::gen::inRange(-200, 201), [](int v) { return v * 0.01; });
+    double cx_b = *rc::gen::map(rc::gen::inRange(-200, 201), [](int v) { return v * 0.01; });
+    double cy_b = *rc::gen::map(rc::gen::inRange(-200, 201), [](int v) { return v * 0.01; });
+    double r_a = *rc::gen::map(rc::gen::inRange(10, 200), [](int v) { return v * 0.01; });
+    double r_b = *rc::gen::map(rc::gen::inRange(10, 200), [](int v) { return v * 0.01; });
 
     std::vector<double> pert_a, pert_b;
     for (int i = 0; i < n_a; ++i) {
-        pert_a.push_back(*rc::gen::map(rc::gen::inRange(-50, 51),
-                                       [](int v) { return v * 0.001; }));
+        pert_a.push_back(*rc::gen::map(rc::gen::inRange(-50, 51), [](int v) { return v * 0.001; }));
     }
     for (int i = 0; i < n_b; ++i) {
-        pert_b.push_back(*rc::gen::map(rc::gen::inRange(-50, 51),
-                                       [](int v) { return v * 0.001; }));
+        pert_b.push_back(*rc::gen::map(rc::gen::inRange(-50, 51), [](int v) { return v * 0.001; }));
     }
 
     auto verts_a = make_convex_polygon(cx_a, cy_a, r_a, n_a, pert_a);
@@ -412,27 +369,19 @@ RC_GTEST_PROP(PropPlanarClipper, OverlapAreaBounds, ()) {
     int n_a = *rc::gen::inRange(3, 14);
     int n_b = *rc::gen::inRange(3, 14);
 
-    double cx_a = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                [](int v) { return v * 0.01; });
-    double cy_a = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                [](int v) { return v * 0.01; });
-    double cx_b = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                [](int v) { return v * 0.01; });
-    double cy_b = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                [](int v) { return v * 0.01; });
-    double r_a = *rc::gen::map(rc::gen::inRange(10, 300),
-                               [](int v) { return v * 0.01; });
-    double r_b = *rc::gen::map(rc::gen::inRange(10, 300),
-                               [](int v) { return v * 0.01; });
+    double cx_a = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double cy_a = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double cx_b = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double cy_b = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.01; });
+    double r_a = *rc::gen::map(rc::gen::inRange(10, 300), [](int v) { return v * 0.01; });
+    double r_b = *rc::gen::map(rc::gen::inRange(10, 300), [](int v) { return v * 0.01; });
 
     std::vector<double> pert_a, pert_b;
     for (int i = 0; i < n_a; ++i) {
-        pert_a.push_back(*rc::gen::map(rc::gen::inRange(-80, 81),
-                                       [](int v) { return v * 0.001; }));
+        pert_a.push_back(*rc::gen::map(rc::gen::inRange(-80, 81), [](int v) { return v * 0.001; }));
     }
     for (int i = 0; i < n_b; ++i) {
-        pert_b.push_back(*rc::gen::map(rc::gen::inRange(-80, 81),
-                                       [](int v) { return v * 0.001; }));
+        pert_b.push_back(*rc::gen::map(rc::gen::inRange(-80, 81), [](int v) { return v * 0.001; }));
     }
 
     auto verts_a = make_convex_polygon(cx_a, cy_a, r_a, n_a, pert_a);
@@ -457,7 +406,7 @@ RC_GTEST_PROP(PropPlanarClipper, OverlapAreaBounds, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -470,7 +419,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

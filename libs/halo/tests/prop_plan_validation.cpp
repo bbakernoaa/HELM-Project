@@ -32,15 +32,14 @@
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <cstddef>
 #include <utility>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-#include <mpi.h>
 
 #include "halo/communicator.hpp"
 #include "handle_registry.hpp"
@@ -51,20 +50,14 @@
 // signatures here (matching the definitions exactly) to call across the boundary.
 
 extern "C" {
-int halo_init_c(int mpi_comm_int, int* comm_handle_out);
-int halo_comm_create_c(int parent_handle, int color, int key,
-                       int* child_handle_out);
-int halo_plan_create_c(int comm_handle,
-                       const int* send_ranks, const int* send_counts, int num_send,
-                       const int* recv_ranks, const int* recv_counts, int num_recv,
-                       int* plan_handle_out);
-int halo_exchange_blocking_c(int plan_handle, void* data,
-                             int num_elements, int element_size);
-int halo_exchange_async_c(int plan_handle, void* data,
-                          int num_elements, int element_size,
-                          int* handle_out);
+int halo_init_c(int mpi_comm_int, int *comm_handle_out);
+int halo_comm_create_c(int parent_handle, int color, int key, int *child_handle_out);
+int halo_plan_create_c(int comm_handle, const int *send_ranks, const int *send_counts, int num_send, const int *recv_ranks, const int *recv_counts,
+                       int num_recv, int *plan_handle_out);
+int halo_exchange_blocking_c(int plan_handle, void *data, int num_elements, int element_size);
+int halo_exchange_async_c(int plan_handle, void *data, int num_elements, int element_size, int *handle_out);
 int halo_wait_c(int handle);
-int halo_test_c(int handle, int* complete_out);
+int halo_test_c(int handle, int *complete_out);
 int halo_destroy_plan_c(int plan_handle);
 int halo_destroy_comm_c(int comm_handle);
 }
@@ -74,9 +67,9 @@ namespace {
 // --- Error code mirror -------------------------------------------------------
 // The Halo_Error enum lives in an anonymous namespace inside halo_c_interop.cpp
 // and is not exported, so we mirror the contract values here for assertions.
-constexpr int HALO_SUCCESS         = 0;
+constexpr int HALO_SUCCESS = 0;
 constexpr int HALO_ERR_INVALID_ARG = 1;
-constexpr int HALO_ERR_BAD_HANDLE  = 4;
+constexpr int HALO_ERR_BAD_HANDLE = 4;
 
 /// The mock MPI_Comm_size always returns 4, so valid ranks are [0, 4).
 constexpr int MOCK_COMM_SIZE = 4;
@@ -89,9 +82,8 @@ constexpr int MOCK_COMM_SIZE = 4;
 // there is no double-free. The single leak is harmless for a test process.
 int valid_comm_handle() {
     static int handle = [] {
-        auto* comm = new halo::Communicator(MPI_COMM_WORLD);
-        return halo::fortran::Handle_Registry::instance()
-            .register_handle(static_cast<void*>(comm));
+        auto *comm = new halo::Communicator(MPI_COMM_WORLD);
+        return halo::fortran::Handle_Registry::instance().register_handle(static_cast<void *>(comm));
     }();
     return handle;
 }
@@ -136,10 +128,7 @@ std::pair<std::vector<int>, std::vector<int>> gen_invalid_neighbors() {
         // rank is placed alongside a random (possibly empty) prefix of valid,
         // unique ranks so the defect is isolated to the out-of-range entry.
         const bool negative = *rc::gen::arbitrary<bool>();
-        int invalid_rank = negative
-                               ? *rc::gen::inRange(-1000, 0)
-                               : *rc::gen::inRange(MOCK_COMM_SIZE,
-                                                   MOCK_COMM_SIZE + 1000);
+        int invalid_rank = negative ? *rc::gen::inRange(-1000, 0) : *rc::gen::inRange(MOCK_COMM_SIZE, MOCK_COMM_SIZE + 1000);
 
         // Optional leading valid, unique ranks to vary list length.
         int prefix_len = *rc::gen::inRange(0, MOCK_COMM_SIZE);
@@ -171,7 +160,7 @@ std::pair<std::vector<int>, std::vector<int>> gen_invalid_neighbors() {
 // **Validates: Requirements 14.12**
 
 RC_GTEST_PROP(InteropProperty24, ValidArraysSucceed, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     const int comm = valid_comm_handle();
@@ -185,13 +174,8 @@ RC_GTEST_PROP(InteropProperty24, ValidArraysSucceed, ()) {
     int plan_handle = -1;
 
     try {
-        create_code = halo_plan_create_c(
-            comm,
-            send_ranks.data(), send_counts.data(),
-            static_cast<int>(send_ranks.size()),
-            recv_ranks.data(), recv_counts.data(),
-            static_cast<int>(recv_ranks.size()),
-            &plan_handle);
+        create_code = halo_plan_create_c(comm, send_ranks.data(), send_counts.data(), static_cast<int>(send_ranks.size()), recv_ranks.data(),
+                                         recv_counts.data(), static_cast<int>(recv_ranks.size()), &plan_handle);
 
         // A successful create returns 0; destroying the resulting plan also
         // returns 0 and frees the heap-allocated Halo_Plan.
@@ -229,7 +213,7 @@ RC_GTEST_PROP(InteropProperty24, ValidArraysSucceed, ()) {
 // **Validates: Requirements 14.12**
 
 RC_GTEST_PROP(InteropProperty24, InvalidArraysRejected, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     const int comm = valid_comm_handle();
@@ -240,11 +224,11 @@ RC_GTEST_PROP(InteropProperty24, InvalidArraysRejected, ()) {
     auto [bad_ranks, bad_counts] = gen_invalid_neighbors();
     auto [good_ranks, good_counts] = gen_valid_neighbors();
 
-    const int* send_ranks;
-    const int* send_counts;
+    const int *send_ranks;
+    const int *send_counts;
     int num_send;
-    const int* recv_ranks;
-    const int* recv_counts;
+    const int *recv_ranks;
+    const int *recv_counts;
     int num_recv;
 
     if (inject_in_send) {
@@ -268,9 +252,7 @@ RC_GTEST_PROP(InteropProperty24, InvalidArraysRejected, ()) {
     int plan_handle = -1;
 
     try {
-        code = halo_plan_create_c(comm, send_ranks, send_counts, num_send,
-                                  recv_ranks, recv_counts, num_recv,
-                                  &plan_handle);
+        code = halo_plan_create_c(comm, send_ranks, send_counts, num_send, recv_ranks, recv_counts, num_recv, &plan_handle);
     } catch (...) {
         threw = true;
     }
@@ -290,7 +272,7 @@ RC_GTEST_PROP(InteropProperty24, InvalidArraysRejected, ()) {
 // whole test binary so any code path that touches a Kokkos::View is safe.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -303,5 +285,4 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);

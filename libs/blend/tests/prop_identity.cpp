@@ -13,15 +13,14 @@
 
 #include <Kokkos_Core.hpp>
 #include <blend/helm_math_blend.hpp>
+#include <vector>
 
 #include "generators.hpp"
-
-#include <vector>
 
 // ── Kokkos lifecycle management ───────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         Kokkos::initialize();
     }
@@ -30,19 +29,19 @@ public:
     }
 };
 
-static ::testing::Environment* const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static ::testing::Environment *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 // ── Property: alpha=0 produces left unchanged ─────────────────────────────────
 
 RC_GTEST_PROP(BlendIdentity, AlphaZeroReturnsLeft, ()) {
-    const std::size_t n       = *blend::gen::array_length();
-    const auto        left_v  = *blend::gen::field_data(n);
-    const auto        right_v = *blend::gen::field_data(n);
+    const std::size_t n = *blend::gen::array_length();
+    const auto left_v = *blend::gen::field_data(n);
+    const auto right_v = *blend::gen::field_data(n);
 
     std::vector<double> target(n, 0.0);
 
-    span::FieldView v_left(const_cast<double*>(left_v.data()), n);
-    span::FieldView v_right(const_cast<double*>(right_v.data()), n);
+    span::FieldView v_left(const_cast<double *>(left_v.data()), n);
+    span::FieldView v_right(const_cast<double *>(right_v.data()), n);
     span::FieldView v_target(target.data(), n);
 
     blend::LinearBlendKernel::apply(v_left, v_right, v_target, 0.0);
@@ -56,14 +55,14 @@ RC_GTEST_PROP(BlendIdentity, AlphaZeroReturnsLeft, ()) {
 // ── Property: alpha=1 produces right unchanged ────────────────────────────────
 
 RC_GTEST_PROP(BlendIdentity, AlphaOneReturnsRight, ()) {
-    const std::size_t n       = *blend::gen::array_length();
-    const auto        left_v  = *blend::gen::field_data(n);
-    const auto        right_v = *blend::gen::field_data(n);
+    const std::size_t n = *blend::gen::array_length();
+    const auto left_v = *blend::gen::field_data(n);
+    const auto right_v = *blend::gen::field_data(n);
 
     std::vector<double> target(n, 0.0);
 
-    span::FieldView v_left(const_cast<double*>(left_v.data()), n);
-    span::FieldView v_right(const_cast<double*>(right_v.data()), n);
+    span::FieldView v_left(const_cast<double *>(left_v.data()), n);
+    span::FieldView v_right(const_cast<double *>(right_v.data()), n);
     span::FieldView v_target(target.data(), n);
 
     blend::LinearBlendKernel::apply(v_left, v_right, v_target, 1.0);

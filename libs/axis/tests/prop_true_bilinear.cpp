@@ -11,24 +11,22 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <algorithm>
-#include <cmath>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/detail/gnomonic_projector.hpp>
 #include <axis/detail/spherical_clipper.hpp>
+#include <cmath>
 
 namespace {
 
-using axis::detail::Vec3;
-using axis::detail::GnomonicProjector;
-using axis::detail::normalize;
-using axis::detail::dot;
-using axis::detail::cross;
-using axis::detail::length;
 using axis::detail::add;
+using axis::detail::cross;
+using axis::detail::dot;
+using axis::detail::GnomonicProjector;
+using axis::detail::length;
+using axis::detail::normalize;
 using axis::detail::scale;
+using axis::detail::Vec3;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -58,11 +56,7 @@ void make_spherical_quad(Vec3 center, double half_width, Vec3 verts[4]) {
     for (int i = 0; i < 4; ++i) {
         double ou = offsets[i][0];
         double ov = offsets[i][1];
-        Vec3 pt{
-            center.x + ou * u.x + ov * v.x,
-            center.y + ou * u.y + ov * v.y,
-            center.z + ou * u.z + ov * v.z
-        };
+        Vec3 pt{center.x + ou * u.x + ov * v.x, center.y + ou * u.y + ov * v.y, center.z + ou * u.z + ov * v.z};
         verts[i] = normalize(pt);
     }
 }
@@ -71,10 +65,8 @@ void make_spherical_quad(Vec3 center, double half_width, Vec3 verts[4]) {
 /// coordinates (xi, eta) ∈ [-1, 1]². Interpolates in the gnomonic projected
 /// space (not 3D Cartesian) so that the bilinear weights solver will recover
 /// exact (xi, eta). Returns the projected (pu, pv) and the 3D point on sphere.
-void bilinear_interpolate_point(const Vec3& center,
-                                const double quad_u[4], const double quad_v[4],
-                                double xi, double eta,
-                                double& pu, double& pv, Vec3& point_3d) {
+void bilinear_interpolate_point(const Vec3 &center, const double quad_u[4], const double quad_v[4], double xi, double eta, double &pu, double &pv,
+                                Vec3 &point_3d) {
     // Compute bilinear shape functions
     double n0 = (1.0 - xi) * (1.0 - eta) * 0.25;
     double n1 = (1.0 + xi) * (1.0 - eta) * 0.25;
@@ -107,15 +99,12 @@ void bilinear_interpolate_point(const Vec3& center,
 
 RC_GTEST_PROP(PropTrueBilinear, AffineExactness, ()) {
     // Generate a random center point on the sphere
-    double lon = *rc::gen::map(rc::gen::inRange(-3141, 3142),
-                               [](int v) { return v * 0.001; });
-    double lat = *rc::gen::map(rc::gen::inRange(-1400, 1401),
-                               [](int v) { return v * 0.001; });
+    double lon = *rc::gen::map(rc::gen::inRange(-3141, 3142), [](int v) { return v * 0.001; });
+    double lat = *rc::gen::map(rc::gen::inRange(-1400, 1401), [](int v) { return v * 0.001; });
     Vec3 center = lonlat_to_vec3(lon, lat);
 
     // Generate quad half-width: 0.02 to 0.2 radians (~1-11 degrees)
-    double half_width = *rc::gen::map(rc::gen::inRange(20, 201),
-                                      [](int v) { return v * 0.001; });
+    double half_width = *rc::gen::map(rc::gen::inRange(20, 201), [](int v) { return v * 0.001; });
 
     // Build the spherical quad
     Vec3 quad_verts[4];
@@ -123,10 +112,8 @@ RC_GTEST_PROP(PropTrueBilinear, AffineExactness, ()) {
 
     // Generate random isoparametric coordinates for interior point
     // Keep strictly interior: xi, eta ∈ [-0.9, 0.9]
-    double xi = *rc::gen::map(rc::gen::inRange(-900, 901),
-                              [](int v) { return v * 0.001; });
-    double eta = *rc::gen::map(rc::gen::inRange(-900, 901),
-                               [](int v) { return v * 0.001; });
+    double xi = *rc::gen::map(rc::gen::inRange(-900, 901), [](int v) { return v * 0.001; });
+    double eta = *rc::gen::map(rc::gen::inRange(-900, 901), [](int v) { return v * 0.001; });
 
     // Project all quad vertices to the tangent plane at center
     double quad_u[4], quad_v[4];
@@ -135,12 +122,9 @@ RC_GTEST_PROP(PropTrueBilinear, AffineExactness, ()) {
     }
 
     // Generate random affine coefficients: f(x,y,z) = a*x + b*y + c*z
-    double a = *rc::gen::map(rc::gen::inRange(-1000, 1001),
-                             [](int v) { return v * 0.01; });
-    double b = *rc::gen::map(rc::gen::inRange(-1000, 1001),
-                             [](int v) { return v * 0.01; });
-    double c = *rc::gen::map(rc::gen::inRange(-1000, 1001),
-                             [](int v) { return v * 0.01; });
+    double a = *rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return v * 0.01; });
+    double b = *rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return v * 0.01; });
+    double c = *rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return v * 0.01; });
 
     // Get the interior point by interpolating in projected space, then
     // recovering the 3D point via inverse gnomonic projection.
@@ -165,13 +149,9 @@ RC_GTEST_PROP(PropTrueBilinear, AffineExactness, ()) {
     // Compute d_i = dot(center, v_i) for each vertex
     double d_verts[4];
     for (int i = 0; i < 4; ++i) {
-        d_verts[i] = center.x * quad_verts[i].x +
-                     center.y * quad_verts[i].y +
-                     center.z * quad_verts[i].z;
+        d_verts[i] = center.x * quad_verts[i].x + center.y * quad_verts[i].y + center.z * quad_verts[i].z;
     }
-    double d_target = center.x * target_3d.x +
-                      center.y * target_3d.y +
-                      center.z * target_3d.z;
+    double d_target = center.x * target_3d.x + center.y * target_3d.y + center.z * target_3d.z;
 
     // Evaluate the gnomonic-scaled affine function at each vertex: g_i = f(v_i)/d_i
     double g_interp = 0.0;
@@ -203,16 +183,13 @@ RC_GTEST_PROP(PropTrueBilinear, AffineExactness, ()) {
 
 RC_GTEST_PROP(PropTrueBilinear, WeightsPartitionOfUnity, ()) {
     // Generate a random center point on the sphere (including near-polar regions)
-    double lon = *rc::gen::map(rc::gen::inRange(-3141, 3142),
-                               [](int v) { return v * 0.001; });
+    double lon = *rc::gen::map(rc::gen::inRange(-3141, 3142), [](int v) { return v * 0.001; });
     // Allow latitudes up to ±88° to test near-pole behavior per Requirement 2.4
-    double lat = *rc::gen::map(rc::gen::inRange(-1535, 1536),
-                               [](int v) { return v * 0.001; });
+    double lat = *rc::gen::map(rc::gen::inRange(-1535, 1536), [](int v) { return v * 0.001; });
     Vec3 center = lonlat_to_vec3(lon, lat);
 
     // Generate quad half-width: 0.01 to 0.15 radians
-    double half_width = *rc::gen::map(rc::gen::inRange(10, 151),
-                                      [](int v) { return v * 0.001; });
+    double half_width = *rc::gen::map(rc::gen::inRange(10, 151), [](int v) { return v * 0.001; });
 
     // Build the spherical quad
     Vec3 quad_verts[4];
@@ -231,10 +208,8 @@ RC_GTEST_PROP(PropTrueBilinear, WeightsPartitionOfUnity, ()) {
     RC_PRE(all_valid);
 
     // Generate random interior point in isoparametric space: xi, eta ∈ [-0.95, 0.95]
-    double xi = *rc::gen::map(rc::gen::inRange(-950, 951),
-                              [](int v) { return v * 0.001; });
-    double eta = *rc::gen::map(rc::gen::inRange(-950, 951),
-                               [](int v) { return v * 0.001; });
+    double xi = *rc::gen::map(rc::gen::inRange(-950, 951), [](int v) { return v * 0.001; });
+    double eta = *rc::gen::map(rc::gen::inRange(-950, 951), [](int v) { return v * 0.001; });
 
     // Get the projected target point by interpolating in projected space
     double pu, pv;
@@ -260,7 +235,7 @@ RC_GTEST_PROP(PropTrueBilinear, WeightsPartitionOfUnity, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -273,7 +248,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

@@ -10,13 +10,11 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/detail/dateline_handler.hpp>
 #include <cmath>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/dateline_handler.hpp>
 
 namespace {
 
@@ -54,23 +52,19 @@ rc::Gen<DatelineCrossingPolygon> genDatelineCrossingPolygon() {
 
         // First vertex: positive side near +π
         // Range: [0.6π, π] mapped from integer range
-        lons[0] = *rc::gen::map(rc::gen::inRange(600, 1001),
-                                [](int v) { return v * 0.001 * pi; });
+        lons[0] = *rc::gen::map(rc::gen::inRange(600, 1001), [](int v) { return v * 0.001 * pi; });
 
         // Second vertex: negative side near -π
         // Range: [-π, -0.6π] mapped from integer range
-        lons[1] = *rc::gen::map(rc::gen::inRange(600, 1001),
-                                [](int v) { return -v * 0.001 * pi; });
+        lons[1] = *rc::gen::map(rc::gen::inRange(600, 1001), [](int v) { return -v * 0.001 * pi; });
 
         // Remaining vertices: randomly on either side
         for (int i = 2; i < n; ++i) {
             bool positive_side = *rc::gen::arbitrary<bool>();
             if (positive_side) {
-                lons[i] = *rc::gen::map(rc::gen::inRange(500, 1001),
-                                        [](int v) { return v * 0.001 * pi; });
+                lons[i] = *rc::gen::map(rc::gen::inRange(500, 1001), [](int v) { return v * 0.001 * pi; });
             } else {
-                lons[i] = *rc::gen::map(rc::gen::inRange(500, 1001),
-                                        [](int v) { return -v * 0.001 * pi; });
+                lons[i] = *rc::gen::map(rc::gen::inRange(500, 1001), [](int v) { return -v * 0.001 * pi; });
             }
         }
 
@@ -157,8 +151,7 @@ RC_GTEST_PROP(PropDateline, NonCrossingNormalizationSafe, ()) {
 
     // All longitudes in a narrow band: [-π/2, π/2]
     for (int i = 0; i < n; ++i) {
-        lons[i] = *rc::gen::map(rc::gen::inRange(-1500, 1501),
-                                [](int v) { return v * 0.001; });
+        lons[i] = *rc::gen::map(rc::gen::inRange(-1500, 1501), [](int v) { return v * 0.001; });
     }
 
     // Precondition: must NOT cross the dateline
@@ -187,7 +180,7 @@ RC_GTEST_PROP(PropDateline, NonCrossingNormalizationSafe, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -200,7 +193,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

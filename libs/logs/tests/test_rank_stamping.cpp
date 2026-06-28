@@ -19,33 +19,31 @@
 ///
 /// **Validates: Requirements 13.2**
 
-#include <logs/logger.hpp>
-#include <logs/severity.hpp>
-
-#include "in_memory_sink.hpp"
-#include "mpi_interposition.hpp"
-
 #include <gtest/gtest.h>
 #include <mpi.h>
 
+#include <logs/logger.hpp>
+#include <logs/severity.hpp>
 #include <regex>
 #include <string>
 #include <vector>
+
+#include "in_memory_sink.hpp"
+#include "mpi_interposition.hpp"
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Test Fixture
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class RankStampingTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         int initialized = 0;
         MPI_Initialized(&initialized);
-        ASSERT_TRUE(initialized)
-            << "MPI must be initialized before running these tests";
+        ASSERT_TRUE(initialized) << "MPI must be initialized before running these tests";
 
         // Record the real rank via MPI_Spy for observation.
-        auto& spy = logs::testing::MPI_Spy::instance();
+        auto &spy = logs::testing::MPI_Spy::instance();
         spy.reset();
     }
 
@@ -61,7 +59,7 @@ protected:
 // The rank is at a fixed position: characters 6..N within the [RANK:XXXX] field.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-static int extract_rank_from_formatted(const std::string& line) {
+static int extract_rank_from_formatted(const std::string &line) {
     // Pattern: [RANK:NNNN] where NNNN is zero-padded (at least 4 digits)
     // or [RANK:----] for sentinel -1.
     static const std::regex rank_re(R"(\[RANK:(----|(\d+))\])");
@@ -95,8 +93,7 @@ TEST_F(RankStampingTest, AllRecordsCarryConfiguredRank) {
     logger.configure_communicator(MPI_COMM_WORLD);
 
     // Verify the Logger stored the expected rank.
-    ASSERT_EQ(logger.rank(), known_rank)
-        << "Logger rank must match the MPI_Comm_rank result";
+    ASSERT_EQ(logger.rank(), known_rank) << "Logger rank must match the MPI_Comm_rank result";
 
     // Step 3: Register an In_Memory_Sink to capture all output.
     logs::testing::In_Memory_Sink mem_sink;
@@ -123,13 +120,12 @@ TEST_F(RankStampingTest, AllRecordsCarryConfiguredRank) {
 
     // Step 6: Verify all recorded entries.
     auto entries = mem_sink.entries();
-    ASSERT_GE(entries.size(), static_cast<std::size_t>(TOTAL_RECORDS))
-        << "Must have at least " << TOTAL_RECORDS << " recorded entries";
+    ASSERT_GE(entries.size(), static_cast<std::size_t>(TOTAL_RECORDS)) << "Must have at least " << TOTAL_RECORDS << " recorded entries";
 
     int records_with_correct_rank = 0;
     int records_with_other_rank = 0;
 
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         int extracted = extract_rank_from_formatted(entry);
         if (extracted == known_rank) {
             ++records_with_correct_rank;
@@ -139,13 +135,10 @@ TEST_F(RankStampingTest, AllRecordsCarryConfiguredRank) {
     }
 
     // Every record must carry the configured rank.
-    EXPECT_EQ(records_with_correct_rank,
-              static_cast<int>(entries.size()))
-        << "Every recorded entry must carry the configured rank " << known_rank;
+    EXPECT_EQ(records_with_correct_rank, static_cast<int>(entries.size())) << "Every recorded entry must carry the configured rank " << known_rank;
 
     // Zero records must carry any other rank value.
-    EXPECT_EQ(records_with_other_rank, 0)
-        << "Zero recorded entries should carry a rank other than " << known_rank;
+    EXPECT_EQ(records_with_other_rank, 0) << "Zero recorded entries should carry a rank other than " << known_rank;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -156,7 +149,7 @@ TEST_F(RankStampingTest, AllRecordsCarryConfiguredRank) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST_F(RankStampingTest, MpiSpyRecordsCommRankCall) {
-    auto& spy = logs::testing::MPI_Spy::instance();
+    auto &spy = logs::testing::MPI_Spy::instance();
     spy.reset();
     spy.set_rank(42);
     spy.set_initialized(true);
@@ -167,17 +160,14 @@ TEST_F(RankStampingTest, MpiSpyRecordsCommRankCall) {
     int rc = spy.record_comm_rank(MPI_COMM_WORLD, &rank_out);
 
     EXPECT_EQ(rc, MPI_SUCCESS);
-    EXPECT_EQ(rank_out, 42)
-        << "MPI_Spy must return the configured rank value";
+    EXPECT_EQ(rank_out, 42) << "MPI_Spy must return the configured rank value";
 
     // Verify the spy recorded exactly one COMM_RANK call.
-    auto comm_rank_calls = spy.calls_of_type(
-        logs::testing::MPI_Call_Type::COMM_RANK);
+    auto comm_rank_calls = spy.calls_of_type(logs::testing::MPI_Call_Type::COMM_RANK);
     ASSERT_EQ(comm_rank_calls.size(), 1u);
 
     // Verify the recorded args contain rank 42.
-    const auto& args = std::get<logs::testing::Comm_Rank_Args>(
-        comm_rank_calls[0].args);
+    const auto &args = std::get<logs::testing::Comm_Rank_Args>(comm_rank_calls[0].args);
     EXPECT_EQ(args.rank_out, 42);
 }
 
@@ -204,11 +194,10 @@ TEST_F(RankStampingTest, SentinelRankBeforeConfigure) {
     ASSERT_GE(entries.size(), 110u);
 
     // All entries must carry the sentinel rank -1 (rendered as "----").
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         int extracted = extract_rank_from_formatted(entry);
-        EXPECT_EQ(extracted, -1)
-            << "Before configure_communicator, rank must be sentinel -1. "
-            << "Entry: " << entry;
+        EXPECT_EQ(extracted, -1) << "Before configure_communicator, rank must be sentinel -1. "
+                                 << "Entry: " << entry;
     }
 }
 
@@ -239,40 +228,35 @@ TEST_F(RankStampingTest, RankConsistentAcrossThreads) {
     for (int t = 0; t < NUM_THREADS; ++t) {
         threads.emplace_back([&logger, t]() {
             for (int i = 0; i < RECORDS_PER_THREAD; ++i) {
-                std::string msg = "thread_" + std::to_string(t)
-                                + "_msg_" + std::to_string(i);
+                std::string msg = "thread_" + std::to_string(t) + "_msg_" + std::to_string(i);
                 logger.log(logs::Severity_Level::INFO, msg);
             }
         });
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
     auto entries = mem_sink.entries();
-    ASSERT_GE(entries.size(),
-              static_cast<std::size_t>(NUM_THREADS * RECORDS_PER_THREAD))
-        << "Must capture all records from all threads";
+    ASSERT_GE(entries.size(), static_cast<std::size_t>(NUM_THREADS * RECORDS_PER_THREAD)) << "Must capture all records from all threads";
 
     int records_with_other_rank = 0;
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         int extracted = extract_rank_from_formatted(entry);
         if (extracted != known_rank) {
             ++records_with_other_rank;
         }
     }
 
-    EXPECT_EQ(records_with_other_rank, 0)
-        << "All threads must emit records with the configured rank "
-        << known_rank << ", not any other value";
+    EXPECT_EQ(records_with_other_rank, 0) << "All threads must emit records with the configured rank " << known_rank << ", not any other value";
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // GTest main() — MPI lifecycle
 // ═══════════════════════════════════════════════════════════════════════════════
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     int provided = 0;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 

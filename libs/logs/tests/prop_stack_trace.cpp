@@ -4,13 +4,12 @@
 /// Uses RapidCheck + Google Test to verify universal correctness properties
 /// over arbitrary frame sequences.
 
-#include <logs/stack_trace.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <algorithm>
+#include <logs/stack_trace.hpp>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -20,13 +19,11 @@ namespace {
 
 /// Generate a sanitized string (no newlines) suitable for frame fields.
 rc::Gen<std::string> genSafeString() {
-    return rc::gen::map(
-        rc::gen::nonEmpty(rc::gen::string<std::string>()),
-        [](std::string s) {
-            std::replace(s.begin(), s.end(), '\n', '_');
-            std::replace(s.begin(), s.end(), '\r', '_');
-            return s;
-        });
+    return rc::gen::map(rc::gen::nonEmpty(rc::gen::string<std::string>()), [](std::string s) {
+        std::replace(s.begin(), s.end(), '\n', '_');
+        std::replace(s.begin(), s.end(), '\r', '_');
+        return s;
+    });
 }
 
 /// Generate a random Stack_Frame with optional fields.
@@ -48,7 +45,7 @@ rc::Gen<logs::Stack_Frame> genStackFrame() {
 }
 
 /// Helper: count lines in a string (number of '\n' characters).
-std::size_t countLines(const std::string& s) {
+std::size_t countLines(const std::string &s) {
     return static_cast<std::size_t>(std::count(s.begin(), s.end(), '\n'));
 }
 
@@ -59,9 +56,7 @@ std::size_t countLines(const std::string& s) {
 
 /// For any sequence with >256 frames, verify exactly 256 frame lines are
 /// rendered followed by exactly one omission line, totalling 257 lines.
-RC_GTEST_PROP(StackTraceFrameCap,
-              OutputContainsExactly256FrameLinesAndOneOmissionLine,
-              ()) {
+RC_GTEST_PROP(StackTraceFrameCap, OutputContainsExactly256FrameLinesAndOneOmissionLine, ()) {
     // Generate a frame count in [257, 512].
     const auto frameCount = *rc::gen::inRange<std::size_t>(257, 513);
 
@@ -80,9 +75,7 @@ RC_GTEST_PROP(StackTraceFrameCap,
 }
 
 /// Verify the last line matches the omission pattern with correct count.
-RC_GTEST_PROP(StackTraceFrameCap,
-              OmissionLineContainsCorrectRemainingCount,
-              ()) {
+RC_GTEST_PROP(StackTraceFrameCap, OmissionLineContainsCorrectRemainingCount, ()) {
     const auto frameCount = *rc::gen::inRange<std::size_t>(257, 513);
 
     std::vector<logs::Stack_Frame> frames;
@@ -97,7 +90,7 @@ RC_GTEST_PROP(StackTraceFrameCap,
     auto lastNewline = output.rfind('\n', output.size() - 2);
     std::string lastLine;
     if (lastNewline == std::string::npos) {
-        lastLine = output.substr(0, output.size() - 1); // remove trailing \n
+        lastLine = output.substr(0, output.size() - 1);  // remove trailing \n
     } else {
         lastLine = output.substr(lastNewline + 1);
         // Remove trailing newline if present.
@@ -114,9 +107,7 @@ RC_GTEST_PROP(StackTraceFrameCap,
 }
 
 /// Verify the first 256 frame lines reference indices #0 through #255.
-RC_GTEST_PROP(StackTraceFrameCap,
-              First256FrameIndicesPresent,
-              ()) {
+RC_GTEST_PROP(StackTraceFrameCap, First256FrameIndicesPresent, ()) {
     const auto frameCount = *rc::gen::inRange<std::size_t>(257, 513);
 
     std::vector<logs::Stack_Frame> frames;
@@ -145,4 +136,4 @@ RC_GTEST_PROP(StackTraceFrameCap,
     }
 }
 
-} // namespace
+}  // namespace

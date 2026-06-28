@@ -6,11 +6,10 @@
 //   - Query results are immune to later mutation of the originating source
 // ──────────────────────────────────────────────────────────────────────────────
 
-#include <conf/config.hpp>
-#include <conf/error.hpp>
-
 #include <gtest/gtest.h>
 
+#include <conf/config.hpp>
+#include <conf/error.hpp>
 #include <cstdio>
 #include <fstream>
 #include <string>
@@ -18,14 +17,14 @@
 namespace {
 
 // Simple YAML content used across tests
-constexpr const char* kSimpleYaml =
+constexpr const char *kSimpleYaml =
     "model:\n"
     "  layers: 42\n"
     "  name: spherical\n";
 
 // Helper: write content to a temporary file and return its path.
 // The caller is responsible for removing the file.
-std::string write_temp_yaml(const std::string& content) {
+std::string write_temp_yaml(const std::string &content) {
     const std::string path = "/tmp/conf_test_load.yaml";
     std::ofstream ofs(path, std::ios::out | std::ios::trunc);
     ofs << content;
@@ -33,7 +32,7 @@ std::string write_temp_yaml(const std::string& content) {
     return path;
 }
 
-} // namespace
+}  // namespace
 
 // ─── Requirement 1.2: Config::from_string parses valid YAML and queries succeed
 
@@ -52,7 +51,7 @@ TEST(ConfigLoad, FromString_ValidYaml_LoadsSuccessfully) {
 // ─── Requirement 1.2: Config::from_string with deeply nested maps
 
 TEST(ConfigLoad, FromString_NestedMaps_DeepPathQuerySucceeds) {
-    const char* nested_yaml =
+    const char *nested_yaml =
         "simulation:\n"
         "  physics:\n"
         "    gravity:\n"
@@ -97,7 +96,7 @@ TEST(ConfigLoad, FromFile_MissingPath_ThrowsFileNotFound) {
     try {
         auto cfg = conf::Config::from_file(missing);
         FAIL() << "Expected Conf_Error to be thrown for missing file";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::File_Not_Found);
     } catch (...) {
         FAIL() << "Expected conf::Conf_Error, got a different exception type";

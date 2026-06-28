@@ -6,35 +6,34 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <gtest/gtest.h>
-#include <conf/error.hpp>
 
+#include <conf/error.hpp>
 #include <cstring>
 #include <string>
 #include <vector>
 
 // ─── Declare the extern "C" function prototypes ─────────────────────────────
 extern "C" {
-int conf_load_c(const char* path, int path_len, int* handle_out);
-int conf_load_string_c(const char* yaml_text, int text_len, int* handle_out);
+int conf_load_c(const char *path, int path_len, int *handle_out);
+int conf_load_string_c(const char *yaml_text, int text_len, int *handle_out);
 int conf_close_c(int handle);
-int conf_has_key_c(int handle, const char* key, int key_len, int* exists_out);
-int conf_size_c(int handle, const char* key, int key_len, int* size_out);
-int conf_get_int_c(int handle, const char* key, int key_len, int* out);
-int conf_get_double_c(int handle, const char* key, int key_len, double* out);
-int conf_get_bool_c(int handle, const char* key, int key_len, int* out);
-int conf_get_string_len_c(int handle, const char* key, int key_len, int* str_len_out);
-int conf_get_string_c(int handle, const char* key, int key_len,
-                      char* buf, int buf_cap, int* written_out);
+int conf_has_key_c(int handle, const char *key, int key_len, int *exists_out);
+int conf_size_c(int handle, const char *key, int key_len, int *size_out);
+int conf_get_int_c(int handle, const char *key, int key_len, int *out);
+int conf_get_double_c(int handle, const char *key, int key_len, double *out);
+int conf_get_bool_c(int handle, const char *key, int key_len, int *out);
+int conf_get_string_len_c(int handle, const char *key, int key_len, int *str_len_out);
+int conf_get_string_c(int handle, const char *key, int key_len, char *buf, int buf_cap, int *written_out);
 }
 
 // ─── Convenience aliases for Error_Code integer values ──────────────────────
-static constexpr int SUCCESS        = static_cast<int>(conf::Error_Code::Success);
-static constexpr int INVALID_ARG    = static_cast<int>(conf::Error_Code::Invalid_Arg);
+static constexpr int SUCCESS = static_cast<int>(conf::Error_Code::Success);
+static constexpr int INVALID_ARG = static_cast<int>(conf::Error_Code::Invalid_Arg);
 static constexpr int FILE_NOT_FOUND = static_cast<int>(conf::Error_Code::File_Not_Found);
-static constexpr int PARSE_ERROR    = static_cast<int>(conf::Error_Code::Parse_Error);
-static constexpr int KEY_NOT_FOUND  = static_cast<int>(conf::Error_Code::Key_Not_Found);
-static constexpr int TYPE_MISMATCH  = static_cast<int>(conf::Error_Code::Type_Mismatch);
-static constexpr int BAD_HANDLE     = static_cast<int>(conf::Error_Code::Bad_Handle);
+static constexpr int PARSE_ERROR = static_cast<int>(conf::Error_Code::Parse_Error);
+static constexpr int KEY_NOT_FOUND = static_cast<int>(conf::Error_Code::Key_Not_Found);
+static constexpr int TYPE_MISMATCH = static_cast<int>(conf::Error_Code::Type_Mismatch);
+static constexpr int BAD_HANDLE = static_cast<int>(conf::Error_Code::Bad_Handle);
 static constexpr int BUFFER_TOO_SMALL = static_cast<int>(conf::Error_Code::Buffer_Too_Small);
 
 // ─── Valid YAML for use in tests ────────────────────────────────────────────
@@ -50,9 +49,7 @@ static const std::string VALID_YAML =
 // Requirement 17.5: conf_load_string_c returns Success and a positive handle.
 TEST(CBridge, LoadStringValidYamlReturnsSuccess) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     EXPECT_EQ(rc, SUCCESS);
     EXPECT_GT(handle, 0);
 
@@ -74,9 +71,7 @@ TEST(CBridge, LoadFileNotFoundReturnsFileNotFound) {
 TEST(CBridge, LoadStringMalformedYamlReturnsParseError) {
     const std::string bad_yaml = "key: [unclosed bracket";
     int handle = 0;
-    int rc = conf_load_string_c(bad_yaml.c_str(),
-                                static_cast<int>(bad_yaml.size()),
-                                &handle);
+    int rc = conf_load_string_c(bad_yaml.c_str(), static_cast<int>(bad_yaml.size()), &handle);
     EXPECT_EQ(rc, PARSE_ERROR);
 }
 
@@ -114,23 +109,17 @@ TEST(CBridge, HandleZeroReturnsBadHandle) {
     int bool_out = 0;
     int str_len = 0;
 
-    EXPECT_EQ(conf_get_int_c(0, key.c_str(), static_cast<int>(key.size()), &int_out),
-              BAD_HANDLE);
-    EXPECT_EQ(conf_get_double_c(0, key.c_str(), static_cast<int>(key.size()), &dbl_out),
-              BAD_HANDLE);
-    EXPECT_EQ(conf_get_bool_c(0, key.c_str(), static_cast<int>(key.size()), &bool_out),
-              BAD_HANDLE);
-    EXPECT_EQ(conf_get_string_len_c(0, key.c_str(), static_cast<int>(key.size()), &str_len),
-              BAD_HANDLE);
+    EXPECT_EQ(conf_get_int_c(0, key.c_str(), static_cast<int>(key.size()), &int_out), BAD_HANDLE);
+    EXPECT_EQ(conf_get_double_c(0, key.c_str(), static_cast<int>(key.size()), &dbl_out), BAD_HANDLE);
+    EXPECT_EQ(conf_get_bool_c(0, key.c_str(), static_cast<int>(key.size()), &bool_out), BAD_HANDLE);
+    EXPECT_EQ(conf_get_string_len_c(0, key.c_str(), static_cast<int>(key.size()), &str_len), BAD_HANDLE);
 }
 
 // ─── Test 8: Released handle returns Bad_Handle ─────────────────────────────
 // Requirement 21.4, 32.6: a released handle returns Bad_Handle on reuse.
 TEST(CBridge, ReleasedHandleReturnsBadHandle) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
     ASSERT_GT(handle, 0);
 
@@ -141,21 +130,17 @@ TEST(CBridge, ReleasedHandleReturnsBadHandle) {
     // Now all getters should return Bad_Handle
     const std::string key = "model.layers";
     int int_out = 0;
-    EXPECT_EQ(conf_get_int_c(handle, key.c_str(), static_cast<int>(key.size()), &int_out),
-              BAD_HANDLE);
+    EXPECT_EQ(conf_get_int_c(handle, key.c_str(), static_cast<int>(key.size()), &int_out), BAD_HANDLE);
 
     int exists = 0;
-    EXPECT_EQ(conf_has_key_c(handle, key.c_str(), static_cast<int>(key.size()), &exists),
-              BAD_HANDLE);
+    EXPECT_EQ(conf_has_key_c(handle, key.c_str(), static_cast<int>(key.size()), &exists), BAD_HANDLE);
 }
 
 // ─── Test 9: conf_get_int_c on a valid key returns the value ────────────────
 // Requirement 17.4, 32.5: successful scalar getter returns the correct value.
 TEST(CBridge, GetIntValidKeyReturnsValue) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
 
     const std::string key = "model.layers";
@@ -171,9 +156,7 @@ TEST(CBridge, GetIntValidKeyReturnsValue) {
 // Requirement 17.4, 32.5: missing key returns Key_Not_Found.
 TEST(CBridge, GetIntMissingKeyReturnsKeyNotFound) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
 
     const std::string key = "model.nonexistent";
@@ -188,9 +171,7 @@ TEST(CBridge, GetIntMissingKeyReturnsKeyNotFound) {
 // Requirement 17.4, 32.5: type mismatch returns Type_Mismatch.
 TEST(CBridge, GetIntNonNumericReturnsTypeMismatch) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
 
     // "model.name" is "test_model" — not an integer
@@ -206,24 +187,20 @@ TEST(CBridge, GetIntNonNumericReturnsTypeMismatch) {
 // Requirement 17.4: conf_get_bool_c writes 1 for true and 0 for false.
 TEST(CBridge, GetBoolReturnsTrueAndFalse) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
 
     // Test true
     const std::string key_true = "model.enabled";
     int bool_out = -1;
-    rc = conf_get_bool_c(handle, key_true.c_str(),
-                         static_cast<int>(key_true.size()), &bool_out);
+    rc = conf_get_bool_c(handle, key_true.c_str(), static_cast<int>(key_true.size()), &bool_out);
     EXPECT_EQ(rc, SUCCESS);
     EXPECT_EQ(bool_out, 1);
 
     // Test false
     const std::string key_false = "model.disabled";
     bool_out = -1;
-    rc = conf_get_bool_c(handle, key_false.c_str(),
-                         static_cast<int>(key_false.size()), &bool_out);
+    rc = conf_get_bool_c(handle, key_false.c_str(), static_cast<int>(key_false.size()), &bool_out);
     EXPECT_EQ(rc, SUCCESS);
     EXPECT_EQ(bool_out, 0);
 
@@ -235,9 +212,7 @@ TEST(CBridge, GetBoolReturnsTrueAndFalse) {
 // conf_get_string_c with buf_cap=N writes exactly N bytes and returns Success.
 TEST(CBridge, StringLengthFirstProtocolRoundTrip) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
 
     const std::string key = "model.name";
@@ -245,16 +220,14 @@ TEST(CBridge, StringLengthFirstProtocolRoundTrip) {
 
     // Step 1: query length
     int str_len = 0;
-    rc = conf_get_string_len_c(handle, key.c_str(),
-                               static_cast<int>(key.size()), &str_len);
+    rc = conf_get_string_len_c(handle, key.c_str(), static_cast<int>(key.size()), &str_len);
     EXPECT_EQ(rc, SUCCESS);
     EXPECT_EQ(str_len, static_cast<int>(expected.size()));
 
     // Step 2: fetch string with exactly enough capacity
     std::vector<char> buf(static_cast<std::size_t>(str_len), '\0');
     int written = 0;
-    rc = conf_get_string_c(handle, key.c_str(), static_cast<int>(key.size()),
-                           buf.data(), str_len, &written);
+    rc = conf_get_string_c(handle, key.c_str(), static_cast<int>(key.size()), buf.data(), str_len, &written);
     EXPECT_EQ(rc, SUCCESS);
     EXPECT_EQ(written, str_len);
     EXPECT_EQ(std::string(buf.data(), static_cast<std::size_t>(written)), expected);
@@ -266,17 +239,14 @@ TEST(CBridge, StringLengthFirstProtocolRoundTrip) {
 // Requirement 17.4, 32.5: buf_cap < N returns Buffer_Too_Small, writes nothing.
 TEST(CBridge, BufferTooSmallReturnsBufferTooSmall) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
 
     const std::string key = "model.name";  // "test_model" = 10 chars
 
     // Query length first to know the required size
     int str_len = 0;
-    rc = conf_get_string_len_c(handle, key.c_str(),
-                               static_cast<int>(key.size()), &str_len);
+    rc = conf_get_string_len_c(handle, key.c_str(), static_cast<int>(key.size()), &str_len);
     ASSERT_EQ(rc, SUCCESS);
     ASSERT_GT(str_len, 0);
 
@@ -284,14 +254,12 @@ TEST(CBridge, BufferTooSmallReturnsBufferTooSmall) {
     int small_cap = str_len - 1;
     std::vector<char> buf(static_cast<std::size_t>(small_cap), 'X');
     int written = -1;  // sentinel
-    rc = conf_get_string_c(handle, key.c_str(), static_cast<int>(key.size()),
-                           buf.data(), small_cap, &written);
+    rc = conf_get_string_c(handle, key.c_str(), static_cast<int>(key.size()), buf.data(), small_cap, &written);
     EXPECT_EQ(rc, BUFFER_TOO_SMALL);
 
     // Buffer should be untouched (all 'X')
     for (int i = 0; i < small_cap; ++i) {
-        EXPECT_EQ(buf[static_cast<std::size_t>(i)], 'X')
-            << "Buffer byte " << i << " was modified despite Buffer_Too_Small";
+        EXPECT_EQ(buf[static_cast<std::size_t>(i)], 'X') << "Buffer byte " << i << " was modified despite Buffer_Too_Small";
     }
 
     conf_close_c(handle);
@@ -301,9 +269,7 @@ TEST(CBridge, BufferTooSmallReturnsBufferTooSmall) {
 // Requirement 21.4, 32.6: close returns Success; reuse returns Bad_Handle.
 TEST(CBridge, CloseReturnSuccessThenBadHandleOnReuse) {
     int handle = 0;
-    int rc = conf_load_string_c(VALID_YAML.c_str(),
-                                static_cast<int>(VALID_YAML.size()),
-                                &handle);
+    int rc = conf_load_string_c(VALID_YAML.c_str(), static_cast<int>(VALID_YAML.size()), &handle);
     ASSERT_EQ(rc, SUCCESS);
     ASSERT_GT(handle, 0);
 

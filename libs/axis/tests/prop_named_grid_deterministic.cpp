@@ -19,12 +19,10 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/topology/named_grid_registry.hpp>
 #include <cstring>
 #include <string>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/named_grid_registry.hpp>
 
 namespace {
 
@@ -43,11 +41,7 @@ rc::Gen<int> genSmallN() {
 
 /// Generate a valid named-grid string from a random family and small N.
 rc::Gen<std::string> genGridName() {
-    return rc::gen::apply(
-        [](char family, int n) {
-            return std::string(1, family) + std::to_string(n);
-        },
-        genFamily(), genSmallN());
+    return rc::gen::apply([](char family, int n) { return std::string(1, family) + std::to_string(n); }, genFamily(), genSmallN());
 }
 
 // ─── Property 4a: Same n_nodes() and n_cells() on two independent generates
@@ -97,12 +91,10 @@ RC_GTEST_PROP(PropNamedGridDeterministic, BitwiseIdenticalNodeCoords, ()) {
     RC_ASSERT(coords1.extent(1) == coords2.extent(1));
 
     // Bitwise comparison of the underlying coordinate data
-    const std::size_t n_bytes =
-        coords1.extent(0) * coords1.extent(1) * sizeof(double);
+    const std::size_t n_bytes = coords1.extent(0) * coords1.extent(1) * sizeof(double);
 
     if (n_bytes > 0) {
-        RC_ASSERT(std::memcmp(coords1.data_handle(), coords2.data_handle(),
-                              n_bytes) == 0);
+        RC_ASSERT(std::memcmp(coords1.data_handle(), coords2.data_handle(), n_bytes) == 0);
     }
 }
 
@@ -126,12 +118,10 @@ RC_GTEST_PROP(PropNamedGridDeterministic, IdenticalCsrConnectivity, ()) {
 
     RC_ASSERT(offsets1.extent(0) == offsets2.extent(0));
 
-    const std::size_t offsets_bytes =
-        offsets1.extent(0) * sizeof(axis::index_t);
+    const std::size_t offsets_bytes = offsets1.extent(0) * sizeof(axis::index_t);
 
     if (offsets_bytes > 0) {
-        RC_ASSERT(std::memcmp(offsets1.data_handle(), offsets2.data_handle(),
-                              offsets_bytes) == 0);
+        RC_ASSERT(std::memcmp(offsets1.data_handle(), offsets2.data_handle(), offsets_bytes) == 0);
     }
 
     // Compare CSR indices
@@ -140,12 +130,10 @@ RC_GTEST_PROP(PropNamedGridDeterministic, IdenticalCsrConnectivity, ()) {
 
     RC_ASSERT(indices1.extent(0) == indices2.extent(0));
 
-    const std::size_t indices_bytes =
-        indices1.extent(0) * sizeof(axis::index_t);
+    const std::size_t indices_bytes = indices1.extent(0) * sizeof(axis::index_t);
 
     if (indices_bytes > 0) {
-        RC_ASSERT(std::memcmp(indices1.data_handle(), indices2.data_handle(),
-                              indices_bytes) == 0);
+        RC_ASSERT(std::memcmp(indices1.data_handle(), indices2.data_handle(), indices_bytes) == 0);
     }
 }
 
@@ -154,7 +142,7 @@ RC_GTEST_PROP(PropNamedGridDeterministic, IdenticalCsrConnectivity, ()) {
 // and parallel kernel execution in the named-grid generators.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -168,7 +156,6 @@ public:
 };
 
 // Register the Kokkos environment with GTest
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

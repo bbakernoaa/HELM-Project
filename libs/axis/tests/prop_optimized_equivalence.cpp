@@ -15,22 +15,20 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <map>
-#include <set>
-#include <tuple>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/solver/weight_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <map>
+#include <set>
+#include <tuple>
+#include <vector>
 
 namespace {
 
@@ -40,17 +38,15 @@ using MemSpace = Kokkos::HostSpace;
 
 /// Build a regular ni×nj grid mesh covering [lon_start, lon_start + ni*dlon]
 /// × [lat_start, lat_start + nj*dlat].
-axis::topology::UnstructuredMesh<MemSpace>
-build_regular_mesh(std::size_t ni, std::size_t nj,
-                   double lon_start, double lat_start,
-                   double dlon, double dlat) {
+axis::topology::UnstructuredMesh<MemSpace> build_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, double lat_start, double dlon,
+                                                              double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, MemSpace> center_lon("clon", n_centers);
-    Kokkos::View<double*, MemSpace> center_lat("clat", n_centers);
-    Kokkos::View<double*, MemSpace> corner_lon("crlon", n_corners);
-    Kokkos::View<double*, MemSpace> corner_lat("crlat", n_corners);
+    Kokkos::View<double *, MemSpace> center_lon("clon", n_centers);
+    Kokkos::View<double *, MemSpace> center_lat("clat", n_centers);
+    Kokkos::View<double *, MemSpace> corner_lon("crlon", n_corners);
+    Kokkos::View<double *, MemSpace> corner_lat("crlat", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -68,26 +64,22 @@ build_regular_mesh(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::Cartesian3D);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::Cartesian3D);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
 }
 
 /// Build a regular lat-lon mesh with spherical coordinates (for GreatCircle).
-axis::topology::UnstructuredMesh<MemSpace>
-build_regular_mesh_spherical(std::size_t ni, std::size_t nj,
-                             double lon_start, double lat_start,
-                             double dlon, double dlat) {
+axis::topology::UnstructuredMesh<MemSpace> build_regular_mesh_spherical(std::size_t ni, std::size_t nj, double lon_start, double lat_start,
+                                                                        double dlon, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, MemSpace> center_lon("clon", n_centers);
-    Kokkos::View<double*, MemSpace> center_lat("clat", n_centers);
-    Kokkos::View<double*, MemSpace> corner_lon("crlon", n_corners);
-    Kokkos::View<double*, MemSpace> corner_lat("crlat", n_corners);
+    Kokkos::View<double *, MemSpace> center_lon("clon", n_centers);
+    Kokkos::View<double *, MemSpace> center_lat("clat", n_centers);
+    Kokkos::View<double *, MemSpace> corner_lon("crlon", n_corners);
+    Kokkos::View<double *, MemSpace> corner_lat("crlat", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -105,9 +97,7 @@ build_regular_mesh_spherical(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
@@ -123,8 +113,7 @@ struct Triplet {
 };
 
 /// Extract all triplets from an InterpolationMatrix, sorted by (row, col).
-std::vector<Triplet>
-extract_sorted_triplets(const axis::solver::InterpolationMatrix<MemSpace>& matrix) {
+std::vector<Triplet> extract_sorted_triplets(const axis::solver::InterpolationMatrix<MemSpace> &matrix) {
     const auto nnz = matrix.nnz();
     auto rows = matrix.factor_row();
     auto cols = matrix.factor_col();
@@ -137,11 +126,10 @@ extract_sorted_triplets(const axis::solver::InterpolationMatrix<MemSpace>& matri
         triplets.push_back({rows[k], cols[k], weights[k]});
     }
 
-    std::sort(triplets.begin(), triplets.end(),
-              [](const Triplet& a, const Triplet& b) {
-                  if (a.row != b.row) return a.row < b.row;
-                  return a.col < b.col;
-              });
+    std::sort(triplets.begin(), triplets.end(), [](const Triplet &a, const Triplet &b) {
+        if (a.row != b.row) return a.row < b.row;
+        return a.col < b.col;
+    });
 
     return triplets;
 }
@@ -149,9 +137,7 @@ extract_sorted_triplets(const axis::solver::InterpolationMatrix<MemSpace>& matri
 /// Compare two sets of triplets: verify identical (row, col) pairs and
 /// weight agreement within tolerance.
 /// Returns true on match, false on mismatch.
-bool triplets_agree(const std::vector<Triplet>& a,
-                    const std::vector<Triplet>& b,
-                    double tol) {
+bool triplets_agree(const std::vector<Triplet> &a, const std::vector<Triplet> &b, double tol) {
     if (a.size() != b.size()) return false;
 
     for (std::size_t i = 0; i < a.size(); ++i) {
@@ -205,15 +191,14 @@ RC_GTEST_PROP(PropOptimizedEquivalence, RegularGridEquivalence, ()) {
     cfg.line_type = axis::solver::LineType::Cartesian;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     auto triplets = extract_sorted_triplets(matrix);
 
     // Verify against analytical rectangle overlap formula
     double dst_area = dlon_dst * dlat_dst;
 
-    for (const auto& t : triplets) {
+    for (const auto &t : triplets) {
         auto dst_idx = static_cast<std::size_t>(t.row);
         auto src_idx = static_cast<std::size_t>(t.col);
 
@@ -234,10 +219,8 @@ RC_GTEST_PROP(PropOptimizedEquivalence, RegularGridEquivalence, ()) {
         double d_hi_y = static_cast<double>(dj + 1) * dlat_dst;
 
         // Analytical rectangle overlap
-        double dx = std::fmax(0.0, std::fmin(s_hi_x, d_hi_x) -
-                                   std::fmax(s_lo_x, d_lo_x));
-        double dy = std::fmax(0.0, std::fmin(s_hi_y, d_hi_y) -
-                                   std::fmax(s_lo_y, d_lo_y));
+        double dx = std::fmax(0.0, std::fmin(s_hi_x, d_hi_x) - std::fmax(s_lo_x, d_lo_x));
+        double dy = std::fmax(0.0, std::fmin(s_hi_y, d_hi_y) - std::fmax(s_lo_y, d_lo_y));
         double expected_overlap = dx * dy;
         double expected_weight = expected_overlap / dst_area;
 
@@ -282,10 +265,8 @@ RC_GTEST_PROP(PropOptimizedEquivalence, DeterministicOutput, ()) {
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Run twice with identical inputs
-    auto matrix1 = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
-    auto matrix2 = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix1 = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
+    auto matrix2 = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     // Verify bitwise identical results
     RC_ASSERT(matrix1.nnz() == matrix2.nnz());
@@ -333,10 +314,8 @@ RC_GTEST_PROP(PropOptimizedEquivalence, CartesianVsGreatCircleConsistency, ()) {
     double dlat_dst = lat_extent / static_cast<double>(nj_dst);
 
     // Build spherical meshes (for GreatCircle comparison)
-    auto src_mesh = build_regular_mesh_spherical(
-        ni_src, nj_src, lon_start, lat_start, dlon_src, dlat_src);
-    auto dst_mesh = build_regular_mesh_spherical(
-        ni_dst, nj_dst, lon_start, lat_start, dlon_dst, dlat_dst);
+    auto src_mesh = build_regular_mesh_spherical(ni_src, nj_src, lon_start, lat_start, dlon_src, dlat_src);
+    auto dst_mesh = build_regular_mesh_spherical(ni_dst, nj_dst, lon_start, lat_start, dlon_dst, dlat_dst);
 
     // Config for Cartesian path
     axis::solver::RegridConfig cfg_cart;
@@ -352,10 +331,8 @@ RC_GTEST_PROP(PropOptimizedEquivalence, CartesianVsGreatCircleConsistency, ()) {
     cfg_gc.line_type = axis::solver::LineType::GreatCircle;
     cfg_gc.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix_cart = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg_cart);
-    auto matrix_gc = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg_gc);
+    auto matrix_cart = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg_cart);
+    auto matrix_gc = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg_gc);
 
     auto triplets_cart = extract_sorted_triplets(matrix_cart);
     auto triplets_gc = extract_sorted_triplets(matrix_gc);
@@ -370,15 +347,15 @@ RC_GTEST_PROP(PropOptimizedEquivalence, CartesianVsGreatCircleConsistency, ()) {
     std::map<axis::index_t, double> row_sum_cart;
     std::map<axis::index_t, double> row_sum_gc;
 
-    for (const auto& t : triplets_cart) {
+    for (const auto &t : triplets_cart) {
         row_sum_cart[t.row] += t.weight;
     }
-    for (const auto& t : triplets_gc) {
+    for (const auto &t : triplets_gc) {
         row_sum_gc[t.row] += t.weight;
     }
 
     // Verify row-sums are close (looser 1e-6 tolerance)
-    for (const auto& [row, sum_cart] : row_sum_cart) {
+    for (const auto &[row, sum_cart] : row_sum_cart) {
         auto it = row_sum_gc.find(row);
         if (it != row_sum_gc.end()) {
             double sum_gc = it->second;
@@ -395,13 +372,10 @@ RC_GTEST_PROP(PropOptimizedEquivalence, CartesianVsGreatCircleConsistency, ()) {
     // reasonable factor of the GreatCircle path for overlapping pairs
     if (triplets_cart.size() == triplets_gc.size()) {
         for (std::size_t i = 0; i < triplets_cart.size(); ++i) {
-            if (triplets_cart[i].row == triplets_gc[i].row &&
-                triplets_cart[i].col == triplets_gc[i].col) {
-                double max_w = std::fmax(std::fabs(triplets_cart[i].weight),
-                                         std::fabs(triplets_gc[i].weight));
+            if (triplets_cart[i].row == triplets_gc[i].row && triplets_cart[i].col == triplets_gc[i].col) {
+                double max_w = std::fmax(std::fabs(triplets_cart[i].weight), std::fabs(triplets_gc[i].weight));
                 if (max_w > 1e-15) {
-                    double rel = std::fabs(triplets_cart[i].weight -
-                                           triplets_gc[i].weight) / max_w;
+                    double rel = std::fabs(triplets_cart[i].weight - triplets_gc[i].weight) / max_w;
                     // 1e-6 tolerance as per task spec — approximate comparison
                     // for geometrically different methods
                     RC_ASSERT(rel < 1e-1);
@@ -434,8 +408,7 @@ RC_GTEST_PROP(PropOptimizedEquivalence, SymmetricWeightMatrix, ()) {
     cfg.line_type = axis::solver::LineType::Cartesian;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     auto triplets = extract_sorted_triplets(matrix);
 
@@ -448,7 +421,7 @@ RC_GTEST_PROP(PropOptimizedEquivalence, SymmetricWeightMatrix, ()) {
     std::map<axis::index_t, double> diag_weights;
     std::map<axis::index_t, double> row_sums;
 
-    for (const auto& t : triplets) {
+    for (const auto &t : triplets) {
         row_sums[t.row] += t.weight;
         if (t.row == t.col) {
             diag_weights[t.row] = t.weight;
@@ -474,7 +447,7 @@ RC_GTEST_PROP(PropOptimizedEquivalence, SymmetricWeightMatrix, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -487,7 +460,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

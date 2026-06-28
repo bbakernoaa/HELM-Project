@@ -1,10 +1,11 @@
 #include <gtest/gtest.h>
 #include <rapidcheck/gtest.h>
-#include <stdexcept>
-#include <cstdint>
 
-#include "tick/gregorian_calendar.hpp"
+#include <cstdint>
+#include <stdexcept>
+
 #include "tick/date_time.hpp"
+#include "tick/gregorian_calendar.hpp"
 #include "tick/time_point.hpp"
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -38,9 +39,8 @@ RC_GTEST_PROP(GregorianCalendar, RoundTrip, ()) {
 // to_time_point(to_date_time(tp)) == tp
 RC_GTEST_PROP(GregorianCalendar, RoundTripReverse, ()) {
     // Use a range that stays within representable dates (~±292 years from epoch)
-    auto nanos = *rc::gen::inRange<std::int64_t>(
-        -static_cast<std::int64_t>(200) * 365 * 86'400'000'000'000LL,
-         static_cast<std::int64_t>(200) * 365 * 86'400'000'000'000LL);
+    auto nanos = *rc::gen::inRange<std::int64_t>(-static_cast<std::int64_t>(200) * 365 * 86'400'000'000'000LL,
+                                                 static_cast<std::int64_t>(200) * 365 * 86'400'000'000'000LL);
     auto tp = tick::Time_Point{nanos};
     auto dt = tick::Gregorian_Calendar::to_date_time(tp);
     auto rt = tick::Gregorian_Calendar::to_time_point(dt);
@@ -79,9 +79,7 @@ RC_GTEST_PROP(GregorianCalendar, MonthAdditionPreservesValidity, ()) {
     // Verify month was advanced correctly using floor division (matching implementation)
     std::int32_t total_months = (dt.year * 12 + (dt.month - 1)) + n;
     // Floor division for negative values
-    std::int32_t expected_year = total_months >= 0
-        ? total_months / 12
-        : (total_months - 11) / 12;
+    std::int32_t expected_year = total_months >= 0 ? total_months / 12 : (total_months - 11) / 12;
     std::int32_t expected_month = total_months - expected_year * 12 + 1;
 
     RC_ASSERT(result_dt.year == expected_year);
@@ -181,7 +179,7 @@ TEST(GregorianEdgeCases, InvalidMonth) {
 }
 
 TEST(GregorianEdgeCases, InvalidDay) {
-    tick::Date_Time dt{2023, 2, 29, 0, 0, 0, 0}; // 2023 is not a leap year
+    tick::Date_Time dt{2023, 2, 29, 0, 0, 0, 0};  // 2023 is not a leap year
     EXPECT_THROW(tick::Gregorian_Calendar::to_time_point(dt), std::invalid_argument);
 }
 

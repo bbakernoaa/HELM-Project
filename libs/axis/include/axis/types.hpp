@@ -26,17 +26,17 @@
 // Bring kokkos/mdspan names into namespace std so the rest of AXIS can use
 // std::mdspan, std::dextents, std::layout_left uniformly.
 namespace std {
-    using Kokkos::mdspan;
-    using Kokkos::dextents;
-    using Kokkos::extents;
-    using Kokkos::layout_left;
-    using Kokkos::layout_right;
-    using Kokkos::layout_stride;
+using Kokkos::dextents;
+using Kokkos::extents;
+using Kokkos::layout_left;
+using Kokkos::layout_right;
+using Kokkos::layout_stride;
+using Kokkos::mdspan;
 #ifndef __cpp_lib_span
-    using Kokkos::dynamic_extent;
+using Kokkos::dynamic_extent;
 #endif
-    using Kokkos::default_accessor;
-}
+using Kokkos::default_accessor;
+}  // namespace std
 #endif
 
 /// @namespace axis
@@ -52,16 +52,12 @@ namespace axis {
 /// @tparam IndexType The index type used to define the extent bounds.
 /// @tparam Rank The dimensionality (rank) of the span, supporting values 1, 2, 3, or 4.
 template <typename IndexType, std::size_t Rank>
-using my_dextents = std::conditional_t<Rank == 1,
-    Kokkos::extents<IndexType, std::dynamic_extent>,
-    std::conditional_t<Rank == 2,
-        Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent>,
-        std::conditional_t<Rank == 3,
-            Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>,
-            Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>
-        >
-    >
->;
+using my_dextents = std::conditional_t<
+    Rank == 1, Kokkos::extents<IndexType, std::dynamic_extent>,
+    std::conditional_t<
+        Rank == 2, Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent>,
+        std::conditional_t<Rank == 3, Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>,
+                           Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>>>>;
 
 /// @brief Column-major (Fortran-layout) non-owning multidimensional span view.
 ///
@@ -93,6 +89,6 @@ using field2d = field_view<double, 2>;
 /// sentinel values (such as -1) to signify invalid or unmapped elements.
 using index_t = std::int64_t;
 
-} // namespace axis
+}  // namespace axis
 
-#endif // AXIS_TYPES_HPP
+#endif  // AXIS_TYPES_HPP

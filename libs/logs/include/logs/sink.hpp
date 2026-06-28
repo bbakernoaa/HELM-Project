@@ -14,9 +14,9 @@ namespace logs {
 /// stream). It performs write and flush ONLY. It never opens, reads, closes,
 /// or parses any file or input source. The caller owns the stream lifecycle.
 class Sink {
-public:
+   public:
     /// Wrap a caller-owned output stream. Does not take ownership.
-    explicit Sink(std::ostream& stream) noexcept;
+    explicit Sink(std::ostream &stream) noexcept;
 
     /// Write the fully formatted record text to the stream exactly once.
     [[nodiscard]] bool write(std::string_view formatted) noexcept;
@@ -24,16 +24,16 @@ public:
     /// Flush the underlying stream.
     [[nodiscard]] bool flush() noexcept;
 
-    Sink(const Sink&) = default;
-    Sink& operator=(const Sink&) = default;
+    Sink(const Sink &) = default;
+    Sink &operator=(const Sink &) = default;
 
-private:
-    std::ostream* stream_;
+   private:
+    std::ostream *stream_;
 };
 
 /// Compile-time upper bound on configured sinks.
 inline constexpr std::size_t MAX_SINKS = 64;
 
-} // namespace logs
+}  // namespace logs
 
-#endif // LOGS_SINK_HPP
+#endif  // LOGS_SINK_HPP

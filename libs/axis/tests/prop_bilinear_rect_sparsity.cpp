@@ -14,18 +14,16 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/structured_grid.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/solver/regrid_config.hpp>
-#include <axis/types.hpp>
 
 namespace {
 
@@ -34,7 +32,7 @@ using MemSpace = Kokkos::HostSpace;
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -47,8 +45,7 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 // ─── Generators ──────────────────────────────────────────────────────────────
 
@@ -64,38 +61,32 @@ rc::Gen<std::size_t> genDstDim() {
 
 /// Generate a positive delta for grid spacing in (0.1, 5.0].
 rc::Gen<double> genPositiveDelta() {
-    return rc::gen::map(rc::gen::inRange(1, 501),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(1, 501), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a longitude starting value in [-180, 80).
 /// Capped to avoid overflow when adding ni * delta_lon.
 rc::Gen<double> genLonMin() {
-    return rc::gen::map(rc::gen::inRange(-18000, 8000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-18000, 8000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a latitude starting value in [-80, 80).
 rc::Gen<double> genLatMin() {
-    return rc::gen::map(rc::gen::inRange(-8000, 8000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-8000, 8000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 // ─── Helper: Build a uniform regular-grid UnstructuredMesh ───────────────────
 
 /// Constructs a regular lat-lon grid as an UnstructuredMesh.
 /// Grid covers [lon0, lon0 + ni*dlon] × [lat0, lat0 + nj*dlat].
-axis::topology::UnstructuredMesh<MemSpace>
-make_regular_grid(std::size_t ni, std::size_t nj,
-                  double lon0, double dlon,
-                  double lat0, double dlat) {
+axis::topology::UnstructuredMesh<MemSpace> make_regular_grid(std::size_t ni, std::size_t nj, double lon0, double dlon, double lat0, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t nc_i = ni + 1;
     const std::size_t nc_j = nj + 1;
     const std::size_t n_corners = nc_i * nc_j;
 
-    Kokkos::View<double*, MemSpace> cx("cx", n_centers);
-    Kokkos::View<double*, MemSpace> cy("cy", n_centers);
+    Kokkos::View<double *, MemSpace> cx("cx", n_centers);
+    Kokkos::View<double *, MemSpace> cy("cy", n_centers);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon0 + (static_cast<double>(i) + 0.5) * dlon;
@@ -103,12 +94,10 @@ make_regular_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), axis::topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> crx("crx", n_corners);
-    Kokkos::View<double*, MemSpace> cry("cry", n_corners);
+    Kokkos::View<double *, MemSpace> crx("crx", n_corners);
+    Kokkos::View<double *, MemSpace> cry("cry", n_corners);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_i) = lon0 + static_cast<double>(i) * dlon;
@@ -126,9 +115,7 @@ make_regular_grid(std::size_t ni, std::size_t nj,
 /// (i, j) such that i ∈ [1, ni-2] and j ∈ [1, nj-2], i.e. not at any boundary.
 /// For such cells, all 4 neighbors (i, j), (i+1, j), (i, j+1), (i+1, j+1) are
 /// valid without clamping.
-bool is_interior_dst_cell(double dst_lon, double dst_lat,
-                          double src_lon_min, double src_lat_min,
-                          double src_dlon, double src_dlat,
+bool is_interior_dst_cell(double dst_lon, double dst_lat, double src_lon_min, double src_lat_min, double src_dlon, double src_dlat,
                           std::size_t src_ni, std::size_t src_nj) {
     // Compute source cell indices for the destination centroid
     double fi = (dst_lon - src_lon_min) / src_dlon - 0.5;
@@ -139,8 +126,7 @@ bool is_interior_dst_cell(double dst_lon, double dst_lat,
 
     // Interior means i in [0, ni-2] and j in [0, nj-2]
     // (so that i+1 <= ni-1 and j+1 <= nj-1 are valid)
-    return (i >= 0 && i <= static_cast<int>(src_ni) - 2 &&
-            j >= 0 && j <= static_cast<int>(src_nj) - 2);
+    return (i >= 0 && i <= static_cast<int>(src_ni) - 2 && j >= 0 && j <= static_cast<int>(src_nj) - 2);
 }
 
 // ─── Property 3a: All index bounds are valid ─────────────────────────────────
@@ -182,18 +168,15 @@ RC_GTEST_PROP(PropBilinearRectSparsity, AllIndicesInValidRange, ()) {
     const double dst_dlon = dst_lon_extent / static_cast<double>(dst_ni);
     const double dst_dlat = dst_lat_extent / static_cast<double>(dst_nj);
 
-    auto src_mesh = make_regular_grid(src_ni, src_nj, src_lon0, src_dlon,
-                                      src_lat0, src_dlat);
-    auto dst_mesh = make_regular_grid(dst_ni, dst_nj, dst_lon0, dst_dlon,
-                                      dst_lat0, dst_dlat);
+    auto src_mesh = make_regular_grid(src_ni, src_nj, src_lon0, src_dlon, src_lat0, src_dlat);
+    auto dst_mesh = make_regular_grid(dst_ni, dst_nj, dst_lon0, dst_dlon, dst_lat0, dst_dlat);
 
     axis::solver::RegridConfig cfg;
     cfg.method = axis::solver::InterpolationMethod::Bilinear;
     cfg.line_type = axis::solver::LineType::GreatCircle;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     const auto n_src = matrix.n_src();
     const auto n_dst = matrix.n_dst();
@@ -255,18 +238,15 @@ RC_GTEST_PROP(PropBilinearRectSparsity, InteriorCellsHaveExactly4Entries, ()) {
     const double dst_dlon = dst_lon_extent / static_cast<double>(dst_ni);
     const double dst_dlat = dst_lat_extent / static_cast<double>(dst_nj);
 
-    auto src_mesh = make_regular_grid(src_ni, src_nj, src_lon0, src_dlon,
-                                      src_lat0, src_dlat);
-    auto dst_mesh = make_regular_grid(dst_ni, dst_nj, dst_lon0, dst_dlon,
-                                      dst_lat0, dst_dlat);
+    auto src_mesh = make_regular_grid(src_ni, src_nj, src_lon0, src_dlon, src_lat0, src_dlat);
+    auto dst_mesh = make_regular_grid(dst_ni, dst_nj, dst_lon0, dst_dlon, dst_lat0, dst_dlat);
 
     axis::solver::RegridConfig cfg;
     cfg.method = axis::solver::InterpolationMethod::Bilinear;
     cfg.line_type = axis::solver::LineType::GreatCircle;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     const auto n_src = matrix.n_src();
     const auto n_dst = matrix.n_dst();

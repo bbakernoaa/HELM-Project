@@ -6,15 +6,16 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 #include <tick/tick_c.h>
-#include <cstdint>
+
 #include <climits>
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
 // ── Nanosecond constants ──────────────────────────────────────────────────────
 
 static constexpr int64_t NS_PER_SECOND = 1'000'000'000LL;
-static constexpr int64_t NS_PER_DAY    = 86'400'000'000'000LL;
+static constexpr int64_t NS_PER_DAY = 86'400'000'000'000LL;
 
 // =============================================================================
 // Type Layout Tests
@@ -45,7 +46,7 @@ TEST(TickCTypes, ErrorCodeValues) {
 
 TEST(TickCStrerror, AllDefinedCodes) {
     for (int code = 0; code <= 5; ++code) {
-        const char* msg = tick_strerror(static_cast<tick_status_t>(code));
+        const char *msg = tick_strerror(static_cast<tick_status_t>(code));
         ASSERT_NE(msg, nullptr) << "tick_strerror returned null for code " << code;
         EXPECT_GT(std::strlen(msg), 0u) << "tick_strerror returned empty for code " << code;
     }
@@ -53,11 +54,11 @@ TEST(TickCStrerror, AllDefinedCodes) {
 
 TEST(TickCStrerror, OutOfRange) {
     // Negative and large values should still return a non-null string
-    const char* msg_neg = tick_strerror(-1);
+    const char *msg_neg = tick_strerror(-1);
     ASSERT_NE(msg_neg, nullptr);
     EXPECT_GT(std::strlen(msg_neg), 0u);
 
-    const char* msg_large = tick_strerror(99);
+    const char *msg_large = tick_strerror(99);
     ASSERT_NE(msg_large, nullptr);
     EXPECT_GT(std::strlen(msg_large), 0u);
 }
@@ -106,15 +107,15 @@ TEST(TickCTimePoint, Compare) {
 
     tick_status_t rc = tick_time_point_compare(100, 200, &out);
     EXPECT_EQ(rc, TICK_OK);
-    EXPECT_LT(out, 0); // 100 < 200
+    EXPECT_LT(out, 0);  // 100 < 200
 
     rc = tick_time_point_compare(200, 200, &out);
     EXPECT_EQ(rc, TICK_OK);
-    EXPECT_EQ(out, 0); // equal
+    EXPECT_EQ(out, 0);  // equal
 
     rc = tick_time_point_compare(300, 200, &out);
     EXPECT_EQ(rc, TICK_OK);
-    EXPECT_GT(out, 0); // 300 > 200
+    EXPECT_GT(out, 0);  // 300 > 200
 }
 
 TEST(TickCTimePoint, NullPointer) {
@@ -130,13 +131,13 @@ TEST(TickCTimePoint, Overflow) {
     // Adding INT64_MAX to INT64_MAX should overflow
     tick_status_t rc = tick_time_point_add_duration(INT64_MAX, INT64_MAX, &out);
     EXPECT_EQ(rc, TICK_ERR_OVERFLOW);
-    EXPECT_EQ(out, 42); // unchanged on error
+    EXPECT_EQ(out, 42);  // unchanged on error
 
     out = 42;
     // Subtracting INT64_MIN (large negative) from INT64_MAX should overflow
     rc = tick_time_point_sub_duration(INT64_MIN, INT64_MAX, &out);
     EXPECT_EQ(rc, TICK_ERR_OVERFLOW);
-    EXPECT_EQ(out, 42); // unchanged on error
+    EXPECT_EQ(out, 42);  // unchanged on error
 }
 
 // =============================================================================
@@ -210,7 +211,7 @@ TEST(TickCDuration, DivByZero) {
     tick_duration_t out = 42;
     tick_status_t rc = tick_duration_div(NS_PER_SECOND, 0, &out);
     EXPECT_EQ(rc, TICK_ERR_INVALID_ARG);
-    EXPECT_EQ(out, 42); // unchanged on error
+    EXPECT_EQ(out, 42);  // unchanged on error
 }
 
 TEST(TickCDuration, NullPointer) {
@@ -230,19 +231,19 @@ TEST(TickCDuration, FactoryOverflow) {
     // INT64_MAX seconds would overflow when converting to nanoseconds
     tick_status_t rc = tick_duration_from_seconds(INT64_MAX, &out);
     EXPECT_EQ(rc, TICK_ERR_OVERFLOW);
-    EXPECT_EQ(out, 42); // unchanged on error
+    EXPECT_EQ(out, 42);  // unchanged on error
 }
 
 TEST(TickCDuration, ArithmeticOverflow) {
     tick_duration_t out = 42;
     tick_status_t rc = tick_duration_add(INT64_MAX, INT64_MAX, &out);
     EXPECT_EQ(rc, TICK_ERR_OVERFLOW);
-    EXPECT_EQ(out, 42); // unchanged on error
+    EXPECT_EQ(out, 42);  // unchanged on error
 
     out = 42;
     rc = tick_duration_mul(INT64_MAX, 2, &out);
     EXPECT_EQ(rc, TICK_ERR_OVERFLOW);
-    EXPECT_EQ(out, 42); // unchanged on error
+    EXPECT_EQ(out, 42);  // unchanged on error
 }
 
 // =============================================================================
@@ -386,7 +387,7 @@ TEST(TickCCalendar, DaysInYearNoLeap) {
     int32_t days = 0;
     tick_status_t rc = tick_days_in_year(TICK_CAL_NOLEAP, 2028, &days);
     EXPECT_EQ(rc, TICK_OK);
-    EXPECT_EQ(days, 365); // NoLeap always 365
+    EXPECT_EQ(days, 365);  // NoLeap always 365
 }
 
 TEST(TickCCalendar, NullPointer) {
@@ -404,20 +405,17 @@ TEST(TickCCalendar, NullPointer) {
 TEST(TickCAlarm, IntervalAlarmRinging) {
     int32_t out = -1;
     // Alarm with 10s interval, reference at 0. At t=0 it should ring.
-    tick_status_t rc = tick_interval_alarm_is_ringing(
-        10 * NS_PER_SECOND, 0, 0, &out);
+    tick_status_t rc = tick_interval_alarm_is_ringing(10 * NS_PER_SECOND, 0, 0, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 1);
 
     // At t=10s it should ring
-    rc = tick_interval_alarm_is_ringing(
-        10 * NS_PER_SECOND, 0, 10 * NS_PER_SECOND, &out);
+    rc = tick_interval_alarm_is_ringing(10 * NS_PER_SECOND, 0, 10 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 1);
 
     // At t=5s it should NOT ring
-    rc = tick_interval_alarm_is_ringing(
-        10 * NS_PER_SECOND, 0, 5 * NS_PER_SECOND, &out);
+    rc = tick_interval_alarm_is_ringing(10 * NS_PER_SECOND, 0, 5 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 0);
 }
@@ -425,8 +423,7 @@ TEST(TickCAlarm, IntervalAlarmRinging) {
 TEST(TickCAlarm, IntervalAlarmNextRing) {
     tick_time_point_t out = -1;
     // interval=10s, reference=0, current=5s → next ring at 10s
-    tick_status_t rc = tick_interval_alarm_next_ring(
-        10 * NS_PER_SECOND, 0, 5 * NS_PER_SECOND, &out);
+    tick_status_t rc = tick_interval_alarm_next_ring(10 * NS_PER_SECOND, 0, 5 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 10 * NS_PER_SECOND);
 }
@@ -460,10 +457,8 @@ TEST(TickCAlarm, ZeroIntervalError) {
 }
 
 TEST(TickCAlarm, NullPointer) {
-    EXPECT_EQ(tick_interval_alarm_is_ringing(NS_PER_SECOND, 0, 0, nullptr),
-              TICK_ERR_INVALID_ARG);
-    EXPECT_EQ(tick_interval_alarm_next_ring(NS_PER_SECOND, 0, 0, nullptr),
-              TICK_ERR_INVALID_ARG);
+    EXPECT_EQ(tick_interval_alarm_is_ringing(NS_PER_SECOND, 0, 0, nullptr), TICK_ERR_INVALID_ARG);
+    EXPECT_EQ(tick_interval_alarm_next_ring(NS_PER_SECOND, 0, 0, nullptr), TICK_ERR_INVALID_ARG);
     EXPECT_EQ(tick_absolute_alarm_is_ringing(0, 0, nullptr), TICK_ERR_INVALID_ARG);
 }
 
@@ -492,14 +487,12 @@ TEST(TickCSync, SyncPeriod) {
 TEST(TickCSync, PhaseAligned) {
     int32_t out = -1;
     // current=20s, base=0, timestep=10s → (20-0) % 10 = 0 → aligned
-    tick_status_t rc = tick_is_phase_aligned(
-        20 * NS_PER_SECOND, 0, 10 * NS_PER_SECOND, &out);
+    tick_status_t rc = tick_is_phase_aligned(20 * NS_PER_SECOND, 0, 10 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 1);
 
     // current=15s, base=0, timestep=10s → (15-0) % 10 = 5 → not aligned
-    rc = tick_is_phase_aligned(
-        15 * NS_PER_SECOND, 0, 10 * NS_PER_SECOND, &out);
+    rc = tick_is_phase_aligned(15 * NS_PER_SECOND, 0, 10 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 0);
 }
@@ -562,8 +555,7 @@ TEST(TickCWindow, IsOnBoundary) {
 TEST(TickCWindow, ComputeWindow) {
     tick_time_point_t out_start = -1, out_end = -1;
     // current=15s, interval=10s → window=[10s, 20s)
-    tick_status_t rc = tick_compute_window(
-        15 * NS_PER_SECOND, 10 * NS_PER_SECOND, &out_start, &out_end);
+    tick_status_t rc = tick_compute_window(15 * NS_PER_SECOND, 10 * NS_PER_SECOND, &out_start, &out_end);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out_start, 10 * NS_PER_SECOND);
     EXPECT_EQ(out_end, 20 * NS_PER_SECOND);
@@ -572,26 +564,22 @@ TEST(TickCWindow, ComputeWindow) {
 TEST(TickCWindow, WindowContains) {
     int32_t out = -1;
     // Window [10s, 20s), query=15s → contained
-    tick_status_t rc = tick_window_contains(
-        10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 15 * NS_PER_SECOND, &out);
+    tick_status_t rc = tick_window_contains(10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 15 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 1);
 
     // query=10s (start) → contained [start, end)
-    rc = tick_window_contains(
-        10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 10 * NS_PER_SECOND, &out);
+    rc = tick_window_contains(10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 10 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 1);
 
     // query=20s (end) → NOT contained (half-open interval)
-    rc = tick_window_contains(
-        10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 20 * NS_PER_SECOND, &out);
+    rc = tick_window_contains(10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 20 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 0);
 
     // query=5s (before start) → NOT contained
-    rc = tick_window_contains(
-        10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 5 * NS_PER_SECOND, &out);
+    rc = tick_window_contains(10 * NS_PER_SECOND, 20 * NS_PER_SECOND, 5 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_OK);
     EXPECT_EQ(out, 0);
 }
@@ -609,22 +597,17 @@ TEST(TickCWindow, ZeroIntervalError) {
 TEST(TickCWindow, InvertedWindowError) {
     int32_t out = -1;
     // window start=20s, end=10s → inverted → error
-    tick_status_t rc = tick_window_contains(
-        20 * NS_PER_SECOND, 10 * NS_PER_SECOND, 15 * NS_PER_SECOND, &out);
+    tick_status_t rc = tick_window_contains(20 * NS_PER_SECOND, 10 * NS_PER_SECOND, 15 * NS_PER_SECOND, &out);
     EXPECT_EQ(rc, TICK_ERR_INVALID_ARG);
 }
 
 TEST(TickCWindow, NullPointer) {
     EXPECT_EQ(tick_is_on_boundary(0, NS_PER_SECOND, nullptr), TICK_ERR_INVALID_ARG);
-    EXPECT_EQ(tick_compute_window(0, NS_PER_SECOND, nullptr, nullptr),
-              TICK_ERR_INVALID_ARG);
+    EXPECT_EQ(tick_compute_window(0, NS_PER_SECOND, nullptr, nullptr), TICK_ERR_INVALID_ARG);
     tick_time_point_t dummy = 0;
-    EXPECT_EQ(tick_compute_window(0, NS_PER_SECOND, &dummy, nullptr),
-              TICK_ERR_INVALID_ARG);
-    EXPECT_EQ(tick_compute_window(0, NS_PER_SECOND, nullptr, &dummy),
-              TICK_ERR_INVALID_ARG);
-    EXPECT_EQ(tick_window_contains(0, NS_PER_SECOND, 0, nullptr),
-              TICK_ERR_INVALID_ARG);
+    EXPECT_EQ(tick_compute_window(0, NS_PER_SECOND, &dummy, nullptr), TICK_ERR_INVALID_ARG);
+    EXPECT_EQ(tick_compute_window(0, NS_PER_SECOND, nullptr, &dummy), TICK_ERR_INVALID_ARG);
+    EXPECT_EQ(tick_window_contains(0, NS_PER_SECOND, 0, nullptr), TICK_ERR_INVALID_ARG);
 }
 
 // =============================================================================
@@ -715,7 +698,7 @@ RC_GTEST_PROP(TickCProperty, CalendarRoundTripNoLeap, ()) {
 RC_GTEST_PROP(TickCProperty, CalendarRoundTripCal360, ()) {
     auto year = *rc::gen::inRange<int32_t>(1734, 2319);
     auto month = *rc::gen::inRange<int32_t>(1, 13);
-    auto day = *rc::gen::inRange<int32_t>(1, 31); // Cal360: always 1-30
+    auto day = *rc::gen::inRange<int32_t>(1, 31);  // Cal360: always 1-30
 
     auto hour = *rc::gen::inRange<int32_t>(0, 24);
     auto minute = *rc::gen::inRange<int32_t>(0, 60);
@@ -847,9 +830,12 @@ RC_GTEST_PROP(TickCProperty, TimePointCompare, ()) {
 
     int32_t cmp;
     RC_ASSERT(tick_time_point_compare(lhs, rhs, &cmp) == TICK_OK);
-    if (lhs < rhs) RC_ASSERT(cmp < 0);
-    else if (lhs > rhs) RC_ASSERT(cmp > 0);
-    else RC_ASSERT(cmp == 0);
+    if (lhs < rhs)
+        RC_ASSERT(cmp < 0);
+    else if (lhs > rhs)
+        RC_ASSERT(cmp > 0);
+    else
+        RC_ASSERT(cmp == 0);
 }
 
 // =============================================================================
@@ -917,7 +903,7 @@ RC_GTEST_PROP(TickCProperty, OverflowLeavesOutputUnchanged, ()) {
     tick_time_point_t out = sentinel;
     tick_status_t rc = tick_time_point_add_duration(base, dur, &out);
     if (rc == TICK_ERR_OVERFLOW) {
-        RC_ASSERT(out == sentinel); // unchanged
+        RC_ASSERT(out == sentinel);  // unchanged
     }
     // If it didn't overflow (rare edge case), that's fine — precondition not met
 }
@@ -955,7 +941,7 @@ RC_GTEST_PROP(TickCProperty, DurationAddOverflowLeavesOutputUnchanged, ()) {
     tick_duration_t out = sentinel;
     tick_status_t rc = tick_duration_add(lhs, rhs, &out);
     if (rc == TICK_ERR_OVERFLOW) {
-        RC_ASSERT(out == sentinel); // unchanged
+        RC_ASSERT(out == sentinel);  // unchanged
     }
 }
 
@@ -970,7 +956,7 @@ RC_GTEST_PROP(TickCProperty, DurationMulOverflowLeavesOutputUnchanged, ()) {
     tick_duration_t out = sentinel;
     tick_status_t rc = tick_duration_mul(dur, scalar, &out);
     if (rc == TICK_ERR_OVERFLOW) {
-        RC_ASSERT(out == sentinel); // unchanged
+        RC_ASSERT(out == sentinel);  // unchanged
     }
 }
 
@@ -985,10 +971,9 @@ RC_GTEST_PROP(TickCProperty, TimePointSubOverflowLeavesOutputUnchanged, ()) {
     tick_time_point_t out = sentinel;
     tick_status_t rc = tick_time_point_sub_duration(base, dur, &out);
     if (rc == TICK_ERR_OVERFLOW) {
-        RC_ASSERT(out == sentinel); // unchanged
+        RC_ASSERT(out == sentinel);  // unchanged
     }
 }
-
 
 // =============================================================================
 // Feature: tick-fortran-bridge, Property 6: tick_strerror Completeness
@@ -1000,14 +985,14 @@ RC_GTEST_PROP(TickCProperty, TimePointSubOverflowLeavesOutputUnchanged, ()) {
 
 RC_GTEST_PROP(TickCProperty, StrerrorCompleteness, ()) {
     auto code = *rc::gen::arbitrary<int32_t>();
-    const char* msg = tick_strerror(code);
+    const char *msg = tick_strerror(code);
     RC_ASSERT(msg != nullptr);
     RC_ASSERT(std::strlen(msg) > 0);
 }
 
 RC_GTEST_PROP(TickCProperty, StrerrorDefinedCodes, ()) {
     auto code = *rc::gen::inRange<int32_t>(0, 6);
-    const char* msg = tick_strerror(code);
+    const char *msg = tick_strerror(code);
     RC_ASSERT(msg != nullptr);
     RC_ASSERT(std::strlen(msg) > 0);
 }
@@ -1031,8 +1016,7 @@ RC_GTEST_PROP(TickCProperty, SyncPeriodDivisibleByAllTimesteps, ()) {
     }
 
     tick_duration_t sync_period = 0;
-    tick_status_t rc = tick_compute_sync_period(
-        timesteps.data(), static_cast<int32_t>(timesteps.size()), &sync_period);
+    tick_status_t rc = tick_compute_sync_period(timesteps.data(), static_cast<int32_t>(timesteps.size()), &sync_period);
 
     if (rc == TICK_OK) {
         RC_ASSERT(sync_period > 0);
@@ -1061,8 +1045,7 @@ RC_GTEST_PROP(TickCProperty, HeartbeatDividesAllTimesteps, ()) {
     }
 
     tick_duration_t heartbeat = 0;
-    tick_status_t rc = tick_compute_heartbeat(
-        timesteps.data(), static_cast<int32_t>(timesteps.size()), &heartbeat);
+    tick_status_t rc = tick_compute_heartbeat(timesteps.data(), static_cast<int32_t>(timesteps.size()), &heartbeat);
     RC_ASSERT(rc == TICK_OK);
     RC_ASSERT(heartbeat > 0);
 

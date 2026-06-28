@@ -19,7 +19,6 @@
 #include <mpi.h>
 
 #include <Kokkos_Core.hpp>
-
 #include <cstddef>
 #include <utility>
 
@@ -36,7 +35,7 @@ constexpr std::size_t kCount = 8;
 /// Sentinel pre-filled into the receive region.
 constexpr double kSentinel = -999.0;
 
-using HostView = Kokkos::View<double*, Kokkos::HostSpace>;
+using HostView = Kokkos::View<double *, Kokkos::HostSpace>;
 
 /// Encoded value: sender rank * 1000 + intra-block position.
 double encoded_value(int sender, std::size_t j) {
@@ -45,7 +44,7 @@ double encoded_value(int sender, std::size_t j) {
 
 /// Fill send region with sender-encoded pattern and recv region with sentinel.
 /// Layout: [send_region(kCount) | recv_region(kCount)]
-void initialize_field(HostView& field, int rank) {
+void initialize_field(HostView &field, int rank) {
     // Send region: first kCount elements
     for (std::size_t j = 0; j < kCount; ++j) {
         field(j) = encoded_value(rank, j);
@@ -57,19 +56,17 @@ void initialize_field(HostView& field, int rank) {
 }
 
 /// Verify recv region contains the expected data from the sender.
-void verify_received(const HostView& field, int expected_sender) {
+void verify_received(const HostView &field, int expected_sender) {
     for (std::size_t j = 0; j < kCount; ++j) {
         const double got = field(kCount + j);
         const double expected = encoded_value(expected_sender, j);
-        EXPECT_DOUBLE_EQ(got, expected)
-            << "recv element " << j << " mismatch: expected from rank "
-            << expected_sender;
+        EXPECT_DOUBLE_EQ(got, expected) << "recv element " << j << " mismatch: expected from rank " << expected_sender;
     }
 }
 
 /// Test fixture for persistent handle tests on a 4-rank ring.
 class PersistentHandleTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -82,18 +79,14 @@ protected:
 
     /// Create a Halo_Plan for this rank's ring topology (1 send, 1 recv).
     halo::Halo_Plan make_ring_plan() const {
-        std::vector<halo::Neighbor_Info> send_info{
-            halo::Neighbor_Info{send_rank_, kCount}};
-        std::vector<halo::Neighbor_Info> recv_info{
-            halo::Neighbor_Info{recv_rank_, kCount}};
+        std::vector<halo::Neighbor_Info> send_info{halo::Neighbor_Info{send_rank_, kCount}};
+        std::vector<halo::Neighbor_Info> recv_info{halo::Neighbor_Info{recv_rank_, kCount}};
         return halo::Halo_Plan(*comm_, send_info, recv_info);
     }
 
     /// Create a field view: [send_region | recv_region]
     HostView make_field() const {
-        return HostView(
-            Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_field"),
-            2 * kCount);
+        return HostView(Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_field"), 2 * kCount);
     }
 
     std::unique_ptr<halo::Communicator> comm_;
@@ -154,8 +147,7 @@ TEST_F(PersistentHandleTest, MultipleCyclesReuseRequests) {
         for (std::size_t j = 0; j < kCount; ++j) {
             const double got = field(kCount + j);
             const double expected = encoded_value(recv_rank_, j) + cycle * 100.0;
-            EXPECT_DOUBLE_EQ(got, expected)
-                << "cycle " << cycle << " recv element " << j << " mismatch";
+            EXPECT_DOUBLE_EQ(got, expected) << "cycle " << cycle << " recv element " << j << " mismatch";
         }
     }
 }
@@ -213,7 +205,7 @@ TEST_F(PersistentHandleTest, MoveConstructorTransfersOwnership) {
 
 // ─── Global MPI + Kokkos + HALO environment ─────────────────────────────────
 class HaloMpiEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         int provided = 0;
         MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &provided);
@@ -230,5 +222,4 @@ public:
 }  // namespace
 
 // Register the environment (gtest_main provides main()).
-static ::testing::Environment* const halo_mpi_env =
-    ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);
+static ::testing::Environment *const halo_mpi_env = ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);

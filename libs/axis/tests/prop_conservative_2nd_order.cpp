@@ -12,15 +12,8 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <limits>
-#include <numeric>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
@@ -28,6 +21,11 @@
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <limits>
+#include <numeric>
+#include <vector>
 
 namespace {
 
@@ -35,17 +33,15 @@ namespace {
 
 /// Build a simple ni × nj regular-grid UnstructuredMesh on HostSpace.
 /// Domain starts at (lon_start, lat_start) in degrees with cell sizes (dlon, dlat).
-axis::topology::UnstructuredMesh<Kokkos::HostSpace>
-build_regular_mesh(std::size_t ni, std::size_t nj,
-                   double lon_start, double lat_start,
-                   double dlon, double dlat) {
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, double lat_start,
+                                                                       double dlon, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("clon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("clat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("crlon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("crlat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("clon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("clat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("crlon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("crlat", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -63,9 +59,7 @@ build_regular_mesh(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
@@ -100,18 +94,13 @@ RC_GTEST_PROP(PropConservative2ndOrder, LinearExactness, ()) {
     double dst_dlon = domain_size / static_cast<double>(dst_ni);
     double dst_dlat = domain_size / static_cast<double>(dst_nj);
 
-    auto src_mesh = build_regular_mesh(src_ni, src_nj, lon_start, lat_start,
-                                       src_dlon, src_dlat);
-    auto dst_mesh = build_regular_mesh(dst_ni, dst_nj, lon_start, lat_start,
-                                       dst_dlon, dst_dlat);
+    auto src_mesh = build_regular_mesh(src_ni, src_nj, lon_start, lat_start, src_dlon, src_dlat);
+    auto dst_mesh = build_regular_mesh(dst_ni, dst_nj, lon_start, lat_start, dst_dlon, dst_dlat);
 
     // Generate random linear field coefficients: f(lon, lat) = a*lon + b*lat + c
-    double a = *rc::gen::map(rc::gen::inRange(-100, 101),
-                             [](int v) { return static_cast<double>(v) / 10.0; });
-    double b = *rc::gen::map(rc::gen::inRange(-100, 101),
-                             [](int v) { return static_cast<double>(v) / 10.0; });
-    double c = *rc::gen::map(rc::gen::inRange(-500, 501),
-                             [](int v) { return static_cast<double>(v) / 10.0; });
+    double a = *rc::gen::map(rc::gen::inRange(-100, 101), [](int v) { return static_cast<double>(v) / 10.0; });
+    double b = *rc::gen::map(rc::gen::inRange(-100, 101), [](int v) { return static_cast<double>(v) / 10.0; });
+    double c = *rc::gen::map(rc::gen::inRange(-500, 501), [](int v) { return static_cast<double>(v) / 10.0; });
 
     // Evaluate source field at source centroids
     const std::size_t n_src = src_mesh.n_cells();
@@ -135,8 +124,7 @@ RC_GTEST_PROP(PropConservative2ndOrder, LinearExactness, ()) {
     config.unmapped = axis::solver::UnmappedAction::Ignore;
     config.use_limiter = false;
 
-    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
 
     // Apply weights
     std::vector<double> dst_values(n_dst, 0.0);
@@ -219,10 +207,8 @@ RC_GTEST_PROP(PropConservative2ndOrder, IntegralPreservation, ()) {
     double dst_dlon = domain_size / static_cast<double>(dst_ni);
     double dst_dlat = domain_size / static_cast<double>(dst_nj);
 
-    auto src_mesh = build_regular_mesh(src_ni, src_nj, lon_start, lat_start,
-                                       src_dlon, src_dlat);
-    auto dst_mesh = build_regular_mesh(dst_ni, dst_nj, lon_start, lat_start,
-                                       dst_dlon, dst_dlat);
+    auto src_mesh = build_regular_mesh(src_ni, src_nj, lon_start, lat_start, src_dlon, src_dlat);
+    auto dst_mesh = build_regular_mesh(dst_ni, dst_nj, lon_start, lat_start, dst_dlon, dst_dlat);
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -241,8 +227,7 @@ RC_GTEST_PROP(PropConservative2ndOrder, IntegralPreservation, ()) {
     config.unmapped = axis::solver::UnmappedAction::Ignore;
     config.use_limiter = false;
 
-    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
 
     // Apply weights
     std::vector<double> dst_values(n_dst, 0.0);
@@ -315,10 +300,8 @@ RC_GTEST_PROP(PropConservative2ndOrder, MonotonicityLimiterPreventsNewExtrema, (
     double dst_dlon = domain_size / static_cast<double>(dst_ni);
     double dst_dlat = domain_size / static_cast<double>(dst_nj);
 
-    auto src_mesh = build_regular_mesh(src_ni, src_nj, lon_start, lat_start,
-                                       src_dlon, src_dlat);
-    auto dst_mesh = build_regular_mesh(dst_ni, dst_nj, lon_start, lat_start,
-                                       dst_dlon, dst_dlat);
+    auto src_mesh = build_regular_mesh(src_ni, src_nj, lon_start, lat_start, src_dlon, src_dlat);
+    auto dst_mesh = build_regular_mesh(dst_ni, dst_nj, lon_start, lat_start, dst_dlon, dst_dlat);
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -346,8 +329,7 @@ RC_GTEST_PROP(PropConservative2ndOrder, MonotonicityLimiterPreventsNewExtrema, (
     config.unmapped = axis::solver::UnmappedAction::Ignore;
     config.use_limiter = true;
 
-    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
 
     // Apply weights
     std::vector<double> dst_values(n_dst, 0.0);
@@ -378,7 +360,7 @@ RC_GTEST_PROP(PropConservative2ndOrder, MonotonicityLimiterPreventsNewExtrema, (
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -391,7 +373,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

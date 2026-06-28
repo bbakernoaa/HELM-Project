@@ -16,14 +16,12 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/ingest/grid_descriptor.hpp>
+#include <axis/topology/rule_generator.hpp>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/rule_generator.hpp>
-#include <axis/ingest/grid_descriptor.hpp>
 
 namespace {
 
@@ -74,10 +72,8 @@ rc::Gen<axis::ingest::GridRulesParams> genRegularLatLonParams() {
 RC_GTEST_PROP(PropRuleGeneration, CellCountMatchesResolution, ()) {
     const auto params = *genRegularLatLonParams();
 
-    const auto ni = static_cast<std::size_t>(
-        std::floor((params.max_x - params.min_x) / params.r_x));
-    const auto nj = static_cast<std::size_t>(
-        std::floor((params.max_y - params.min_y) / params.r_y));
+    const auto ni = static_cast<std::size_t>(std::floor((params.max_x - params.min_x) / params.r_x));
+    const auto nj = static_cast<std::size_t>(std::floor((params.max_y - params.min_y) / params.r_y));
 
     // Skip degenerate cases where resolution is too large for the bbox
     RC_PRE(ni > 0 && nj > 0);
@@ -98,10 +94,8 @@ RC_GTEST_PROP(PropRuleGeneration, CellCountMatchesResolution, ()) {
 RC_GTEST_PROP(PropRuleGeneration, NodeCountMatchesResolution, ()) {
     const auto params = *genRegularLatLonParams();
 
-    const auto ni = static_cast<std::size_t>(
-        std::floor((params.max_x - params.min_x) / params.r_x));
-    const auto nj = static_cast<std::size_t>(
-        std::floor((params.max_y - params.min_y) / params.r_y));
+    const auto ni = static_cast<std::size_t>(std::floor((params.max_x - params.min_x) / params.r_x));
+    const auto nj = static_cast<std::size_t>(std::floor((params.max_y - params.min_y) / params.r_y));
 
     // Skip degenerate cases
     RC_PRE(ni > 0 && nj > 0);
@@ -123,10 +117,8 @@ RC_GTEST_PROP(PropRuleGeneration, NodeCountMatchesResolution, ()) {
 RC_GTEST_PROP(PropRuleGeneration, GeneratedMeshHasValidCSR, ()) {
     const auto params = *genRegularLatLonParams();
 
-    const auto ni = static_cast<std::size_t>(
-        std::floor((params.max_x - params.min_x) / params.r_x));
-    const auto nj = static_cast<std::size_t>(
-        std::floor((params.max_y - params.min_y) / params.r_y));
+    const auto ni = static_cast<std::size_t>(std::floor((params.max_x - params.min_x) / params.r_x));
+    const auto nj = static_cast<std::size_t>(std::floor((params.max_y - params.min_y) / params.r_y));
 
     // Skip degenerate cases
     RC_PRE(ni > 0 && nj > 0);
@@ -182,9 +174,7 @@ RC_GTEST_PROP(PropRuleGeneration, ZeroResolutionThrows, ()) {
         params.r_y = static_cast<double>(neg_tenths) / 10.0;
     }
 
-    RC_ASSERT_THROWS_AS(
-        axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params), std::invalid_argument);
 }
 
 // ─── Property 6e: Bounding box max < min throws std::invalid_argument ────────
@@ -221,16 +211,14 @@ RC_GTEST_PROP(PropRuleGeneration, BboxMaxLessThanMinThrows, ()) {
         params.max_x = 90.0;
     }
 
-    RC_ASSERT_THROWS_AS(
-        axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params), std::invalid_argument);
 }
 
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 // RapidCheck/GTest property tests need Kokkos initialized for View allocation.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -244,7 +232,6 @@ public:
 };
 
 // Register the Kokkos environment with GTest
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

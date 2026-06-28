@@ -12,12 +12,12 @@
 // ---
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <cstdint>
 #include <stdexcept>
-#include <mpi.h>
 
 #include "halo/request_guard.hpp"
 #include "mpi_interposition.hpp"
@@ -32,12 +32,10 @@ namespace {
 /// Generate a non-null MPI_Request value suitable for testing.
 /// Returns a uintptr_t that can be cast to MPI_Request.
 rc::Gen<std::uintptr_t> genNonNullRequestValue() {
-    return rc::gen::map(
-        rc::gen::inRange<std::intptr_t>(1, 100000),
-        [](std::intptr_t val) -> std::uintptr_t {
-            // Offset to avoid accidental collision with MPI_REQUEST_NULL
-            return static_cast<std::uintptr_t>(val * 16 + 0x200000);
-        });
+    return rc::gen::map(rc::gen::inRange<std::intptr_t>(1, 100000), [](std::intptr_t val) -> std::uintptr_t {
+        // Offset to avoid accidental collision with MPI_REQUEST_NULL
+        return static_cast<std::uintptr_t>(val * 16 + 0x200000);
+    });
 }
 
 /// Helper: cast uintptr_t to MPI_Request
@@ -58,7 +56,7 @@ inline MPI_Request toRequest(std::uintptr_t val) {
 // **Validates: Requirements 2.2**
 
 RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionCallsWaitExactlyOnce, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     MPI_Request req = toRequest(*genNonNullRequestValue());
@@ -67,16 +65,13 @@ RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionCallsWaitExactlyOnce, ()) 
         halo::Request_Guard guard(req);
     }
 
-    auto wait_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Wait);
+    auto wait_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Wait);
     RC_ASSERT(wait_count == 1u);
 
-    auto cancel_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Cancel);
+    auto cancel_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Cancel);
     RC_ASSERT(cancel_count == 0u);
 
-    auto free_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Request_free);
+    auto free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Request_free);
     RC_ASSERT(free_count == 0u);
 }
 
@@ -86,7 +81,7 @@ RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionCallsWaitExactlyOnce, ()) 
 // **Validates: Requirements 2.2**
 
 RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionWaitOnlyCall, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     MPI_Request req = toRequest(*genNonNullRequestValue());
@@ -97,7 +92,7 @@ RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionWaitOnlyCall, ()) {
 
     RC_ASSERT(spy.call_count() == 1u);
 
-    auto const& calls = spy.calls();
+    auto const &calls = spy.calls();
     RC_ASSERT(calls[0].type == halo::testing::MPI_Call_Record::Type::Wait);
 }
 
@@ -107,7 +102,7 @@ RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionWaitOnlyCall, ()) {
 // **Validates: Requirements 2.2**
 
 RC_GTEST_PROP(RequestGuardProperty4, NullRequestSkipsWait, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     {
@@ -128,7 +123,7 @@ RC_GTEST_PROP(RequestGuardProperty4, NullRequestSkipsWait, ()) {
 // **Validates: Requirements 2.7**
 
 RC_GTEST_PROP(RequestGuardProperty5, UnwindingDestructionCallsCancelThenFree, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     MPI_Request req = toRequest(*genNonNullRequestValue());
@@ -136,19 +131,16 @@ RC_GTEST_PROP(RequestGuardProperty5, UnwindingDestructionCallsCancelThenFree, ()
     try {
         halo::Request_Guard guard(req);
         throw std::runtime_error("trigger stack unwinding");
-    } catch (std::runtime_error const&) {
+    } catch (std::runtime_error const &) {
     }
 
-    auto cancel_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Cancel);
+    auto cancel_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Cancel);
     RC_ASSERT(cancel_count == 1u);
 
-    auto free_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Request_free);
+    auto free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Request_free);
     RC_ASSERT(free_count == 1u);
 
-    auto wait_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Wait);
+    auto wait_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Wait);
     RC_ASSERT(wait_count == 0u);
 }
 
@@ -161,7 +153,7 @@ RC_GTEST_PROP(RequestGuardProperty5, UnwindingDestructionCallsCancelThenFree, ()
 // **Validates: Requirements 2.7**
 
 RC_GTEST_PROP(RequestGuardProperty5, CancelPrecedesFreeInCallOrder, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     MPI_Request req = toRequest(*genNonNullRequestValue());
@@ -169,10 +161,10 @@ RC_GTEST_PROP(RequestGuardProperty5, CancelPrecedesFreeInCallOrder, ()) {
     try {
         halo::Request_Guard guard(req);
         throw std::runtime_error("trigger stack unwinding");
-    } catch (std::runtime_error const&) {
+    } catch (std::runtime_error const &) {
     }
 
-    auto const& calls = spy.calls();
+    auto const &calls = spy.calls();
     RC_ASSERT(calls.size() == 2u);
 
     RC_ASSERT(calls[0].type == halo::testing::MPI_Call_Record::Type::Cancel);
@@ -189,13 +181,13 @@ RC_GTEST_PROP(RequestGuardProperty5, CancelPrecedesFreeInCallOrder, ()) {
 // **Validates: Requirements 2.7**
 
 RC_GTEST_PROP(RequestGuardProperty5, NullRequestDuringUnwindingIsNoOp, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     try {
         halo::Request_Guard guard;
         throw std::runtime_error("trigger stack unwinding");
-    } catch (std::runtime_error const&) {
+    } catch (std::runtime_error const &) {
     }
 
     RC_ASSERT(spy.call_count() == 0u);

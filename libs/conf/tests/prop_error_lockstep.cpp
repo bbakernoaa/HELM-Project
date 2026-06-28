@@ -16,7 +16,6 @@
 
 #include <conf/config.hpp>
 #include <conf/error.hpp>
-
 #include <cstring>
 #include <optional>
 #include <string>
@@ -25,13 +24,13 @@
 
 extern "C" {
 
-int conf_load_string_c(const char* yaml_text, int text_len, int* handle_out);
+int conf_load_string_c(const char *yaml_text, int text_len, int *handle_out);
 int conf_close_c(int handle);
 
-int conf_get_int_c(int handle, const char* key, int key_len, int* out);
-int conf_get_double_c(int handle, const char* key, int key_len, double* out);
-int conf_get_bool_c(int handle, const char* key, int key_len, int* out);
-int conf_get_string_len_c(int handle, const char* key, int key_len, int* str_len_out);
+int conf_get_int_c(int handle, const char *key, int key_len, int *out);
+int conf_get_double_c(int handle, const char *key, int key_len, double *out);
+int conf_get_bool_c(int handle, const char *key, int key_len, int *out);
+int conf_get_string_len_c(int handle, const char *key, int key_len, int *str_len_out);
 
 }  // extern "C"
 
@@ -42,7 +41,7 @@ namespace {
 // sequence so that random keys will sometimes hit existing nodes (success or
 // type mismatch) and sometimes miss entirely (Key_Not_Found).
 
-constexpr const char* kFixtureYaml =
+constexpr const char *kFixtureYaml =
     "answer: 42\n"
     "pi: 3.14159\n"
     "enabled: true\n"
@@ -61,13 +60,11 @@ struct DualConfig {
     conf::Config cpp_cfg;
     int c_handle;
 
-    DualConfig(conf::Config cfg, int h)
-        : cpp_cfg(std::move(cfg)), c_handle(h) {}
-    DualConfig(DualConfig&& other) noexcept
-        : cpp_cfg(std::move(other.cpp_cfg)), c_handle(other.c_handle) {
+    DualConfig(conf::Config cfg, int h) : cpp_cfg(std::move(cfg)), c_handle(h) {}
+    DualConfig(DualConfig &&other) noexcept : cpp_cfg(std::move(other.cpp_cfg)), c_handle(other.c_handle) {
         other.c_handle = 0;  // prevent double-close
     }
-    DualConfig& operator=(DualConfig&& other) noexcept {
+    DualConfig &operator=(DualConfig &&other) noexcept {
         if (this != &other) {
             if (c_handle > 0) conf_close_c(c_handle);
             cpp_cfg = std::move(other.cpp_cfg);
@@ -83,15 +80,13 @@ struct DualConfig {
     }
 };
 
-std::optional<DualConfig> load_dual(const std::string& yaml) {
+std::optional<DualConfig> load_dual(const std::string &yaml) {
     // C++ side
     conf::Config cpp_cfg = conf::Config::from_string(yaml);
 
     // C bridge side
     int handle = 0;
-    int rc = conf_load_string_c(yaml.c_str(),
-                                static_cast<int>(yaml.size()),
-                                &handle);
+    int rc = conf_load_string_c(yaml.c_str(), static_cast<int>(yaml.size()), &handle);
     if (rc != 0) return std::nullopt;
 
     return DualConfig(std::move(cpp_cfg), handle);
@@ -104,24 +99,14 @@ std::optional<DualConfig> load_dual(const std::string& yaml) {
 rc::Gen<std::string> genKey() {
     return rc::gen::oneOf(
         // Known keys (may succeed or type-mismatch depending on accessor)
-        rc::gen::element<std::string>(
-            "answer", "pi", "enabled", "name",
-            "nested", "nested.depth", "nested.flag",
-            "items", "items.0", "items.1", "items.2"
-        ),
+        rc::gen::element<std::string>("answer", "pi", "enabled", "name", "nested", "nested.depth", "nested.flag", "items", "items.0", "items.1",
+                                      "items.2"),
         // Missing keys
-        rc::gen::element<std::string>(
-            "missing", "no.such.key", "items.99", "nested.nope"
-        ),
+        rc::gen::element<std::string>("missing", "no.such.key", "items.99", "nested.nope"),
         // Malformed paths (should yield Invalid_Arg)
-        rc::gen::element<std::string>(
-            "", ".leading", "trailing.", "double..dot", "...", ".."
-        ),
+        rc::gen::element<std::string>("", ".leading", "trailing.", "double..dot", "...", ".."),
         // Random alphanumeric keys (most will be Key_Not_Found)
-        rc::gen::container<std::string>(
-            rc::gen::inRange('a', 'z')
-        )
-    );
+        rc::gen::container<std::string>(rc::gen::inRange('a', 'z')));
 }
 
 // ─── Comparison logic ────────────────────────────────────────────────────────
@@ -155,7 +140,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetIntLockstep, ()) {
     int cpp_value = 0;
     try {
         cpp_value = dual->cpp_cfg.get_int(key);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         cpp_result.outcome = CppOutcome::ConfError;
         cpp_result.error_code = static_cast<int>(e.code());
     } catch (...) {
@@ -164,10 +149,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetIntLockstep, ()) {
 
     // C bridge side: call conf_get_int_c
     int c_out = 0;
-    int c_rc = conf_get_int_c(dual->c_handle,
-                              key.c_str(),
-                              static_cast<int>(key.size()),
-                              &c_out);
+    int c_rc = conf_get_int_c(dual->c_handle, key.c_str(), static_cast<int>(key.size()), &c_out);
 
     // Lockstep assertion
     if (cpp_result.outcome == CppOutcome::ConfError) {
@@ -198,7 +180,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetDoubleLockstep, ()) {
     double cpp_value = 0.0;
     try {
         cpp_value = dual->cpp_cfg.get_double(key);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         cpp_result.outcome = CppOutcome::ConfError;
         cpp_result.error_code = static_cast<int>(e.code());
     } catch (...) {
@@ -206,10 +188,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetDoubleLockstep, ()) {
     }
 
     double c_out = 0.0;
-    int c_rc = conf_get_double_c(dual->c_handle,
-                                 key.c_str(),
-                                 static_cast<int>(key.size()),
-                                 &c_out);
+    int c_rc = conf_get_double_c(dual->c_handle, key.c_str(), static_cast<int>(key.size()), &c_out);
 
     if (cpp_result.outcome == CppOutcome::ConfError) {
         RC_ASSERT(c_rc == cpp_result.error_code);
@@ -237,7 +216,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetBoolLockstep, ()) {
     bool cpp_value = false;
     try {
         cpp_value = dual->cpp_cfg.get_bool(key);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         cpp_result.outcome = CppOutcome::ConfError;
         cpp_result.error_code = static_cast<int>(e.code());
     } catch (...) {
@@ -245,10 +224,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetBoolLockstep, ()) {
     }
 
     int c_out = 0;
-    int c_rc = conf_get_bool_c(dual->c_handle,
-                               key.c_str(),
-                               static_cast<int>(key.size()),
-                               &c_out);
+    int c_rc = conf_get_bool_c(dual->c_handle, key.c_str(), static_cast<int>(key.size()), &c_out);
 
     if (cpp_result.outcome == CppOutcome::ConfError) {
         RC_ASSERT(c_rc == cpp_result.error_code);
@@ -277,7 +253,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetStringLockstep, ()) {
     std::string cpp_value;
     try {
         cpp_value = dual->cpp_cfg.get_string(key);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         cpp_result.outcome = CppOutcome::ConfError;
         cpp_result.error_code = static_cast<int>(e.code());
     } catch (...) {
@@ -285,10 +261,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, GetStringLockstep, ()) {
     }
 
     int c_str_len = 0;
-    int c_rc = conf_get_string_len_c(dual->c_handle,
-                                     key.c_str(),
-                                     static_cast<int>(key.size()),
-                                     &c_str_len);
+    int c_rc = conf_get_string_len_c(dual->c_handle, key.c_str(), static_cast<int>(key.size()), &c_str_len);
 
     if (cpp_result.outcome == CppOutcome::ConfError) {
         RC_ASSERT(c_rc == cpp_result.error_code);
@@ -313,15 +286,13 @@ RC_GTEST_PROP(ErrorLockstepProperty6, InvalidArgLockstep, ()) {
     RC_ASSERT(dual.has_value());
 
     // Generate only malformed keys
-    const std::string key = *rc::gen::element<std::string>(
-        "", ".leading", "trailing.", "double..dot", "...", "..", "a..b"
-    );
+    const std::string key = *rc::gen::element<std::string>("", ".leading", "trailing.", "double..dot", "...", "..", "a..b");
 
     // C++ side: get_int should throw Conf_Error(Invalid_Arg)
     CppResult cpp_result{CppOutcome::Success, 0};
     try {
         (void)dual->cpp_cfg.get_int(key);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         cpp_result.outcome = CppOutcome::ConfError;
         cpp_result.error_code = static_cast<int>(e.code());
     } catch (...) {
@@ -330,10 +301,7 @@ RC_GTEST_PROP(ErrorLockstepProperty6, InvalidArgLockstep, ()) {
 
     // C bridge side
     int c_out = 0;
-    int c_rc = conf_get_int_c(dual->c_handle,
-                              key.c_str(),
-                              static_cast<int>(key.size()),
-                              &c_out);
+    int c_rc = conf_get_int_c(dual->c_handle, key.c_str(), static_cast<int>(key.size()), &c_out);
 
     // Both must agree on the error code
     if (cpp_result.outcome == CppOutcome::ConfError) {

@@ -24,7 +24,6 @@
 #include <mpi.h>
 
 #include <Kokkos_Core.hpp>
-
 #include <array>
 #include <cstddef>
 
@@ -58,7 +57,7 @@ inline double encode(int rank, std::size_t local_idx) {
 
 /// Initialize a 2D view: interior gets encoded values, halos get sentinel.
 template <typename ViewType>
-void init_view_2d(ViewType& view, int rank) {
+void init_view_2d(ViewType &view, int rank) {
     auto h_view = Kokkos::create_mirror_view(view);
     Kokkos::deep_copy(h_view, kSentinel);
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
@@ -73,7 +72,7 @@ void init_view_2d(ViewType& view, int rank) {
 // ─── Test 1: Symmetric 2D periodic ring via neighbor collective ─────────────
 
 class NeighborCollectiveSymmetricTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -102,10 +101,9 @@ TEST_F(NeighborCollectiveSymmetricTest, PeriodicRingExchangeCorrectness) {
     halo::Structured_Halo_Plan<2> plan(extents, neighbors_, halo_widths, *comm_);
 
     // Confirm topology is symmetric (precondition for neighbor collective path)
-    ASSERT_TRUE(plan.is_topology_symmetric())
-        << "Periodic ring should be detected as symmetric topology";
+    ASSERT_TRUE(plan.is_topology_symmetric()) << "Periodic ring should be detected as symmetric topology";
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view("nc_sym_2d", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view("nc_sym_2d", kTotal, kTotal);
     init_view_2d(view, rank_);
 
     halo::exchange_neighbor_collective(plan, view);
@@ -122,8 +120,7 @@ TEST_F(NeighborCollectiveSymmetricTest, PeriodicRingExchangeCorrectness) {
     for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
         std::size_t west_local_idx = (kInterior - 1) * kInterior + (j - kHalo);
         double expected = encode(west, west_local_idx);
-        EXPECT_DOUBLE_EQ(h_view(0, j), expected)
-            << "West halo mismatch at (0, " << j << ") on rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_view(0, j), expected) << "West halo mismatch at (0, " << j << ") on rank " << rank_;
     }
 
     // East halo: received from east neighbor's low-d0 send region (first
@@ -132,25 +129,20 @@ TEST_F(NeighborCollectiveSymmetricTest, PeriodicRingExchangeCorrectness) {
     for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
         std::size_t east_local_idx = 0 * kInterior + (j - kHalo);
         double expected = encode(east, east_local_idx);
-        EXPECT_DOUBLE_EQ(h_view(kTotal - 1, j), expected)
-            << "East halo mismatch at (" << kTotal - 1 << ", " << j
-            << ") on rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_view(kTotal - 1, j), expected) << "East halo mismatch at (" << kTotal - 1 << ", " << j << ") on rank " << rank_;
     }
 
     // South/North halos should remain sentinel (no neighbors)
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
-        EXPECT_DOUBLE_EQ(h_view(i, 0), kSentinel)
-            << "South halo should be untouched at (" << i << ", 0) rank " << rank_;
-        EXPECT_DOUBLE_EQ(h_view(i, kTotal - 1), kSentinel)
-            << "North halo should be untouched at (" << i << ", " << kTotal - 1
-            << ") rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_view(i, 0), kSentinel) << "South halo should be untouched at (" << i << ", 0) rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_view(i, kTotal - 1), kSentinel) << "North halo should be untouched at (" << i << ", " << kTotal - 1 << ") rank " << rank_;
     }
 }
 
 // ─── Test 2: Asymmetric topology fallback to Isend/Irecv ────────────────────
 
 class NeighborCollectiveAsymmetricTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -170,7 +162,7 @@ TEST_F(NeighborCollectiveAsymmetricTest, NonPeriodicFallbackCorrectness) {
     // path and still produces correct data.
     //
     // Linear arrangement along d0: rank 0 has no left, rank 3 has no right.
-    int left  = (rank_ > 0) ? rank_ - 1 : -1;
+    int left = (rank_ > 0) ? rank_ - 1 : -1;
     int right = (rank_ < size_ - 1) ? rank_ + 1 : -1;
 
     std::array<std::size_t, 2> extents = {kTotal, kTotal};
@@ -179,7 +171,7 @@ TEST_F(NeighborCollectiveAsymmetricTest, NonPeriodicFallbackCorrectness) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors, halo_widths, *comm_);
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view("nc_asym_2d", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view("nc_asym_2d", kTotal, kTotal);
     init_view_2d(view, rank_);
 
     // Call neighbor collective — should transparently handle this topology
@@ -190,16 +182,13 @@ TEST_F(NeighborCollectiveAsymmetricTest, NonPeriodicFallbackCorrectness) {
     // Verify halos on faces without a neighbor remain sentinel
     if (left == -1) {
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
-            EXPECT_DOUBLE_EQ(h_view(0, j), kSentinel)
-                << "West halo should be sentinel on rank " << rank_
-                << " at (0, " << j << ")";
+            EXPECT_DOUBLE_EQ(h_view(0, j), kSentinel) << "West halo should be sentinel on rank " << rank_ << " at (0, " << j << ")";
         }
     }
     if (right == -1) {
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             EXPECT_DOUBLE_EQ(h_view(kTotal - 1, j), kSentinel)
-                << "East halo should be sentinel on rank " << rank_
-                << " at (" << kTotal - 1 << ", " << j << ")";
+                << "East halo should be sentinel on rank " << rank_ << " at (" << kTotal - 1 << ", " << j << ")";
         }
     }
 
@@ -208,9 +197,7 @@ TEST_F(NeighborCollectiveAsymmetricTest, NonPeriodicFallbackCorrectness) {
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             std::size_t left_local_idx = (kInterior - 1) * kInterior + (j - kHalo);
             double expected = encode(left, left_local_idx);
-            EXPECT_DOUBLE_EQ(h_view(0, j), expected)
-                << "West halo data mismatch on rank " << rank_
-                << " at (0, " << j << ")";
+            EXPECT_DOUBLE_EQ(h_view(0, j), expected) << "West halo data mismatch on rank " << rank_ << " at (0, " << j << ")";
         }
     }
     if (right >= 0) {
@@ -218,24 +205,21 @@ TEST_F(NeighborCollectiveAsymmetricTest, NonPeriodicFallbackCorrectness) {
             std::size_t right_local_idx = 0 * kInterior + (j - kHalo);
             double expected = encode(right, right_local_idx);
             EXPECT_DOUBLE_EQ(h_view(kTotal - 1, j), expected)
-                << "East halo data mismatch on rank " << rank_
-                << " at (" << kTotal - 1 << ", " << j << ")";
+                << "East halo data mismatch on rank " << rank_ << " at (" << kTotal - 1 << ", " << j << ")";
         }
     }
 
     // South/North halos always untouched
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
-        EXPECT_DOUBLE_EQ(h_view(i, 0), kSentinel)
-            << "South halo should be sentinel on rank " << rank_;
-        EXPECT_DOUBLE_EQ(h_view(i, kTotal - 1), kSentinel)
-            << "North halo should be sentinel on rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_view(i, 0), kSentinel) << "South halo should be sentinel on rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_view(i, kTotal - 1), kSentinel) << "North halo should be sentinel on rank " << rank_;
     }
 }
 
 // ─── Test 3: Result equivalence with standard blocking exchange ─────────────
 
 class NeighborCollectiveEquivalenceTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -265,11 +249,11 @@ TEST_F(NeighborCollectiveEquivalenceTest, MatchesBlockingExchangeResults) {
     halo::Structured_Halo_Plan<2> plan_neighbor(extents, neighbors_, halo_widths, *comm_);
 
     // View for standard blocking exchange
-    Kokkos::View<double**, Kokkos::LayoutRight> view_blocking("blocking_2d", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view_blocking("blocking_2d", kTotal, kTotal);
     init_view_2d(view_blocking, rank_);
 
     // View for neighbor collective exchange (identical initial data)
-    Kokkos::View<double**, Kokkos::LayoutRight> view_neighbor("neighbor_2d", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view_neighbor("neighbor_2d", kTotal, kTotal);
     init_view_2d(view_neighbor, rank_);
 
     // Execute both exchange variants
@@ -283,15 +267,14 @@ TEST_F(NeighborCollectiveEquivalenceTest, MatchesBlockingExchangeResults) {
     for (std::size_t i = 0; i < kTotal; ++i) {
         for (std::size_t j = 0; j < kTotal; ++j) {
             EXPECT_DOUBLE_EQ(h_blocking(i, j), h_neighbor(i, j))
-                << "Mismatch between blocking and neighbor_collective at ("
-                << i << ", " << j << ") on rank " << rank_;
+                << "Mismatch between blocking and neighbor_collective at (" << i << ", " << j << ") on rank " << rank_;
         }
     }
 }
 
 TEST_F(NeighborCollectiveEquivalenceTest, MatchesBlockingNonPeriodic) {
     // Also verify equivalence for the non-periodic (asymmetric) case.
-    int left  = (rank_ > 0) ? rank_ - 1 : -1;
+    int left = (rank_ > 0) ? rank_ - 1 : -1;
     int right = (rank_ < size_ - 1) ? rank_ + 1 : -1;
     std::array<int, 4> asym_neighbors = {left, right, -1, -1};
 
@@ -301,10 +284,10 @@ TEST_F(NeighborCollectiveEquivalenceTest, MatchesBlockingNonPeriodic) {
     halo::Structured_Halo_Plan<2> plan_blocking(extents, asym_neighbors, halo_widths, *comm_);
     halo::Structured_Halo_Plan<2> plan_neighbor(extents, asym_neighbors, halo_widths, *comm_);
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view_blocking("blk_np", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view_blocking("blk_np", kTotal, kTotal);
     init_view_2d(view_blocking, rank_);
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view_neighbor("nc_np", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view_neighbor("nc_np", kTotal, kTotal);
     init_view_2d(view_neighbor, rank_);
 
     halo::exchange_structured_blocking(plan_blocking, view_blocking);
@@ -315,9 +298,8 @@ TEST_F(NeighborCollectiveEquivalenceTest, MatchesBlockingNonPeriodic) {
 
     for (std::size_t i = 0; i < kTotal; ++i) {
         for (std::size_t j = 0; j < kTotal; ++j) {
-            EXPECT_DOUBLE_EQ(h_blocking(i, j), h_neighbor(i, j))
-                << "Non-periodic: mismatch between blocking and neighbor_collective"
-                << " at (" << i << ", " << j << ") on rank " << rank_;
+            EXPECT_DOUBLE_EQ(h_blocking(i, j), h_neighbor(i, j)) << "Non-periodic: mismatch between blocking and neighbor_collective"
+                                                                 << " at (" << i << ", " << j << ") on rank " << rank_;
         }
     }
 }
@@ -325,7 +307,7 @@ TEST_F(NeighborCollectiveEquivalenceTest, MatchesBlockingNonPeriodic) {
 // ─── Global MPI + Kokkos + HALO environment ─────────────────────────────────
 
 class HaloMpiEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         int provided = 0;
         MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &provided);
@@ -342,5 +324,4 @@ public:
 }  // namespace
 
 // Register the environment (gtest_main provides main()).
-static ::testing::Environment* const halo_mpi_env =
-    ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);
+static ::testing::Environment *const halo_mpi_env = ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);

@@ -2,17 +2,16 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <tick/tick.hpp>
-#include <tick/gregorian_calendar.hpp>
-#include <tick/noleap_calendar.hpp>
-#include <tick/cal360_calendar.hpp>
-
-#include "generators.hpp"
-
 #include <stdexcept>
 #include <thread>
+#include <tick/cal360_calendar.hpp>
+#include <tick/gregorian_calendar.hpp>
+#include <tick/noleap_calendar.hpp>
+#include <tick/tick.hpp>
 #include <type_traits>
 #include <vector>
+
+#include "generators.hpp"
 
 namespace {
 
@@ -20,7 +19,7 @@ using namespace tick;
 
 // Convenience type aliases
 using GregorianEngine = Aliasing_Engine<Gregorian_Calendar, Gregorian_Calendar>;
-using CrossCalEngine  = Aliasing_Engine<Gregorian_Calendar, NoLeap_Calendar>;
+using CrossCalEngine = Aliasing_Engine<Gregorian_Calendar, NoLeap_Calendar>;
 
 // Helper: create a valid coverage window (10 years, divisible by common intervals)
 // 3650 days from epoch — evenly divisible by many intervals (e.g., 5, 10, 25, 50, 73, 146, 365, 730, 1825)
@@ -34,40 +33,30 @@ inline Time_Window make_coverage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(AliasingEngine_Constructor, ZeroDurationInterval_Throws) {
-    EXPECT_THROW(
-        GregorianEngine(make_coverage(), Duration{0}, OutOfBoundsPolicy::clamp_to_edge),
-        std::invalid_argument);
+    EXPECT_THROW(GregorianEngine(make_coverage(), Duration{0}, OutOfBoundsPolicy::clamp_to_edge), std::invalid_argument);
 }
 
 TEST(AliasingEngine_Constructor, NegativeInterval_Throws) {
-    EXPECT_THROW(
-        GregorianEngine(make_coverage(), Duration{-1}, OutOfBoundsPolicy::clamp_to_edge),
-        std::invalid_argument);
+    EXPECT_THROW(GregorianEngine(make_coverage(), Duration{-1}, OutOfBoundsPolicy::clamp_to_edge), std::invalid_argument);
 }
 
 TEST(AliasingEngine_Constructor, NonDivisibleInterval_Throws) {
     // 3650 days is not divisible by 7 days (3650 % 7 != 0)
-    EXPECT_THROW(
-        GregorianEngine(make_coverage(), days(7), OutOfBoundsPolicy::clamp_to_edge),
-        std::invalid_argument);
+    EXPECT_THROW(GregorianEngine(make_coverage(), days(7), OutOfBoundsPolicy::clamp_to_edge), std::invalid_argument);
 }
 
 TEST(AliasingEngine_Constructor, PureClimatology_OutOfRangeYear_Throws) {
     // Coverage spans epoch year 2026 to ~2035. Climatological year 1990 is out of range.
     auto coverage = make_coverage();
     auto interval = days(10);
-    EXPECT_THROW(
-        GregorianEngine(coverage, interval, OutOfBoundsPolicy::pure_climatology, 1990),
-        std::invalid_argument);
+    EXPECT_THROW(GregorianEngine(coverage, interval, OutOfBoundsPolicy::pure_climatology, 1990), std::invalid_argument);
 }
 
 TEST(AliasingEngine_Constructor, PureClimatology_YearAfterCoverage_Throws) {
     // Year 2050 is well beyond coverage end (~2035)
     auto coverage = make_coverage();
     auto interval = days(10);
-    EXPECT_THROW(
-        GregorianEngine(coverage, interval, OutOfBoundsPolicy::pure_climatology, 2050),
-        std::invalid_argument);
+    EXPECT_THROW(GregorianEngine(coverage, interval, OutOfBoundsPolicy::pure_climatology, 2050), std::invalid_argument);
 }
 
 TEST(AliasingEngine_Constructor, ValidConstruction_AccessorRoundTrip) {
@@ -119,8 +108,7 @@ RC_GTEST_PROP(AliasingEngine_Property1, WeightFormulaCorrectness, ()) {
     // **Validates: Requirements 1.1, 1.2, 1.3**
 
     // Generate a random Time_Window with positive duration
-    auto start_nanos = *rc::gen::inRange<std::int64_t>(-1'000'000'000'000'000'000LL,
-                                                        1'000'000'000'000'000'000LL);
+    auto start_nanos = *rc::gen::inRange<std::int64_t>(-1'000'000'000'000'000'000LL, 1'000'000'000'000'000'000LL);
     auto duration_nanos = *rc::gen::inRange<std::int64_t>(1, 86'400'000'000'000LL * 365);
 
     auto start = Time_Point{start_nanos};
@@ -132,8 +120,8 @@ RC_GTEST_PROP(AliasingEngine_Property1, WeightFormulaCorrectness, ()) {
     auto current = Time_Point{start_nanos + offset};
 
     // Compute expected alpha manually
-    double expected = static_cast<double>(current.nanos() - window.start().nanos())
-                    / static_cast<double>(window.end().nanos() - window.start().nanos());
+    double expected =
+        static_cast<double>(current.nanos() - window.start().nanos()) / static_cast<double>(window.end().nanos() - window.start().nanos());
 
     // Compute actual via calculate_weight
     double actual = GregorianEngine::calculate_weight(current, window);
@@ -148,8 +136,7 @@ RC_GTEST_PROP(AliasingEngine_Property1, WeightFormulaCorrectness, ()) {
 
 RC_GTEST_PROP(AliasingEngine_Property2, OutOfRangeRejection, ()) {
     // Generate a random Time_Window with positive duration
-    auto start_nanos = *rc::gen::inRange<std::int64_t>(-1'000'000'000'000'000'000LL,
-                                                        1'000'000'000'000'000'000LL);
+    auto start_nanos = *rc::gen::inRange<std::int64_t>(-1'000'000'000'000'000'000LL, 1'000'000'000'000'000'000LL);
     auto duration_nanos = *rc::gen::inRange<std::int64_t>(1, 86'400'000'000'000LL * 365);
 
     auto start = Time_Point{start_nanos};
@@ -235,9 +222,8 @@ RC_GTEST_PROP(AliasingEngine_Property3, WeightBoundsInvariant, ()) {
     GregorianEngine engine{coverage, interval, policy, clim_year};
 
     // Generate any Time_Point (in or out of coverage)
-    auto sim_time_nanos = *rc::gen::inRange<std::int64_t>(
-        coverage.start().nanos() - 86'400'000'000'000LL * 3650,
-        coverage.end().nanos() + 86'400'000'000'000LL * 3650);
+    auto sim_time_nanos =
+        *rc::gen::inRange<std::int64_t>(coverage.start().nanos() - 86'400'000'000'000LL * 3650, coverage.end().nanos() + 86'400'000'000'000LL * 3650);
     auto sim_time = Time_Point{sim_time_nanos};
 
     auto result = engine.resolve(sim_time);
@@ -301,9 +287,8 @@ RC_GTEST_PROP(AliasingEngine_Property6, PureClimatologyYearLock, ()) {
     GregorianEngine engine{coverage, interval, OutOfBoundsPolicy::pure_climatology, clim_year};
 
     // Generate arbitrary Time_Point (in or out of coverage range)
-    auto sim_time_nanos = *rc::gen::inRange<std::int64_t>(
-        coverage.start().nanos() - 86'400'000'000'000LL * 3650,
-        coverage.end().nanos() + 86'400'000'000'000LL * 3650);
+    auto sim_time_nanos =
+        *rc::gen::inRange<std::int64_t>(coverage.start().nanos() - 86'400'000'000'000LL * 3650, coverage.end().nanos() + 86'400'000'000'000LL * 3650);
     auto sim_time = Time_Point{sim_time_nanos};
 
     auto result = engine.resolve(sim_time);
@@ -392,8 +377,7 @@ RC_GTEST_PROP(AliasingEngine_Property9, WeightMonotonicity, ()) {
     // **Validates: Requirements 11.6**
 
     // Generate a random Time_Window with positive duration
-    auto start_nanos = *rc::gen::inRange<std::int64_t>(-1'000'000'000'000'000'000LL,
-                                                        1'000'000'000'000'000'000LL);
+    auto start_nanos = *rc::gen::inRange<std::int64_t>(-1'000'000'000'000'000'000LL, 1'000'000'000'000'000'000LL);
     auto duration_nanos = *rc::gen::inRange<std::int64_t>(2, 86'400'000'000'000LL * 365);
 
     auto start = Time_Point{start_nanos};
@@ -414,7 +398,6 @@ RC_GTEST_PROP(AliasingEngine_Property9, WeightMonotonicity, ()) {
 
     RC_ASSERT(alpha_a <= alpha_b);
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Section 4.11: Property 10 — Resolve Determinism
@@ -442,9 +425,8 @@ RC_GTEST_PROP(AliasingEngine_Property10, ResolveDeterminism, ()) {
     GregorianEngine engine{coverage, interval, policy, clim_year};
 
     // Generate any Time_Point
-    auto sim_time_nanos = *rc::gen::inRange<std::int64_t>(
-        coverage.start().nanos() - 86'400'000'000'000LL * 3650,
-        coverage.end().nanos() + 86'400'000'000'000LL * 3650);
+    auto sim_time_nanos =
+        *rc::gen::inRange<std::int64_t>(coverage.start().nanos() - 86'400'000'000'000LL * 3650, coverage.end().nanos() + 86'400'000'000'000LL * 3650);
     auto sim_time = Time_Point{sim_time_nanos};
 
     // Call resolve twice
@@ -454,7 +436,6 @@ RC_GTEST_PROP(AliasingEngine_Property10, ResolveDeterminism, ()) {
     // Bitwise-identical via operator==
     RC_ASSERT(result1 == result2);
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Section 4.12: Property 11 — Construction Rejects Non-Divisible Intervals
@@ -474,9 +455,7 @@ RC_GTEST_PROP(AliasingEngine_Property11, ConstructionRejectsNonDivisibleInterval
 
     auto interval = Duration{interval_nanos};
 
-    RC_ASSERT_THROWS_AS(
-        GregorianEngine(coverage, interval, OutOfBoundsPolicy::clamp_to_edge),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(GregorianEngine(coverage, interval, OutOfBoundsPolicy::clamp_to_edge), std::invalid_argument);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -521,7 +500,6 @@ TEST(AliasingEngine_CalculateWeight, MidpointReturnsHalf) {
     auto alpha = GregorianEngine::calculate_weight(Time_Point{500}, window);
     EXPECT_DOUBLE_EQ(alpha, 0.5);
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Section 5.3: Policy-Specific Edge Cases Unit Tests
@@ -610,8 +588,7 @@ TEST(AliasingEngine_PolicyEdgeCases, AliasedWindow_DifferentAlpha_NotEqual) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Compile-time: OutOfBoundsPolicy has uint8_t underlying type
-static_assert(std::is_same_v<std::underlying_type_t<OutOfBoundsPolicy>, std::uint8_t>,
-              "OutOfBoundsPolicy must have std::uint8_t underlying type");
+static_assert(std::is_same_v<std::underlying_type_t<OutOfBoundsPolicy>, std::uint8_t>, "OutOfBoundsPolicy must have std::uint8_t underlying type");
 
 // Compile-time: Aliasing_Engine cannot be instantiated with a non-Calendar type
 // A struct that does NOT satisfy the Calendar concept:
@@ -635,19 +612,16 @@ TEST(AliasingEngine_ThreadSafety, ConcurrentResolve_ProducesConsistentResults) {
     threads.reserve(num_threads);
 
     for (int i = 0; i < num_threads; ++i) {
-        threads.emplace_back([&engine, &results, i, sim_time]() {
-            results[i] = engine.resolve(sim_time);
-        });
+        threads.emplace_back([&engine, &results, i, sim_time]() { results[i] = engine.resolve(sim_time); });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 
     // All results should be bitwise-identical
     for (int i = 1; i < num_threads; ++i) {
-        EXPECT_EQ(results[0], results[i])
-            << "Thread " << i << " produced a different result";
+        EXPECT_EQ(results[0], results[i]) << "Thread " << i << " produced a different result";
     }
 }
 
@@ -665,19 +639,16 @@ TEST(AliasingEngine_ThreadSafety, ConcurrentResolve_OutOfBounds_Consistent) {
     threads.reserve(num_threads);
 
     for (int i = 0; i < num_threads; ++i) {
-        threads.emplace_back([&engine, &results, i, sim_time]() {
-            results[i] = engine.resolve(sim_time);
-        });
+        threads.emplace_back([&engine, &results, i, sim_time]() { results[i] = engine.resolve(sim_time); });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 
     for (int i = 1; i < num_threads; ++i) {
-        EXPECT_EQ(results[0], results[i])
-            << "Thread " << i << " produced a different result";
+        EXPECT_EQ(results[0], results[i]) << "Thread " << i << " produced a different result";
     }
 }
 
-} // anonymous namespace
+}  // anonymous namespace

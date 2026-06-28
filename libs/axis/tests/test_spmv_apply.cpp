@@ -5,18 +5,21 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/apply.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/types.hpp>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -32,31 +35,42 @@ static solver::InterpolationMatrix<MemSpace> make_test_matrix() {
     constexpr std::size_t n_src = 3;
     constexpr std::size_t n_dst = 2;
 
-    Kokkos::View<double*, MemSpace>  weights("weights", nnz);
-    Kokkos::View<index_t*, MemSpace> rows("rows", nnz);
-    Kokkos::View<index_t*, MemSpace> cols("cols", nnz);
-    Kokkos::View<double*, MemSpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemSpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemSpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemSpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemSpace> weights("weights", nnz);
+    Kokkos::View<index_t *, MemSpace> rows("rows", nnz);
+    Kokkos::View<index_t *, MemSpace> cols("cols", nnz);
+    Kokkos::View<double *, MemSpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemSpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemSpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemSpace> area_b("area_b", n_dst);
 
     // dst[0] += 0.5 * src[0]
-    weights(0) = 0.5; rows(0) = 0; cols(0) = 0;
+    weights(0) = 0.5;
+    rows(0) = 0;
+    cols(0) = 0;
     // dst[0] += 0.3 * src[1]
-    weights(1) = 0.3; rows(1) = 0; cols(1) = 1;
+    weights(1) = 0.3;
+    rows(1) = 0;
+    cols(1) = 1;
     // dst[1] += 0.2 * src[1]
-    weights(2) = 0.2; rows(2) = 1; cols(2) = 1;
+    weights(2) = 0.2;
+    rows(2) = 1;
+    cols(2) = 1;
     // dst[1] += 1.0 * src[2]
-    weights(3) = 1.0; rows(3) = 1; cols(3) = 2;
+    weights(3) = 1.0;
+    rows(3) = 1;
+    cols(3) = 2;
 
-    for (std::size_t i = 0; i < n_src; ++i) { frac_a(i) = 1.0; area_a(i) = 1.0; }
-    for (std::size_t j = 0; j < n_dst; ++j) { frac_b(j) = 1.0; area_b(j) = 1.0; }
+    for (std::size_t i = 0; i < n_src; ++i) {
+        frac_a(i) = 1.0;
+        area_a(i) = 1.0;
+    }
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        frac_b(j) = 1.0;
+        area_b(j) = 1.0;
+    }
 
-    return solver::InterpolationMatrix<MemSpace>(
-        std::move(weights), std::move(rows), std::move(cols),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return solver::InterpolationMatrix<MemSpace>(std::move(weights), std::move(rows), std::move(cols), std::move(frac_a), std::move(frac_b),
+                                                 std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
 // Test: apply matches the expected reference-loop result
@@ -108,8 +122,7 @@ TEST(SpmvApply, SrcExtentMismatchThrows) {
     field_view<const double, 1> src_view(bad_src.data(), 5);
     field_view<double, 1> dst_view(dst_data.data(), 2);
 
-    EXPECT_THROW(solver::apply<MemSpace>(matrix, src_view, dst_view),
-                 std::invalid_argument);
+    EXPECT_THROW(solver::apply<MemSpace>(matrix, src_view, dst_view), std::invalid_argument);
     // dst must be untouched
     EXPECT_EQ(dst_data[0], 0.0);
     EXPECT_EQ(dst_data[1], 0.0);
@@ -125,8 +138,7 @@ TEST(SpmvApply, DstExtentMismatchThrows) {
     field_view<const double, 1> src_view(src_data.data(), 3);
     field_view<double, 1> dst_view(bad_dst.data(), 5);
 
-    EXPECT_THROW(solver::apply<MemSpace>(matrix, src_view, dst_view),
-                 std::invalid_argument);
+    EXPECT_THROW(solver::apply<MemSpace>(matrix, src_view, dst_view), std::invalid_argument);
 }
 
 }  // namespace axis::test

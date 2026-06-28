@@ -2,9 +2,6 @@
 // Implementation of conf::Config (RAII owner of a parsed YAML document).
 
 #include "conf/config.hpp"
-#include "conf/error.hpp"
-#include "conf/value.hpp"
-#include "detail/yaml_tree.hpp"
 
 #include <yaml-cpp/yaml.h>
 
@@ -12,6 +9,10 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "conf/error.hpp"
+#include "conf/value.hpp"
+#include "detail/yaml_tree.hpp"
 
 namespace conf {
 
@@ -33,13 +34,13 @@ Config::Config() noexcept : impl_(nullptr) {}
 
 // ── Factory constructors ─────────────────────────────────────────────────────
 
-Config Config::from_file(const std::string& path) {
+Config Config::from_file(const std::string &path) {
     Config cfg;
     cfg.impl_ = std::make_unique<Impl>(detail::Yaml_Tree::from_file(path));
     return cfg;
 }
 
-Config Config::from_string(const std::string& yaml_text) {
+Config Config::from_string(const std::string &yaml_text) {
     Config cfg;
     cfg.impl_ = std::make_unique<Impl>(detail::Yaml_Tree::from_string(yaml_text));
     return cfg;
@@ -47,9 +48,9 @@ Config Config::from_string(const std::string& yaml_text) {
 
 // ── Move operations ──────────────────────────────────────────────────────────
 
-Config::Config(Config&&) noexcept = default;
+Config::Config(Config &&) noexcept = default;
 
-Config& Config::operator=(Config&& other) noexcept {
+Config &Config::operator=(Config &&other) noexcept {
     if (this != &other) {
         impl_ = std::move(other.impl_);  // releases prior tree, nullifies other
     }
@@ -234,7 +235,7 @@ Value Config::at(std::string_view dotted_path) const {
     // as long as the root tree (owned by Impl) exists. The unique_ptr in
     // resolved_nodes ensures the handle is freed when Config is destroyed.
     impl_->resolved_nodes.push_back(std::make_unique<YAML::Node>(node));
-    return Value(static_cast<const void*>(impl_->resolved_nodes.back().get()));
+    return Value(static_cast<const void *>(impl_->resolved_nodes.back().get()));
 }
 
-} // namespace conf
+}  // namespace conf

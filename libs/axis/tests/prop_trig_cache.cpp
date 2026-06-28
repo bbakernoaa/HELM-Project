@@ -14,13 +14,11 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/detail/regular_grid_detector.hpp>
+#include <axis/detail/trig_cache.hpp>
 #include <cmath>
 #include <cstddef>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/trig_cache.hpp>
-#include <axis/detail/regular_grid_detector.hpp>
 
 namespace {
 
@@ -49,16 +47,12 @@ RC_GTEST_PROP(PropTrigCache, CellCenterEquivalence, ()) {
     std::size_t nj = static_cast<std::size_t>(*rc::gen::inRange(1, 101));
 
     // Generate lon_min in [-180, 180], delta_lon in [0.1, 10.0]
-    double lon_min = *rc::gen::map(rc::gen::inRange(-18000, 18001),
-                                   [](int v) { return v * 0.01; });
-    double delta_lon = *rc::gen::map(rc::gen::inRange(10, 1000),
-                                     [](int v) { return v * 0.01; });
+    double lon_min = *rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) { return v * 0.01; });
+    double delta_lon = *rc::gen::map(rc::gen::inRange(10, 1000), [](int v) { return v * 0.01; });
 
     // Generate lat_min in [-90, 90], delta_lat in [0.1, 5.0]
-    double lat_min = *rc::gen::map(rc::gen::inRange(-9000, 9001),
-                                   [](int v) { return v * 0.01; });
-    double delta_lat = *rc::gen::map(rc::gen::inRange(10, 500),
-                                     [](int v) { return v * 0.01; });
+    double lat_min = *rc::gen::map(rc::gen::inRange(-9000, 9001), [](int v) { return v * 0.01; });
+    double delta_lat = *rc::gen::map(rc::gen::inRange(10, 500), [](int v) { return v * 0.01; });
 
     // Construct RegularGridInfo
     axis::detail::RegularGridInfo info;
@@ -112,16 +106,12 @@ RC_GTEST_PROP(PropTrigCache, NodeCacheEquivalence, ()) {
     std::size_t nj = static_cast<std::size_t>(*rc::gen::inRange(1, 76));
 
     // Generate lon_min in [-180, 180], delta_lon in [0.1, 10.0]
-    double lon_min = *rc::gen::map(rc::gen::inRange(-18000, 18001),
-                                   [](int v) { return v * 0.01; });
-    double delta_lon = *rc::gen::map(rc::gen::inRange(10, 1000),
-                                     [](int v) { return v * 0.01; });
+    double lon_min = *rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) { return v * 0.01; });
+    double delta_lon = *rc::gen::map(rc::gen::inRange(10, 1000), [](int v) { return v * 0.01; });
 
     // Generate lat_min in [-90, 90], delta_lat in [0.1, 5.0]
-    double lat_min = *rc::gen::map(rc::gen::inRange(-9000, 9001),
-                                   [](int v) { return v * 0.01; });
-    double delta_lat = *rc::gen::map(rc::gen::inRange(10, 500),
-                                     [](int v) { return v * 0.01; });
+    double lat_min = *rc::gen::map(rc::gen::inRange(-9000, 9001), [](int v) { return v * 0.01; });
+    double delta_lat = *rc::gen::map(rc::gen::inRange(10, 500), [](int v) { return v * 0.01; });
 
     // Construct RegularGridInfo
     axis::detail::RegularGridInfo info;
@@ -176,14 +166,10 @@ RC_GTEST_PROP(PropTrigCache, BoundaryIndexCorrectness, ()) {
     std::size_t ni = static_cast<std::size_t>(*rc::gen::inRange(2, 100));
     std::size_t nj = static_cast<std::size_t>(*rc::gen::inRange(2, 100));
 
-    double lon_min = *rc::gen::map(rc::gen::inRange(-18000, 18001),
-                                   [](int v) { return v * 0.01; });
-    double delta_lon = *rc::gen::map(rc::gen::inRange(10, 1000),
-                                     [](int v) { return v * 0.01; });
-    double lat_min = *rc::gen::map(rc::gen::inRange(-9000, 9001),
-                                   [](int v) { return v * 0.01; });
-    double delta_lat = *rc::gen::map(rc::gen::inRange(10, 500),
-                                     [](int v) { return v * 0.01; });
+    double lon_min = *rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) { return v * 0.01; });
+    double delta_lon = *rc::gen::map(rc::gen::inRange(10, 1000), [](int v) { return v * 0.01; });
+    double lat_min = *rc::gen::map(rc::gen::inRange(-9000, 9001), [](int v) { return v * 0.01; });
+    double delta_lat = *rc::gen::map(rc::gen::inRange(10, 500), [](int v) { return v * 0.01; });
 
     axis::detail::RegularGridInfo info;
     info.is_regular = true;
@@ -225,7 +211,7 @@ RC_GTEST_PROP(PropTrigCache, BoundaryIndexCorrectness, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -238,7 +224,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

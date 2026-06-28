@@ -17,12 +17,10 @@
 /// Light inline accessors live in this header; the heavy compute_areas kernel
 /// is implemented in the .cpp with explicit template instantiations.
 
-#include <cstddef>
-
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
 #include <axis/topology/enums.hpp>
+#include <axis/types.hpp>
+#include <cstddef>
 
 namespace axis::topology {
 
@@ -42,7 +40,7 @@ namespace axis::topology {
 /// @tparam MemorySpace The Kokkos memory space used for internal array storage (e.g., Kokkos::HostSpace, Kokkos::CudaSpace, Kokkos::HIPSpace).
 template <class MemorySpace = Kokkos::HostSpace>
 class UnstructuredMesh {
-public:
+   public:
     /// @brief Type alias for the memory space template parameter.
     using memory_space = MemorySpace;
 
@@ -56,26 +54,26 @@ public:
     /// This constructor adopts the provided Kokkos::View objects, moving them into
     /// the mesh instance without performing deep copies.
     ///
-    /// @param node_coords Node coordinates represented as a rank-2 Kokkos::View of dimensions [n_nodes, ndim] in Column-Major Layout (Kokkos::LayoutLeft).
-    /// @param conn_offsets Cell-to-node connectivity offsets represented as a rank-1 Kokkos::View of size [n_cells + 1] in Compressed Sparse Row (CSR) format.
-    /// @param conn_indices Cell-to-node connectivity indices represented as a rank-1 Kokkos::View of size [nnz] containing flattened node indices for all cells.
-    /// @param coord_sys The CoordinateSystem enum value specifying the coordinate system (e.g., Cartesian, SphericalDeg) used by the node coordinates.
+    /// @param node_coords Node coordinates represented as a rank-2 Kokkos::View of dimensions [n_nodes, ndim] in Column-Major Layout
+    /// (Kokkos::LayoutLeft).
+    /// @param conn_offsets Cell-to-node connectivity offsets represented as a rank-1 Kokkos::View of size [n_cells + 1] in Compressed Sparse Row
+    /// (CSR) format.
+    /// @param conn_indices Cell-to-node connectivity indices represented as a rank-1 Kokkos::View of size [nnz] containing flattened node indices for
+    /// all cells.
+    /// @param coord_sys The CoordinateSystem enum value specifying the coordinate system (e.g., Cartesian, SphericalDeg) used by the node
+    /// coordinates.
     /// @param areas Optional precomputed cell areas represented as a rank-1 Kokkos::View of size [n_cells]. Defaults to an empty View.
-    /// @param mask Optional cell mask represented as a rank-1 Kokkos::View of size [n_cells] where 1 indicates an active cell and 0 indicates a masked/inactive cell. Defaults to an empty View.
-    UnstructuredMesh(
-        Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace> node_coords,
-        Kokkos::View<index_t*, MemorySpace>                     conn_offsets,
-        Kokkos::View<index_t*, MemorySpace>                     conn_indices,
-        CoordinateSystem                                        coord_sys,
-        Kokkos::View<double*, MemorySpace>                      areas = {},
-        Kokkos::View<int*, MemorySpace>                         mask  = {})
-        : node_coords_(std::move(node_coords))
-        , conn_offsets_(std::move(conn_offsets))
-        , conn_indices_(std::move(conn_indices))
-        , coord_sys_(coord_sys)
-        , cell_areas_(std::move(areas))
-        , cell_mask_(std::move(mask))
-    {}
+    /// @param mask Optional cell mask represented as a rank-1 Kokkos::View of size [n_cells] where 1 indicates an active cell and 0 indicates a
+    /// masked/inactive cell. Defaults to an empty View.
+    UnstructuredMesh(Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> node_coords, Kokkos::View<index_t *, MemorySpace> conn_offsets,
+                     Kokkos::View<index_t *, MemorySpace> conn_indices, CoordinateSystem coord_sys, Kokkos::View<double *, MemorySpace> areas = {},
+                     Kokkos::View<int *, MemorySpace> mask = {})
+        : node_coords_(std::move(node_coords)),
+          conn_offsets_(std::move(conn_offsets)),
+          conn_indices_(std::move(conn_indices)),
+          coord_sys_(coord_sys),
+          cell_areas_(std::move(areas)),
+          cell_mask_(std::move(mask)) {}
 
     // ─────────────────────────────────────────────────────────────────────────
     // Scalar accessors
@@ -91,9 +89,7 @@ public:
     /// @return The total number of cells as a std::size_t, derived from the CSR offsets array size.
     [[nodiscard]] std::size_t n_cells() const noexcept {
         // CSR offsets array has length n_cells + 1
-        return conn_offsets_.extent(0) > 0
-            ? conn_offsets_.extent(0) - 1
-            : 0;
+        return conn_offsets_.extent(0) > 0 ? conn_offsets_.extent(0) - 1 : 0;
     }
 
     /// @brief Gets the coordinate system for this mesh's node data.
@@ -115,10 +111,7 @@ public:
     ///
     /// @return A non-owning rank-2 field_view of dimensions [n_nodes, ndim].
     [[nodiscard]] field_view<const double, 2> node_coords() const noexcept {
-        return field_view<const double, 2>{
-            node_coords_.data(),
-            node_coords_.extent(0),
-            node_coords_.extent(1)};
+        return field_view<const double, 2>{node_coords_.data(), node_coords_.extent(0), node_coords_.extent(1)};
     }
 
     /// @brief Gets the Compressed Sparse Row (CSR) connectivity offsets.
@@ -128,9 +121,7 @@ public:
     ///
     /// @return A non-owning rank-1 field_view of size [n_cells + 1] containing the offsets.
     [[nodiscard]] field_view<const index_t, 1> conn_offsets() const noexcept {
-        return field_view<const index_t, 1>{
-            conn_offsets_.data(),
-            conn_offsets_.extent(0)};
+        return field_view<const index_t, 1>{conn_offsets_.data(), conn_offsets_.extent(0)};
     }
 
     /// @brief Gets the Compressed Sparse Row (CSR) connectivity indices.
@@ -139,9 +130,7 @@ public:
     ///
     /// @return A non-owning rank-1 field_view of size [nnz] containing the connectivity indices.
     [[nodiscard]] field_view<const index_t, 1> conn_indices() const noexcept {
-        return field_view<const index_t, 1>{
-            conn_indices_.data(),
-            conn_indices_.extent(0)};
+        return field_view<const index_t, 1>{conn_indices_.data(), conn_indices_.extent(0)};
     }
 
     /// @brief Gets the per-cell areas of the mesh.
@@ -152,9 +141,7 @@ public:
     ///
     /// @return A non-owning rank-1 field_view containing cell areas.
     [[nodiscard]] field_view<const double, 1> cell_areas() const noexcept {
-        return field_view<const double, 1>{
-            cell_areas_.data(),
-            cell_areas_.extent(0)};
+        return field_view<const double, 1>{cell_areas_.data(), cell_areas_.extent(0)};
     }
 
     /// @brief Gets the optional per-cell mask.
@@ -164,9 +151,7 @@ public:
     ///
     /// @return A non-owning rank-1 field_view representing cell activity.
     [[nodiscard]] field_view<const int, 1> cell_mask() const noexcept {
-        return field_view<const int, 1>{
-            cell_mask_.data(),
-            cell_mask_.extent(0)};
+        return field_view<const int, 1>{cell_mask_.data(), cell_mask_.extent(0)};
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -176,23 +161,33 @@ public:
 
     /// @brief Gets a reference to the internal rank-2 Kokkos::View of node coordinates.
     /// @return A const reference to the Kokkos::View containing the node coordinates.
-    [[nodiscard]] const auto& node_coords_view() const noexcept { return node_coords_; }
+    [[nodiscard]] const auto &node_coords_view() const noexcept {
+        return node_coords_;
+    }
 
     /// @brief Gets a reference to the internal rank-1 Kokkos::View of connectivity offsets.
     /// @return A const reference to the Kokkos::View containing the offsets.
-    [[nodiscard]] const auto& conn_offsets_view() const noexcept { return conn_offsets_; }
+    [[nodiscard]] const auto &conn_offsets_view() const noexcept {
+        return conn_offsets_;
+    }
 
     /// @brief Gets a reference to the internal rank-1 Kokkos::View of connectivity indices.
     /// @return A const reference to the Kokkos::View containing the indices.
-    [[nodiscard]] const auto& conn_indices_view() const noexcept { return conn_indices_; }
+    [[nodiscard]] const auto &conn_indices_view() const noexcept {
+        return conn_indices_;
+    }
 
     /// @brief Gets a reference to the internal rank-1 Kokkos::View of cell areas.
     /// @return A const reference to the Kokkos::View containing the cell areas.
-    [[nodiscard]] const auto& cell_areas_view() const noexcept { return cell_areas_; }
+    [[nodiscard]] const auto &cell_areas_view() const noexcept {
+        return cell_areas_;
+    }
 
     /// @brief Gets a reference to the internal rank-1 Kokkos::View of cell mask values.
     /// @return A const reference to the Kokkos::View containing the cell mask.
-    [[nodiscard]] const auto& cell_mask_view() const noexcept { return cell_mask_; }
+    [[nodiscard]] const auto &cell_mask_view() const noexcept {
+        return cell_mask_;
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Area computation (heavy kernel — implemented in .cpp)
@@ -215,15 +210,15 @@ public:
     /// via the `cell_areas()` accessor.
     void compute_areas();
 
-private:
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace> node_coords_;
-    Kokkos::View<index_t*, MemorySpace>                     conn_offsets_;
-    Kokkos::View<index_t*, MemorySpace>                     conn_indices_;
-    CoordinateSystem                                        coord_sys_{CoordinateSystem::SphericalDeg};
-    Kokkos::View<double*, MemorySpace>                      cell_areas_;
-    Kokkos::View<int*, MemorySpace>                         cell_mask_;
+   private:
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> node_coords_;
+    Kokkos::View<index_t *, MemorySpace> conn_offsets_;
+    Kokkos::View<index_t *, MemorySpace> conn_indices_;
+    CoordinateSystem coord_sys_{CoordinateSystem::SphericalDeg};
+    Kokkos::View<double *, MemorySpace> cell_areas_;
+    Kokkos::View<int *, MemorySpace> cell_mask_;
 };
 
-} // namespace axis::topology
+}  // namespace axis::topology
 
-#endif // AXIS_TOPOLOGY_UNSTRUCTURED_MESH_HPP
+#endif  // AXIS_TOPOLOGY_UNSTRUCTURED_MESH_HPP

@@ -8,10 +8,10 @@
 //   - has() returns false for all missing paths.
 // ──────────────────────────────────────────────────────────────────────────────
 
+#include <gtest/gtest.h>
+
 #include <conf/config.hpp>
 #include <conf/error.hpp>
-
-#include <gtest/gtest.h>
 #include <optional>
 #include <string>
 
@@ -20,7 +20,7 @@ namespace {
 // ─── Test fixture with a shared YAML document ────────────────────────────────
 
 class MissingKeysTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         const std::string yaml = R"(
 model:
@@ -44,7 +44,7 @@ TEST_F(MissingKeysTest, MissingLeaf_ThrowsKeyNotFound) {
     try {
         cfg_.get_int("model.physics.missing");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -54,7 +54,7 @@ TEST_F(MissingKeysTest, MissingIntermediate_ThrowsKeyNotFound) {
     try {
         cfg_.get_int("model.nonexistent.layers");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -64,7 +64,7 @@ TEST_F(MissingKeysTest, OutOfRangeSequenceIndex_ThrowsKeyNotFound) {
     try {
         cfg_.get_double("model.grid.resolution.5");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -74,7 +74,7 @@ TEST_F(MissingKeysTest, DescendPastScalar_ThrowsKeyNotFound) {
     try {
         cfg_.get_int("model.physics.layers.deeper");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -84,7 +84,7 @@ TEST_F(MissingKeysTest, NonIntegerSequenceIndex_ThrowsKeyNotFound) {
     try {
         cfg_.get_double("model.grid.resolution.abc");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -161,4 +161,4 @@ TEST_F(MissingKeysTest, NonIntegerSequenceIndex_GetOrReturnsFallback) {
     EXPECT_DOUBLE_EQ(cfg_.get_or<double>("model.grid.resolution.abc", 9.99), 9.99);
 }
 
-} // namespace
+}  // namespace

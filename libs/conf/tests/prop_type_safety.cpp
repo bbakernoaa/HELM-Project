@@ -18,7 +18,6 @@
 
 #include <conf/config.hpp>
 #include <conf/error.hpp>
-
 #include <optional>
 #include <sstream>
 #include <string>
@@ -29,42 +28,31 @@ namespace {
 
 /// Build a one-key YAML document: "key: <value>"
 /// The value is already formatted for YAML (quoted if string, etc.).
-std::string make_yaml(const std::string& yaml_value) {
+std::string make_yaml(const std::string &yaml_value) {
     return "key: " + yaml_value + "\n";
 }
 
 /// Generate a random string that is NOT parseable as an integer.
 /// Filters out strings that consist solely of optional sign + digits.
 rc::Gen<std::string> genNonNumericString() {
-    return rc::gen::suchThat(
-        rc::gen::container<std::string>(
-            rc::gen::inRange(static_cast<char>('a'), static_cast<char>('z' + 1))),
-        [](const std::string& s) {
-            return !s.empty();
-        });
+    return rc::gen::suchThat(rc::gen::container<std::string>(rc::gen::inRange(static_cast<char>('a'), static_cast<char>('z' + 1))),
+                             [](const std::string &s) { return !s.empty(); });
 }
 
 /// Generate a random string that is NOT parseable as a boolean.
 /// Filters out yaml-cpp recognized booleans: true/false/yes/no/on/off/y/n.
 rc::Gen<std::string> genNonBoolString() {
-    return rc::gen::suchThat(
-        rc::gen::container<std::string>(
-            rc::gen::inRange(static_cast<char>('a'), static_cast<char>('z' + 1))),
-        [](const std::string& s) {
-            if (s.empty()) return false;
-            // Reject any yaml-cpp boolean literals
-            return s != "true" && s != "false" &&
-                   s != "yes" && s != "no" &&
-                   s != "on" && s != "off" &&
-                   s != "y" && s != "n";
-        });
+    return rc::gen::suchThat(rc::gen::container<std::string>(rc::gen::inRange(static_cast<char>('a'), static_cast<char>('z' + 1))),
+                             [](const std::string &s) {
+                                 if (s.empty()) return false;
+                                 // Reject any yaml-cpp boolean literals
+                                 return s != "true" && s != "false" && s != "yes" && s != "no" && s != "on" && s != "off" && s != "y" && s != "n";
+                             });
 }
 
 /// Generate an integer that is NOT 0 or 1 (cannot be interpreted as bool).
 rc::Gen<int> genNonBoolInt() {
-    return rc::gen::suchThat(
-        rc::gen::inRange(-1000, 1001),
-        [](int v) { return v != 0 && v != 1; });
+    return rc::gen::suchThat(rc::gen::inRange(-1000, 1001), [](int v) { return v != 0 && v != 1; });
 }
 
 }  // anonymous namespace
@@ -94,7 +82,7 @@ RC_GTEST_PROP(TypeSafetyProperty2, StringCannotBeReadAsInt, ()) {
     bool threw_type_mismatch = false;
     try {
         (void)cfg.get_int("key");
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         threw_type_mismatch = (e.code() == conf::Error_Code::Type_Mismatch);
     }
     RC_ASSERT(threw_type_mismatch);
@@ -132,7 +120,7 @@ RC_GTEST_PROP(TypeSafetyProperty2, StringCannotBeReadAsBool, ()) {
     bool threw_type_mismatch = false;
     try {
         (void)cfg.get_bool("key");
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         threw_type_mismatch = (e.code() == conf::Error_Code::Type_Mismatch);
     }
     RC_ASSERT(threw_type_mismatch);
@@ -182,7 +170,7 @@ RC_GTEST_PROP(TypeSafetyProperty2, MapCannotBeReadAsScalar, ()) {
         try {
             accessor_fn();
             return false;  // Did not throw
-        } catch (const conf::Conf_Error& e) {
+        } catch (const conf::Conf_Error &e) {
             return e.code() == conf::Error_Code::Type_Mismatch;
         } catch (...) {
             return false;  // Wrong exception type
@@ -241,7 +229,7 @@ RC_GTEST_PROP(TypeSafetyProperty2, SequenceCannotBeReadAsScalar, ()) {
         try {
             accessor_fn();
             return false;
-        } catch (const conf::Conf_Error& e) {
+        } catch (const conf::Conf_Error &e) {
             return e.code() == conf::Error_Code::Type_Mismatch;
         } catch (...) {
             return false;
@@ -293,7 +281,7 @@ RC_GTEST_PROP(TypeSafetyProperty2, IntNotZeroOrOneFailsAsBool, ()) {
     bool threw_type_mismatch = false;
     try {
         (void)cfg.get_bool("key");
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         threw_type_mismatch = (e.code() == conf::Error_Code::Type_Mismatch);
     }
     RC_ASSERT(threw_type_mismatch);

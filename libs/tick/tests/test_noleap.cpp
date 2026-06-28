@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 #include <rapidcheck/gtest.h>
-#include <tick/noleap_calendar.hpp>
+
 #include <cstdint>
 #include <stdexcept>
+#include <tick/noleap_calendar.hpp>
 
 // ============================================================
 // Property-based tests (RapidCheck) — Task 4.6

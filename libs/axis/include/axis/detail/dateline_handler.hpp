@@ -28,7 +28,6 @@ namespace axis::detail {
 /// The Vec3 type from spherical_clipper.hpp represents Cartesian unit-sphere
 /// coordinates.
 struct DatelineHandler {
-
     /// @brief Detect if a polygon's vertices span the dateline (±180° / ±π).
     ///
     /// A dateline crossing is detected when any pair of adjacent vertices has
@@ -38,7 +37,7 @@ struct DatelineHandler {
     /// @param n Number of vertices.
     /// @return true if the cell crosses the dateline.
     KOKKOS_FUNCTION
-    static bool crosses_dateline(const double* lons, int n) noexcept {
+    static bool crosses_dateline(const double *lons, int n) noexcept {
         if (n < 2) return false;
 
         constexpr double pi = 3.14159265358979323846;
@@ -72,7 +71,7 @@ struct DatelineHandler {
     /// @param lons Array of vertex longitudes in radians (modified in-place).
     /// @param n Number of vertices.
     KOKKOS_FUNCTION
-    static void normalize(double* lons, int n) noexcept {
+    static void normalize(double *lons, int n) noexcept {
         if (n < 2) return;
 
         constexpr double two_pi = 2.0 * 3.14159265358979323846;
@@ -152,7 +151,7 @@ struct DatelineHandler {
     ///        (0,0,-1).
     /// @return true if the specified pole is contained within the polygon.
     KOKKOS_FUNCTION
-    static bool contains_pole(const Vec3* verts, int n, bool north) noexcept {
+    static bool contains_pole(const Vec3 *verts, int n, bool north) noexcept {
         if (n < 3) return false;
 
         constexpr double pi = 3.14159265358979323846;

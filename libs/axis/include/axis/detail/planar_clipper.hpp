@@ -34,8 +34,7 @@ namespace axis::detail {
 ///                  Must be at least 8 to ensure sufficient capacity for clipping.
 template <int MaxVerts = 32>
 struct PlanarPolygon {
-    static_assert(MaxVerts >= 8,
-                  "PlanarPolygon requires MaxVerts >= 8 for sufficient clipping capacity");
+    static_assert(MaxVerts >= 8, "PlanarPolygon requires MaxVerts >= 8 for sufficient clipping capacity");
 
     double x[MaxVerts];  ///< X-coordinates of vertices
     double y[MaxVerts];  ///< Y-coordinates of vertices
@@ -45,14 +44,22 @@ struct PlanarPolygon {
     /// @param px X-coordinate of the new vertex.
     /// @param py Y-coordinate of the new vertex.
     KOKKOS_FUNCTION void push(double px, double py) noexcept {
-        if (n < MaxVerts) { x[n] = px; y[n] = py; ++n; }
+        if (n < MaxVerts) {
+            x[n] = px;
+            y[n] = py;
+            ++n;
+        }
     }
 
     /// @brief Clear all vertices.
-    KOKKOS_FUNCTION void clear() noexcept { n = 0; }
+    KOKKOS_FUNCTION void clear() noexcept {
+        n = 0;
+    }
 
     /// @brief Check if the polygon is empty (fewer than 3 vertices).
-    KOKKOS_FUNCTION bool empty() const noexcept { return n < 3; }
+    KOKKOS_FUNCTION bool empty() const noexcept {
+        return n < 3;
+    }
 
     /// @brief Compute the polygon area using the shoelace formula (unsigned).
     ///
@@ -86,7 +93,6 @@ struct PlanarPolygon {
 ///
 /// All operations use fixed-capacity stack buffers — no heap allocation.
 struct PlanarClipper {
-
     /// @brief Compute the overlap area between two 2D polygons.
     ///
     /// Performs full Sutherland-Hodgman clipping of the subject polygon against
@@ -97,9 +103,7 @@ struct PlanarClipper {
     /// @param clip The polygon defining the clipping boundary.
     /// @return Overlap area (>= 0). Returns 0 if polygons don't intersect.
     template <int M>
-    KOKKOS_FUNCTION
-    static double overlap_area(const PlanarPolygon<M>& subject,
-                               const PlanarPolygon<M>& clip) noexcept {
+    KOKKOS_FUNCTION static double overlap_area(const PlanarPolygon<M> &subject, const PlanarPolygon<M> &clip) noexcept {
         if (subject.empty() || clip.empty()) {
             return 0.0;
         }
@@ -154,7 +158,7 @@ struct PlanarClipper {
         return buf_a.area();
     }
 
-private:
+   private:
     /// @brief Compute the signed distance from a point to a directed edge.
     ///
     /// Positive values indicate the point is on the "inside" (left side)
@@ -163,9 +167,7 @@ private:
     /// The signed distance is the cross product of the edge direction with
     /// the vector from the edge start to the point.
     KOKKOS_FUNCTION
-    static double signed_distance(double px, double py,
-                                  double ex0, double ey0,
-                                  double edx, double edy) noexcept {
+    static double signed_distance(double px, double py, double ex0, double ey0, double edx, double edy) noexcept {
         // Cross product: (edge_dir) × (point - edge_start)
         // = edx * (py - ey0) - edy * (px - ex0)
         return edx * (py - ey0) - edy * (px - ex0);
@@ -178,10 +180,7 @@ private:
     /// where t = d0 / (d0 - d1), and d0, d1 are signed distances of p0, p1
     /// from the edge line.
     KOKKOS_FUNCTION
-    static void compute_intersection(double p0x, double p0y,
-                                     double p1x, double p1y,
-                                     double d0, double d1,
-                                     double& ix, double& iy) noexcept {
+    static void compute_intersection(double p0x, double p0y, double p1x, double p1y, double d0, double d1, double &ix, double &iy) noexcept {
         double t = d0 / (d0 - d1);
         ix = p0x + t * (p1x - p0x);
         iy = p0y + t * (p1y - p0y);
@@ -199,11 +198,8 @@ private:
     ///   - Outside → inside: output intersection + end vertex
     ///   - Both outside: output nothing
     template <int M>
-    KOKKOS_FUNCTION
-    static void clip_against_edge(const PlanarPolygon<M>& input,
-                                  double ex0, double ey0,
-                                  double edx, double edy,
-                                  PlanarPolygon<M>& output) noexcept {
+    KOKKOS_FUNCTION static void clip_against_edge(const PlanarPolygon<M> &input, double ex0, double ey0, double edx, double edy,
+                                                  PlanarPolygon<M> &output) noexcept {
         if (input.n < 1) return;
 
         for (int i = 0; i < input.n; ++i) {
@@ -227,8 +223,7 @@ private:
                 if (!prev_inside) {
                     // Outside → inside: add intersection point
                     double ix, iy;
-                    compute_intersection(prev_x, prev_y, curr_x, curr_y,
-                                         d_prev, d_curr, ix, iy);
+                    compute_intersection(prev_x, prev_y, curr_x, curr_y, d_prev, d_curr, ix, iy);
                     output.push(ix, iy);
                 }
                 // Add current vertex
@@ -236,8 +231,7 @@ private:
             } else if (prev_inside) {
                 // Inside → outside: add intersection point only
                 double ix, iy;
-                compute_intersection(prev_x, prev_y, curr_x, curr_y,
-                                     d_prev, d_curr, ix, iy);
+                compute_intersection(prev_x, prev_y, curr_x, curr_y, d_prev, d_curr, ix, iy);
                 output.push(ix, iy);
             }
             // Both outside: output nothing.

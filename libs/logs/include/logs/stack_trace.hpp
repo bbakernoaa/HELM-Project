@@ -17,7 +17,7 @@ namespace logs {
 struct Stack_Frame {
     std::optional<std::string> function;
     std::optional<std::string> file;
-    std::optional<int>         line;
+    std::optional<int> line;
 };
 
 /// Pure formatting transformation over a supplied frame sequence.
@@ -26,6 +26,6 @@ struct Stack_Frame {
 /// Cap on rendered frames before truncation.
 inline constexpr std::size_t MAX_TRACE_FRAMES = 256;
 
-} // namespace logs
+}  // namespace logs
 
-#endif // LOGS_STACK_TRACE_HPP
+#endif  // LOGS_STACK_TRACE_HPP

@@ -19,14 +19,12 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cstddef>
+#include <vector>
 
 namespace {
 
@@ -42,8 +40,7 @@ rc::Gen<std::size_t> genDim() {
 /// Range chosen to mimic geographic coordinate values.
 rc::Gen<std::vector<double>> genCoordVector(std::size_t n) {
     return rc::gen::container<std::vector<double>>(
-        n, rc::gen::map(rc::gen::inRange(-18000, 18001),
-                        [](int v) { return static_cast<double>(v) / 100.0; }));
+        n, rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) { return static_cast<double>(v) / 100.0; }));
 }
 
 // ─── Property 2a: Cell count is exactly ni * nj ─────────────────────────────
@@ -67,10 +64,10 @@ RC_GTEST_PROP(PropStructuredToUnstructured, CellCountEqualsNiTimesNj, ()) {
     auto corner_lat_vec = *genCoordVector(n_corners);
 
     // Build Kokkos views from generated data
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("center_lon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("center_lat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("center_lon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("center_lat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
 
     for (std::size_t k = 0; k < n_centers; ++k) {
         center_lon(k) = center_lon_vec[k];
@@ -82,9 +79,7 @@ RC_GTEST_PROP(PropStructuredToUnstructured, CellCountEqualsNiTimesNj, ()) {
     }
 
     // Construct StructuredGrid and set corners
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     // Convert to unstructured
@@ -111,10 +106,10 @@ RC_GTEST_PROP(PropStructuredToUnstructured, AllCellsAreQuads, ()) {
     auto corner_lon_vec = *genCoordVector(n_corners);
     auto corner_lat_vec = *genCoordVector(n_corners);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("center_lon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("center_lat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("center_lon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("center_lat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
 
     for (std::size_t k = 0; k < n_centers; ++k) {
         center_lon(k) = center_lon_vec[k];
@@ -125,9 +120,7 @@ RC_GTEST_PROP(PropStructuredToUnstructured, AllCellsAreQuads, ()) {
         corner_lat(k) = corner_lat_vec[k];
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     auto mesh = grid.to_unstructured();
@@ -166,10 +159,10 @@ RC_GTEST_PROP(PropStructuredToUnstructured, CornerCoordinatesPreserved, ()) {
     auto corner_lon_vec = *genCoordVector(n_corners);
     auto corner_lat_vec = *genCoordVector(n_corners);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("center_lon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("center_lat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("center_lon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("center_lat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
 
     for (std::size_t k = 0; k < n_centers; ++k) {
         center_lon(k) = center_lon_vec[k];
@@ -180,17 +173,15 @@ RC_GTEST_PROP(PropStructuredToUnstructured, CornerCoordinatesPreserved, ()) {
         corner_lat(k) = corner_lat_vec[k];
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     auto mesh = grid.to_unstructured();
 
     // Access mesh arrays
-    auto node_coords = mesh.node_coords();   // [n_nodes, 2]
-    auto offsets     = mesh.conn_offsets();   // [n_cells + 1]
-    auto indices     = mesh.conn_indices();   // [nnz]
+    auto node_coords = mesh.node_coords();  // [n_nodes, 2]
+    auto offsets = mesh.conn_offsets();     // [n_cells + 1]
+    auto indices = mesh.conn_indices();     // [nnz]
 
     const std::size_t nip1 = ni + 1;
 
@@ -201,7 +192,7 @@ RC_GTEST_PROP(PropStructuredToUnstructured, CornerCoordinatesPreserved, ()) {
 
             // CSR slice for this cell
             auto start = static_cast<std::size_t>(offsets[cell_idx]);
-            auto end   = static_cast<std::size_t>(offsets[cell_idx + 1]);
+            auto end = static_cast<std::size_t>(offsets[cell_idx + 1]);
             RC_ASSERT(end - start == 4);
 
             // Get the 4 node indices
@@ -211,15 +202,15 @@ RC_GTEST_PROP(PropStructuredToUnstructured, CornerCoordinatesPreserved, ()) {
             auto n3 = static_cast<std::size_t>(indices[start + 3]);  // top-left
 
             // Expected corner indices in the original corner arrays
-            std::size_t bl_idx = i       + j       * nip1;  // bottom-left
-            std::size_t br_idx = (i + 1) + j       * nip1;  // bottom-right
+            std::size_t bl_idx = i + j * nip1;              // bottom-left
+            std::size_t br_idx = (i + 1) + j * nip1;        // bottom-right
             std::size_t tr_idx = (i + 1) + (j + 1) * nip1;  // top-right
-            std::size_t tl_idx = i       + (j + 1) * nip1;  // top-left
+            std::size_t tl_idx = i + (j + 1) * nip1;        // top-left
 
             // Access node coordinates via data_handle with layout_left indexing.
             // For [n_nodes, 2] layout_left: element (row, col) is at
             // offset row + n_nodes * col.
-            const auto* coords_ptr = node_coords.data_handle();
+            const auto *coords_ptr = node_coords.data_handle();
             const std::size_t n_nodes_total = mesh.n_nodes();
 
             // Bottom-left node: lon and lat must match
@@ -257,10 +248,10 @@ RC_GTEST_PROP(PropStructuredToUnstructured, NodeCountEqualsCornerGrid, ()) {
     auto corner_lon_vec = *genCoordVector(n_corners);
     auto corner_lat_vec = *genCoordVector(n_corners);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("center_lon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("center_lat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("center_lon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("center_lat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
 
     for (std::size_t k = 0; k < n_centers; ++k) {
         center_lon(k) = center_lon_vec[k];
@@ -271,9 +262,7 @@ RC_GTEST_PROP(PropStructuredToUnstructured, NodeCountEqualsCornerGrid, ()) {
         corner_lat(k) = corner_lat_vec[k];
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     auto mesh = grid.to_unstructured();
@@ -287,7 +276,7 @@ RC_GTEST_PROP(PropStructuredToUnstructured, NodeCountEqualsCornerGrid, ()) {
 // kernel.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -300,7 +289,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

@@ -5,21 +5,24 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-#include <cmath>
-
-#include <axis/types.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/topology/named_grid_registry.hpp>
 #include <axis/topology/rule_generator.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
+#include <cmath>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -72,9 +75,8 @@ TEST(NamedAndRules, RegularLatLonCellCount) {
     auto mesh = topology::RuleGenerator::generate<MemSpace>(rules);
 
     // Expected: floor((10-0)/2) * floor((6-0)/3) = 5 * 2 = 10 cells
-    const std::size_t expected_cells =
-        static_cast<std::size_t>(std::floor((rules.max_x - rules.min_x) / rules.r_x)) *
-        static_cast<std::size_t>(std::floor((rules.max_y - rules.min_y) / rules.r_y));
+    const std::size_t expected_cells = static_cast<std::size_t>(std::floor((rules.max_x - rules.min_x) / rules.r_x)) *
+                                       static_cast<std::size_t>(std::floor((rules.max_y - rules.min_y) / rules.r_y));
 
     EXPECT_EQ(mesh.n_cells(), expected_cells);
     EXPECT_EQ(mesh.n_cells(), std::size_t(10));
@@ -91,9 +93,7 @@ TEST(NamedAndRules, ZeroResolutionThrows) {
     rules.r_x = 0.0;  // invalid
     rules.r_y = 1.0;
 
-    EXPECT_THROW(
-        topology::RuleGenerator::generate<MemSpace>(rules),
-        std::invalid_argument);
+    EXPECT_THROW(topology::RuleGenerator::generate<MemSpace>(rules), std::invalid_argument);
 }
 
 }  // namespace axis::test

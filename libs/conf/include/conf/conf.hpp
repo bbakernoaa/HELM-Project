@@ -5,8 +5,8 @@
 /// @brief Convenience umbrella header for the CONF library.
 /// Include this single header to access the full public API.
 
+#include "conf/config.hpp"
 #include "conf/error.hpp"
 #include "conf/value.hpp"
-#include "conf/config.hpp"
 
-#endif // CONF_CONF_HPP
+#endif  // CONF_CONF_HPP

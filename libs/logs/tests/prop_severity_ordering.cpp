@@ -4,12 +4,11 @@
 /// Uses RapidCheck + Google Test to verify universal correctness properties
 /// over all Severity_Level values.
 
-#include <logs/severity.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <logs/severity.hpp>
 #include <set>
 #include <string>
 #include <string_view>
@@ -18,9 +17,7 @@ namespace {
 
 /// Generate a random valid Severity_Level (int 0–4 cast to enum).
 rc::Gen<logs::Severity_Level> genSeverityLevel() {
-    return rc::gen::map(rc::gen::inRange(0, 5), [](int v) {
-        return static_cast<logs::Severity_Level>(v);
-    });
+    return rc::gen::map(rc::gen::inRange(0, 5), [](int v) { return static_cast<logs::Severity_Level>(v); });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,24 +27,20 @@ rc::Gen<logs::Severity_Level> genSeverityLevel() {
 
 /// For any two Severity_Level values, exactly one of a<b, a==b, a>b holds
 /// (total ordering / trichotomy).
-RC_GTEST_PROP(SeverityOrdering,
-              Trichotomy,
-              ()) {
+RC_GTEST_PROP(SeverityOrdering, Trichotomy, ()) {
     const auto a = *genSeverityLevel();
     const auto b = *genSeverityLevel();
 
     int count = 0;
-    if (a < b)  ++count;
+    if (a < b) ++count;
     if (a == b) ++count;
-    if (a > b)  ++count;
+    if (a > b) ++count;
 
     RC_ASSERT(count == 1);
 }
 
 /// Antisymmetric: if a <= b and b <= a then a == b.
-RC_GTEST_PROP(SeverityOrdering,
-              Antisymmetric,
-              ()) {
+RC_GTEST_PROP(SeverityOrdering, Antisymmetric, ()) {
     const auto a = *genSeverityLevel();
     const auto b = *genSeverityLevel();
 
@@ -57,9 +50,7 @@ RC_GTEST_PROP(SeverityOrdering,
 }
 
 /// Transitive: if a <= b and b <= c then a <= c.
-RC_GTEST_PROP(SeverityOrdering,
-              Transitive,
-              ()) {
+RC_GTEST_PROP(SeverityOrdering, Transitive, ()) {
     const auto a = *genSeverityLevel();
     const auto b = *genSeverityLevel();
     const auto c = *genSeverityLevel();
@@ -70,9 +61,7 @@ RC_GTEST_PROP(SeverityOrdering,
 }
 
 /// The ordering is consistent with the spec: DEBUG < INFO < WARNING < ERROR < FATAL.
-RC_GTEST_PROP(SeverityOrdering,
-              ConsistentWithSpecOrder,
-              ()) {
+RC_GTEST_PROP(SeverityOrdering, ConsistentWithSpecOrder, ()) {
     // Generate a random level and verify it obeys the fixed chain.
     const auto level = *genSeverityLevel();
 
@@ -126,9 +115,7 @@ TEST(SeverityOrdering, FullChainDeterministic) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// For any valid Severity_Level, to_string returns the exact mandated label.
-RC_GTEST_PROP(SeverityLabelMapping,
-              FixedLabel,
-              ()) {
+RC_GTEST_PROP(SeverityLabelMapping, FixedLabel, ()) {
     const auto level = *genSeverityLevel();
 
     const std::string_view label = logs::to_string(level);
@@ -153,9 +140,7 @@ RC_GTEST_PROP(SeverityLabelMapping,
 }
 
 /// The mapping is total: every valid enum value produces a non-empty result.
-RC_GTEST_PROP(SeverityLabelMapping,
-              TotalMapping,
-              ()) {
+RC_GTEST_PROP(SeverityLabelMapping, TotalMapping, ()) {
     const auto level = *genSeverityLevel();
 
     const std::string_view label = logs::to_string(level);
@@ -164,9 +149,7 @@ RC_GTEST_PROP(SeverityLabelMapping,
 }
 
 /// Distinct levels always map to distinct labels (injectivity).
-RC_GTEST_PROP(SeverityLabelMapping,
-              DistinctLevelsDistinctLabels,
-              ()) {
+RC_GTEST_PROP(SeverityLabelMapping, DistinctLevelsDistinctLabels, ()) {
     const auto a = *genSeverityLevel();
     const auto b = *genSeverityLevel();
 
@@ -188,4 +171,4 @@ TEST(SeverityLabelMapping, AllFiveLabelsDistinct) {
     EXPECT_EQ(labels.size(), 5u);
 }
 
-} // namespace
+}  // namespace

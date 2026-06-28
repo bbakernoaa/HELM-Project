@@ -15,19 +15,18 @@
 ///
 /// Requirements: 14.1, 14.5, 14.6, 14.7, 14.8, 14.9, 14.10, 14.13
 
-#include "handle_registry.hpp"
-
-#include <halo/halo.hpp>
-#include <halo/error_policy.hpp>
-#include <halo/environment.hpp>
-
 #include <mpi.h>
-#include <Kokkos_Core.hpp>
 
+#include <Kokkos_Core.hpp>
 #include <cstddef>
 #include <cstdio>
+#include <halo/environment.hpp>
+#include <halo/error_policy.hpp>
+#include <halo/halo.hpp>
 #include <stdexcept>
 #include <vector>
+
+#include "handle_registry.hpp"
 
 namespace {
 
@@ -35,15 +34,15 @@ namespace {
 ///
 /// These values match the constants defined in halo_mod.f90.
 enum Halo_Error : int {
-    HALO_SUCCESS         = 0,   ///< Operation completed successfully.
-    HALO_ERR_INVALID_ARG = 1,   ///< Invalid argument (e.g., bad rank, null pointer).
-    HALO_ERR_MPI         = 2,   ///< MPI operation failed.
-    HALO_ERR_RUNTIME     = 3,   ///< Runtime error (e.g., MPI not initialized).
-    HALO_ERR_BAD_HANDLE  = 4,   ///< Invalid or expired opaque handle token.
-    HALO_ERR_UNKNOWN     = 99   ///< Unknown/unexpected error.
+    HALO_SUCCESS = 0,          ///< Operation completed successfully.
+    HALO_ERR_INVALID_ARG = 1,  ///< Invalid argument (e.g., bad rank, null pointer).
+    HALO_ERR_MPI = 2,          ///< MPI operation failed.
+    HALO_ERR_RUNTIME = 3,      ///< Runtime error (e.g., MPI not initialized).
+    HALO_ERR_BAD_HANDLE = 4,   ///< Invalid or expired opaque handle token.
+    HALO_ERR_UNKNOWN = 99      ///< Unknown/unexpected error.
 };
 
-} // anonymous namespace
+}  // anonymous namespace
 
 /// @brief Macro wrapping function bodies with exception-to-error-code translation.
 ///
@@ -67,34 +66,28 @@ enum Halo_Error : int {
 // Variadic so that bodies containing top-level commas (e.g. Kokkos::View
 // template argument lists or brace-init lists) are passed through intact
 // instead of being parsed as multiple macro arguments.
-#define HALO_C_TRY(...)                                                     \
-    try {                                                                   \
-        __VA_ARGS__;                                                        \
-        return HALO_SUCCESS;                                                \
-    } catch (const std::invalid_argument& e) {                              \
-        if (halo::Environment::error_policy() ==                            \
-            halo::ErrorPolicy::abort_with_diagnostics) {                    \
-            std::fprintf(stderr, "HALO FATAL (Fortran interop): %s\n",     \
-                         e.what());                                         \
-            std::fflush(stderr);                                            \
-        }                                                                   \
-        return HALO_ERR_INVALID_ARG;                                        \
-    } catch (const std::runtime_error& e) {                                 \
-        if (halo::Environment::error_policy() ==                            \
-            halo::ErrorPolicy::abort_with_diagnostics) {                    \
-            std::fprintf(stderr, "HALO FATAL (Fortran interop): %s\n",     \
-                         e.what());                                         \
-            std::fflush(stderr);                                            \
-        }                                                                   \
-        return HALO_ERR_RUNTIME;                                            \
-    } catch (...) {                                                         \
-        if (halo::Environment::error_policy() ==                            \
-            halo::ErrorPolicy::abort_with_diagnostics) {                    \
-            std::fprintf(stderr,                                            \
-                "HALO FATAL (Fortran interop): unknown exception\n");       \
-            std::fflush(stderr);                                            \
-        }                                                                   \
-        return HALO_ERR_UNKNOWN;                                            \
+#define HALO_C_TRY(...)                                                                       \
+    try {                                                                                     \
+        __VA_ARGS__;                                                                          \
+        return HALO_SUCCESS;                                                                  \
+    } catch (const std::invalid_argument &e) {                                                \
+        if (halo::Environment::error_policy() == halo::ErrorPolicy::abort_with_diagnostics) { \
+            std::fprintf(stderr, "HALO FATAL (Fortran interop): %s\n", e.what());             \
+            std::fflush(stderr);                                                              \
+        }                                                                                     \
+        return HALO_ERR_INVALID_ARG;                                                          \
+    } catch (const std::runtime_error &e) {                                                   \
+        if (halo::Environment::error_policy() == halo::ErrorPolicy::abort_with_diagnostics) { \
+            std::fprintf(stderr, "HALO FATAL (Fortran interop): %s\n", e.what());             \
+            std::fflush(stderr);                                                              \
+        }                                                                                     \
+        return HALO_ERR_RUNTIME;                                                              \
+    } catch (...) {                                                                           \
+        if (halo::Environment::error_policy() == halo::ErrorPolicy::abort_with_diagnostics) { \
+            std::fprintf(stderr, "HALO FATAL (Fortran interop): unknown exception\n");        \
+            std::fflush(stderr);                                                              \
+        }                                                                                     \
+        return HALO_ERR_UNKNOWN;                                                              \
     }
 
 extern "C" {
@@ -110,16 +103,12 @@ extern "C" {
 ///                        (from MPI_Comm%mpi_val or ESMF_VMGet).
 /// @param comm_handle_out Output: opaque handle token for the created Communicator.
 /// @return 0 on success, non-zero error code on failure.
-int halo_init_c(int mpi_comm_int, int* comm_handle_out) {
-    HALO_C_TRY(
-        halo::Environment::initialize();
-        // Fortran callers cannot catch C++ exceptions; force abort policy.
-        halo::Environment::set_error_policy(halo::ErrorPolicy::abort_with_diagnostics);
-        MPI_Comm comm = MPI_Comm_f2c(mpi_comm_int);
-        auto* c = new halo::Communicator(comm);
-        *comm_handle_out = halo::fortran::Handle_Registry::instance()
-                               .register_handle(static_cast<void*>(c));
-    )
+int halo_init_c(int mpi_comm_int, int *comm_handle_out) {
+    HALO_C_TRY(halo::Environment::initialize();
+               // Fortran callers cannot catch C++ exceptions; force abort policy.
+               halo::Environment::set_error_policy(halo::ErrorPolicy::abort_with_diagnostics); MPI_Comm comm = MPI_Comm_f2c(mpi_comm_int);
+               auto *c = new halo::Communicator(comm);
+               *comm_handle_out = halo::fortran::Handle_Registry::instance().register_handle(static_cast<void *>(c));)
 }
 
 /// @brief Create a sub-communicator via MPI_Comm_split.
@@ -132,16 +121,10 @@ int halo_init_c(int mpi_comm_int, int* comm_handle_out) {
 /// @param key              Split key for rank ordering.
 /// @param child_handle_out Output: opaque handle for the new sub-communicator.
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if parent_handle is invalid.
-int halo_comm_create_c(int parent_handle, int color, int key,
-                       int* child_handle_out) {
-    HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* parent = static_cast<halo::Communicator*>(reg.lookup(parent_handle));
-        if (!parent) return HALO_ERR_BAD_HANDLE;
-        auto child = parent->split(color, key);
-        auto* c = new halo::Communicator(std::move(child));
-        *child_handle_out = reg.register_handle(static_cast<void*>(c));
-    )
+int halo_comm_create_c(int parent_handle, int color, int key, int *child_handle_out) {
+    HALO_C_TRY(auto &reg = halo::fortran::Handle_Registry::instance(); auto *parent = static_cast<halo::Communicator *>(reg.lookup(parent_handle));
+               if (!parent) return HALO_ERR_BAD_HANDLE; auto child = parent->split(color, key); auto *c = new halo::Communicator(std::move(child));
+               *child_handle_out = reg.register_handle(static_cast<void *>(c));)
 }
 
 /// @brief Create a Halo_Plan from neighbor rank and count arrays.
@@ -160,34 +143,21 @@ int halo_comm_create_c(int parent_handle, int color, int key,
 /// @param plan_handle_out Output: opaque handle for the created Halo_Plan.
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if comm_handle is invalid,
 ///         HALO_ERR_INVALID_ARG if ranks are invalid or duplicated.
-int halo_plan_create_c(int comm_handle,
-                       const int* send_ranks, const int* send_counts, int num_send,
-                       const int* recv_ranks, const int* recv_counts, int num_recv,
-                       int* plan_handle_out) {
+int halo_plan_create_c(int comm_handle, const int *send_ranks, const int *send_counts, int num_send, const int *recv_ranks, const int *recv_counts,
+                       int num_recv, int *plan_handle_out) {
     HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* comm = static_cast<halo::Communicator*>(reg.lookup(comm_handle));
+        auto &reg = halo::fortran::Handle_Registry::instance(); auto *comm = static_cast<halo::Communicator *>(reg.lookup(comm_handle));
         if (!comm) return HALO_ERR_BAD_HANDLE;
 
         std::vector<halo::Neighbor_Info> sends(static_cast<std::size_t>(num_send));
-        for (int i = 0; i < num_send; ++i) {
-            sends[static_cast<std::size_t>(i)] = {
-                send_ranks[i],
-                static_cast<std::size_t>(send_counts[i])
-            };
-        }
+        for (int i = 0; i < num_send; ++i) { sends[static_cast<std::size_t>(i)] = {send_ranks[i], static_cast<std::size_t>(send_counts[i])}; }
 
-        std::vector<halo::Neighbor_Info> recvs(static_cast<std::size_t>(num_recv));
-        for (int i = 0; i < num_recv; ++i) {
-            recvs[static_cast<std::size_t>(i)] = {
-                recv_ranks[i],
-                static_cast<std::size_t>(recv_counts[i])
-            };
-        }
+        std::vector<halo::Neighbor_Info>
+            recvs(static_cast<std::size_t>(num_recv));
+        for (int i = 0; i < num_recv; ++i) { recvs[static_cast<std::size_t>(i)] = {recv_ranks[i], static_cast<std::size_t>(recv_counts[i])}; }
 
-        auto* plan = new halo::Halo_Plan(*comm, std::move(sends), std::move(recvs));
-        *plan_handle_out = reg.register_handle(static_cast<void*>(plan));
-    )
+        auto *plan = new halo::Halo_Plan(*comm, std::move(sends), std::move(recvs));
+        *plan_handle_out = reg.register_handle(static_cast<void *>(plan));)
 }
 
 /// @brief Execute a blocking halo exchange on a contiguous Fortran array.
@@ -202,24 +172,18 @@ int halo_plan_create_c(int comm_handle,
 /// @param num_elements  Total number of elements in the array.
 /// @param element_size  Size of each element in bytes (e.g., 8 for real(8)).
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if plan_handle is invalid.
-int halo_exchange_blocking_c(int plan_handle, void* data,
-                             int num_elements, int element_size) {
-    HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* plan = static_cast<halo::Halo_Plan*>(reg.lookup(plan_handle));
-        if (!plan) return HALO_ERR_BAD_HANDLE;
+int halo_exchange_blocking_c(int plan_handle, void *data, int num_elements, int element_size) {
+    HALO_C_TRY(auto &reg = halo::fortran::Handle_Registry::instance(); auto *plan = static_cast<halo::Halo_Plan *>(reg.lookup(plan_handle));
+               if (!plan) return HALO_ERR_BAD_HANDLE;
 
-        // Construct a non-owning Kokkos::View over the Fortran contiguous array.
-        // The view treats the data as raw bytes (char*) with total size =
-        // num_elements * element_size. This allows the exchange functions to
-        // operate on the data without knowing the Fortran element type.
-        auto view = Kokkos::View<char*, Kokkos::HostSpace,
-                                 Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
-            static_cast<char*>(data),
-            static_cast<std::size_t>(num_elements) * static_cast<std::size_t>(element_size));
+               // Construct a non-owning Kokkos::View over the Fortran contiguous array.
+               // The view treats the data as raw bytes (char*) with total size =
+               // num_elements * element_size. This allows the exchange functions to
+               // operate on the data without knowing the Fortran element type.
+               auto view = Kokkos::View<char *, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
+                   static_cast<char *>(data), static_cast<std::size_t>(num_elements) * static_cast<std::size_t>(element_size));
 
-        halo::exchange_blocking(*plan, view);
-    )
+               halo::exchange_blocking(*plan, view);)
 }
 
 /// @brief Initiate a non-blocking halo exchange on a contiguous Fortran array.
@@ -233,24 +197,16 @@ int halo_exchange_blocking_c(int plan_handle, void* data,
 /// @param element_size  Size of each element in bytes.
 /// @param handle_out    Output: opaque handle for the Halo_Handle.
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if plan_handle is invalid.
-int halo_exchange_async_c(int plan_handle, void* data,
-                          int num_elements, int element_size,
-                          int* handle_out) {
-    HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* plan = static_cast<halo::Halo_Plan*>(reg.lookup(plan_handle));
-        if (!plan) return HALO_ERR_BAD_HANDLE;
+int halo_exchange_async_c(int plan_handle, void *data, int num_elements, int element_size, int *handle_out) {
+    HALO_C_TRY(auto &reg = halo::fortran::Handle_Registry::instance(); auto *plan = static_cast<halo::Halo_Plan *>(reg.lookup(plan_handle));
+               if (!plan) return HALO_ERR_BAD_HANDLE;
 
-        // Construct a non-owning Kokkos::View over the Fortran contiguous array.
-        auto view = Kokkos::View<char*, Kokkos::HostSpace,
-                                 Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
-            static_cast<char*>(data),
-            static_cast<std::size_t>(num_elements) * static_cast<std::size_t>(element_size));
+               // Construct a non-owning Kokkos::View over the Fortran contiguous array.
+               auto view = Kokkos::View<char *, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
+                   static_cast<char *>(data), static_cast<std::size_t>(num_elements) * static_cast<std::size_t>(element_size));
 
-        auto handle = halo::exchange_async(*plan, view);
-        auto* h = new halo::Halo_Handle(std::move(handle));
-        *handle_out = reg.register_handle(static_cast<void*>(h));
-    )
+               auto handle = halo::exchange_async(*plan, view); auto *h = new halo::Halo_Handle(std::move(handle));
+               *handle_out = reg.register_handle(static_cast<void *>(h));)
 }
 
 /// @brief Wait for an async halo exchange to complete.
@@ -262,12 +218,8 @@ int halo_exchange_async_c(int plan_handle, void* data,
 /// @param handle  Opaque handle of the Halo_Handle.
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if handle is invalid.
 int halo_wait_c(int handle) {
-    HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* h = static_cast<halo::Halo_Handle*>(reg.lookup(handle));
-        if (!h) return HALO_ERR_BAD_HANDLE;
-        h->wait();
-    )
+    HALO_C_TRY(auto &reg = halo::fortran::Handle_Registry::instance(); auto *h = static_cast<halo::Halo_Handle *>(reg.lookup(handle));
+               if (!h) return HALO_ERR_BAD_HANDLE; h->wait();)
 }
 
 /// @brief Test if an async halo exchange has completed (non-blocking).
@@ -279,13 +231,9 @@ int halo_wait_c(int handle) {
 /// @param handle       Opaque handle of the Halo_Handle.
 /// @param complete_out Output: 1 if all operations complete, 0 if pending.
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if handle is invalid.
-int halo_test_c(int handle, int* complete_out) {
-    HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* h = static_cast<halo::Halo_Handle*>(reg.lookup(handle));
-        if (!h) return HALO_ERR_BAD_HANDLE;
-        *complete_out = h->test() ? 1 : 0;
-    )
+int halo_test_c(int handle, int *complete_out) {
+    HALO_C_TRY(auto &reg = halo::fortran::Handle_Registry::instance(); auto *h = static_cast<halo::Halo_Handle *>(reg.lookup(handle));
+               if (!h) return HALO_ERR_BAD_HANDLE; *complete_out = h->test() ? 1 : 0;)
 }
 
 /// @brief Destroy a Halo_Plan and invalidate its opaque handle.
@@ -297,12 +245,8 @@ int halo_test_c(int handle, int* complete_out) {
 /// @param plan_handle  Opaque handle of the Halo_Plan to destroy.
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if plan_handle is invalid.
 int halo_destroy_plan_c(int plan_handle) {
-    HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* ptr = reg.release(plan_handle);
-        if (!ptr) return HALO_ERR_BAD_HANDLE;
-        delete static_cast<halo::Halo_Plan*>(ptr);
-    )
+    HALO_C_TRY(auto &reg = halo::fortran::Handle_Registry::instance(); auto *ptr = reg.release(plan_handle); if (!ptr) return HALO_ERR_BAD_HANDLE;
+               delete static_cast<halo::Halo_Plan *>(ptr);)
 }
 
 /// @brief Destroy a Communicator and invalidate its opaque handle.
@@ -314,12 +258,8 @@ int halo_destroy_plan_c(int plan_handle) {
 /// @param comm_handle  Opaque handle of the Communicator to destroy.
 /// @return 0 on success, HALO_ERR_BAD_HANDLE if comm_handle is invalid.
 int halo_destroy_comm_c(int comm_handle) {
-    HALO_C_TRY(
-        auto& reg = halo::fortran::Handle_Registry::instance();
-        auto* ptr = reg.release(comm_handle);
-        if (!ptr) return HALO_ERR_BAD_HANDLE;
-        delete static_cast<halo::Communicator*>(ptr);
-    )
+    HALO_C_TRY(auto &reg = halo::fortran::Handle_Registry::instance(); auto *ptr = reg.release(comm_handle); if (!ptr) return HALO_ERR_BAD_HANDLE;
+               delete static_cast<halo::Communicator *>(ptr);)
 }
 
-} // extern "C"
+}  // extern "C"

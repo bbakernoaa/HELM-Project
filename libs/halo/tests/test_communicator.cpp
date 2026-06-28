@@ -98,8 +98,8 @@ TEST(CommunicatorTest, MoveConstructionNullifiesSource) {
     ASSERT_NE(original, MPI_COMM_NULL);
 
     halo::Communicator dst(std::move(src));
-    EXPECT_EQ(dst.handle(), original);          // destination assumed ownership
-    EXPECT_EQ(src.handle(), MPI_COMM_NULL);     // source nullified
+    EXPECT_EQ(dst.handle(), original);       // destination assumed ownership
+    EXPECT_EQ(src.handle(), MPI_COMM_NULL);  // source nullified
 }
 
 // ─── Move assignment transfers ownership and nullifies source (Req 1.3) ─────
@@ -130,12 +130,15 @@ TEST(CommunicatorTest, SubCommunicatorIsReusable) {
 
 // ─── Global MPI environment ─────────────────────────────────────────────────
 class MpiEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override { MPI_Init(nullptr, nullptr); }
-    void TearDown() override { MPI_Finalize(); }
+   public:
+    void SetUp() override {
+        MPI_Init(nullptr, nullptr);
+    }
+    void TearDown() override {
+        MPI_Finalize();
+    }
 };
 
 }  // namespace
 
-static ::testing::Environment* const mpi_env =
-    ::testing::AddGlobalTestEnvironment(new MpiEnvironment);
+static ::testing::Environment *const mpi_env = ::testing::AddGlobalTestEnvironment(new MpiEnvironment);

@@ -27,18 +27,16 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <algorithm>
-#include <cstddef>
-#include <cstring>
-#include <numeric>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/topology/mesh_factory.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cstddef>
+#include <cstring>
+#include <numeric>
+#include <vector>
 
 namespace {
 
@@ -56,9 +54,7 @@ rc::Gen<std::size_t> genCellCount() {
 
 /// Generate a coordinate value in [-180, 180] range (mimicking lon/lat).
 rc::Gen<double> genCoordValue() {
-    return rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) {
-        return static_cast<double>(v) / 100.0;
-    });
+    return rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a nodes-per-cell count in [3, 6] (triangles to hexagons).
@@ -73,11 +69,11 @@ rc::Gen<std::size_t> genNodesPerCell() {
 ///
 /// Returns a tuple of (node_coords_flat, conn_offsets, conn_indices, n_nodes, n_cells, ndim).
 struct UgridData {
-    std::vector<double>      node_coords;  // flat [n_nodes * ndim], layout_left
+    std::vector<double> node_coords;  // flat [n_nodes * ndim], layout_left
     std::vector<axis::index_t> conn_offsets;
     std::vector<axis::index_t> conn_indices;
-    std::size_t              n_nodes;
-    std::size_t              n_cells;
+    std::size_t n_nodes;
+    std::size_t n_cells;
     static constexpr std::size_t ndim = 2;
 };
 
@@ -101,17 +97,14 @@ rc::Gen<UgridData> genUgridData() {
         data.conn_offsets[0] = 0;
         for (std::size_t c = 0; c < data.n_cells; ++c) {
             std::size_t npc = *genNodesPerCell();
-            data.conn_offsets[c + 1] = data.conn_offsets[c]
-                                       + static_cast<axis::index_t>(npc);
+            data.conn_offsets[c + 1] = data.conn_offsets[c] + static_cast<axis::index_t>(npc);
         }
 
         // Generate connectivity indices — each is a valid node index in [0, n_nodes)
-        std::size_t total_indices = static_cast<std::size_t>(
-            data.conn_offsets[data.n_cells]);
+        std::size_t total_indices = static_cast<std::size_t>(data.conn_offsets[data.n_cells]);
         data.conn_indices.resize(total_indices);
         for (std::size_t k = 0; k < total_indices; ++k) {
-            data.conn_indices[k] = static_cast<axis::index_t>(
-                *rc::gen::inRange<std::size_t>(0, data.n_nodes));
+            data.conn_indices[k] = static_cast<axis::index_t>(*rc::gen::inRange<std::size_t>(0, data.n_nodes));
         }
 
         return data;
@@ -119,8 +112,7 @@ rc::Gen<UgridData> genUgridData() {
 }
 
 /// Build a GridDescriptor from UgridData, pointing buffer views at the data vectors.
-axis::ingest::GridDescriptor
-make_ugrid_descriptor(const UgridData& ugrid) {
+axis::ingest::GridDescriptor make_ugrid_descriptor(const UgridData &ugrid) {
     axis::ingest::GridDescriptor desc;
     desc.kind = axis::ingest::ConventionKind::UGRID;
     desc.coord_system = axis::ingest::CoordinateSystem::SphericalDeg;
@@ -129,12 +121,9 @@ make_ugrid_descriptor(const UgridData& ugrid) {
     desc.ugrid.mesh_name = "test_mesh";
 
     // Wrap vectors as layout_left mdspan views
-    desc.buffers.node_coords = axis::field_view<const double, 2>(
-        ugrid.node_coords.data(), ugrid.n_nodes, UgridData::ndim);
-    desc.buffers.conn_offsets = axis::field_view<const axis::index_t, 1>(
-        ugrid.conn_offsets.data(), ugrid.conn_offsets.size());
-    desc.buffers.conn_indices = axis::field_view<const axis::index_t, 1>(
-        ugrid.conn_indices.data(), ugrid.conn_indices.size());
+    desc.buffers.node_coords = axis::field_view<const double, 2>(ugrid.node_coords.data(), ugrid.n_nodes, UgridData::ndim);
+    desc.buffers.conn_offsets = axis::field_view<const axis::index_t, 1>(ugrid.conn_offsets.data(), ugrid.conn_offsets.size());
+    desc.buffers.conn_indices = axis::field_view<const axis::index_t, 1>(ugrid.conn_indices.data(), ugrid.conn_indices.size());
 
     return desc;
 }
@@ -229,15 +218,15 @@ RC_GTEST_PROP(PropBufferAdoption, MeshDataIndependentOfOriginalBuffers, ()) {
 
     // ── Mutate the original buffers ──────────────────────────────────────────
     // Flip all coordinate values
-    for (auto& v : ugrid.node_coords) {
+    for (auto &v : ugrid.node_coords) {
         v = -999.0;
     }
     // Corrupt connectivity offsets
-    for (auto& v : ugrid.conn_offsets) {
+    for (auto &v : ugrid.conn_offsets) {
         v = 0;
     }
     // Corrupt connectivity indices
-    for (auto& v : ugrid.conn_indices) {
+    for (auto &v : ugrid.conn_indices) {
         v = -1;
     }
 
@@ -324,9 +313,9 @@ RC_GTEST_PROP(PropBufferAdoption, MeshOwnsDataSeparateFromDescriptorBuffers, ())
     auto desc = make_ugrid_descriptor(ugrid);
 
     // Remember original buffer pointers
-    const double* orig_coords_ptr = ugrid.node_coords.data();
-    const axis::index_t* orig_offsets_ptr = ugrid.conn_offsets.data();
-    const axis::index_t* orig_indices_ptr = ugrid.conn_indices.data();
+    const double *orig_coords_ptr = ugrid.node_coords.data();
+    const axis::index_t *orig_offsets_ptr = ugrid.conn_offsets.data();
+    const axis::index_t *orig_indices_ptr = ugrid.conn_indices.data();
 
     auto mesh = axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
 
@@ -346,7 +335,7 @@ RC_GTEST_PROP(PropBufferAdoption, MeshOwnsDataSeparateFromDescriptorBuffers, ())
 // RapidCheck/GTest property tests need Kokkos initialized for View allocation.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -360,7 +349,6 @@ public:
 };
 
 // Register the Kokkos environment with GTest
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

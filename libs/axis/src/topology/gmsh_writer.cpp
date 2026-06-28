@@ -9,17 +9,14 @@
 /// the RAII File_Handle wrapper. Element types are mapped from per-cell node
 /// count: 3→triangle (type 2), 4→quadrilateral (type 3).
 
+#include <Kokkos_Core.hpp>
+#include <axis/detail/memory_traits.hpp>
+#include <axis/detail/raii_handles.hpp>
 #include <axis/topology/gmsh_writer.hpp>
-
+#include <axis/types.hpp>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/memory_traits.hpp>
-#include <axis/detail/raii_handles.hpp>
-#include <axis/types.hpp>
 
 namespace axis::topology {
 
@@ -29,18 +26,19 @@ namespace {
 /// Returns 0 if the element cannot be represented.
 inline int gmsh_element_type(int n_nodes_per_cell) noexcept {
     switch (n_nodes_per_cell) {
-        case 3: return 2;  // 3-node triangle
-        case 4: return 3;  // 4-node quadrilateral
-        default: return 0; // not representable in MSH v2.2
+        case 3:
+            return 2;  // 3-node triangle
+        case 4:
+            return 3;  // 4-node quadrilateral
+        default:
+            return 0;  // not representable in MSH v2.2
     }
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 template <class MemorySpace>
-void GmshWriter::write(const std::string& filepath,
-                       const UnstructuredMesh<MemorySpace>& mesh)
-{
+void GmshWriter::write(const std::string &filepath, const UnstructuredMesh<MemorySpace> &mesh) {
     // ─────────────────────────────────────────────────────────────────────────
     // Step 1: Mirror device arrays to host if needed (HELM Law #2: explicit
     // Kokkos::deep_copy, no UVM reliance).
@@ -49,45 +47,40 @@ void GmshWriter::write(const std::string& filepath,
     using host_space = Kokkos::HostSpace;
 
     // Host-accessible views for node_coords, conn_offsets, conn_indices.
-    Kokkos::View<double**, Kokkos::LayoutLeft, host_space> h_coords;
-    Kokkos::View<index_t*, host_space> h_offsets;
-    Kokkos::View<index_t*, host_space> h_indices;
+    Kokkos::View<double **, Kokkos::LayoutLeft, host_space> h_coords;
+    Kokkos::View<index_t *, host_space> h_offsets;
+    Kokkos::View<index_t *, host_space> h_indices;
 
     if constexpr (detail::is_device_space_v<MemorySpace>) {
         // Device mesh: allocate host mirrors and deep_copy.
-        const auto& d_coords  = mesh.node_coords_view();
-        const auto& d_offsets = mesh.conn_offsets_view();
-        const auto& d_indices = mesh.conn_indices_view();
+        const auto &d_coords = mesh.node_coords_view();
+        const auto &d_offsets = mesh.conn_offsets_view();
+        const auto &d_indices = mesh.conn_indices_view();
 
-        h_coords  = Kokkos::View<double**, Kokkos::LayoutLeft, host_space>(
-            "gmsh_h_coords", d_coords.extent(0), d_coords.extent(1));
-        h_offsets = Kokkos::View<index_t*, host_space>(
-            "gmsh_h_offsets", d_offsets.extent(0));
-        h_indices = Kokkos::View<index_t*, host_space>(
-            "gmsh_h_indices", d_indices.extent(0));
+        h_coords = Kokkos::View<double **, Kokkos::LayoutLeft, host_space>("gmsh_h_coords", d_coords.extent(0), d_coords.extent(1));
+        h_offsets = Kokkos::View<index_t *, host_space>("gmsh_h_offsets", d_offsets.extent(0));
+        h_indices = Kokkos::View<index_t *, host_space>("gmsh_h_indices", d_indices.extent(0));
 
         Kokkos::deep_copy(h_coords, d_coords);
         Kokkos::deep_copy(h_offsets, d_offsets);
         Kokkos::deep_copy(h_indices, d_indices);
     } else {
         // Host mesh: directly reference internal views (no copy).
-        h_coords  = mesh.node_coords_view();
+        h_coords = mesh.node_coords_view();
         h_offsets = mesh.conn_offsets_view();
         h_indices = mesh.conn_indices_view();
     }
 
     const std::size_t n_nodes = h_coords.extent(0);
-    const std::size_t ndim    = h_coords.extent(1);
-    const std::size_t n_cells = h_offsets.extent(0) > 0
-                                    ? h_offsets.extent(0) - 1
-                                    : 0;
+    const std::size_t ndim = h_coords.extent(1);
+    const std::size_t n_cells = h_offsets.extent(0) > 0 ? h_offsets.extent(0) - 1 : 0;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Step 2: Open file via File_Handle RAII (throws on failure).
     // ─────────────────────────────────────────────────────────────────────────
 
     detail::File_Handle fh(filepath.c_str(), "w");
-    std::FILE* fp = fh.get();
+    std::FILE *fp = fh.get();
 
     // ─────────────────────────────────────────────────────────────────────────
     // Step 3: $MeshFormat section
@@ -125,8 +118,8 @@ void GmshWriter::write(const std::string& filepath,
     std::size_t n_writable = 0;
     for (std::size_t c = 0; c < n_cells; ++c) {
         const auto start = static_cast<std::size_t>(h_offsets(c));
-        const auto end   = static_cast<std::size_t>(h_offsets(c + 1));
-        const int  n_cell_nodes = static_cast<int>(end - start);
+        const auto end = static_cast<std::size_t>(h_offsets(c + 1));
+        const int n_cell_nodes = static_cast<int>(end - start);
         if (gmsh_element_type(n_cell_nodes) != 0) {
             ++n_writable;
         }
@@ -135,15 +128,15 @@ void GmshWriter::write(const std::string& filepath,
     std::fprintf(fp, "$Elements\n");
     std::fprintf(fp, "%zu\n", n_writable);
 
-    std::size_t elm_id = 1; // 1-based element numbering
+    std::size_t elm_id = 1;  // 1-based element numbering
     for (std::size_t c = 0; c < n_cells; ++c) {
         const auto start = static_cast<std::size_t>(h_offsets(c));
-        const auto end   = static_cast<std::size_t>(h_offsets(c + 1));
-        const int  n_cell_nodes = static_cast<int>(end - start);
-        const int  elm_type = gmsh_element_type(n_cell_nodes);
+        const auto end = static_cast<std::size_t>(h_offsets(c + 1));
+        const int n_cell_nodes = static_cast<int>(end - start);
+        const int elm_type = gmsh_element_type(n_cell_nodes);
 
         if (elm_type == 0) {
-            continue; // Skip elements not representable in MSH v2.2
+            continue;  // Skip elements not representable in MSH v2.2
         }
 
         // Format: elm-number elm-type number-of-tags <tags> node-list
@@ -170,20 +163,14 @@ void GmshWriter::write(const std::string& filepath,
 // Explicit template instantiations
 // ─────────────────────────────────────────────────────────────────────────────
 
-template void GmshWriter::write<Kokkos::HostSpace>(
-    const std::string&,
-    const UnstructuredMesh<Kokkos::HostSpace>&);
+template void GmshWriter::write<Kokkos::HostSpace>(const std::string &, const UnstructuredMesh<Kokkos::HostSpace> &);
 
 #ifdef KOKKOS_ENABLE_CUDA
-template void GmshWriter::write<Kokkos::CudaSpace>(
-    const std::string&,
-    const UnstructuredMesh<Kokkos::CudaSpace>&);
+template void GmshWriter::write<Kokkos::CudaSpace>(const std::string &, const UnstructuredMesh<Kokkos::CudaSpace> &);
 #endif
 
 #ifdef KOKKOS_ENABLE_HIP
-template void GmshWriter::write<Kokkos::HIPSpace>(
-    const std::string&,
-    const UnstructuredMesh<Kokkos::HIPSpace>&);
+template void GmshWriter::write<Kokkos::HIPSpace>(const std::string &, const UnstructuredMesh<Kokkos::HIPSpace> &);
 #endif
 
-} // namespace axis::topology
+}  // namespace axis::topology

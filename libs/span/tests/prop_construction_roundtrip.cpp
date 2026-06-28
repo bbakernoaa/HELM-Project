@@ -9,8 +9,6 @@
 // **Validates: Requirements 1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 4.4, 4.5, 4.6, 8.1, 8.3, 8.6**
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <span/field_view.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
@@ -18,6 +16,7 @@
 #include <array>
 #include <cstddef>
 #include <numeric>
+#include <span/field_view.hpp>
 #include <vector>
 
 namespace {
@@ -27,7 +26,7 @@ rc::Gen<std::size_t> genExtent() {
     return rc::gen::inRange<std::size_t>(1, 1025);
 }
 
-} // namespace
+}  // namespace
 
 // ─── Host-Only Rank 1 ────────────────────────────────────────────────────────
 

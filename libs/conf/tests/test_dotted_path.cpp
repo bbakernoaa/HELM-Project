@@ -8,10 +8,10 @@
 //   - Absent keys / out-of-range indices raise Key_Not_Found (3.5).
 // ──────────────────────────────────────────────────────────────────────────────
 
+#include <gtest/gtest.h>
+
 #include <conf/config.hpp>
 #include <conf/error.hpp>
-
-#include <gtest/gtest.h>
 #include <optional>
 #include <string>
 
@@ -143,7 +143,7 @@ TEST(DottedPathTest, WhitespaceKey_BothSidesPadded) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class DottedPathInvalidTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         cfg_ = conf::Config::from_string("a:\n  b: 1\n");
     }
@@ -154,7 +154,7 @@ TEST_F(DottedPathInvalidTest, EmptyPath_ThrowsInvalidArg) {
     try {
         (void)cfg_.get_int("");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -163,7 +163,7 @@ TEST_F(DottedPathInvalidTest, LeadingDot_ThrowsInvalidArg) {
     try {
         (void)cfg_.get_int(".a.b");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -172,7 +172,7 @@ TEST_F(DottedPathInvalidTest, TrailingDot_ThrowsInvalidArg) {
     try {
         (void)cfg_.get_int("a.b.");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -181,7 +181,7 @@ TEST_F(DottedPathInvalidTest, ConsecutiveDots_ThrowsInvalidArg) {
     try {
         (void)cfg_.get_int("a..b");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -190,7 +190,7 @@ TEST_F(DottedPathInvalidTest, OnlyDot_ThrowsInvalidArg) {
     try {
         (void)cfg_.get_int(".");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -199,7 +199,7 @@ TEST_F(DottedPathInvalidTest, MultipleDots_ThrowsInvalidArg) {
     try {
         (void)cfg_.get_int("...");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -266,7 +266,7 @@ a:
     try {
         (void)cfg.get_int("a.b.nonexistent");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -280,7 +280,7 @@ list:
     try {
         (void)cfg.get_string("list.99.x");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -293,7 +293,7 @@ a:
     try {
         (void)cfg.get_int("a.b.deeper");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -307,9 +307,9 @@ list:
     try {
         (void)cfg.get_int("list.abc");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
 
-} // namespace
+}  // namespace

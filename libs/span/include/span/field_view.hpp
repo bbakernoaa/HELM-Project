@@ -18,18 +18,16 @@
 ///   - Tracks CoherencyState for lazy synchronization
 ///   - Supports optional TripleBuffer attachment for AMIO I/O isolation
 
-#include <span/coherency_state.hpp>
-
 #include <Kokkos_Core.hpp>
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
+#include <span/coherency_state.hpp>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
-#include <span>
 
 // mdspan: use the C++23 standard header if available, otherwise fall back to
 // the kokkos/mdspan reference implementation.
@@ -38,20 +36,21 @@
 #else
 #include <mdspan/mdspan.hpp>
 namespace std {
-    using Kokkos::mdspan;
-    using Kokkos::dextents;
-    using Kokkos::extents;
-    using Kokkos::layout_left;
+using Kokkos::dextents;
+using Kokkos::extents;
+using Kokkos::layout_left;
+using Kokkos::mdspan;
 #ifndef __cpp_lib_span
-    using Kokkos::dynamic_extent;
+using Kokkos::dynamic_extent;
 #endif
-}
+}  // namespace std
 #endif
 
 namespace span {
 
 // Forward declaration for triple-buffer attachment (implemented in a later task)
-template <typename T> class TripleBuffer;
+template <typename T>
+class TripleBuffer;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FieldView<T, Rank> — revised dual-pointer non-owning view
@@ -75,22 +74,18 @@ template <typename T> class TripleBuffer;
 /// @tparam Rank  Number of dimensions (1–7 for typical climate fields).
 template <typename T, std::size_t Rank>
 class FieldView {
-public:
+   public:
     // ─────────────────────────────────────────────────────────────────────────
     // Type aliases
     // ─────────────────────────────────────────────────────────────────────────
 
     template <typename IndexType, std::size_t R>
-    using my_dextents = std::conditional_t<R == 1,
-        Kokkos::extents<IndexType, std::dynamic_extent>,
-        std::conditional_t<R == 2,
-            Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent>,
-            std::conditional_t<R == 3,
-                Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>,
-                Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>
-            >
-        >
-    >;
+    using my_dextents = std::conditional_t<
+        R == 1, Kokkos::extents<IndexType, std::dynamic_extent>,
+        std::conditional_t<
+            R == 2, Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent>,
+            std::conditional_t<R == 3, Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>,
+                               Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>>>>;
 
     /// The mdspan type for host-side access (column-major, non-owning).
     using mdspan_type = Kokkos::mdspan<T, my_dextents<std::size_t, Rank>, Kokkos::layout_left>;
@@ -99,13 +94,10 @@ public:
     using extents_type = std::array<std::size_t, Rank>;
 
     /// Kokkos unmanaged host view (flat rank-1, wraps host pointer).
-    using kokkos_host_view = Kokkos::View<T*, Kokkos::LayoutLeft,
-                                           Kokkos::HostSpace, Kokkos::MemoryUnmanaged>;
+    using kokkos_host_view = Kokkos::View<T *, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryUnmanaged>;
 
     /// Kokkos unmanaged device view (flat rank-1, wraps device pointer).
-    using kokkos_device_view = Kokkos::View<T*, Kokkos::LayoutLeft,
-                                            typename Kokkos::DefaultExecutionSpace::memory_space,
-                                            Kokkos::MemoryUnmanaged>;
+    using kokkos_device_view = Kokkos::View<T *, Kokkos::LayoutLeft, typename Kokkos::DefaultExecutionSpace::memory_space, Kokkos::MemoryUnmanaged>;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Construction
@@ -125,15 +117,14 @@ public:
     /// @param exts      Array of extents; all must be > 0.
     ///
     /// @throws std::invalid_argument if host_ptr is null or any extent is 0.
-    explicit FieldView(T* host_ptr, extents_type exts)
-        : host_ptr_(host_ptr)
-        , device_ptr_(nullptr)
-        , extents_(exts)
-        , total_size_(compute_total_size(exts))
-        , state_(CoherencyState::HOST_CLEAN)
-        , mem_space_(MemorySpaceToken::Host)
-        , triple_buf_(nullptr) {
-
+    explicit FieldView(T *host_ptr, extents_type exts)
+        : host_ptr_(host_ptr),
+          device_ptr_(nullptr),
+          extents_(exts),
+          total_size_(compute_total_size(exts)),
+          state_(CoherencyState::HOST_CLEAN),
+          mem_space_(MemorySpaceToken::Host),
+          triple_buf_(nullptr) {
         validate_host_construction(host_ptr, exts);
     }
 
@@ -148,15 +139,14 @@ public:
     /// @param exts       Array of extents; all must be > 0.
     ///
     /// @throws std::invalid_argument if device_ptr is null or any extent is 0.
-    explicit FieldView(std::nullptr_t, T* device_ptr, extents_type exts)
-        : host_ptr_(nullptr)
-        , device_ptr_(device_ptr)
-        , extents_(exts)
-        , total_size_(compute_total_size(exts))
-        , state_(CoherencyState::HOST_CLEAN)
-        , mem_space_(determine_device_memory_space())
-        , triple_buf_(nullptr) {
-
+    explicit FieldView(std::nullptr_t, T *device_ptr, extents_type exts)
+        : host_ptr_(nullptr),
+          device_ptr_(device_ptr),
+          extents_(exts),
+          total_size_(compute_total_size(exts)),
+          state_(CoherencyState::HOST_CLEAN),
+          mem_space_(determine_device_memory_space()),
+          triple_buf_(nullptr) {
         validate_device_construction(device_ptr, exts);
     }
 
@@ -172,17 +162,14 @@ public:
     ///
     /// @throws std::invalid_argument if both pointers are null with non-zero extents,
     ///         or if any extent is 0 when a valid pointer is provided.
-    explicit FieldView(T* host_ptr, T* device_ptr, extents_type exts)
-        : host_ptr_(host_ptr)
-        , device_ptr_(device_ptr)
-        , extents_(exts)
-        , total_size_(compute_total_size(exts))
-        , state_(CoherencyState::HOST_CLEAN)
-        , mem_space_(device_ptr != nullptr && host_ptr == nullptr
-                     ? determine_device_memory_space()
-                     : MemorySpaceToken::Host)
-        , triple_buf_(nullptr) {
-
+    explicit FieldView(T *host_ptr, T *device_ptr, extents_type exts)
+        : host_ptr_(host_ptr),
+          device_ptr_(device_ptr),
+          extents_(exts),
+          total_size_(compute_total_size(exts)),
+          state_(CoherencyState::HOST_CLEAN),
+          mem_space_(device_ptr != nullptr && host_ptr == nullptr ? determine_device_memory_space() : MemorySpaceToken::Host),
+          triple_buf_(nullptr) {
         // Req 4.11: If both are null, this is simply an invalid view
         if (host_ptr == nullptr && device_ptr == nullptr) {
             // Reset to default invalid state
@@ -212,13 +199,19 @@ public:
     }
 
     /// @brief Raw pointer to host data. Synonym for host_data().
-    [[nodiscard]] T* data() const noexcept { return host_ptr_; }
+    [[nodiscard]] T *data() const noexcept {
+        return host_ptr_;
+    }
 
     /// @brief Raw pointer to host memory.
-    [[nodiscard]] T* host_data() const noexcept { return host_ptr_; }
+    [[nodiscard]] T *host_data() const noexcept {
+        return host_ptr_;
+    }
 
     /// @brief Raw pointer to device memory.
-    [[nodiscard]] T* device_data() const noexcept { return device_ptr_; }
+    [[nodiscard]] T *device_data() const noexcept {
+        return device_ptr_;
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Metadata queries
@@ -229,21 +222,25 @@ public:
     /// @throws std::out_of_range if dim >= Rank.
     [[nodiscard]] std::size_t extent(std::size_t dim) const {
         if (dim >= Rank) {
-            throw std::out_of_range(
-                "FieldView::extent(): dim " + std::to_string(dim) +
-                " >= Rank " + std::to_string(Rank));
+            throw std::out_of_range("FieldView::extent(): dim " + std::to_string(dim) + " >= Rank " + std::to_string(Rank));
         }
         return extents_[dim];
     }
 
     /// @brief The full extents array.
-    [[nodiscard]] const extents_type& extents() const noexcept { return extents_; }
+    [[nodiscard]] const extents_type &extents() const noexcept {
+        return extents_;
+    }
 
     /// @brief Total number of elements (product of all extents).
-    [[nodiscard]] std::size_t size() const noexcept { return total_size_; }
+    [[nodiscard]] std::size_t size() const noexcept {
+        return total_size_;
+    }
 
     /// @brief Compile-time rank (number of dimensions).
-    [[nodiscard]] static constexpr std::size_t rank() noexcept { return Rank; }
+    [[nodiscard]] static constexpr std::size_t rank() noexcept {
+        return Rank;
+    }
 
     /// @brief Check if this FieldView wraps at least one valid pointer.
     ///
@@ -253,38 +250,52 @@ public:
     }
 
     /// @brief Check if a host pointer is available.
-    [[nodiscard]] bool has_host_ptr() const noexcept { return host_ptr_ != nullptr; }
+    [[nodiscard]] bool has_host_ptr() const noexcept {
+        return host_ptr_ != nullptr;
+    }
 
     /// @brief Check if a device pointer is available.
-    [[nodiscard]] bool has_device_ptr() const noexcept { return device_ptr_ != nullptr; }
+    [[nodiscard]] bool has_device_ptr() const noexcept {
+        return device_ptr_ != nullptr;
+    }
 
     /// @brief Query the memory space where the primary pointer resides.
     ///
     /// Returns CudaDevice (or HipDevice) if only a device pointer is set.
     /// Otherwise returns Host.
-    [[nodiscard]] MemorySpaceToken memory_space() const noexcept { return mem_space_; }
+    [[nodiscard]] MemorySpaceToken memory_space() const noexcept {
+        return mem_space_;
+    }
 
     /// @brief Check if a TripleBuffer is attached to this FieldView.
-    [[nodiscard]] bool is_triple_buffered() const noexcept { return triple_buf_ != nullptr; }
+    [[nodiscard]] bool is_triple_buffered() const noexcept {
+        return triple_buf_ != nullptr;
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Coherency state
     // ─────────────────────────────────────────────────────────────────────────
 
     /// @brief Query the current coherency state.
-    [[nodiscard]] CoherencyState coherency_state() const noexcept { return state_; }
+    [[nodiscard]] CoherencyState coherency_state() const noexcept {
+        return state_;
+    }
 
     /// @brief Mark the host copy as modified (device copy is now stale).
     ///
     /// Call this after writing to host memory. The next sync_for_device()
     /// will transfer updated data to the device.
-    void mark_host_dirty() noexcept { state_ = CoherencyState::HOST_DIRTY; }
+    void mark_host_dirty() noexcept {
+        state_ = CoherencyState::HOST_DIRTY;
+    }
 
     /// @brief Mark the device copy as modified (host copy is now stale).
     ///
     /// Call this after a device kernel writes to device memory. The next
     /// sync_for_host() will transfer results back to the host.
-    void mark_device_dirty() noexcept { state_ = CoherencyState::DEVICE_DIRTY; }
+    void mark_device_dirty() noexcept {
+        state_ = CoherencyState::DEVICE_DIRTY;
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Coherency synchronization (Kokkos::deep_copy)
@@ -328,7 +339,9 @@ public:
     ///
     /// The TripleBuffer is non-owning. The caller must ensure the TripleBuffer
     /// outlives this FieldView.
-    void attach_triple_buffer(TripleBuffer<T>* tb) noexcept { triple_buf_ = tb; }
+    void attach_triple_buffer(TripleBuffer<T> *tb) noexcept {
+        triple_buf_ = tb;
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Kokkos View adapters (zero-copy, no allocation, no coherency modification)
@@ -388,20 +401,20 @@ public:
         return FieldView(kv.data(), exts);
     }
 
-private:
+   private:
     // ─────────────────────────────────────────────────────────────────────────
     // Internal helpers
     // ─────────────────────────────────────────────────────────────────────────
 
     /// Compute total element count from extents array.
-    static constexpr std::size_t compute_total_size(const extents_type& exts) noexcept {
+    static constexpr std::size_t compute_total_size(const extents_type &exts) noexcept {
         std::size_t s = 1;
         for (auto e : exts) s *= e;
         return s;
     }
 
     /// Validate host-only construction preconditions.
-    static void validate_host_construction(T* host_ptr, const extents_type& exts) {
+    static void validate_host_construction(T *host_ptr, const extents_type &exts) {
         if (host_ptr == nullptr) {
             throw std::invalid_argument("FieldView: host pointer must not be null");
         }
@@ -409,7 +422,7 @@ private:
     }
 
     /// Validate device-only construction preconditions.
-    static void validate_device_construction(T* device_ptr, const extents_type& exts) {
+    static void validate_device_construction(T *device_ptr, const extents_type &exts) {
         if (device_ptr == nullptr) {
             throw std::invalid_argument("FieldView: device pointer must not be null");
         }
@@ -417,11 +430,10 @@ private:
     }
 
     /// Validate that all extents are > 0.
-    static void validate_extents(const extents_type& exts) {
+    static void validate_extents(const extents_type &exts) {
         for (std::size_t i = 0; i < Rank; ++i) {
             if (exts[i] == 0) {
-                throw std::invalid_argument(
-                    "FieldView: extent[" + std::to_string(i) + "] must be > 0");
+                throw std::invalid_argument("FieldView: extent[" + std::to_string(i) + "] must be > 0");
             }
         }
     }
@@ -449,15 +461,15 @@ private:
     // Data members
     // ─────────────────────────────────────────────────────────────────────────
 
-    T*               host_ptr_    = nullptr;
-    T*               device_ptr_  = nullptr;
-    extents_type     extents_     = {};
-    std::size_t      total_size_  = 0;
-    CoherencyState   state_       = CoherencyState::HOST_CLEAN;
-    MemorySpaceToken mem_space_   = MemorySpaceToken::Host;
-    TripleBuffer<T>* triple_buf_  = nullptr;  // non-owning, optional
+    T *host_ptr_ = nullptr;
+    T *device_ptr_ = nullptr;
+    extents_type extents_ = {};
+    std::size_t total_size_ = 0;
+    CoherencyState state_ = CoherencyState::HOST_CLEAN;
+    MemorySpaceToken mem_space_ = MemorySpaceToken::Host;
+    TripleBuffer<T> *triple_buf_ = nullptr;  // non-owning, optional
 };
 
-} // namespace span
+}  // namespace span
 
-#endif // SPAN_FIELD_VIEW_HPP
+#endif  // SPAN_FIELD_VIEW_HPP

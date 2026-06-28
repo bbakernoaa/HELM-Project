@@ -17,11 +17,10 @@ namespace logs::detail {
 /// MPI thread level is below MPI_THREAD_MULTIPLE (Requirements 11.4, 11.9).
 /// Non-copyable and non-movable.
 class Serialized_MPI_Guard {
-public:
+   public:
     /// Construct the guard. If the environment's thread level is below
     /// MPI_THREAD_MULTIPLE, immediately locks the serialization mutex.
-    explicit Serialized_MPI_Guard(Mpi_Environment& env) noexcept
-        : env_(env) {
+    explicit Serialized_MPI_Guard(Mpi_Environment &env) noexcept : env_(env) {
         if (!env_.is_thread_multiple()) {
             env_.serialization_mutex_.lock();
             locked_ = true;
@@ -35,16 +34,16 @@ public:
         }
     }
 
-    Serialized_MPI_Guard(const Serialized_MPI_Guard&)            = delete;
-    Serialized_MPI_Guard& operator=(const Serialized_MPI_Guard&) = delete;
-    Serialized_MPI_Guard(Serialized_MPI_Guard&&)                 = delete;
-    Serialized_MPI_Guard& operator=(Serialized_MPI_Guard&&)      = delete;
+    Serialized_MPI_Guard(const Serialized_MPI_Guard &) = delete;
+    Serialized_MPI_Guard &operator=(const Serialized_MPI_Guard &) = delete;
+    Serialized_MPI_Guard(Serialized_MPI_Guard &&) = delete;
+    Serialized_MPI_Guard &operator=(Serialized_MPI_Guard &&) = delete;
 
-private:
-    Mpi_Environment& env_;
-    bool             locked_{false};
+   private:
+    Mpi_Environment &env_;
+    bool locked_{false};
 };
 
-} // namespace logs::detail
+}  // namespace logs::detail
 
-#endif // LOGS_DETAIL_SERIALIZED_MPI_GUARD_HPP
+#endif  // LOGS_DETAIL_SERIALIZED_MPI_GUARD_HPP

@@ -16,11 +16,7 @@ namespace tick {
 [[nodiscard]] Duration compute_sync_period(std::span<const Duration> time_steps);
 
 // Phase alignment check
-[[nodiscard]] constexpr bool is_phase_aligned(
-    Time_Point current_time,
-    Time_Point base_time,
-    Duration   time_step)
-{
+[[nodiscard]] constexpr bool is_phase_aligned(Time_Point current_time, Time_Point base_time, Duration time_step) {
     if (time_step.nanos() <= 0) {
         throw std::invalid_argument("time_step must be positive");
     }
@@ -30,4 +26,4 @@ namespace tick {
     return (current_time.nanos() - base_time.nanos()) % time_step.nanos() == 0;
 }
 
-} // namespace tick
+}  // namespace tick

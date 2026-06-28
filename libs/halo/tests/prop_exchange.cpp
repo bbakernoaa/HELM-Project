@@ -24,18 +24,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-#include <mpi.h>
 
 #include "halo/communicator.hpp"
 #include "halo/exchange.hpp"
@@ -73,8 +72,7 @@ rc::Gen<std::vector<halo::Neighbor_Info>> genNonEmptyNeighborList() {
         std::vector<halo::Neighbor_Info> neighbors;
         neighbors.reserve(selected.size());
         for (int rank : selected) {
-            std::size_t count = static_cast<std::size_t>(
-                *rc::gen::inRange(1, 101));
+            std::size_t count = static_cast<std::size_t>(*rc::gen::inRange(1, 101));
             neighbors.push_back({rank, count});
         }
 
@@ -130,7 +128,7 @@ RC_GTEST_PROP(ExchangeProperty12, TagDeterminismAndBoundedness, ()) {
 // **Validates: Requirements 6.1**
 
 RC_GTEST_PROP(ExchangeProperty13, AllReceivesBeforeAnySend, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -149,7 +147,7 @@ RC_GTEST_PROP(ExchangeProperty13, AllReceivesBeforeAnySend, ()) {
 
     // Allocate a Kokkos host view large enough for all send + recv data
     std::size_t total_elements = plan.total_send_elements() + plan.total_recv_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Reset spy after plan construction (which may call MPI functions)
     spy.reset();
@@ -158,7 +156,7 @@ RC_GTEST_PROP(ExchangeProperty13, AllReceivesBeforeAnySend, ()) {
     halo::exchange_blocking(plan, view);
 
     // Inspect the MPI_Spy call records
-    auto const& calls = spy.calls();
+    auto const &calls = spy.calls();
 
     // Find the index of the LAST MPI_Irecv call
     int last_irecv_index = -1;
@@ -194,7 +192,7 @@ RC_GTEST_PROP(ExchangeProperty13, AllReceivesBeforeAnySend, ()) {
 // **Validates: Requirements 6.1**
 
 RC_GTEST_PROP(ExchangeProperty13, CorrectIrecvAndIsendCounts, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -208,7 +206,7 @@ RC_GTEST_PROP(ExchangeProperty13, CorrectIrecvAndIsendCounts, ()) {
     halo::Halo_Plan plan(comm, send_neighbors, recv_neighbors);
 
     std::size_t total_elements = plan.total_send_elements() + plan.total_recv_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Reset spy after plan construction
     spy.reset();
@@ -216,10 +214,8 @@ RC_GTEST_PROP(ExchangeProperty13, CorrectIrecvAndIsendCounts, ()) {
     halo::exchange_blocking(plan, view);
 
     // Count Irecv and Isend calls
-    std::size_t irecv_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Irecv);
-    std::size_t isend_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Isend);
+    std::size_t irecv_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Irecv);
+    std::size_t isend_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Isend);
 
     RC_ASSERT(irecv_count == recv_neighbors.size());
     RC_ASSERT(isend_count == send_neighbors.size());
@@ -236,7 +232,7 @@ RC_GTEST_PROP(ExchangeProperty13, CorrectIrecvAndIsendCounts, ()) {
 // **Validates: Requirements 7.1, 7.2**
 
 RC_GTEST_PROP(ExchangeProperty17, AsyncHandleOwnsCorrectRequestCount, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -258,7 +254,7 @@ RC_GTEST_PROP(ExchangeProperty17, AsyncHandleOwnsCorrectRequestCount, ()) {
 
     // Allocate a Kokkos host view large enough for all send + recv data
     std::size_t total_elements = plan.total_send_elements() + plan.total_recv_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Reset spy after plan construction (which may call MPI functions)
     spy.reset();
@@ -270,13 +266,11 @@ RC_GTEST_PROP(ExchangeProperty17, AsyncHandleOwnsCorrectRequestCount, ()) {
     RC_ASSERT(!handle.empty());
 
     // Verify via spy that exactly R Irecv calls were made
-    std::size_t irecv_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Irecv);
+    std::size_t irecv_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Irecv);
     RC_ASSERT(irecv_count == R);
 
     // Verify via spy that exactly S Isend calls were made
-    std::size_t isend_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Isend);
+    std::size_t isend_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Isend);
     RC_ASSERT(isend_count == S);
 
     // Total requests owned by the handle should be S + R
@@ -295,7 +289,7 @@ RC_GTEST_PROP(ExchangeProperty17, AsyncHandleOwnsCorrectRequestCount, ()) {
 // **Validates: Requirements 7.5**
 
 RC_GTEST_PROP(ExchangeProperty19, DestructorEnsuresCompletion, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -316,7 +310,7 @@ RC_GTEST_PROP(ExchangeProperty19, DestructorEnsuresCompletion, ()) {
 
     // Allocate a Kokkos host view large enough for all send + recv data
     std::size_t total_elements = plan.total_send_elements() + plan.total_recv_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Reset spy after plan construction (which may call MPI functions)
     spy.reset();
@@ -329,8 +323,7 @@ RC_GTEST_PROP(ExchangeProperty19, DestructorEnsuresCompletion, ()) {
     // At this point, the Halo_Handle destructor has been called
 
     // Count MPI_Wait calls recorded by the spy
-    std::size_t wait_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Wait);
+    std::size_t wait_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Wait);
 
     // The destructor must have called wait() on each Request_Guard,
     // resulting in exactly S + R MPI_Wait calls (one per request)
@@ -347,7 +340,7 @@ RC_GTEST_PROP(ExchangeProperty19, DestructorEnsuresCompletion, ()) {
 // **Validates: Requirements 6.6, 7.8**
 
 RC_GTEST_PROP(ExchangeProperty16, BlockingMpiErrorThrowsWithContext, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -365,7 +358,7 @@ RC_GTEST_PROP(ExchangeProperty16, BlockingMpiErrorThrowsWithContext, ()) {
 
     // Allocate a Kokkos host view large enough for all send + recv data
     std::size_t total_elements = plan.total_send_elements() + plan.total_recv_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Reset spy after plan construction
     spy.reset();
@@ -385,7 +378,7 @@ RC_GTEST_PROP(ExchangeProperty16, BlockingMpiErrorThrowsWithContext, ()) {
 
     try {
         halo::exchange_blocking(plan, view);
-    } catch (const std::runtime_error& e) {
+    } catch (const std::runtime_error &e) {
         caught_runtime_error = true;
         error_message = e.what();
     }
@@ -402,7 +395,7 @@ RC_GTEST_PROP(ExchangeProperty16, BlockingMpiErrorThrowsWithContext, ()) {
 }
 
 RC_GTEST_PROP(ExchangeProperty16, AsyncMpiErrorThrowsWithContext, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -420,7 +413,7 @@ RC_GTEST_PROP(ExchangeProperty16, AsyncMpiErrorThrowsWithContext, ()) {
 
     // Allocate a Kokkos host view large enough for all send + recv data
     std::size_t total_elements = plan.total_send_elements() + plan.total_recv_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Reset spy after plan construction
     spy.reset();
@@ -440,7 +433,7 @@ RC_GTEST_PROP(ExchangeProperty16, AsyncMpiErrorThrowsWithContext, ()) {
 
     try {
         auto handle = halo::exchange_async(plan, view);
-    } catch (const std::runtime_error& e) {
+    } catch (const std::runtime_error &e) {
         caught_runtime_error = true;
         error_message = e.what();
     }
@@ -456,7 +449,7 @@ RC_GTEST_PROP(ExchangeProperty16, AsyncMpiErrorThrowsWithContext, ()) {
 }
 
 RC_GTEST_PROP(ExchangeProperty16, IsendErrorThrowsWithContext, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -474,7 +467,7 @@ RC_GTEST_PROP(ExchangeProperty16, IsendErrorThrowsWithContext, ()) {
 
     // Allocate a Kokkos host view large enough for all send + recv data
     std::size_t total_elements = plan.total_send_elements() + plan.total_recv_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Reset spy after plan construction
     spy.reset();
@@ -500,7 +493,7 @@ RC_GTEST_PROP(ExchangeProperty16, IsendErrorThrowsWithContext, ()) {
     halo::Halo_Plan send_only_plan(comm, send_neighbors, empty_recv);
 
     std::size_t send_total = send_only_plan.total_send_elements();
-    Kokkos::View<double*, Kokkos::HostSpace> send_view("send_view", send_total);
+    Kokkos::View<double *, Kokkos::HostSpace> send_view("send_view", send_total);
 
     spy.reset();
     spy.set_next_error(error_code);
@@ -514,7 +507,7 @@ RC_GTEST_PROP(ExchangeProperty16, IsendErrorThrowsWithContext, ()) {
 
     try {
         halo::exchange_blocking(send_only_plan, send_view);
-    } catch (const std::runtime_error& e) {
+    } catch (const std::runtime_error &e) {
         caught_runtime_error = true;
         error_message = e.what();
     }
@@ -546,15 +539,14 @@ namespace halo {
 /// @brief Test-only friend class that provides access to Halo_Handle internals
 /// for injecting staged_recv state in property tests.
 class Halo_Handle_Test_Access {
-public:
+   public:
     /// Inject Request_Guard objects into a Halo_Handle.
-    static void add_request(Halo_Handle& handle, MPI_Request& req) {
+    static void add_request(Halo_Handle &handle, MPI_Request &req) {
         handle.requests_.emplace_back(req);
     }
 
     /// Inject a staged_recv callback into a Halo_Handle.
-    static void set_staged_recv(Halo_Handle& handle,
-                                std::function<void()> callback) {
+    static void set_staged_recv(Halo_Handle &handle, std::function<void()> callback) {
         auto staged = std::make_unique<Halo_Handle::Staged_Recv>();
         staged->post_recv_copy = std::move(callback);
         staged->completed = false;
@@ -562,7 +554,7 @@ public:
     }
 
     /// Check if staged_recv has been marked completed.
-    static bool is_staged_completed(const Halo_Handle& handle) {
+    static bool is_staged_completed(const Halo_Handle &handle) {
         if (!handle.staged_recv_) return false;
         return handle.staged_recv_->completed;
     }
@@ -571,7 +563,7 @@ public:
 }  // namespace halo
 
 RC_GTEST_PROP(ExchangeProperty18, WaitTriggersPostReceiveDeepCopy, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a random number of pending requests [1, 8]
@@ -590,9 +582,7 @@ RC_GTEST_PROP(ExchangeProperty18, WaitTriggersPostReceiveDeepCopy, ()) {
 
     // Inject a staged_recv callback that sets a flag when called
     bool deep_copy_called = false;
-    halo::Halo_Handle_Test_Access::set_staged_recv(handle, [&deep_copy_called]() {
-        deep_copy_called = true;
-    });
+    halo::Halo_Handle_Test_Access::set_staged_recv(handle, [&deep_copy_called]() { deep_copy_called = true; });
 
     // Reset spy to only track wait() calls
     spy.reset();
@@ -608,7 +598,7 @@ RC_GTEST_PROP(ExchangeProperty18, WaitTriggersPostReceiveDeepCopy, ()) {
 }
 
 RC_GTEST_PROP(ExchangeProperty18, TestTrueTriggersPostReceiveDeepCopy, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a random number of pending requests [1, 8]
@@ -626,9 +616,7 @@ RC_GTEST_PROP(ExchangeProperty18, TestTrueTriggersPostReceiveDeepCopy, ()) {
 
     // Inject a staged_recv callback that sets a flag when called
     bool deep_copy_called = false;
-    halo::Halo_Handle_Test_Access::set_staged_recv(handle, [&deep_copy_called]() {
-        deep_copy_called = true;
-    });
+    halo::Halo_Handle_Test_Access::set_staged_recv(handle, [&deep_copy_called]() { deep_copy_called = true; });
 
     // Reset spy to only track test() calls
     spy.reset();
@@ -648,7 +636,7 @@ RC_GTEST_PROP(ExchangeProperty18, TestTrueTriggersPostReceiveDeepCopy, ()) {
 }
 
 RC_GTEST_PROP(ExchangeProperty18, DeepCopyCalledExactlyOnce, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a random number of pending requests [1, 8]
@@ -665,9 +653,7 @@ RC_GTEST_PROP(ExchangeProperty18, DeepCopyCalledExactlyOnce, ()) {
 
     // Inject a staged_recv callback that counts invocations
     int call_count = 0;
-    halo::Halo_Handle_Test_Access::set_staged_recv(handle, [&call_count]() {
-        ++call_count;
-    });
+    halo::Halo_Handle_Test_Access::set_staged_recv(handle, [&call_count]() { ++call_count; });
 
     spy.reset();
 
@@ -689,7 +675,7 @@ RC_GTEST_PROP(ExchangeProperty18, DeepCopyCalledExactlyOnce, ()) {
 // RapidCheck/GTest property tests need Kokkos initialized for View allocation.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -703,5 +689,4 @@ public:
 };
 
 // Register the Kokkos environment with GTest
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);

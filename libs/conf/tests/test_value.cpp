@@ -10,18 +10,18 @@
 //   - Non-throwing Value conversions agree with throwing ones (10.8)
 // ──────────────────────────────────────────────────────────────────────────────
 
+#include <gtest/gtest.h>
+
 #include <conf/config.hpp>
 #include <conf/error.hpp>
 #include <conf/value.hpp>
-
-#include <gtest/gtest.h>
 #include <optional>
 #include <string>
 
 namespace {
 
 // YAML fixture covering all node kinds.
-constexpr const char* kValueYaml = R"(
+constexpr const char *kValueYaml = R"(
 int_val: 42
 str_val: hello
 bool_val: true
@@ -36,7 +36,7 @@ null_node: ~
 )";
 
 class ValueTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         cfg_ = conf::Config::from_string(kValueYaml);
     }
@@ -44,7 +44,7 @@ protected:
     conf::Config cfg_{conf::Config::from_string("")};
 };
 
-} // namespace
+}  // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Config::at returns a Value for defined nodes (Req 10.1)
@@ -131,7 +131,7 @@ TEST_F(ValueTest, At_MissingKey_ThrowsKeyNotFound) {
     try {
         (void)cfg_.at("nonexistent_key");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -140,7 +140,7 @@ TEST_F(ValueTest, At_MissingNestedKey_ThrowsKeyNotFound) {
     try {
         (void)cfg_.at("map_node.nonexistent");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -149,7 +149,7 @@ TEST_F(ValueTest, At_DescendPastScalar_ThrowsKeyNotFound) {
     try {
         (void)cfg_.at("int_val.child");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Key_Not_Found);
     }
 }
@@ -162,7 +162,7 @@ TEST_F(ValueTest, At_EmptyPath_ThrowsInvalidArg) {
     try {
         (void)cfg_.at("");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -171,7 +171,7 @@ TEST_F(ValueTest, At_LeadingDot_ThrowsInvalidArg) {
     try {
         (void)cfg_.at(".int_val");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -180,7 +180,7 @@ TEST_F(ValueTest, At_TrailingDot_ThrowsInvalidArg) {
     try {
         (void)cfg_.at("int_val.");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -189,7 +189,7 @@ TEST_F(ValueTest, At_ConsecutiveDots_ThrowsInvalidArg) {
     try {
         (void)cfg_.at("map_node..a");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Invalid_Arg);
     }
 }
@@ -228,7 +228,7 @@ TEST_F(ValueTest, AsInt_NonNumericScalar_ThrowsTypeMismatch) {
     try {
         (void)val.as_int();
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -238,7 +238,7 @@ TEST_F(ValueTest, AsInt_MapNode_ThrowsTypeMismatch) {
     try {
         (void)val.as_int();
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -248,7 +248,7 @@ TEST_F(ValueTest, AsDouble_SequenceNode_ThrowsTypeMismatch) {
     try {
         (void)val.as_double();
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -258,7 +258,7 @@ TEST_F(ValueTest, AsBool_NonBoolScalar_ThrowsTypeMismatch) {
     try {
         (void)val.as_bool();
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -268,7 +268,7 @@ TEST_F(ValueTest, AsString_NullNode_ThrowsTypeMismatch) {
     try {
         (void)val.as_string();
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }

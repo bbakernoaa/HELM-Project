@@ -2,9 +2,10 @@
 /// @brief Scoped_Context push/pop implementation.
 
 #include "logs/scoped_context.hpp"
-#include "logs/detail/context_stack.hpp"
 
 #include <string>
+
+#include "logs/detail/context_stack.hpp"
 
 namespace logs {
 
@@ -24,4 +25,4 @@ Scoped_Context::~Scoped_Context() noexcept {
     detail::pop_context();
 }
 
-} // namespace logs
+}  // namespace logs

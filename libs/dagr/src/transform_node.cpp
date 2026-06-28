@@ -14,21 +14,19 @@
 // Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 7.3, 7.5,
 //               12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8
 
-#include "dagr/pipeline_config.hpp"
-#include "dagr/detail/completion_token.hpp"
-#include "dagr/detail/task_node.hpp"
-
-#include "tick/aliased_window.hpp"
-#include "tick/aliasing_engine.hpp"
-#include "tick/time_point.hpp"
-#include "tick/time_window.hpp"
-
-#include "amio/amio.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+
+#include "amio/amio.h"
+#include "dagr/detail/completion_token.hpp"
+#include "dagr/detail/task_node.hpp"
+#include "dagr/pipeline_config.hpp"
+#include "tick/aliased_window.hpp"
+#include "tick/aliasing_engine.hpp"
+#include "tick/time_point.hpp"
+#include "tick/time_window.hpp"
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Forward declarations for BLEND and SPAN dispatch interfaces
@@ -53,14 +51,9 @@ enum class BlendProfile;
 /// @param alpha      Interpolation weight in [0.0, 1.0].
 /// @param profile    Kernel selector (Linear or Step).
 /// @throws std::invalid_argument on extent mismatch or invalid profile.
-void dispatch_blend(const double* left_ptr,
-                    const double* right_ptr,
-                    double* out_ptr,
-                    std::size_t count,
-                    double alpha,
-                    int profile_tag);
+void dispatch_blend(const double *left_ptr, const double *right_ptr, double *out_ptr, std::size_t count, double alpha, int profile_tag);
 
-} // namespace blend
+}  // namespace blend
 
 namespace dagr::detail {
 
@@ -76,9 +69,7 @@ namespace {
 ///   - Temporal_Profile::step   → 1 (step-select kernel)
 ///
 /// This is a pure enum-to-int mapping with no arithmetic (Req 4.4).
-[[nodiscard]] constexpr int
-to_blend_profile_tag(dagr::Temporal_Profile profile) noexcept
-{
+[[nodiscard]] constexpr int to_blend_profile_tag(dagr::Temporal_Profile profile) noexcept {
     switch (profile) {
         case dagr::Temporal_Profile::linear:
             return 0;  // BlendProfile::Linear
@@ -91,9 +82,7 @@ to_blend_profile_tag(dagr::Temporal_Profile profile) noexcept
 
 /// Map dagr::OutOfBounds_Policy to tick::OutOfBoundsPolicy for TICK queries.
 /// DAGR's simplified two-value enum maps to the corresponding TICK policies.
-[[nodiscard]] constexpr tick::OutOfBoundsPolicy
-to_tick_oob_policy(dagr::OutOfBounds_Policy policy) noexcept
-{
+[[nodiscard]] constexpr tick::OutOfBoundsPolicy to_tick_oob_policy(dagr::OutOfBounds_Policy policy) noexcept {
     switch (policy) {
         case dagr::OutOfBounds_Policy::clamp:
             return tick::OutOfBoundsPolicy::clamp_to_edge;
@@ -104,7 +93,7 @@ to_tick_oob_policy(dagr::OutOfBounds_Policy policy) noexcept
     return tick::OutOfBoundsPolicy::clamp_to_edge;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AMIO C++ fetch wrapper
@@ -121,7 +110,7 @@ namespace {
 /// This is DAGR's opaque representation of a FieldView — it holds a pointer
 /// and a size without interpreting the data content (Req 7.5).
 struct Fetched_View {
-    double*     data;           ///< Non-owning pointer to field elements
+    double *data;               ///< Non-owning pointer to field elements
     std::size_t element_count;  ///< Number of double elements in the view
     amio_view_handle handle;    ///< AMIO view handle (for lifetime management)
 };
@@ -133,42 +122,31 @@ struct Fetched_View {
 /// @param timestep    Timestep index to read.
 /// @return            Fetched_View containing raw pointer and element count.
 /// @throws std::runtime_error on AMIO fetch failure (Req 4.8).
-[[nodiscard]] Fetched_View
-amio_fetch_field(amio_dataset_handle dataset,
-                 const char* var_name,
-                 std::int64_t timestep)
-{
+[[nodiscard]] Fetched_View amio_fetch_field(amio_dataset_handle dataset, const char *var_name, std::int64_t timestep) {
     amio_view_handle view_handle = nullptr;
     const amio_status_t rc = amio_read(dataset, var_name, timestep, nullptr, &view_handle);
 
     if (rc != AMIO_OK) {
-        throw std::runtime_error(
-            std::string("AMIO fetch failure for variable '") + var_name +
-            "' at timestep " + std::to_string(timestep) +
-            ": " + amio_strerror(rc));
+        throw std::runtime_error(std::string("AMIO fetch failure for variable '") + var_name + "' at timestep " + std::to_string(timestep) + ": " +
+                                 amio_strerror(rc));
     }
 
     // Extract the raw data pointer from the AMIO view (non-owning).
-    const void* raw_data = nullptr;
+    const void *raw_data = nullptr;
     std::size_t byte_size = 0;
     const amio_status_t data_rc = amio_view_data(view_handle, &raw_data, &byte_size);
 
     if (data_rc != AMIO_OK) {
-        throw std::runtime_error(
-            std::string("AMIO view_data failure: ") + amio_strerror(data_rc));
+        throw std::runtime_error(std::string("AMIO view_data failure: ") + amio_strerror(data_rc));
     }
 
     // Compute element count from byte size (Req 4.6: non-owning mdspan view).
     const std::size_t element_count = byte_size / sizeof(double);
 
-    return Fetched_View{
-        const_cast<double*>(static_cast<const double*>(raw_data)),
-        element_count,
-        view_handle
-    };
+    return Fetched_View{const_cast<double *>(static_cast<const double *>(raw_data)), element_count, view_handle};
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ═════════════════════════════════════════════════════════════════════════════
 // dispatch_temporal_bookend — the four-step pointer routing sequence
@@ -225,17 +203,9 @@ amio_fetch_field(amio_dataset_handle dataset,
  * @see blend::dispatch_blend() — BLEND kernel dispatch API
  * @see span::FieldView — SPAN non-owning mdspan view type (Tier 2)
  */
-void dispatch_temporal_bookend(
-    const dagr::Stream_Descriptor& stream,
-    const tick::AliasedWindow& aliased,
-    amio_dataset_handle dataset,
-    const char* var_name,
-    std::int64_t t_left_step,
-    std::int64_t t_right_step,
-    double* output_ptr,
-    std::size_t output_count,
-    Completion_Token& token)
-{
+void dispatch_temporal_bookend(const dagr::Stream_Descriptor &stream, const tick::AliasedWindow &aliased, amio_dataset_handle dataset,
+                               const char *var_name, std::int64_t t_left_step, std::int64_t t_right_step, double *output_ptr,
+                               std::size_t output_count, Completion_Token &token) {
     // ─── Step 1: Fetch left bookend FieldView from AMIO (Req 4.1) ────────
     //
     // Request the left bounding snapshot from the stream's dataset.
@@ -271,13 +241,12 @@ void dispatch_temporal_bookend(
     // If BLEND fails, the exception propagates to the Event_Loop (Req 4.10).
     const int profile_tag = to_blend_profile_tag(stream.temporal_profile);
 
-    blend::dispatch_blend(
-        left_view.data,       // left bookend (non-owning pointer)
-        right_view.data,      // right bookend (non-owning pointer)
-        output_ptr,           // output buffer (non-owning pointer)
-        output_count,         // element count
-        alpha,                // const-qualified weight, passed by value
-        profile_tag);         // kernel selector
+    blend::dispatch_blend(left_view.data,   // left bookend (non-owning pointer)
+                          right_view.data,  // right bookend (non-owning pointer)
+                          output_ptr,       // output buffer (non-owning pointer)
+                          output_count,     // element count
+                          alpha,            // const-qualified weight, passed by value
+                          profile_tag);     // kernel selector
 
     // ─── Signal Completion_Token on success (Req 4.7) ────────────────────
     //
@@ -289,4 +258,4 @@ void dispatch_temporal_bookend(
     static_cast<void>(token);  // Token signalling handled by Event_Loop callback
 }
 
-} // namespace dagr::detail
+}  // namespace dagr::detail

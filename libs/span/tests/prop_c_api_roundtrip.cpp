@@ -11,18 +11,18 @@
 // return HELM_SPAN_SUCCESS with p_out == p, d_out[i] == d[i] for all i, and
 // r_out == r.
 
-#include "span/span_constants.h"
 #include "handle_registry.hpp"
+#include "span/span_constants.h"
 
 // Include the C-API implementation directly for self-contained testing
-#include "span_c_api.cpp"
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <cstdint>
 #include <vector>
+
+#include "span_c_api.cpp"
 
 namespace {
 
@@ -34,13 +34,10 @@ rc::Gen<int> genValidRank() {
 /// Custom RapidCheck generator for a valid dims array of given rank.
 /// Each dimension is in [1, 5] to keep total product bounded (max 5^7 = 78125 elements).
 rc::Gen<std::vector<int64_t>> genValidDims(int rank) {
-    return rc::gen::container<std::vector<int64_t>>(
-        static_cast<std::size_t>(rank),
-        rc::gen::inRange<int64_t>(1, 6)
-    );
+    return rc::gen::container<std::vector<int64_t>>(static_cast<std::size_t>(rank), rc::gen::inRange<int64_t>(1, 6));
 }
 
-} // namespace
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // Property 2: C-API Registration Round-Trip
@@ -65,12 +62,11 @@ RC_GTEST_PROP(CApiRoundTrip, RegisterAndRetrieve, ()) {
 
     // Allocate a buffer as the "Fortran" pointer (non-null, valid memory)
     std::vector<double> buffer(static_cast<std::size_t>(total_size), 1.0);
-    void* ptr = static_cast<void*>(buffer.data());
+    void *ptr = static_cast<void *>(buffer.data());
 
     // Register with HOST memory space (0) — the only valid one on CPU-only builds
     int handle = -1;
-    int rc_reg = helm_span_register_legacy_ptr(
-        ptr, dims.data(), rank, HELM_SPAN_MEM_HOST, &handle);
+    int rc_reg = helm_span_register_legacy_ptr(ptr, dims.data(), rank, HELM_SPAN_MEM_HOST, &handle);
 
     // Registration must succeed
     RC_ASSERT(rc_reg == HELM_SPAN_SUCCESS);
@@ -79,7 +75,7 @@ RC_GTEST_PROP(CApiRoundTrip, RegisterAndRetrieve, ()) {
     RC_ASSERT(handle > 0);
 
     // Retrieve via get_view
-    const void* ptr_out = nullptr;
+    const void *ptr_out = nullptr;
     int64_t dims_out[HELM_SPAN_MAX_RANK] = {};
     int rank_out = 0;
 
@@ -119,11 +115,10 @@ RC_GTEST_PROP(CApiRoundTrip, UnregisterInvalidatesHandle, ()) {
     }
 
     std::vector<double> buffer(static_cast<std::size_t>(total_size), 0.0);
-    void* ptr = static_cast<void*>(buffer.data());
+    void *ptr = static_cast<void *>(buffer.data());
 
     int handle = -1;
-    int rc_reg = helm_span_register_legacy_ptr(
-        ptr, dims.data(), rank, HELM_SPAN_MEM_HOST, &handle);
+    int rc_reg = helm_span_register_legacy_ptr(ptr, dims.data(), rank, HELM_SPAN_MEM_HOST, &handle);
     RC_ASSERT(rc_reg == HELM_SPAN_SUCCESS);
     RC_ASSERT(handle > 0);
 
@@ -132,7 +127,7 @@ RC_GTEST_PROP(CApiRoundTrip, UnregisterInvalidatesHandle, ()) {
     RC_ASSERT(rc_unreg == HELM_SPAN_SUCCESS);
 
     // Now get_view on the same handle must fail
-    const void* ptr_out = nullptr;
+    const void *ptr_out = nullptr;
     int64_t dims_out[HELM_SPAN_MAX_RANK] = {};
     int rank_out = 0;
 
@@ -160,10 +155,8 @@ RC_GTEST_PROP(CApiRoundTrip, MultipleRegistrationsDistinctHandles, ()) {
 
     int handle1 = -1, handle2 = -1;
 
-    int rc1 = helm_span_register_legacy_ptr(
-        buffer1.data(), dims.data(), rank, HELM_SPAN_MEM_HOST, &handle1);
-    int rc2 = helm_span_register_legacy_ptr(
-        buffer2.data(), dims.data(), rank, HELM_SPAN_MEM_HOST, &handle2);
+    int rc1 = helm_span_register_legacy_ptr(buffer1.data(), dims.data(), rank, HELM_SPAN_MEM_HOST, &handle1);
+    int rc2 = helm_span_register_legacy_ptr(buffer2.data(), dims.data(), rank, HELM_SPAN_MEM_HOST, &handle2);
 
     RC_ASSERT(rc1 == HELM_SPAN_SUCCESS);
     RC_ASSERT(rc2 == HELM_SPAN_SUCCESS);
@@ -174,8 +167,8 @@ RC_GTEST_PROP(CApiRoundTrip, MultipleRegistrationsDistinctHandles, ()) {
     RC_ASSERT(handle1 != handle2);
 
     // Each get_view returns the correct pointer
-    const void* p1_out = nullptr;
-    const void* p2_out = nullptr;
+    const void *p1_out = nullptr;
+    const void *p2_out = nullptr;
     int64_t d1_out[HELM_SPAN_MAX_RANK] = {};
     int64_t d2_out[HELM_SPAN_MAX_RANK] = {};
     int r1_out = 0, r2_out = 0;

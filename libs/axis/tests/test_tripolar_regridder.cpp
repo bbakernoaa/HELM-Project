@@ -3,6 +3,7 @@
 // Copyright (c) HELM Project Contributors
 
 #include <gtest/gtest.h>
+
 #include <Kokkos_Core.hpp>
 #include <axis/detail/regular_grid_detector.hpp>
 #include <axis/topology/structured_grid.hpp>
@@ -18,8 +19,8 @@ TEST(TripolarGridTest, FoldedNorthernSeamDetection) {
     const std::size_t n_nodes = (ni + 1) * (nj + 1);
 
     // Create center coordinates
-    Kokkos::View<double*, MemSpace> cx("cx", n_points);
-    Kokkos::View<double*, MemSpace> cy("cy", n_points);
+    Kokkos::View<double *, MemSpace> cx("cx", n_points);
+    Kokkos::View<double *, MemSpace> cy("cy", n_points);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             std::size_t idx = i + j * ni;
@@ -28,12 +29,11 @@ TEST(TripolarGridTest, FoldedNorthernSeamDetection) {
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        ni, nj, cx, cy, topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> grid(ni, nj, cx, cy, topology::CoordinateSystem::SphericalDeg);
 
     // Create corner coordinates with a folded northern boundary seam (latitudes of top row are equal)
-    Kokkos::View<double*, MemSpace> corners_lon("corners_lon", n_nodes);
-    Kokkos::View<double*, MemSpace> corners_lat("corners_lat", n_nodes);
+    Kokkos::View<double *, MemSpace> corners_lon("corners_lon", n_nodes);
+    Kokkos::View<double *, MemSpace> corners_lat("corners_lat", n_nodes);
 
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
@@ -59,4 +59,4 @@ TEST(TripolarGridTest, FoldedNorthernSeamDetection) {
     EXPECT_EQ(info.nj, nj);
 }
 
-} // namespace axis::test
+}  // namespace axis::test

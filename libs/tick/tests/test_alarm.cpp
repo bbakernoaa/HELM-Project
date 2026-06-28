@@ -6,11 +6,12 @@
 
 #include <gtest/gtest.h>
 #include <rapidcheck/gtest.h>
-#include <tick/interval_alarm.hpp>
-#include <tick/absolute_alarm.hpp>
-#include <tick/time_point.hpp>
-#include <tick/duration.hpp>
+
 #include <cstdint>
+#include <tick/absolute_alarm.hpp>
+#include <tick/duration.hpp>
+#include <tick/interval_alarm.hpp>
+#include <tick/time_point.hpp>
 
 // ============================================================
 // Property-based tests (RapidCheck)
@@ -38,8 +39,7 @@ RC_GTEST_PROP(IntervalAlarm, IsRingingMatchesModulo, ()) {
 
     tick::Interval_Alarm alarm{interval, reference};
 
-    bool expected = (current_ns >= ref_ns) &&
-                    ((current_ns - ref_ns) % interval_ns == 0);
+    bool expected = (current_ns >= ref_ns) && ((current_ns - ref_ns) % interval_ns == 0);
     RC_ASSERT(alarm.is_ringing(current) == expected);
 }
 
@@ -102,15 +102,11 @@ RC_GTEST_PROP(AbsoluteAlarm, IsRingingAndHasPassed, ()) {
 // ============================================================
 
 TEST(IntervalAlarmErrors, ZeroIntervalThrows) {
-    EXPECT_THROW(
-        tick::Interval_Alarm(tick::Duration{0}, tick::Time_Point{100}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::Interval_Alarm(tick::Duration{0}, tick::Time_Point{100}), std::invalid_argument);
 }
 
 TEST(IntervalAlarmErrors, NegativeIntervalThrows) {
-    EXPECT_THROW(
-        tick::Interval_Alarm(tick::Duration{-100}, tick::Time_Point{0}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::Interval_Alarm(tick::Duration{-100}, tick::Time_Point{0}), std::invalid_argument);
 }
 
 TEST(IntervalAlarmBehavior, NotRingingBeforeBase) {
@@ -130,6 +126,6 @@ TEST(AbsoluteAlarmBehavior, CopyPreservesTrigger) {
 TEST(AbsoluteAlarmBehavior, HasPassedAfterTrigger) {
     tick::Absolute_Alarm alarm{tick::Time_Point{100}};
     EXPECT_FALSE(alarm.has_passed(tick::Time_Point{99}));
-    EXPECT_FALSE(alarm.has_passed(tick::Time_Point{100})); // at trigger, not passed
+    EXPECT_FALSE(alarm.has_passed(tick::Time_Point{100}));  // at trigger, not passed
     EXPECT_TRUE(alarm.has_passed(tick::Time_Point{101}));
 }

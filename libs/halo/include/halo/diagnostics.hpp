@@ -35,16 +35,16 @@ struct Exchange_Event {
         end             ///< Exchange function returning.
     };
 
-    Phase phase;                          ///< Current event phase.
-    int local_rank;                       ///< MPI rank of the calling process.
-    int neighbor_count;                   ///< Number of active neighbors in this exchange.
-    std::size_t total_bytes;              ///< Total bytes involved in the exchange.
-    std::chrono::nanoseconds elapsed;     ///< Time since exchange begin (0 for begin events).
-    bool is_async;                        ///< True if this is an async exchange.
+    Phase phase;                       ///< Current event phase.
+    int local_rank;                    ///< MPI rank of the calling process.
+    int neighbor_count;                ///< Number of active neighbors in this exchange.
+    std::size_t total_bytes;           ///< Total bytes involved in the exchange.
+    std::chrono::nanoseconds elapsed;  ///< Time since exchange begin (0 for begin events).
+    bool is_async;                     ///< True if this is an async exchange.
 };
 
 /// @brief Callback type for diagnostics hooks.
-using Diagnostics_Callback = std::function<void(const Exchange_Event&)>;
+using Diagnostics_Callback = std::function<void(const Exchange_Event &)>;
 
 /// @brief Static diagnostics hook manager.
 ///
@@ -52,7 +52,7 @@ using Diagnostics_Callback = std::function<void(const Exchange_Event&)>;
 /// When no callback is set, emit() short-circuits with minimal overhead (a
 /// single null check under lock-free read of a boolean flag).
 class Diagnostics {
-public:
+   public:
     /// @brief Register a diagnostics callback.
     ///
     /// The callback will be invoked for every exchange event emitted by
@@ -81,7 +81,7 @@ public:
     /// without acquiring the mutex for the fast path).
     ///
     /// @param event The exchange event to emit.
-    static void emit(const Exchange_Event& event) {
+    static void emit(const Exchange_Event &event) {
         // Fast path: no callback registered — zero overhead.
         if (!active_.load(std::memory_order_acquire)) {
             return;
@@ -101,7 +101,7 @@ public:
         return active_.load(std::memory_order_acquire);
     }
 
-private:
+   private:
     static inline std::mutex mutex_;
     static inline Diagnostics_Callback callback_{nullptr};
     static inline std::atomic<bool> active_{false};
@@ -109,6 +109,6 @@ private:
     Diagnostics() = delete;
 };
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_DIAGNOSTICS_HPP
+#endif  // HALO_DIAGNOSTICS_HPP

@@ -36,35 +36,35 @@ namespace halo::detail {
 /// @return true if the MPI implementation reports support for device pointers.
 inline bool gpu_aware_probe() noexcept {
 #if defined(KOKKOS_ENABLE_CUDA)
-    #if defined(MPIX_CUDA_AWARE_SUPPORT)
-        return MPIX_Query_cuda_support() != 0;
-    #else
-        #if defined(HALO_GPU_AWARE_MPI)
-            return true;
-        #else
-            return false;
-        #endif
-    #endif
-#elif defined(KOKKOS_ENABLE_HIP)
-    #if defined(MPIX_ROCM_AWARE_SUPPORT)
-        return MPIX_Query_rocm_support() != 0;
-    #else
-        #if defined(HALO_GPU_AWARE_MPI)
-            return true;
-        #else
-            return false;
-        #endif
-    #endif
+#if defined(MPIX_CUDA_AWARE_SUPPORT)
+    return MPIX_Query_cuda_support() != 0;
 #else
-    // No device backend enabled — GPU-aware MPI is irrelevant.
-    #if defined(HALO_GPU_AWARE_MPI)
-        return true;
-    #else
-        return false;
-    #endif
+#if defined(HALO_GPU_AWARE_MPI)
+    return true;
+#else
+    return false;
+#endif
+#endif
+#elif defined(KOKKOS_ENABLE_HIP)
+#if defined(MPIX_ROCM_AWARE_SUPPORT)
+    return MPIX_Query_rocm_support() != 0;
+#else
+#if defined(HALO_GPU_AWARE_MPI)
+    return true;
+#else
+    return false;
+#endif
+#endif
+#else
+// No device backend enabled — GPU-aware MPI is irrelevant.
+#if defined(HALO_GPU_AWARE_MPI)
+    return true;
+#else
+    return false;
+#endif
 #endif
 }
 
-} // namespace halo::detail
+}  // namespace halo::detail
 
-#endif // HALO_DETAIL_GPU_AWARE_PROBE_HPP
+#endif  // HALO_DETAIL_GPU_AWARE_PROBE_HPP

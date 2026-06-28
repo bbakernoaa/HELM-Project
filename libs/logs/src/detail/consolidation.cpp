@@ -16,14 +16,15 @@
 ///   with a single-rank Rank_Range bearing the sentinel rank -1. Issues NO MPI.
 
 #include "logs/detail/consolidation.hpp"
-#include "logs/detail/serialized_mpi_guard.hpp"
+
+#include <mpi.h>
 
 #include <algorithm>
 #include <cstring>
 #include <map>
 #include <vector>
 
-#include <mpi.h>
+#include "logs/detail/serialized_mpi_guard.hpp"
 
 namespace logs::detail {
 
@@ -41,7 +42,7 @@ std::vector<Rank_Range> compact_ranges(std::vector<int> ranks) {
 
     std::vector<Rank_Range> out;
     int first = ranks[0];
-    int last  = first;
+    int last = first;
 
     for (std::size_t i = 1; i < ranks.size(); ++i) {
         if (ranks[i] == last + 1) {
@@ -49,7 +50,7 @@ std::vector<Rank_Range> compact_ranges(std::vector<int> ranks) {
         } else {
             out.push_back(Rank_Range{first, last});
             first = ranks[i];
-            last  = first;
+            last = first;
         }
     }
     out.push_back(Rank_Range{first, last});
@@ -71,8 +72,7 @@ std::vector<Rank_Range> compact_ranges(std::vector<int> ranks) {
 namespace {
 
 struct KeyCompare {
-    bool operator()(const Consolidation_Key& a,
-                    const Consolidation_Key& b) const {
+    bool operator()(const Consolidation_Key &a, const Consolidation_Key &b) const {
         if (a.severity != b.severity) {
             return static_cast<int>(a.severity) < static_cast<int>(b.severity);
         }
@@ -81,37 +81,25 @@ struct KeyCompare {
 };
 
 /// Serialize a single record's key + rank into a byte buffer.
-void serialize_record(const Log_Record& record, int rank,
-                      std::vector<char>& buffer) {
+void serialize_record(const Log_Record &record, int rank, std::vector<char> &buffer) {
     int severity = static_cast<int>(record.severity());
-    int msg_len  = static_cast<int>(record.message().size());
+    int msg_len = static_cast<int>(record.message().size());
 
     // Append severity (4 bytes)
-    buffer.insert(buffer.end(),
-                  reinterpret_cast<const char*>(&severity),
-                  reinterpret_cast<const char*>(&severity) + sizeof(int));
+    buffer.insert(buffer.end(), reinterpret_cast<const char *>(&severity), reinterpret_cast<const char *>(&severity) + sizeof(int));
 
     // Append message length (4 bytes)
-    buffer.insert(buffer.end(),
-                  reinterpret_cast<const char*>(&msg_len),
-                  reinterpret_cast<const char*>(&msg_len) + sizeof(int));
+    buffer.insert(buffer.end(), reinterpret_cast<const char *>(&msg_len), reinterpret_cast<const char *>(&msg_len) + sizeof(int));
 
     // Append message characters
-    buffer.insert(buffer.end(),
-                  record.message().data(),
-                  record.message().data() + msg_len);
+    buffer.insert(buffer.end(), record.message().data(), record.message().data() + msg_len);
 
     // Append rank (4 bytes)
-    buffer.insert(buffer.end(),
-                  reinterpret_cast<const char*>(&rank),
-                  reinterpret_cast<const char*>(&rank) + sizeof(int));
+    buffer.insert(buffer.end(), reinterpret_cast<const char *>(&rank), reinterpret_cast<const char *>(&rank) + sizeof(int));
 }
 
 /// Deserialize all records from a gathered buffer into key->ranks map.
-void deserialize_records(
-    const std::vector<char>& buffer,
-    std::map<Consolidation_Key, std::vector<int>, KeyCompare>& groups) {
-
+void deserialize_records(const std::vector<char> &buffer, std::map<Consolidation_Key, std::vector<int>, KeyCompare> &groups) {
     std::size_t offset = 0;
     while (offset + 3 * sizeof(int) <= buffer.size()) {
         // Read severity
@@ -125,14 +113,12 @@ void deserialize_records(
         offset += sizeof(int);
 
         // Bounds check
-        if (msg_len < 0 ||
-            offset + static_cast<std::size_t>(msg_len) + sizeof(int) > buffer.size()) {
+        if (msg_len < 0 || offset + static_cast<std::size_t>(msg_len) + sizeof(int) > buffer.size()) {
             break;
         }
 
         // Read message
-        std::string message(buffer.data() + offset,
-                            static_cast<std::size_t>(msg_len));
+        std::string message(buffer.data() + offset, static_cast<std::size_t>(msg_len));
         offset += static_cast<std::size_t>(msg_len);
 
         // Read rank
@@ -141,18 +127,14 @@ void deserialize_records(
         offset += sizeof(int);
 
         // Group by key
-        Consolidation_Key key{static_cast<Severity_Level>(severity),
-                              std::move(message)};
+        Consolidation_Key key{static_cast<Severity_Level>(severity), std::move(message)};
         groups[key].push_back(rank);
     }
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
-std::vector<Consolidated_Record>
-Consolidation_Engine::consolidate_collective(
-    std::span<const Log_Record> buffered,
-    Mpi_Environment& env) noexcept {
+std::vector<Consolidated_Record> Consolidation_Engine::consolidate_collective(std::span<const Log_Record> buffered, Mpi_Environment &env) noexcept {
     try {
         // Acquire the serialization guard for all MPI calls.
         Serialized_MPI_Guard guard(env);
@@ -168,7 +150,7 @@ Consolidation_Engine::consolidate_collective(
 
         // Step 1: Serialize local buffered records (key + rank only).
         std::vector<char> local_data;
-        for (const auto& record : buffered) {
+        for (const auto &record : buffered) {
             serialize_record(record, my_rank, local_data);
         }
 
@@ -180,9 +162,7 @@ Consolidation_Engine::consolidate_collective(
             all_sizes.resize(static_cast<std::size_t>(comm_size));
         }
 
-        if (MPI_Gather(&local_size, 1, MPI_INT,
-                       all_sizes.data(), 1, MPI_INT,
-                       0, comm) != MPI_SUCCESS) {
+        if (MPI_Gather(&local_size, 1, MPI_INT, all_sizes.data(), 1, MPI_INT, 0, comm) != MPI_SUCCESS) {
             return {};
         }
 
@@ -200,10 +180,8 @@ Consolidation_Engine::consolidate_collective(
             all_data.resize(static_cast<std::size_t>(total));
         }
 
-        if (MPI_Gatherv(local_data.data(), local_size, MPI_CHAR,
-                        all_data.data(), all_sizes.data(),
-                        displacements.data(), MPI_CHAR,
-                        0, comm) != MPI_SUCCESS) {
+        if (MPI_Gatherv(local_data.data(), local_size, MPI_CHAR, all_data.data(), all_sizes.data(), displacements.data(), MPI_CHAR, 0, comm) !=
+            MPI_SUCCESS) {
             return {};
         }
 
@@ -221,14 +199,13 @@ Consolidation_Engine::consolidate_collective(
         std::vector<Consolidated_Record> result;
         result.reserve(groups.size());
 
-        for (auto& [key, ranks] : groups) {
+        for (auto &[key, ranks] : groups) {
             auto ranges = compact_ranges(std::move(ranks));
             int count = 0;
-            for (const auto& r : ranges) {
+            for (const auto &r : ranges) {
                 count += (r.last - r.first + 1);
             }
-            result.push_back(Consolidated_Record{
-                std::move(key), count, std::move(ranges)});
+            result.push_back(Consolidated_Record{std::move(key), count, std::move(ranges)});
         }
 
         return result;
@@ -238,16 +215,13 @@ Consolidation_Engine::consolidate_collective(
     }
 }
 
-std::vector<Consolidated_Record>
-Consolidation_Engine::consolidate_local(
-    std::span<const Log_Record> buffered) noexcept {
+std::vector<Consolidated_Record> Consolidation_Engine::consolidate_local(std::span<const Log_Record> buffered) noexcept {
     // Local (no-communicator) path: consolidate locally, annotate each
     // representative with a single-rank Rank_Range bearing the sentinel
     // rank -1. Issues NO MPI communication (Requirement 4.9).
     try {
         struct LocalKeyCompare {
-            bool operator()(const Consolidation_Key& a,
-                            const Consolidation_Key& b) const {
+            bool operator()(const Consolidation_Key &a, const Consolidation_Key &b) const {
                 if (a.severity != b.severity) {
                     return static_cast<int>(a.severity) < static_cast<int>(b.severity);
                 }
@@ -257,7 +231,7 @@ Consolidation_Engine::consolidate_local(
 
         std::map<Consolidation_Key, bool, LocalKeyCompare> seen;
 
-        for (const auto& record : buffered) {
+        for (const auto &record : buffered) {
             Consolidation_Key key{record.severity(), std::string(record.message())};
             seen[key] = true;
         }
@@ -265,20 +239,17 @@ Consolidation_Engine::consolidate_local(
         std::vector<Consolidated_Record> result;
         result.reserve(seen.size());
 
-        for (auto& [key, _] : seen) {
+        for (auto &[key, _] : seen) {
             // Annotate with sentinel rank -1 Rank_Range (Requirement 4.9).
             // Count how many records matched this key.
             int count = 0;
-            for (const auto& record : buffered) {
-                if (record.severity() == key.severity &&
-                    record.message() == key.message) {
+            for (const auto &record : buffered) {
+                if (record.severity() == key.severity && record.message() == key.message) {
                     ++count;
                 }
             }
             result.push_back(Consolidated_Record{
-                std::move(key),
-                count,
-                std::vector<Rank_Range>{{-1, -1}}  // Sentinel rank -1
+                std::move(key), count, std::vector<Rank_Range>{{-1, -1}}  // Sentinel rank -1
             });
         }
 
@@ -288,4 +259,4 @@ Consolidation_Engine::consolidate_local(
     }
 }
 
-} // namespace logs::detail
+}  // namespace logs::detail

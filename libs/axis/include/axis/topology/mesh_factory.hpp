@@ -31,11 +31,9 @@
 /// This is the replacement for ESMF Grid/Mesh/LocStream factory functions.
 /// No producer-specific branching ever appears — only ConventionKind dispatch.
 
+#include <Kokkos_Core.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
-
-#include <Kokkos_Core.hpp>
-
 #include <string>
 
 namespace axis::topology {
@@ -50,7 +48,7 @@ namespace axis::topology {
 ///
 /// Because all methods are static, this class cannot be instantiated (the default constructor is deleted).
 class MeshFactory {
-public:
+   public:
     /// @brief Deleted default constructor to prevent instantiation of this static factory class.
     MeshFactory() = delete;
 
@@ -71,10 +69,10 @@ public:
     /// @tparam MemorySpace The target Kokkos memory space for the resulting unstructured mesh. Defaults to Kokkos::HostSpace.
     /// @param descriptor The populated ingest::GridDescriptor instance from a file or grid producer.
     /// @return A complete UnstructuredMesh instance residing in the specified MemorySpace.
-    /// @throws std::invalid_argument If the descriptor has an unknown kind, missing required fields, inconsistent buffer extents, or null/empty required buffers.
+    /// @throws std::invalid_argument If the descriptor has an unknown kind, missing required fields, inconsistent buffer extents, or null/empty
+    /// required buffers.
     template <class MemorySpace = Kokkos::HostSpace>
-    [[nodiscard]] static UnstructuredMesh<MemorySpace>
-    from_descriptor(const ingest::GridDescriptor& descriptor);
+    [[nodiscard]] static UnstructuredMesh<MemorySpace> from_descriptor(const ingest::GridDescriptor &descriptor);
 
     /// @brief Generates an UnstructuredMesh for a registered named grid token.
     ///
@@ -86,8 +84,7 @@ public:
     /// @return A complete UnstructuredMesh instance residing in the specified MemorySpace.
     /// @throws std::invalid_argument If the provided name is unknown, malformed, or unregistered.
     template <class MemorySpace = Kokkos::HostSpace>
-    [[nodiscard]] static UnstructuredMesh<MemorySpace>
-    from_named(const std::string& name);
+    [[nodiscard]] static UnstructuredMesh<MemorySpace> from_named(const std::string &name);
 
     /// @brief Generates an UnstructuredMesh procedurally from a set of rule parameters.
     ///
@@ -99,10 +96,9 @@ public:
     /// @return A complete UnstructuredMesh instance residing in the specified MemorySpace.
     /// @throws std::invalid_argument If the parameters are inconsistent or invalid.
     template <class MemorySpace = Kokkos::HostSpace>
-    [[nodiscard]] static UnstructuredMesh<MemorySpace>
-    from_rules(const ingest::GridRulesParams& params);
+    [[nodiscard]] static UnstructuredMesh<MemorySpace> from_rules(const ingest::GridRulesParams &params);
 };
 
-} // namespace axis::topology
+}  // namespace axis::topology
 
-#endif // AXIS_TOPOLOGY_MESH_FACTORY_HPP
+#endif  // AXIS_TOPOLOGY_MESH_FACTORY_HPP

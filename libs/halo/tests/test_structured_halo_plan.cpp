@@ -6,7 +6,7 @@
 // ─── 1D Plan Tests ──────────────────────────────────────────────────────────
 
 class StructuredHaloPlan1DTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
     }
@@ -84,9 +84,7 @@ TEST_F(StructuredHaloPlan1DTest, ValidationThrowsOnSmallExtent) {
     std::array<int, 2> neighbors = {0, 1};
     std::array<std::size_t, 1> halo_widths = {2};
 
-    EXPECT_THROW(
-        (halo::Structured_Halo_Plan<1>(extents, neighbors, halo_widths, *comm_)),
-        std::invalid_argument);
+    EXPECT_THROW((halo::Structured_Halo_Plan<1>(extents, neighbors, halo_widths, *comm_)), std::invalid_argument);
 }
 
 TEST_F(StructuredHaloPlan1DTest, MinimalValidExtent) {
@@ -95,14 +93,13 @@ TEST_F(StructuredHaloPlan1DTest, MinimalValidExtent) {
     std::array<int, 2> neighbors = {0, 1};
     std::array<std::size_t, 1> halo_widths = {2};
 
-    EXPECT_NO_THROW(
-        (halo::Structured_Halo_Plan<1>(extents, neighbors, halo_widths, *comm_)));
+    EXPECT_NO_THROW((halo::Structured_Halo_Plan<1>(extents, neighbors, halo_widths, *comm_)));
 }
 
 // ─── 2D Plan Tests ──────────────────────────────────────────────────────────
 
 class StructuredHaloPlan2DTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
     }
@@ -221,15 +218,13 @@ TEST_F(StructuredHaloPlan2DTest, ValidationThrowsPerDimension) {
     std::array<int, 4> neighbors = {0, 1, 2, 3};
     std::array<std::size_t, 2> halo_widths = {2, 2};
 
-    EXPECT_THROW(
-        (halo::Structured_Halo_Plan<2>(extents, neighbors, halo_widths, *comm_)),
-        std::invalid_argument);
+    EXPECT_THROW((halo::Structured_Halo_Plan<2>(extents, neighbors, halo_widths, *comm_)), std::invalid_argument);
 }
 
 // ─── 3D Plan Tests ──────────────────────────────────────────────────────────
 
 class StructuredHaloPlan3DTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
     }
@@ -283,7 +278,7 @@ TEST_F(StructuredHaloPlan3DTest, NonPeriodicMixedBoundary) {
 // ─── 4D Plan Tests ──────────────────────────────────────────────────────────
 
 class StructuredHaloPlan4DTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
     }
@@ -317,7 +312,7 @@ TEST_F(StructuredHaloPlan4DTest, EightFaceNeighbors) {
 // ─── Bounds Checking Tests ──────────────────────────────────────────────────
 
 class StructuredHaloPlanBoundsTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
     }
@@ -351,13 +346,13 @@ TEST_F(StructuredHaloPlanBoundsTest, DimIndexOutOfRange) {
 // ─── Layout Detection Tests ─────────────────────────────────────────────────
 
 TEST(StructuredHaloPlanLayoutTest, DetectsLayoutLeft) {
-    using view_left = Kokkos::View<double**, Kokkos::LayoutLeft>;
+    using view_left = Kokkos::View<double **, Kokkos::LayoutLeft>;
     EXPECT_TRUE((halo::Structured_Halo_Plan<2>::is_layout_left<view_left>()));
     EXPECT_FALSE((halo::Structured_Halo_Plan<2>::is_layout_right<view_left>()));
 }
 
 TEST(StructuredHaloPlanLayoutTest, DetectsLayoutRight) {
-    using view_right = Kokkos::View<double**, Kokkos::LayoutRight>;
+    using view_right = Kokkos::View<double **, Kokkos::LayoutRight>;
     EXPECT_FALSE((halo::Structured_Halo_Plan<2>::is_layout_left<view_right>()));
     EXPECT_TRUE((halo::Structured_Halo_Plan<2>::is_layout_right<view_right>()));
 }

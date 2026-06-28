@@ -5,20 +5,23 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-#include <vector>
-
-#include <axis/types.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/halo_pattern.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/types.hpp>
+#include <vector>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -41,27 +44,38 @@ TEST(DistributedApply, EquivalentToSingleRank) {
 
     // Build the matrix as if running distributed: col indices 0,1,2 are local,
     // col indices 3,4 map to gathered_halo_src[0], gathered_halo_src[1]
-    Kokkos::View<double*, MemSpace>  weights("weights", nnz);
-    Kokkos::View<index_t*, MemSpace> rows("rows", nnz);
-    Kokkos::View<index_t*, MemSpace> cols("cols", nnz);
-    Kokkos::View<double*, MemSpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemSpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemSpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemSpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemSpace> weights("weights", nnz);
+    Kokkos::View<index_t *, MemSpace> rows("rows", nnz);
+    Kokkos::View<index_t *, MemSpace> cols("cols", nnz);
+    Kokkos::View<double *, MemSpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemSpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemSpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemSpace> area_b("area_b", n_dst);
 
-    weights(0) = 0.5; rows(0) = 0; cols(0) = 0;  // dst[0] += 0.5*local[0]
-    weights(1) = 0.5; rows(1) = 0; cols(1) = 3;  // dst[0] += 0.5*remote[0]
-    weights(2) = 0.3; rows(2) = 1; cols(2) = 1;  // dst[1] += 0.3*local[1]
-    weights(3) = 0.7; rows(3) = 1; cols(3) = 4;  // dst[1] += 0.7*remote[1]
+    weights(0) = 0.5;
+    rows(0) = 0;
+    cols(0) = 0;  // dst[0] += 0.5*local[0]
+    weights(1) = 0.5;
+    rows(1) = 0;
+    cols(1) = 3;  // dst[0] += 0.5*remote[0]
+    weights(2) = 0.3;
+    rows(2) = 1;
+    cols(2) = 1;  // dst[1] += 0.3*local[1]
+    weights(3) = 0.7;
+    rows(3) = 1;
+    cols(3) = 4;  // dst[1] += 0.7*remote[1]
 
-    for (std::size_t i = 0; i < n_src; ++i) { frac_a(i) = 1.0; area_a(i) = 1.0; }
-    for (std::size_t j = 0; j < n_dst; ++j) { frac_b(j) = 1.0; area_b(j) = 1.0; }
+    for (std::size_t i = 0; i < n_src; ++i) {
+        frac_a(i) = 1.0;
+        area_a(i) = 1.0;
+    }
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        frac_b(j) = 1.0;
+        area_b(j) = 1.0;
+    }
 
-    solver::InterpolationMatrix<MemSpace> matrix(
-        std::move(weights), std::move(rows), std::move(cols),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    solver::InterpolationMatrix<MemSpace> matrix(std::move(weights), std::move(rows), std::move(cols), std::move(frac_a), std::move(frac_b),
+                                                 std::move(area_a), std::move(area_b), n_src, n_dst);
 
     // HaloPattern: 2 remote cells from 1 neighbor (rank 1)
     solver::HaloPattern pattern;
@@ -72,7 +86,7 @@ TEST(DistributedApply, EquivalentToSingleRank) {
 
     // Source data
     std::vector<double> local_src = {2.0, 4.0, 6.0};
-    std::vector<double> halo_src  = {8.0, 10.0};  // remote values
+    std::vector<double> halo_src = {8.0, 10.0};  // remote values
 
     // Distributed apply
     std::vector<double> dst_dist(n_dst, 0.0);
@@ -105,22 +119,23 @@ TEST(DistributedApply, HaloSizeMismatchThrows) {
     constexpr std::size_t n_dst = 2;
     constexpr std::size_t nnz = 2;
 
-    Kokkos::View<double*, MemSpace>  weights("w", nnz);
-    Kokkos::View<index_t*, MemSpace> rows("r", nnz);
-    Kokkos::View<index_t*, MemSpace> cols("c", nnz);
-    Kokkos::View<double*, MemSpace>  frac_a("fa", n_src);
-    Kokkos::View<double*, MemSpace>  frac_b("fb", n_dst);
-    Kokkos::View<double*, MemSpace>  area_a("aa", n_src);
-    Kokkos::View<double*, MemSpace>  area_b("ab", n_dst);
+    Kokkos::View<double *, MemSpace> weights("w", nnz);
+    Kokkos::View<index_t *, MemSpace> rows("r", nnz);
+    Kokkos::View<index_t *, MemSpace> cols("c", nnz);
+    Kokkos::View<double *, MemSpace> frac_a("fa", n_src);
+    Kokkos::View<double *, MemSpace> frac_b("fb", n_dst);
+    Kokkos::View<double *, MemSpace> area_a("aa", n_src);
+    Kokkos::View<double *, MemSpace> area_b("ab", n_dst);
 
-    weights(0) = 1.0; rows(0) = 0; cols(0) = 0;
-    weights(1) = 1.0; rows(1) = 1; cols(1) = 1;
+    weights(0) = 1.0;
+    rows(0) = 0;
+    cols(0) = 0;
+    weights(1) = 1.0;
+    rows(1) = 1;
+    cols(1) = 1;
 
-    solver::InterpolationMatrix<MemSpace> matrix(
-        std::move(weights), std::move(rows), std::move(cols),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    solver::InterpolationMatrix<MemSpace> matrix(std::move(weights), std::move(rows), std::move(cols), std::move(frac_a), std::move(frac_b),
+                                                 std::move(area_a), std::move(area_b), n_src, n_dst);
 
     solver::HaloPattern pattern;
     pattern.source_ranks = {1};
@@ -136,9 +151,7 @@ TEST(DistributedApply, HaloSizeMismatchThrows) {
     field_view<const double, 1> hv(bad_halo.data(), 5);
     field_view<double, 1> dv(dst.data(), n_dst);
 
-    EXPECT_THROW(
-        solver::apply<MemSpace>(matrix, pattern, lv, hv, dv),
-        std::invalid_argument);
+    EXPECT_THROW(solver::apply<MemSpace>(matrix, pattern, lv, hv, dv), std::invalid_argument);
 }
 
 }  // namespace axis::test

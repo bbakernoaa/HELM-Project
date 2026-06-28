@@ -31,7 +31,6 @@
 ///       No raw CUDA, HIP, or OpenMP constructs appear in this file.
 
 #include <Kokkos_Core.hpp>
-
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -52,9 +51,9 @@ namespace span {
 /// @note When the full SPAN library materializes, this alias will be replaced
 ///       by the authoritative definition. The interface contract (pointer +
 ///       extent, unmanaged, device-accessible) remains stable.
-using FieldView = Kokkos::View<double*, Kokkos::MemoryUnmanaged>;
+using FieldView = Kokkos::View<double *, Kokkos::MemoryUnmanaged>;
 
-} // namespace span
+}  // namespace span
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BLEND namespace
@@ -71,8 +70,8 @@ namespace blend {
 /// The profile acts as a compile-time-friendly static switch that routes to
 /// the appropriate kernel without virtual dispatch or function pointers.
 enum class BlendProfile {
-    Linear, ///< Weighted linear interpolation: target = left*(1-α) + right*α
-    Step    ///< Nearest-neighbor snap: target = (α < 0.5) ? left : right
+    Linear,  ///< Weighted linear interpolation: target = left*(1-α) + right*α
+    Step     ///< Nearest-neighbor snap: target = (α < 0.5) ? left : right
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -106,30 +105,19 @@ enum class BlendProfile {
 ///
 /// @throws std::invalid_argument if extents are mismatched.
 struct LinearBlendKernel {
-
-    static void apply(const span::FieldView& left,
-                      const span::FieldView& right,
-                      const span::FieldView& target,
-                      const double alpha) {
-
+    static void apply(const span::FieldView &left, const span::FieldView &right, const span::FieldView &target, const double alpha) {
         const std::size_t n = left.extent(0);
 
         if (right.extent(0) != n || target.extent(0) != n) {
-            throw std::invalid_argument(
-                "LinearBlendKernel: extent mismatch — left(" +
-                std::to_string(n) + "), right(" +
-                std::to_string(right.extent(0)) + "), target(" +
-                std::to_string(target.extent(0)) + ")");
+            throw std::invalid_argument("LinearBlendKernel: extent mismatch — left(" + std::to_string(n) + "), right(" +
+                                        std::to_string(right.extent(0)) + "), target(" + std::to_string(target.extent(0)) + ")");
         }
 
         const double one_minus_alpha = 1.0 - alpha;
 
         Kokkos::parallel_for(
-            "BLEND::LinearBlend",
-            Kokkos::RangePolicy<>(0, n),
-            KOKKOS_LAMBDA(const std::size_t i) {
-                target(i) = left(i) * one_minus_alpha + right(i) * alpha;
-            });
+            "BLEND::LinearBlend", Kokkos::RangePolicy<>(0, n),
+            KOKKOS_LAMBDA(const std::size_t i) { target(i) = left(i) * one_minus_alpha + right(i) * alpha; });
 
         Kokkos::fence("BLEND::LinearBlend::fence");
     }
@@ -170,20 +158,12 @@ struct LinearBlendKernel {
 ///
 /// @throws std::invalid_argument if extents are mismatched.
 struct StepBlendKernel {
-
-    static void apply(const span::FieldView& left,
-                      const span::FieldView& right,
-                      const span::FieldView& target,
-                      const double alpha) {
-
+    static void apply(const span::FieldView &left, const span::FieldView &right, const span::FieldView &target, const double alpha) {
         const std::size_t n = left.extent(0);
 
         if (right.extent(0) != n || target.extent(0) != n) {
-            throw std::invalid_argument(
-                "StepBlendKernel: extent mismatch — left(" +
-                std::to_string(n) + "), right(" +
-                std::to_string(right.extent(0)) + "), target(" +
-                std::to_string(target.extent(0)) + ")");
+            throw std::invalid_argument("StepBlendKernel: extent mismatch — left(" + std::to_string(n) + "), right(" +
+                                        std::to_string(right.extent(0)) + "), target(" + std::to_string(target.extent(0)) + ")");
         }
 
         // Precompute the selection flag outside the kernel to avoid
@@ -191,11 +171,7 @@ struct StepBlendKernel {
         const bool snap_right = (alpha >= 0.5);
 
         Kokkos::parallel_for(
-            "BLEND::StepBlend",
-            Kokkos::RangePolicy<>(0, n),
-            KOKKOS_LAMBDA(const std::size_t i) {
-                target(i) = snap_right ? right(i) : left(i);
-            });
+            "BLEND::StepBlend", Kokkos::RangePolicy<>(0, n), KOKKOS_LAMBDA(const std::size_t i) { target(i) = snap_right ? right(i) : left(i); });
 
         Kokkos::fence("BLEND::StepBlend::fence");
     }
@@ -233,12 +209,8 @@ struct StepBlendKernel {
 ///
 /// @throws std::invalid_argument if field extents are mismatched.
 /// @throws std::invalid_argument if profile is not a recognized BlendProfile value.
-inline void execute_blend(const span::FieldView& left,
-                          const span::FieldView& right,
-                          const span::FieldView& target,
-                          const double alpha,
+inline void execute_blend(const span::FieldView &left, const span::FieldView &right, const span::FieldView &target, const double alpha,
                           const BlendProfile profile) {
-
     switch (profile) {
         case BlendProfile::Linear:
             LinearBlendKernel::apply(left, right, target, alpha);
@@ -247,12 +219,10 @@ inline void execute_blend(const span::FieldView& left,
             StepBlendKernel::apply(left, right, target, alpha);
             break;
         default:
-            throw std::invalid_argument(
-                "execute_blend: unknown BlendProfile value (" +
-                std::to_string(static_cast<int>(profile)) + ")");
+            throw std::invalid_argument("execute_blend: unknown BlendProfile value (" + std::to_string(static_cast<int>(profile)) + ")");
     }
 }
 
-} // namespace blend
+}  // namespace blend
 
-#endif // BLEND_HELM_MATH_BLEND_HPP
+#endif  // BLEND_HELM_MATH_BLEND_HPP

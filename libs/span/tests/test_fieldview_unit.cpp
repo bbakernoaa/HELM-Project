@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Unit tests for span::FieldView<T, Rank> construction and accessors (Task 3.1)
 
-#include <span/field_view.hpp>
-
 #include <gtest/gtest.h>
 
 #include <array>
 #include <cstddef>
+#include <span/field_view.hpp>
 #include <stdexcept>
 #include <vector>
 
@@ -64,7 +63,7 @@ TEST(FieldViewConstruction, HostOnlyRank3) {
     EXPECT_EQ(fv.extent(2), 4u);
     EXPECT_EQ(fv.rank(), 3u);
 
-    const auto& stored_exts = fv.extents();
+    const auto &stored_exts = fv.extents();
     EXPECT_EQ(stored_exts[0], 2u);
     EXPECT_EQ(stored_exts[1], 3u);
     EXPECT_EQ(stored_exts[2], 4u);
@@ -72,19 +71,13 @@ TEST(FieldViewConstruction, HostOnlyRank3) {
 
 TEST(FieldViewConstruction, HostOnlyNullPtrThrows) {
     std::array<std::size_t, 2> exts = {10, 10};
-    EXPECT_THROW(
-        (span::FieldView<double, 2>(nullptr, exts)),
-        std::invalid_argument
-    );
+    EXPECT_THROW((span::FieldView<double, 2>(nullptr, exts)), std::invalid_argument);
 }
 
 TEST(FieldViewConstruction, HostOnlyZeroExtentThrows) {
     std::vector<double> buffer(10);
     std::array<std::size_t, 2> exts = {10, 0};  // second extent is 0
-    EXPECT_THROW(
-        (span::FieldView<double, 2>(buffer.data(), exts)),
-        std::invalid_argument
-    );
+    EXPECT_THROW((span::FieldView<double, 2>(buffer.data(), exts)), std::invalid_argument);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -112,19 +105,13 @@ TEST(FieldViewConstruction, DeviceOnlyRank1) {
 
 TEST(FieldViewConstruction, DeviceOnlyNullDevicePtrThrows) {
     std::array<std::size_t, 1> exts = {10};
-    EXPECT_THROW(
-        (span::FieldView<double, 1>(nullptr, static_cast<double*>(nullptr), exts)),
-        std::invalid_argument
-    );
+    EXPECT_THROW((span::FieldView<double, 1>(nullptr, static_cast<double *>(nullptr), exts)), std::invalid_argument);
 }
 
 TEST(FieldViewConstruction, DeviceOnlyZeroExtentThrows) {
     std::vector<double> device_buffer(10);
     std::array<std::size_t, 2> exts = {0, 5};
-    EXPECT_THROW(
-        (span::FieldView<double, 2>(nullptr, device_buffer.data(), exts)),
-        std::invalid_argument
-    );
+    EXPECT_THROW((span::FieldView<double, 2>(nullptr, device_buffer.data(), exts)), std::invalid_argument);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -151,11 +138,7 @@ TEST(FieldViewConstruction, DualPointerBothValid) {
 TEST(FieldViewConstruction, DualPointerBothNull) {
     // Req 4.11: both null → invalid
     std::array<std::size_t, 1> exts = {10};
-    span::FieldView<double, 1> fv(
-        static_cast<double*>(nullptr),
-        static_cast<double*>(nullptr),
-        exts
-    );
+    span::FieldView<double, 1> fv(static_cast<double *>(nullptr), static_cast<double *>(nullptr), exts);
 
     EXPECT_FALSE(fv.valid());
     EXPECT_EQ(fv.host_data(), nullptr);
@@ -167,11 +150,7 @@ TEST(FieldViewConstruction, DualPointerHostOnlyProvided) {
     std::vector<double> host_buf(30);
     std::array<std::size_t, 1> exts = {30};
 
-    span::FieldView<double, 1> fv(
-        host_buf.data(),
-        static_cast<double*>(nullptr),
-        exts
-    );
+    span::FieldView<double, 1> fv(host_buf.data(), static_cast<double *>(nullptr), exts);
 
     EXPECT_TRUE(fv.valid());
     EXPECT_TRUE(fv.has_host_ptr());
@@ -183,11 +162,7 @@ TEST(FieldViewConstruction, DualPointerDeviceOnlyProvided) {
     std::vector<double> device_buf(30);
     std::array<std::size_t, 1> exts = {30};
 
-    span::FieldView<double, 1> fv(
-        static_cast<double*>(nullptr),
-        device_buf.data(),
-        exts
-    );
+    span::FieldView<double, 1> fv(static_cast<double *>(nullptr), device_buf.data(), exts);
 
     EXPECT_TRUE(fv.valid());
     EXPECT_FALSE(fv.has_host_ptr());

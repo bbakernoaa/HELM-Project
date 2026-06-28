@@ -1,15 +1,14 @@
 #include "halo/window_guard.hpp"
 
 #include <mpi.h>
+
 #include <utility>
 
 namespace halo {
 
 // ─── Construction ────────────────────────────────────────────────────────────
 
-Window_Guard::Window_Guard(MPI_Win win) noexcept
-    : win_{win}
-{}
+Window_Guard::Window_Guard(MPI_Win win) noexcept : win_{win} {}
 
 // ─── Destruction ─────────────────────────────────────────────────────────────
 
@@ -37,12 +36,10 @@ Window_Guard::~Window_Guard() noexcept {
 
 // ─── Move Semantics ──────────────────────────────────────────────────────────
 
-Window_Guard::Window_Guard(Window_Guard&& other) noexcept
-    : win_{std::exchange(other.win_, MPI_WIN_NULL)},
-      epoch_active_{std::exchange(other.epoch_active_, false)}
-{}
+Window_Guard::Window_Guard(Window_Guard &&other) noexcept
+    : win_{std::exchange(other.win_, MPI_WIN_NULL)}, epoch_active_{std::exchange(other.epoch_active_, false)} {}
 
-Window_Guard& Window_Guard::operator=(Window_Guard&& other) noexcept {
+Window_Guard &Window_Guard::operator=(Window_Guard &&other) noexcept {
     if (this != &other) {
         // Clean up current handle (same logic as destructor, errors swallowed)
         if (win_ != MPI_WIN_NULL) {
@@ -73,4 +70,4 @@ void Window_Guard::set_epoch_active(bool active) noexcept {
     epoch_active_ = active;
 }
 
-} // namespace halo
+}  // namespace halo

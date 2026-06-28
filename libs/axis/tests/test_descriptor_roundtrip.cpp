@@ -5,20 +5,23 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/topology/mesh_factory.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
 #include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -29,21 +32,19 @@ using MemSpace = Kokkos::HostSpace;
 static topology::UnstructuredMesh<MemSpace> make_small_mesh() {
     const std::size_t n = 2;
     const double dx = 1.0;
-    Kokkos::View<double*, MemSpace> cx("cx", n * n);
-    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    Kokkos::View<double *, MemSpace> cx("cx", n * n);
+    Kokkos::View<double *, MemSpace> cy("cy", n * n);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             cx(i + j * n) = (static_cast<double>(i) + 0.5) * dx;
             cy(i + j * n) = (static_cast<double>(j) + 0.5) * dx;
         }
     }
-    topology::StructuredGrid<MemSpace> grid(
-        n, n, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::Cartesian3D);
+    topology::StructuredGrid<MemSpace> grid(n, n, std::move(cx), std::move(cy), topology::CoordinateSystem::Cartesian3D);
 
     const std::size_t nc = n + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
-    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    Kokkos::View<double *, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double *, MemSpace> cry("cry", nc * nc);
     for (std::size_t j = 0; j <= n; ++j) {
         for (std::size_t i = 0; i <= n; ++i) {
             crx(i + j * nc) = static_cast<double>(i) * dx;
@@ -77,26 +78,25 @@ TEST(DescriptorRoundtrip, MeshToUgridAndBack) {
 
     // Verify node coordinates match
     auto orig_coords = original.node_coords();
-    auto new_coords  = rebuilt.node_coords();
+    auto new_coords = rebuilt.node_coords();
     ASSERT_EQ(orig_coords.extent(0), new_coords.extent(0));
     ASSERT_EQ(orig_coords.extent(1), new_coords.extent(1));
     for (std::size_t i = 0; i < orig_coords.extent(0); ++i) {
         for (std::size_t d = 0; d < orig_coords.extent(1); ++d) {
-            EXPECT_NEAR(orig_coords(i, d), new_coords(i, d), 1e-14)
-                << "Node " << i << " dim " << d;
+            EXPECT_NEAR(orig_coords(i, d), new_coords(i, d), 1e-14) << "Node " << i << " dim " << d;
         }
     }
 
     // Verify connectivity matches
     auto orig_offsets = original.conn_offsets();
-    auto new_offsets  = rebuilt.conn_offsets();
+    auto new_offsets = rebuilt.conn_offsets();
     ASSERT_EQ(orig_offsets.extent(0), new_offsets.extent(0));
     for (std::size_t i = 0; i < orig_offsets.extent(0); ++i) {
         EXPECT_EQ(orig_offsets[i], new_offsets[i]);
     }
 
     auto orig_indices = original.conn_indices();
-    auto new_indices  = rebuilt.conn_indices();
+    auto new_indices = rebuilt.conn_indices();
     ASSERT_EQ(orig_indices.extent(0), new_indices.extent(0));
     for (std::size_t i = 0; i < orig_indices.extent(0); ++i) {
         EXPECT_EQ(orig_indices[i], new_indices[i]);

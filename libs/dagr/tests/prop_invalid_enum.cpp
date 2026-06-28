@@ -12,9 +12,8 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <dagr/pipeline_config.hpp>
-
 #include <cstdio>
+#include <dagr/pipeline_config.hpp>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -29,12 +28,12 @@ const std::string VALID_TEMPORAL_PROFILES[] = {"linear", "step"};
 const std::string VALID_OOB_POLICIES[] = {"clamp", "cycle"};
 
 /// Check if a string is a valid temporal_profile value.
-bool is_valid_temporal_profile(const std::string& s) {
+bool is_valid_temporal_profile(const std::string &s) {
     return s == "linear" || s == "step";
 }
 
 /// Check if a string is a valid out_of_bounds_policy value.
-bool is_valid_oob_policy(const std::string& s) {
+bool is_valid_oob_policy(const std::string &s) {
     return s == "clamp" || s == "cycle";
 }
 
@@ -103,9 +102,7 @@ auto stream_name_gen() {
 
 /// Serialize a minimal pipeline YAML with the given stream fields.
 /// temporal_profile and out_of_bounds_policy are injected as-is.
-std::string make_yaml(const std::string& stream_name,
-                      const std::string& temporal_profile,
-                      const std::string& oob_policy) {
+std::string make_yaml(const std::string &stream_name, const std::string &temporal_profile, const std::string &oob_policy) {
     std::string yaml;
     yaml += "streams:\n";
     yaml += "  - name: " + stream_name + "\n";
@@ -121,10 +118,9 @@ std::string make_yaml(const std::string& stream_name,
 
 /// RAII temp file helper.
 class Temp_YAML_File {
-public:
-    explicit Temp_YAML_File(const std::string& content) {
-        path_ = std::filesystem::temp_directory_path() /
-                ("dagr_invalid_enum_" + std::to_string(counter_++) + ".yaml");
+   public:
+    explicit Temp_YAML_File(const std::string &content) {
+        path_ = std::filesystem::temp_directory_path() / ("dagr_invalid_enum_" + std::to_string(counter_++) + ".yaml");
         std::ofstream ofs(path_);
         ofs << content;
         ofs.close();
@@ -135,17 +131,19 @@ public:
         std::filesystem::remove(path_, ec);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
+    [[nodiscard]] const std::filesystem::path &path() const noexcept {
+        return path_;
+    }
 
-    Temp_YAML_File(const Temp_YAML_File&) = delete;
-    Temp_YAML_File& operator=(const Temp_YAML_File&) = delete;
+    Temp_YAML_File(const Temp_YAML_File &) = delete;
+    Temp_YAML_File &operator=(const Temp_YAML_File &) = delete;
 
-private:
+   private:
     std::filesystem::path path_;
     static inline int counter_ = 0;
 };
 
-} // anonymous namespace
+}  // anonymous namespace
 
 /// **Validates: Requirements 2.6**
 ///
@@ -167,7 +165,7 @@ RC_GTEST_PROP(InvalidEnumRejection, InvalidTemporalProfile, ()) {
     std::string error_msg;
     try {
         (void)dagr::parse_pipeline(tmp.path());
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         threw = true;
         error_msg = e.what();
     }
@@ -201,7 +199,7 @@ RC_GTEST_PROP(InvalidEnumRejection, InvalidOutOfBoundsPolicy, ()) {
     std::string error_msg;
     try {
         (void)dagr::parse_pipeline(tmp.path());
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         threw = true;
         error_msg = e.what();
     }

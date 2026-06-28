@@ -8,13 +8,12 @@
 /// Property 25: Borrowed Stream Lifecycle Is Untouched
 /// Validates: Requirements 6.4, 6.5
 
-#include <logs/sink.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <cstring>
+#include <logs/sink.hpp>
 #include <ostream>
 #include <streambuf>
 #include <string>
@@ -25,16 +24,16 @@ namespace {
 /// are invoked. This allows us to assert that Sink only calls write-related
 /// and sync-related methods, and never opens/closes/destroys the buffer.
 class SpyStreambuf : public std::streambuf {
-public:
+   public:
     // Counters for observed operations.
-    int xsputn_calls   = 0;
+    int xsputn_calls = 0;
     int overflow_calls = 0;
-    int sync_calls     = 0;
+    int sync_calls = 0;
 
     // Lifecycle operations that Sink must NEVER invoke.
-    bool open_called    = false;
-    bool close_called   = false;
-    bool destroyed      = false;
+    bool open_called = false;
+    bool close_called = false;
+    bool destroyed = false;
 
     // Captured written data for content verification.
     std::string written_data;
@@ -43,9 +42,9 @@ public:
         destroyed = true;
     }
 
-protected:
+   protected:
     /// Called by the stream for bulk writes.
-    std::streamsize xsputn(const char* s, std::streamsize count) override {
+    std::streamsize xsputn(const char *s, std::streamsize count) override {
         ++xsputn_calls;
         written_data.append(s, static_cast<std::size_t>(count));
         return count;
@@ -113,8 +112,8 @@ TEST(SinkLifecycle, FlushOnlyInvokesSync) {
 /// Verify that destroying a Sink does NOT destroy the underlying streambuf.
 /// The caller owns the stream lifecycle (non-owning semantics).
 TEST(SinkLifecycle, SinkDestructionDoesNotDestroyStream) {
-    auto* spy = new SpyStreambuf{};
-    auto* stream = new std::ostream{spy};
+    auto *spy = new SpyStreambuf{};
+    auto *stream = new std::ostream{spy};
 
     {
         logs::Sink sink{*stream};
@@ -161,9 +160,7 @@ TEST(SinkLifecycle, WriteAndFlushSequenceNoLifecycleSideEffects) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// **Validates: Requirements 6.4, 6.5**
-RC_GTEST_PROP(SinkLifecycleProperty,
-              ArbitraryWriteOnlyUsesWriteAndFlush,
-              ()) {
+RC_GTEST_PROP(SinkLifecycleProperty, ArbitraryWriteOnlyUsesWriteAndFlush, ()) {
     SpyStreambuf spy;
     std::ostream stream{&spy};
     logs::Sink sink{stream};
@@ -196,19 +193,16 @@ RC_GTEST_PROP(SinkLifecycleProperty,
 
 /// For any sequence of writes, verify all data is faithfully forwarded
 /// in order, and no lifecycle operations occur.
-RC_GTEST_PROP(SinkLifecycleProperty,
-              MultipleWritesPreserveOrderAndContent,
-              ()) {
+RC_GTEST_PROP(SinkLifecycleProperty, MultipleWritesPreserveOrderAndContent, ()) {
     SpyStreambuf spy;
     std::ostream stream{&spy};
     logs::Sink sink{stream};
 
     // Generate a non-empty sequence of strings.
-    const auto messages = *rc::gen::container<std::vector<std::string>>(
-        rc::gen::arbitrary<std::string>());
+    const auto messages = *rc::gen::container<std::vector<std::string>>(rc::gen::arbitrary<std::string>());
 
     std::string expected;
-    for (const auto& msg : messages) {
+    for (const auto &msg : messages) {
         const bool ok = sink.write(std::string_view{msg});
         RC_ASSERT(ok);
         expected += msg;
@@ -222,7 +216,7 @@ RC_GTEST_PROP(SinkLifecycleProperty,
     RC_ASSERT(!spy.close_called);
 }
 
-} // namespace (Property 25 tests)
+}  // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Sink Dispatch Semantics — Unit Tests and Property Tests
@@ -232,15 +226,15 @@ RC_GTEST_PROP(SinkLifecycleProperty,
 // Task 17.3: Property 24 — Sink Write-Failure Isolation
 // ═══════════════════════════════════════════════════════════════════════════════
 
-#include <logs/logger.hpp>
-#include "in_memory_sink.hpp"
-
 #include <algorithm>
 #include <array>
 #include <iostream>
+#include <logs/logger.hpp>
 #include <memory>
 #include <sstream>
 #include <vector>
+
+#include "in_memory_sink.hpp"
 
 namespace {
 
@@ -249,8 +243,8 @@ namespace {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class Throwing_Streambuf : public std::streambuf {
-protected:
-    std::streamsize xsputn(const char* /*s*/, std::streamsize /*n*/) override {
+   protected:
+    std::streamsize xsputn(const char * /*s*/, std::streamsize /*n*/) override {
         throw std::runtime_error("simulated write failure");
     }
 
@@ -258,7 +252,9 @@ protected:
         throw std::runtime_error("simulated write failure");
     }
 
-    int sync() override { return 0; }
+    int sync() override {
+        return 0;
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -282,8 +278,7 @@ TEST(SinkDispatch, MultiSinkWriteExactlyOnce) {
     logger.log(logs::Severity_Level::WARNING, "dispatch test");
 
     for (int i = 0; i < K; ++i) {
-        EXPECT_EQ(mem_sinks[i]->count(), 1u)
-            << "Sink " << i << " should receive exactly one write";
+        EXPECT_EQ(mem_sinks[i]->count(), 1u) << "Sink " << i << " should receive exactly one write";
         EXPECT_FALSE(mem_sinks[i]->entries().empty());
         // Verify all sinks received the same formatted text.
         EXPECT_EQ(mem_sinks[i]->entries()[0], mem_sinks[0]->entries()[0]);
@@ -296,7 +291,7 @@ TEST(SinkDispatch, ZeroSinksWritesToStderr) {
 
     // Capture stderr output.
     std::ostringstream captured;
-    std::streambuf* original_stderr = std::cerr.rdbuf();
+    std::streambuf *original_stderr = std::cerr.rdbuf();
     std::cerr.rdbuf(captured.rdbuf());
 
     logger.log(logs::Severity_Level::INFO, "stderr fallback test");
@@ -331,10 +326,8 @@ TEST(SinkDispatch, FailingSinkIsolation) {
 
     EXPECT_EQ(good_sink_1.count(), 1u);
     EXPECT_EQ(good_sink_2.count(), 1u);
-    EXPECT_NE(good_sink_1.entries()[0].find("failure isolation test"),
-              std::string::npos);
-    EXPECT_NE(good_sink_2.entries()[0].find("failure isolation test"),
-              std::string::npos);
+    EXPECT_NE(good_sink_1.entries()[0].find("failure isolation test"), std::string::npos);
+    EXPECT_NE(good_sink_2.entries()[0].find("failure isolation test"), std::string::npos);
 
     // Emit another record to verify failing sink is still registered (retained).
     good_sink_1.clear();
@@ -382,17 +375,12 @@ TEST(SinkDispatch, MaxSinksRejectionAbsorbed) {
 
 /// Helper: generate a non-empty printable ASCII string for sink tests.
 static rc::Gen<std::string> genPrintableMessage() {
-    return rc::gen::map(
-        rc::gen::nonEmpty(
-            rc::gen::container<std::string>(rc::gen::inRange(33, 127))),
-        [](std::string s) { return s; });
+    return rc::gen::map(rc::gen::nonEmpty(rc::gen::container<std::string>(rc::gen::inRange(33, 127))), [](std::string s) { return s; });
 }
 
 /// Property 23: For k > 0 sinks and accepted record, verify exactly one
 /// write per sink; count <= 64.
-RC_GTEST_PROP(SinkDispatchProperty,
-              WriteExactlyOnceAndBoundedCardinality,
-              ()) {
+RC_GTEST_PROP(SinkDispatchProperty, WriteExactlyOnceAndBoundedCardinality, ()) {
     // Generate k in [1, 64].
     const auto k = *rc::gen::inRange(1, 65);
     RC_ASSERT(k <= 64);
@@ -416,7 +404,7 @@ RC_GTEST_PROP(SinkDispatchProperty,
 
     // All sinks received the same formatted record.
     const auto first_entries = sinks[0]->entries();
-    const std::string& first_entry = first_entries[0];
+    const std::string &first_entry = first_entries[0];
     for (int i = 1; i < k; ++i) {
         const auto other_entries = sinks[i]->entries();
         RC_ASSERT(other_entries[0] == first_entry);
@@ -427,13 +415,11 @@ RC_GTEST_PROP(SinkDispatchProperty,
 }
 
 /// Property 23 (zero-sink case): verify stderr fallback when no sinks configured.
-RC_GTEST_PROP(SinkDispatchProperty,
-              ZeroSinksFallbackToStderr,
-              ()) {
+RC_GTEST_PROP(SinkDispatchProperty, ZeroSinksFallbackToStderr, ()) {
     logs::Logger logger;
 
     std::ostringstream captured;
-    std::streambuf* original_stderr = std::cerr.rdbuf();
+    std::streambuf *original_stderr = std::cerr.rdbuf();
     std::cerr.rdbuf(captured.rdbuf());
 
     const auto msg = *genPrintableMessage();
@@ -452,9 +438,7 @@ RC_GTEST_PROP(SinkDispatchProperty,
 
 /// Property 24: Inject write failure in one sink; verify exception absorbed,
 /// remaining sinks receive record, failed sink retained.
-RC_GTEST_PROP(SinkDispatchProperty,
-              WriteFailureIsolation,
-              ()) {
+RC_GTEST_PROP(SinkDispatchProperty, WriteFailureIsolation, ()) {
     // Generate total number of good sinks [1, 10] and position of bad sink.
     const auto good_count = *rc::gen::inRange(1, 11);
     const auto bad_position = *rc::gen::inRange(0, good_count + 1);
@@ -478,8 +462,7 @@ RC_GTEST_PROP(SinkDispatchProperty,
             bad_added = true;
         }
         if (good_added < good_count) {
-            good_sinks.push_back(
-                std::make_unique<logs::testing::In_Memory_Sink>());
+            good_sinks.push_back(std::make_unique<logs::testing::In_Memory_Sink>());
             logger.add_sink(good_sinks.back()->sink());
             ++good_added;
         }
@@ -500,7 +483,7 @@ RC_GTEST_PROP(SinkDispatchProperty,
     }
 
     // Verify failed sink is retained: emit a second record, good sinks get it.
-    for (auto& gs : good_sinks) {
+    for (auto &gs : good_sinks) {
         gs->clear();
     }
     const auto msg2 = *genPrintableMessage();
@@ -512,4 +495,4 @@ RC_GTEST_PROP(SinkDispatchProperty,
     }
 }
 
-} // namespace
+}  // namespace

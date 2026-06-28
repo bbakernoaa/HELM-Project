@@ -11,40 +11,41 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/solver/apply.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/types.hpp>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/solver/apply.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/types.hpp>
-
 namespace {
 
 /// Build a trivial InterpolationMatrix with given dimensions.
-axis::solver::InterpolationMatrix<Kokkos::HostSpace>
-build_trivial_matrix(std::size_t n_src, std::size_t n_dst) {
+axis::solver::InterpolationMatrix<Kokkos::HostSpace> build_trivial_matrix(std::size_t n_src, std::size_t n_dst) {
     // One nonzero entry: weight=1.0, row=0, col=0
-    Kokkos::View<double*, Kokkos::HostSpace>       fl("fl", 1);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fr("fr", 1);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fc("fc", 1);
-    Kokkos::View<double*, Kokkos::HostSpace>       fa("fa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       fb("fb", n_dst);
-    Kokkos::View<double*, Kokkos::HostSpace>       aa("aa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       ab("ab", n_dst);
+    Kokkos::View<double *, Kokkos::HostSpace> fl("fl", 1);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fr("fr", 1);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fc("fc", 1);
+    Kokkos::View<double *, Kokkos::HostSpace> fa("fa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> fb("fb", n_dst);
+    Kokkos::View<double *, Kokkos::HostSpace> aa("aa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> ab("ab", n_dst);
 
     fl(0) = 1.0;
     fr(0) = 0;
     fc(0) = 0;
-    for (std::size_t i = 0; i < n_src; ++i) { fa(i) = 1.0; aa(i) = 1.0; }
-    for (std::size_t j = 0; j < n_dst; ++j) { fb(j) = 1.0; ab(j) = 1.0; }
+    for (std::size_t i = 0; i < n_src; ++i) {
+        fa(i) = 1.0;
+        aa(i) = 1.0;
+    }
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        fb(j) = 1.0;
+        ab(j) = 1.0;
+    }
 
-    return axis::solver::InterpolationMatrix<Kokkos::HostSpace>(
-        std::move(fl), std::move(fr), std::move(fc),
-        std::move(fa), std::move(fb), std::move(aa), std::move(ab),
-        n_src, n_dst);
+    return axis::solver::InterpolationMatrix<Kokkos::HostSpace>(std::move(fl), std::move(fr), std::move(fc), std::move(fa), std::move(fb),
+                                                                std::move(aa), std::move(ab), n_src, n_dst);
 }
 
 // ─── Property 18a: Mismatched src extent throws and dst untouched ────────────
@@ -54,9 +55,7 @@ RC_GTEST_PROP(PropApplyExtentValidation, MismatchedSrcThrows, ()) {
     const auto n_dst = *rc::gen::inRange<std::size_t>(3, 20);
 
     // Wrong src extent: off by at least 1
-    const auto wrong_src = *rc::gen::suchThat(
-        rc::gen::inRange<std::size_t>(1, 30),
-        [n_src](std::size_t v) { return v != n_src; });
+    const auto wrong_src = *rc::gen::suchThat(rc::gen::inRange<std::size_t>(1, 30), [n_src](std::size_t v) { return v != n_src; });
 
     auto matrix = build_trivial_matrix(n_src, n_dst);
 
@@ -72,7 +71,7 @@ RC_GTEST_PROP(PropApplyExtentValidation, MismatchedSrcThrows, ()) {
     bool threw = false;
     try {
         axis::solver::apply(matrix, src_view, dst_view);
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument &) {
         threw = true;
     }
 
@@ -91,9 +90,7 @@ RC_GTEST_PROP(PropApplyExtentValidation, MismatchedDstThrows, ()) {
     const auto n_dst = *rc::gen::inRange<std::size_t>(3, 20);
 
     // Wrong dst extent: off by at least 1
-    const auto wrong_dst = *rc::gen::suchThat(
-        rc::gen::inRange<std::size_t>(1, 30),
-        [n_dst](std::size_t v) { return v != n_dst; });
+    const auto wrong_dst = *rc::gen::suchThat(rc::gen::inRange<std::size_t>(1, 30), [n_dst](std::size_t v) { return v != n_dst; });
 
     auto matrix = build_trivial_matrix(n_src, n_dst);
 
@@ -109,7 +106,7 @@ RC_GTEST_PROP(PropApplyExtentValidation, MismatchedDstThrows, ()) {
     bool threw = false;
     try {
         axis::solver::apply(matrix, src_view, dst_view);
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument &) {
         threw = true;
     }
 
@@ -124,7 +121,7 @@ RC_GTEST_PROP(PropApplyExtentValidation, MismatchedDstThrows, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -137,7 +134,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

@@ -36,7 +36,6 @@ namespace axis::detail {
 /// isoparametric coordinates (xi, eta) of a point within a projected quad,
 /// falling back to inverse-distance weighting if Newton fails to converge.
 struct GnomonicProjector {
-
     /// @brief Project a point on the unit sphere onto the tangent plane at center.
     ///
     /// Computes local east/north basis vectors at the center point and projects
@@ -48,8 +47,7 @@ struct GnomonicProjector {
     /// @param[out] u Eastward coordinate on the tangent plane.
     /// @param[out] v Northward coordinate on the tangent plane.
     KOKKOS_FUNCTION
-    static void forward(const Vec3& center, const Vec3& point,
-                        double& u, double& v) noexcept {
+    static void forward(const Vec3 &center, const Vec3 &point, double &u, double &v) noexcept {
         // Build local tangent-plane basis at center.
         Vec3 east, north;
         compute_basis(center, east, north);
@@ -80,16 +78,12 @@ struct GnomonicProjector {
     /// @param v Northward coordinate.
     /// @return The reconstructed unit-sphere point.
     KOKKOS_FUNCTION
-    static Vec3 inverse(const Vec3& center, double u, double v) noexcept {
+    static Vec3 inverse(const Vec3 &center, double u, double v) noexcept {
         Vec3 east, north;
         compute_basis(center, east, north);
 
         // Reconstruct the 3-D point: center + u*east + v*north
-        Vec3 point{
-            center.x + u * east.x + v * north.x,
-            center.y + u * east.y + v * north.y,
-            center.z + u * east.z + v * north.z
-        };
+        Vec3 point{center.x + u * east.x + v * north.x, center.y + u * east.y + v * north.y, center.z + u * east.z + v * north.z};
 
         return normalize(point);
     }
@@ -116,14 +110,12 @@ struct GnomonicProjector {
     /// @param[out] weights Array of 4 bilinear weights (sum to ~1.0 if converged).
     /// @return true if Newton converged; false if IDW fallback is needed.
     KOKKOS_FUNCTION
-    static bool bilinear_weights(const double quad_u[4], const double quad_v[4],
-                                 double pu, double pv,
-                                 double weights[4]) noexcept {
+    static bool bilinear_weights(const double quad_u[4], const double quad_v[4], double pu, double pv, double weights[4]) noexcept {
         constexpr int max_iter = 20;
         constexpr double tol = 1.0e-12;
 
         // Start Newton iteration from center of reference element.
-        double xi  = 0.0;
+        double xi = 0.0;
         double eta = 0.0;
 
         for (int iter = 0; iter < max_iter; ++iter) {
@@ -137,10 +129,8 @@ struct GnomonicProjector {
             double n2 = (1.0 + xi) * (1.0 + eta) * 0.25;
             double n3 = (1.0 - xi) * (1.0 + eta) * 0.25;
 
-            double x_val = n0 * quad_u[0] + n1 * quad_u[1] +
-                           n2 * quad_u[2] + n3 * quad_u[3];
-            double y_val = n0 * quad_v[0] + n1 * quad_v[1] +
-                           n2 * quad_v[2] + n3 * quad_v[3];
+            double x_val = n0 * quad_u[0] + n1 * quad_u[1] + n2 * quad_u[2] + n3 * quad_u[3];
+            double y_val = n0 * quad_v[0] + n1 * quad_v[1] + n2 * quad_v[2] + n3 * quad_v[3];
 
             // Residual: target minus current.
             double rx = pu - x_val;
@@ -161,24 +151,20 @@ struct GnomonicProjector {
             //   dx/deta = dN0/deta*u0 + ...
             // dN/dxi:  -( 1-eta)/4, (1-eta)/4, (1+eta)/4, -(1+eta)/4
             // dN/deta: -(1-xi)/4, -(1+xi)/4, (1+xi)/4, (1-xi)/4
-            double dn0_dxi  = -(1.0 - eta) * 0.25;
-            double dn1_dxi  =  (1.0 - eta) * 0.25;
-            double dn2_dxi  =  (1.0 + eta) * 0.25;
-            double dn3_dxi  = -(1.0 + eta) * 0.25;
+            double dn0_dxi = -(1.0 - eta) * 0.25;
+            double dn1_dxi = (1.0 - eta) * 0.25;
+            double dn2_dxi = (1.0 + eta) * 0.25;
+            double dn3_dxi = -(1.0 + eta) * 0.25;
 
             double dn0_deta = -(1.0 - xi) * 0.25;
             double dn1_deta = -(1.0 + xi) * 0.25;
-            double dn2_deta =  (1.0 + xi) * 0.25;
-            double dn3_deta =  (1.0 - xi) * 0.25;
+            double dn2_deta = (1.0 + xi) * 0.25;
+            double dn3_deta = (1.0 - xi) * 0.25;
 
-            double j11 = dn0_dxi * quad_u[0] + dn1_dxi * quad_u[1] +
-                         dn2_dxi * quad_u[2] + dn3_dxi * quad_u[3];
-            double j12 = dn0_deta * quad_u[0] + dn1_deta * quad_u[1] +
-                         dn2_deta * quad_u[2] + dn3_deta * quad_u[3];
-            double j21 = dn0_dxi * quad_v[0] + dn1_dxi * quad_v[1] +
-                         dn2_dxi * quad_v[2] + dn3_dxi * quad_v[3];
-            double j22 = dn0_deta * quad_v[0] + dn1_deta * quad_v[1] +
-                         dn2_deta * quad_v[2] + dn3_deta * quad_v[3];
+            double j11 = dn0_dxi * quad_u[0] + dn1_dxi * quad_u[1] + dn2_dxi * quad_u[2] + dn3_dxi * quad_u[3];
+            double j12 = dn0_deta * quad_u[0] + dn1_deta * quad_u[1] + dn2_deta * quad_u[2] + dn3_deta * quad_u[3];
+            double j21 = dn0_dxi * quad_v[0] + dn1_dxi * quad_v[1] + dn2_dxi * quad_v[2] + dn3_dxi * quad_v[3];
+            double j22 = dn0_deta * quad_v[0] + dn1_deta * quad_v[1] + dn2_deta * quad_v[2] + dn3_deta * quad_v[3];
 
             // Solve 2x2 linear system: J * [dxi, deta]^T = [rx, ry]^T
             double det = j11 * j22 - j12 * j21;
@@ -188,10 +174,10 @@ struct GnomonicProjector {
             }
 
             double inv_det = 1.0 / det;
-            double dxi  = ( j22 * rx - j12 * ry) * inv_det;
+            double dxi = (j22 * rx - j12 * ry) * inv_det;
             double deta = (-j21 * rx + j11 * ry) * inv_det;
 
-            xi  += dxi;
+            xi += dxi;
             eta += deta;
         }
 
@@ -216,9 +202,7 @@ struct GnomonicProjector {
     /// @param pv     The v-coordinate of the target point.
     /// @param[out] weights Array of 4 IDW weights (non-negative, sum to 1.0).
     KOKKOS_FUNCTION
-    static void idw_weights(const double quad_u[4], const double quad_v[4],
-                            double pu, double pv,
-                            double weights[4]) noexcept {
+    static void idw_weights(const double quad_u[4], const double quad_v[4], double pu, double pv, double weights[4]) noexcept {
         constexpr double min_dist = 1.0e-15;
 
         double sum = 0.0;
@@ -250,7 +234,7 @@ struct GnomonicProjector {
         }
     }
 
-private:
+   private:
     /// @brief Compute a local orthonormal basis (east, north) on the tangent
     ///        plane at the given center point on the unit sphere.
     ///
@@ -262,8 +246,7 @@ private:
     /// @param[out] east  Eastward basis vector (unit length).
     /// @param[out] north Northward basis vector (unit length).
     KOKKOS_FUNCTION
-    static void compute_basis(const Vec3& center,
-                              Vec3& east, Vec3& north) noexcept {
+    static void compute_basis(const Vec3 &center, Vec3 &east, Vec3 &north) noexcept {
         // Choose a reference vector not parallel to center.
         // If center is near a pole (|z| > 0.9), use x-axis; otherwise z-axis.
         Vec3 ref;

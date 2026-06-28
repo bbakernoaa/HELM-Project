@@ -16,22 +16,20 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/detail/morton_sort.hpp>
 #include <cmath>
 #include <cstdint>
 #include <numeric>
 #include <set>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/morton_sort.hpp>
-
 namespace {
 
 using axis::detail::morton_encode_2d;
-using axis::detail::normalize_coord;
 using axis::detail::morton_sort_indices;
+using axis::detail::normalize_coord;
 
 // ─── Helper: Check Z-curve locality bound ────────────────────────────────────
 // For two points within Chebyshev distance 1, their Morton codes should differ
@@ -118,15 +116,12 @@ RC_GTEST_PROP(PropMortonSort, MonotonicityWithinRow, ()) {
 
 RC_GTEST_PROP(PropMortonSort, NormalizeCoordRange, ()) {
     // Generate a valid range [min_val, max_val] with max > min
-    double min_val = *rc::gen::map(rc::gen::inRange(-10000, 10000),
-                                   [](int v) { return v * 0.01; });
-    double range = *rc::gen::map(rc::gen::inRange(1, 10000),
-                                 [](int v) { return v * 0.01; });
+    double min_val = *rc::gen::map(rc::gen::inRange(-10000, 10000), [](int v) { return v * 0.01; });
+    double range = *rc::gen::map(rc::gen::inRange(1, 10000), [](int v) { return v * 0.01; });
     double max_val = min_val + range;
 
     // Generate a value anywhere in the extended range
-    double t = *rc::gen::map(rc::gen::inRange(-200, 1200),
-                             [](int v) { return v * 0.001; });
+    double t = *rc::gen::map(rc::gen::inRange(-200, 1200), [](int v) { return v * 0.001; });
     double val = min_val + t * (max_val - min_val);
 
     uint32_t result = normalize_coord(val, min_val, max_val);
@@ -150,15 +145,12 @@ RC_GTEST_PROP(PropMortonSort, NormalizeCoordRange, ()) {
 // **Validates: Requirements 5.1, 5.2, 5.3**
 
 RC_GTEST_PROP(PropMortonSort, NormalizeCoordDegenerateRange, ()) {
-    double min_val = *rc::gen::map(rc::gen::inRange(-10000, 10000),
-                                   [](int v) { return v * 0.01; });
+    double min_val = *rc::gen::map(rc::gen::inRange(-10000, 10000), [](int v) { return v * 0.01; });
     // max_val <= min_val (degenerate)
-    double offset = *rc::gen::map(rc::gen::inRange(0, 5000),
-                                  [](int v) { return v * 0.01; });
+    double offset = *rc::gen::map(rc::gen::inRange(0, 5000), [](int v) { return v * 0.01; });
     double max_val = min_val - offset;
 
-    double val = *rc::gen::map(rc::gen::inRange(-10000, 10000),
-                               [](int v) { return v * 0.01; });
+    double val = *rc::gen::map(rc::gen::inRange(-10000, 10000), [](int v) { return v * 0.01; });
 
     uint32_t result = normalize_coord(val, min_val, max_val);
     RC_ASSERT(result == 0u);
@@ -177,27 +169,24 @@ RC_GTEST_PROP(PropMortonSort, PermutationValidity, ()) {
     // Generate random centroid coordinates
     std::vector<double> cx(n), cy(n);
     for (int i = 0; i < n; ++i) {
-        cx[i] = *rc::gen::map(rc::gen::inRange(-18000, 18001),
-                              [](int v) { return v * 0.01; });
-        cy[i] = *rc::gen::map(rc::gen::inRange(-9000, 9001),
-                              [](int v) { return v * 0.01; });
+        cx[i] = *rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) { return v * 0.01; });
+        cy[i] = *rc::gen::map(rc::gen::inRange(-9000, 9001), [](int v) { return v * 0.01; });
     }
 
     // Create Kokkos views on host
     using MemSpace = Kokkos::HostSpace;
-    Kokkos::View<double*, MemSpace> centroids_x("cx", n);
-    Kokkos::View<double*, MemSpace> centroids_y("cy", n);
+    Kokkos::View<double *, MemSpace> centroids_x("cx", n);
+    Kokkos::View<double *, MemSpace> centroids_y("cy", n);
     for (int i = 0; i < n; ++i) {
         centroids_x(i) = cx[i];
         centroids_y(i) = cy[i];
     }
 
     // Get const views
-    Kokkos::View<const double*, MemSpace> cx_const(centroids_x);
-    Kokkos::View<const double*, MemSpace> cy_const(centroids_y);
+    Kokkos::View<const double *, MemSpace> cx_const(centroids_x);
+    Kokkos::View<const double *, MemSpace> cy_const(centroids_y);
 
-    auto sorted_indices = morton_sort_indices<MemSpace>(cx_const, cy_const,
-                                                       static_cast<std::size_t>(n));
+    auto sorted_indices = morton_sort_indices<MemSpace>(cx_const, cy_const, static_cast<std::size_t>(n));
 
     // Verify it's a valid permutation: all values unique and in [0, n)
     std::set<int64_t> seen;
@@ -236,34 +225,31 @@ RC_GTEST_PROP(PropMortonSort, SpatialLocality, ()) {
 
     // Create Kokkos views
     using MemSpace = Kokkos::HostSpace;
-    Kokkos::View<double*, MemSpace> centroids_x("cx", n);
-    Kokkos::View<double*, MemSpace> centroids_y("cy", n);
+    Kokkos::View<double *, MemSpace> centroids_x("cx", n);
+    Kokkos::View<double *, MemSpace> centroids_y("cy", n);
     for (int i = 0; i < n; ++i) {
         centroids_x(i) = cx[i];
         centroids_y(i) = cy[i];
     }
 
-    Kokkos::View<const double*, MemSpace> cx_const(centroids_x);
-    Kokkos::View<const double*, MemSpace> cy_const(centroids_y);
+    Kokkos::View<const double *, MemSpace> cx_const(centroids_x);
+    Kokkos::View<const double *, MemSpace> cy_const(centroids_y);
 
-    auto sorted_indices = morton_sort_indices<MemSpace>(cx_const, cy_const,
-                                                       static_cast<std::size_t>(n));
+    auto sorted_indices = morton_sort_indices<MemSpace>(cx_const, cy_const, static_cast<std::size_t>(n));
 
     // Compute mean distance between consecutive cells in Morton order
     double morton_total_dist = 0.0;
     for (int k = 1; k < n; ++k) {
         int64_t i_prev = sorted_indices(k - 1);
         int64_t i_curr = sorted_indices(k);
-        morton_total_dist += euclidean_dist(cx[i_prev], cy[i_prev],
-                                           cx[i_curr], cy[i_curr]);
+        morton_total_dist += euclidean_dist(cx[i_prev], cy[i_prev], cx[i_curr], cy[i_curr]);
     }
     double morton_mean_dist = morton_total_dist / static_cast<double>(n - 1);
 
     // Compute mean distance between consecutive cells in natural (row-major) order
     double natural_total_dist = 0.0;
     for (int k = 1; k < n; ++k) {
-        natural_total_dist += euclidean_dist(cx[k - 1], cy[k - 1],
-                                            cx[k], cy[k]);
+        natural_total_dist += euclidean_dist(cx[k - 1], cy[k - 1], cx[k], cy[k]);
     }
     double natural_mean_dist = natural_total_dist / static_cast<double>(n - 1);
 
@@ -303,7 +289,7 @@ RC_GTEST_PROP(PropMortonSort, ZCurveLocalityBound, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -316,7 +302,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

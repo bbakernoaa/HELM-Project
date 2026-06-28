@@ -13,22 +13,24 @@
 /// Subsequent calls are no-ops (idempotent via std::once_flag).
 
 #include <mpi.h>
-#include <atomic>
-#include <mutex>
 
+#include <atomic>
 #include <halo/error_policy.hpp>
+#include <mutex>
 
 namespace halo {
 
 // Forward declaration for friend access.
-namespace detail { class Serialized_MPI_Guard; }
+namespace detail {
+class Serialized_MPI_Guard;
+}
 
 /// @brief Singleton class managing HALO initialization and MPI thread-level state.
 ///
 /// Call Environment::initialize() once after MPI_Init_thread. The class queries
 /// MPI_Query_thread and stores the result. All accessors are thread-safe.
 class Environment {
-public:
+   public:
     /// @brief Initialize HALO. Must be called after MPI_Init_thread.
     ///
     /// Queries MPI_Query_thread and stores the detected thread support level.
@@ -69,10 +71,10 @@ public:
     [[nodiscard]] static ErrorPolicy error_policy() noexcept;
 
     // Non-copyable, non-movable singleton.
-    Environment(const Environment&) = delete;
-    Environment& operator=(const Environment&) = delete;
+    Environment(const Environment &) = delete;
+    Environment &operator=(const Environment &) = delete;
 
-private:
+   private:
     Environment() = default;
 
     static inline std::once_flag init_flag_;
@@ -102,7 +104,7 @@ namespace detail {
 ///   }
 /// @endcode
 class Serialized_MPI_Guard {
-public:
+   public:
     /// @brief Construct the guard. Locks the serialization mutex if thread
     ///        level < MPI_THREAD_MULTIPLE.
     Serialized_MPI_Guard() {
@@ -120,14 +122,14 @@ public:
     }
 
     // Non-copyable, non-movable.
-    Serialized_MPI_Guard(const Serialized_MPI_Guard&) = delete;
-    Serialized_MPI_Guard& operator=(const Serialized_MPI_Guard&) = delete;
+    Serialized_MPI_Guard(const Serialized_MPI_Guard &) = delete;
+    Serialized_MPI_Guard &operator=(const Serialized_MPI_Guard &) = delete;
 
-private:
+   private:
     bool locked_{false};
 };
 
-} // namespace detail
-} // namespace halo
+}  // namespace detail
+}  // namespace halo
 
-#endif // HALO_ENVIRONMENT_HPP
+#endif  // HALO_ENVIRONMENT_HPP

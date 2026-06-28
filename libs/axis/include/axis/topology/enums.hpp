@@ -32,11 +32,11 @@ namespace axis::topology {
 /// (CSR) connectivity.
 enum class ElementType : std::uint8_t {
     /// @brief A 3-node triangular cell element.
-    Triangle,       
+    Triangle,
     /// @brief A 4-node quadrilateral cell element.
-    Quadrilateral,  
+    Quadrilateral,
     /// @brief A general n-node polygonal cell element with arbitrary vertex count.
-    Polygon         
+    Polygon
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,11 +49,11 @@ enum class ElementType : std::uint8_t {
 /// or edge midpoints) for modeling variables in finite volume (FV) or staggered grid methods.
 enum class StaggerLoc : std::uint8_t {
     /// @brief Located at the cell centroid or center of mass (default for FV fields).
-    Center,  
+    Center,
     /// @brief Located at a cell vertex or corner node.
-    Corner,  
+    Corner,
     /// @brief Located at a cell edge midpoint.
-    Edge     
+    Edge
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,13 +72,13 @@ enum class StaggerLoc : std::uint8_t {
 /// defined in axis::ingest.
 enum class CoordinateSystem : std::uint8_t {
     /// @brief Geographic longitude and latitude coordinates in degrees.
-    SphericalDeg,   
+    SphericalDeg,
     /// @brief Geographic longitude and latitude coordinates in radians.
-    SphericalRad,   
+    SphericalRad,
     /// @brief Three-dimensional Cartesian coordinates (x, y, z) in meters.
-    Cartesian3D     
+    Cartesian3D
 };
 
-} // namespace axis::topology
+}  // namespace axis::topology
 
-#endif // AXIS_TOPOLOGY_ENUMS_HPP
+#endif  // AXIS_TOPOLOGY_ENUMS_HPP

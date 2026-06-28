@@ -21,7 +21,12 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/topology/gmsh_writer.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -31,13 +36,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/gmsh_writer.hpp>
-#include <axis/topology/structured_grid.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/types.hpp>
 
 namespace {
 
@@ -51,9 +49,9 @@ struct ParsedNode {
 };
 
 struct ParsedElement {
-    std::size_t id;                    // 1-based element ID
-    int type;                          // 2=tri, 3=quad
-    std::vector<std::size_t> nodes;    // 1-based node IDs as stored in file
+    std::size_t id;                  // 1-based element ID
+    int type;                        // 2=tri, 3=quad
+    std::vector<std::size_t> nodes;  // 1-based node IDs as stored in file
 };
 
 struct ParsedMsh {
@@ -63,7 +61,7 @@ struct ParsedMsh {
 
 /// Parse a .msh v2.2 ASCII file written by GmshWriter.
 /// Throws std::runtime_error on parse failure.
-ParsedMsh parse_msh_file(const std::string& filepath) {
+ParsedMsh parse_msh_file(const std::string &filepath) {
     std::ifstream ifs(filepath);
     if (!ifs.is_open()) {
         throw std::runtime_error("Cannot open .msh file: " + filepath);
@@ -85,8 +83,8 @@ ParsedMsh parse_msh_file(const std::string& filepath) {
                 result.nodes.push_back(nd);
             }
             // Consume up to $EndNodes
-            std::getline(ifs, line); // consume newline after last node
-            std::getline(ifs, line); // "$EndNodes"
+            std::getline(ifs, line);  // consume newline after last node
+            std::getline(ifs, line);  // "$EndNodes"
             continue;
         }
 
@@ -126,8 +124,8 @@ ParsedMsh parse_msh_file(const std::string& filepath) {
                 result.elements.push_back(std::move(elem));
             }
             // Consume up to $EndElements
-            std::getline(ifs, line); // consume newline
-            std::getline(ifs, line); // "$EndElements"
+            std::getline(ifs, line);  // consume newline
+            std::getline(ifs, line);  // "$EndElements"
             continue;
         }
     }
@@ -169,8 +167,7 @@ rc::Gen<std::size_t> genDim() {
 /// fractional precision. Uses integer generation mapped to double for
 /// reproducibility.
 rc::Gen<double> genCoord() {
-    return rc::gen::map(rc::gen::inRange(-18000000, 18000001),
-                        [](int v) { return static_cast<double>(v) / 100000.0; });
+    return rc::gen::map(rc::gen::inRange(-18000000, 18000001), [](int v) { return static_cast<double>(v) / 100000.0; });
 }
 
 /// Generate a vector of random coordinate doubles with given size.
@@ -182,16 +179,14 @@ rc::Gen<std::vector<double>> genCoordVector(std::size_t n) {
 
 /// Create an UnstructuredMesh<HostSpace> from a random StructuredGrid with
 /// given dimensions and corner coordinates.
-axis::topology::UnstructuredMesh<Kokkos::HostSpace>
-build_random_mesh(std::size_t ni, std::size_t nj,
-                  const std::vector<double>& corner_lon_vec,
-                  const std::vector<double>& corner_lat_vec) {
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_random_mesh(std::size_t ni, std::size_t nj, const std::vector<double> &corner_lon_vec,
+                                                                      const std::vector<double> &corner_lat_vec) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
     // Center coords (not used after conversion, just needed for construction)
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("center_lon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("center_lat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("center_lon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("center_lat", n_centers);
 
     // Fill centers with averages (doesn't matter for the test, we just need a
     // valid StructuredGrid)
@@ -204,8 +199,8 @@ build_random_mesh(std::size_t ni, std::size_t nj,
     }
 
     // Corner coords
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("corner_lon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("corner_lat", n_corners);
 
     for (std::size_t k = 0; k < n_corners; ++k) {
         corner_lon(k) = corner_lon_vec[k];
@@ -213,9 +208,7 @@ build_random_mesh(std::size_t ni, std::size_t nj,
     }
 
     // Build StructuredGrid and convert to UnstructuredMesh
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::Cartesian3D);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::Cartesian3D);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
@@ -306,13 +299,13 @@ RC_GTEST_PROP(PropGmshRoundtrip, CoordinatesWithinRoundoff, ()) {
     // Access original node coordinates
     auto coords = mesh.node_coords();  // [n_nodes, ndim]
     const std::size_t n_nodes = mesh.n_nodes();
-    const auto* coords_ptr = coords.data_handle();
+    const auto *coords_ptr = coords.data_handle();
     const std::size_t ndim = coords.extent(1);
 
     // Nodes in the parsed file are 1-based; in AXIS they are 0-based.
     // The writer outputs them sequentially: node id = i+1 for axis index i.
     for (std::size_t i = 0; i < n_nodes; ++i) {
-        const auto& pn = parsed.nodes[i];
+        const auto &pn = parsed.nodes[i];
 
         // Verify node ID is sequential 1-based
         RC_ASSERT(pn.id == i + 1);
@@ -367,10 +360,10 @@ RC_GTEST_PROP(PropGmshRoundtrip, ConnectivityPreserved, ()) {
 
     // For each cell, compare parsed connectivity (1-based) to original (0-based)
     for (std::size_t c = 0; c < n_cells; ++c) {
-        const auto& elem = parsed.elements[c];
+        const auto &elem = parsed.elements[c];
 
         const auto start = static_cast<std::size_t>(offsets[c]);
-        const auto end   = static_cast<std::size_t>(offsets[c + 1]);
+        const auto end = static_cast<std::size_t>(offsets[c + 1]);
         const std::size_t n_cell_nodes = end - start;
 
         // Element node count must match
@@ -393,7 +386,7 @@ RC_GTEST_PROP(PropGmshRoundtrip, ConnectivityPreserved, ()) {
 // and GmshWriter (which may do Kokkos::deep_copy for device meshes).
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -406,7 +399,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

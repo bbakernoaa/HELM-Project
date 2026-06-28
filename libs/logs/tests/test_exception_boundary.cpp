@@ -12,21 +12,20 @@
 ///     try_to_lock on diagnostic_mutex_).
 ///   - Concurrent failures still produce bounded diagnostics (no cascading).
 
-#include <logs/logger.hpp>
-#include "in_memory_sink.hpp"
-
 #include <gtest/gtest.h>
+#include <sys/resource.h>
 
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <logs/logger.hpp>
 #include <sstream>
 #include <streambuf>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include <sys/resource.h>
+#include "in_memory_sink.hpp"
 
 namespace {
 
@@ -37,7 +36,7 @@ namespace {
 /// Redirects std::cerr to an internal stringstream for the lifetime of
 /// this object; restores the original streambuf on destruction.
 class Stderr_Capturer {
-public:
+   public:
     Stderr_Capturer() : original_buf_(std::cerr.rdbuf()) {
         std::cerr.rdbuf(capture_stream_.rdbuf());
     }
@@ -57,11 +56,11 @@ public:
         capture_stream_.clear();
     }
 
-    Stderr_Capturer(const Stderr_Capturer&) = delete;
-    Stderr_Capturer& operator=(const Stderr_Capturer&) = delete;
+    Stderr_Capturer(const Stderr_Capturer &) = delete;
+    Stderr_Capturer &operator=(const Stderr_Capturer &) = delete;
 
-private:
-    std::streambuf*   original_buf_;
+   private:
+    std::streambuf *original_buf_;
     std::stringstream capture_stream_;
 };
 
@@ -70,8 +69,8 @@ private:
 // ─────────────────────────────────────────────────────────────────────────────
 
 class Throwing_Streambuf : public std::streambuf {
-protected:
-    std::streamsize xsputn(const char* /*s*/, std::streamsize /*n*/) override {
+   protected:
+    std::streamsize xsputn(const char * /*s*/, std::streamsize /*n*/) override {
         throw std::runtime_error("injected streambuf failure");
     }
 
@@ -79,7 +78,9 @@ protected:
         throw std::runtime_error("injected streambuf failure (overflow)");
     }
 
-    int sync() override { return 0; }
+    int sync() override {
+        return 0;
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ protected:
 /// std::bad_alloc inside Logger::log() when it tries to copy/format a large
 /// message. Restores the original limit on destruction.
 class Memory_Limiter {
-public:
+   public:
     explicit Memory_Limiter(rlim_t limit_bytes) {
         getrlimit(RLIMIT_AS, &original_);
         struct rlimit restricted = original_;
@@ -102,10 +103,10 @@ public:
         setrlimit(RLIMIT_AS, &original_);
     }
 
-    Memory_Limiter(const Memory_Limiter&) = delete;
-    Memory_Limiter& operator=(const Memory_Limiter&) = delete;
+    Memory_Limiter(const Memory_Limiter &) = delete;
+    Memory_Limiter &operator=(const Memory_Limiter &) = delete;
 
-private:
+   private:
     struct rlimit original_{};
 };
 
@@ -113,8 +114,7 @@ private:
 // Helper: Count occurrences of a substring in a string.
 // ─────────────────────────────────────────────────────────────────────────────
 
-std::size_t count_occurrences(const std::string& text,
-                              const std::string& pattern) {
+std::size_t count_occurrences(const std::string &text, const std::string &pattern) {
     std::size_t count = 0;
     std::size_t pos = 0;
     while ((pos = text.find(pattern, pos)) != std::string::npos) {
@@ -146,11 +146,11 @@ TEST(ExceptionBoundaryDiagnostic, SingleFailureEmitsAtMostOneDiagnostic) {
     // This message will be passed as string_view to log(), which
     // internally tries to copy it (std::string(message)) under memory
     // pressure, causing bad_alloc.
-    const std::size_t large_size = 50 * 1024 * 1024; // 50 MB
+    const std::size_t large_size = 50 * 1024 * 1024;  // 50 MB
     std::string large_message;
     try {
         large_message.assign(large_size, 'X');
-    } catch (const std::bad_alloc&) {
+    } catch (const std::bad_alloc &) {
         GTEST_SKIP() << "Cannot allocate test message; skipping";
     }
 
@@ -169,15 +169,11 @@ TEST(ExceptionBoundaryDiagnostic, SingleFailureEmitsAtMostOneDiagnostic) {
     const std::string output = capturer.captured();
 
     // Requirement 9.3: At most one ERROR diagnostic attempted per failure.
-    const std::size_t diag_count =
-        count_occurrences(output, "[LOGS DIAGNOSTIC] [ERROR]");
-    EXPECT_EQ(diag_count, 1u)
-        << "Expected exactly one diagnostic, got " << diag_count
-        << "\nCaptured stderr:\n" << output;
+    const std::size_t diag_count = count_occurrences(output, "[LOGS DIAGNOSTIC] [ERROR]");
+    EXPECT_EQ(diag_count, 1u) << "Expected exactly one diagnostic, got " << diag_count << "\nCaptured stderr:\n" << output;
 
     // Verify the diagnostic contains the expected context string.
-    EXPECT_NE(output.find("log: internal failure"), std::string::npos)
-        << "Diagnostic should mention 'log: internal failure'";
+    EXPECT_NE(output.find("log: internal failure"), std::string::npos) << "Diagnostic should mention 'log: internal failure'";
 }
 
 /// Test: A second call that fails also produces at most one diagnostic.
@@ -192,7 +188,7 @@ TEST(ExceptionBoundaryDiagnostic, RepeatedFailuresEachBoundedToOneDiagnostic) {
     std::string large_message;
     try {
         large_message.assign(large_size, 'X');
-    } catch (const std::bad_alloc&) {
+    } catch (const std::bad_alloc &) {
         GTEST_SKIP() << "Cannot allocate test message; skipping";
     }
 
@@ -206,10 +202,8 @@ TEST(ExceptionBoundaryDiagnostic, RepeatedFailuresEachBoundedToOneDiagnostic) {
     }
 
     const std::string after_first = capturer.captured();
-    const std::size_t count_first =
-        count_occurrences(after_first, "[LOGS DIAGNOSTIC] [ERROR]");
-    EXPECT_LE(count_first, 1u)
-        << "First call: expected at most one diagnostic, got " << count_first;
+    const std::size_t count_first = count_occurrences(after_first, "[LOGS DIAGNOSTIC] [ERROR]");
+    EXPECT_LE(count_first, 1u) << "First call: expected at most one diagnostic, got " << count_first;
 
     {
         Memory_Limiter limiter(100 * 1024 * 1024);
@@ -219,18 +213,14 @@ TEST(ExceptionBoundaryDiagnostic, RepeatedFailuresEachBoundedToOneDiagnostic) {
     }
 
     const std::string after_second = capturer.captured();
-    const std::size_t count_total =
-        count_occurrences(after_second, "[LOGS DIAGNOSTIC] [ERROR]");
+    const std::size_t count_total = count_occurrences(after_second, "[LOGS DIAGNOSTIC] [ERROR]");
 
     // Each failure should produce at most one diagnostic, so total <= 2.
-    EXPECT_LE(count_total, 2u)
-        << "Two failures: expected at most two diagnostics, got " << count_total;
+    EXPECT_LE(count_total, 2u) << "Two failures: expected at most two diagnostics, got " << count_total;
 
     // The increment from first to second call should be at most 1.
     const std::size_t second_increment = count_total - count_first;
-    EXPECT_LE(second_increment, 1u)
-        << "Second call alone produced " << second_increment
-        << " diagnostics (expected at most 1)";
+    EXPECT_LE(second_increment, 1u) << "Second call alone produced " << second_increment << " diagnostics (expected at most 1)";
 }
 
 /// Test: Concurrent failures from multiple threads each produce bounded
@@ -247,7 +237,7 @@ TEST(ExceptionBoundaryDiagnostic, ConcurrentFailuresBoundedDiagnostics) {
     std::string large_message;
     try {
         large_message.assign(large_size, 'X');
-    } catch (const std::bad_alloc&) {
+    } catch (const std::bad_alloc &) {
         GTEST_SKIP() << "Cannot allocate test message; skipping";
     }
 
@@ -268,26 +258,22 @@ TEST(ExceptionBoundaryDiagnostic, ConcurrentFailuresBoundedDiagnostics) {
             });
         }
 
-        for (auto& th : threads) {
+        for (auto &th : threads) {
             th.join();
         }
     }
 
     const std::string output = capturer.captured();
-    const std::size_t total_diagnostics =
-        count_occurrences(output, "[LOGS DIAGNOSTIC] [ERROR]");
+    const std::size_t total_diagnostics = count_occurrences(output, "[LOGS DIAGNOSTIC] [ERROR]");
 
     // Property: Each failure produces at most one diagnostic.
     // With try_to_lock, concurrent attempts that can't acquire the mutex
     // are silently discarded. So total <= num_threads (one per failure).
-    EXPECT_LE(total_diagnostics,
-              static_cast<std::size_t>(num_threads))
-        << "Diagnostics (" << total_diagnostics
-        << ") should not exceed thread count (" << num_threads << ")";
+    EXPECT_LE(total_diagnostics, static_cast<std::size_t>(num_threads))
+        << "Diagnostics (" << total_diagnostics << ") should not exceed thread count (" << num_threads << ")";
 
     // At least one thread should succeed in emitting a diagnostic.
-    EXPECT_GE(total_diagnostics, 1u)
-        << "At least one diagnostic should have been emitted";
+    EXPECT_GE(total_diagnostics, 1u) << "At least one diagnostic should have been emitted";
 
     // Due to concurrency and try_to_lock, some diagnostics are discarded.
     // With 4 threads hitting the mutex simultaneously, we expect fewer
@@ -309,7 +295,7 @@ TEST(ExceptionBoundaryDiagnostic, DiagnosticFailureIsSilentlyDiscarded) {
     std::string large_message;
     try {
         large_message.assign(large_size, 'X');
-    } catch (const std::bad_alloc&) {
+    } catch (const std::bad_alloc &) {
         GTEST_SKIP() << "Cannot allocate test message; skipping";
     }
 
@@ -317,7 +303,7 @@ TEST(ExceptionBoundaryDiagnostic, DiagnosticFailureIsSilentlyDiscarded) {
     // This means emit_diagnostic()'s attempt to write to cerr will throw
     // internally. emit_diagnostic catches that and silently discards.
     Throwing_Streambuf broken_cerr_buf;
-    std::streambuf* original_cerr = std::cerr.rdbuf(&broken_cerr_buf);
+    std::streambuf *original_cerr = std::cerr.rdbuf(&broken_cerr_buf);
 
     {
         Memory_Limiter limiter(100 * 1024 * 1024);
@@ -326,9 +312,7 @@ TEST(ExceptionBoundaryDiagnostic, DiagnosticFailureIsSilentlyDiscarded) {
         // emit_diagnostic tries to write to cerr -> cerr throws ->
         // emit_diagnostic catches -> silently discards.
         // No crash, no recursion, no exception propagation.
-        EXPECT_NO_THROW(
-            logger.log(logs::Severity_Level::INFO, large_message)
-        );
+        EXPECT_NO_THROW(logger.log(logs::Severity_Level::INFO, large_message));
     }
 
     // Restore cerr.
@@ -349,8 +333,7 @@ TEST(ExceptionBoundaryDiagnostic, DiagnosticFailureIsSilentlyDiscarded) {
     const std::string output = capturer.captured();
     // The record should appear in stderr (default sink behavior when no
     // sinks are configured).
-    EXPECT_NE(output.find("post-failure OK"), std::string::npos)
-        << "Logger should remain functional after absorbed diagnostic failure";
+    EXPECT_NE(output.find("post-failure OK"), std::string::npos) << "Logger should remain functional after absorbed diagnostic failure";
 }
 
-} // namespace
+}  // namespace

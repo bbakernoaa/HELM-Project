@@ -5,8 +5,9 @@
 
 #include <gtest/gtest.h>
 #include <rapidcheck/gtest.h>
-#include <stdexcept>
+
 #include <cstdint>
+#include <stdexcept>
 
 #include "tick/cal360_calendar.hpp"
 #include "tick/date_time.hpp"
@@ -26,7 +27,7 @@ RC_GTEST_PROP(Cal360Calendar, RoundTrip, ()) {
     // INT64_MAX / nanos_per_day / 360 ≈ 296, so [1734, 2319) is safe.
     auto year = *rc::gen::inRange<std::int32_t>(1734, 2319);
     auto month = *rc::gen::inRange<std::int32_t>(1, 13);
-    auto day = *rc::gen::inRange<std::int32_t>(1, 31); // 1-30 (exclusive upper)
+    auto day = *rc::gen::inRange<std::int32_t>(1, 31);  // 1-30 (exclusive upper)
     auto hour = *rc::gen::inRange<std::int32_t>(0, 24);
     auto minute = *rc::gen::inRange<std::int32_t>(0, 60);
     auto second = *rc::gen::inRange<std::int32_t>(0, 60);
@@ -84,7 +85,7 @@ RC_GTEST_PROP(Cal360Calendar, YearIsExactly360Days, ()) {
 
 RC_GTEST_PROP(Cal360Calendar, MonthIsExactly30Days, ()) {
     auto year = *rc::gen::inRange<std::int32_t>(1734, 2319);
-    auto month = *rc::gen::inRange<std::int32_t>(1, 12); // [1,11] so month+1 is valid
+    auto month = *rc::gen::inRange<std::int32_t>(1, 12);  // [1,11] so month+1 is valid
     tick::Date_Time d1{year, month, 1, 0, 0, 0, 0};
     tick::Date_Time d2{year, static_cast<std::int32_t>(month + 1), 1, 0, 0, 0, 0};
     auto tp1 = tick::Cal360_Calendar::to_time_point(d1);

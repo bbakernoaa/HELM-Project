@@ -13,13 +13,7 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <cmath>
-#include <cstddef>
-#include <limits>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
@@ -28,21 +22,23 @@
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <limits>
+#include <vector>
 
 namespace {
 
 /// Build a simple ni x nj regular-grid UnstructuredMesh on HostSpace.
-axis::topology::UnstructuredMesh<Kokkos::HostSpace>
-build_regular_mesh(std::size_t ni, std::size_t nj,
-                   double lon_start, double lat_start,
-                   double dlon, double dlat) {
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, double lat_start,
+                                                                       double dlon, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("clon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("clat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("crlon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("crlat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("clon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("clat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("crlon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("crlat", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -60,9 +56,7 @@ build_regular_mesh(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
@@ -100,13 +94,12 @@ RC_GTEST_PROP(PropConservation, RowSumsToOneOnIdenticalMesh, ()) {
     config.norm_type = axis::solver::NormType::DstArea;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
 
     const auto n_dst = matrix.n_dst();
-    const auto nnz   = matrix.nnz();
+    const auto nnz = matrix.nnz();
     auto factor_list = matrix.factor_list();
-    auto factor_row  = matrix.factor_row();
+    auto factor_row = matrix.factor_row();
 
     // Verify: each row's weights sum to ≈ 1.0 (partition of unity)
     std::vector<double> row_sums(n_dst, 0.0);
@@ -142,16 +135,14 @@ RC_GTEST_PROP(PropConservation, CheckConservationReportConsistency, ()) {
     config.norm_type = axis::solver::NormType::DstArea;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
 
     const auto n_src = matrix.n_src();
     const auto n_dst = matrix.n_dst();
 
     // Random source field
     auto src_values = *rc::gen::container<std::vector<double>>(
-        n_src, rc::gen::map(rc::gen::inRange(-1000, 1001),
-                            [](int v) { return static_cast<double>(v) / 100.0; }));
+        n_src, rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return static_cast<double>(v) / 100.0; }));
 
     std::vector<double> dst_data(n_dst, 0.0);
     axis::field_view<const double, 1> src_view(src_values.data(), n_src);
@@ -160,8 +151,7 @@ RC_GTEST_PROP(PropConservation, CheckConservationReportConsistency, ()) {
     axis::solver::apply(matrix, src_view, dst_view);
 
     axis::field_view<const double, 1> dst_const_view(dst_data.data(), n_dst);
-    auto report = axis::solver::check_conservation<Kokkos::HostSpace>(
-        src_view, dst_const_view, matrix, axis::solver::NormType::DstArea);
+    auto report = axis::solver::check_conservation<Kokkos::HostSpace>(src_view, dst_const_view, matrix, axis::solver::NormType::DstArea);
 
     // Verify report consistency
     RC_ASSERT(report.absolute_error >= 0.0);
@@ -170,9 +160,7 @@ RC_GTEST_PROP(PropConservation, CheckConservationReportConsistency, ()) {
     double expected_abs = std::abs(report.src_integral - report.dst_integral);
     RC_ASSERT(std::abs(report.absolute_error - expected_abs) < 1e-15);
 
-    double denom = std::max({std::abs(report.src_integral),
-                             std::abs(report.dst_integral),
-                             std::numeric_limits<double>::epsilon()});
+    double denom = std::max({std::abs(report.src_integral), std::abs(report.dst_integral), std::numeric_limits<double>::epsilon()});
     double expected_rel = expected_abs / denom;
     RC_ASSERT(std::abs(report.relative_error - expected_rel) < 1e-15);
 }
@@ -180,7 +168,7 @@ RC_GTEST_PROP(PropConservation, CheckConservationReportConsistency, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -193,7 +181,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

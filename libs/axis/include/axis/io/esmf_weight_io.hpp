@@ -21,25 +21,20 @@ namespace axis::io {
 /// @tparam MemorySpace The Kokkos memory space (e.g. HostSpace, CudaSpace).
 template <typename MemorySpace>
 class EsmfWeightIO {
-public:
+   public:
     /// @brief Write an InterpolationMatrix to an ESMF-compliant NetCDF weight file (1-based indices).
     /// @param filepath The destination NetCDF file path.
     /// @param matrix   The sparse InterpolationMatrix to write.
     /// @throws std::runtime_error if a NetCDF I/O error occurs.
-    static void write_esmf(
-        const std::string& filepath,
-        const solver::InterpolationMatrix<MemorySpace>& matrix
-    );
+    static void write_esmf(const std::string &filepath, const solver::InterpolationMatrix<MemorySpace> &matrix);
 
     /// @brief Read an ESMF-compliant NetCDF weight file into an InterpolationMatrix (translates 1-based to 0-based).
     /// @param filepath The source NetCDF weights file path.
     /// @return The deserialized InterpolationMatrix.
     /// @throws std::runtime_error if a NetCDF read or parse error occurs.
-    static solver::InterpolationMatrix<MemorySpace> read_esmf(
-        const std::string& filepath
-    );
+    static solver::InterpolationMatrix<MemorySpace> read_esmf(const std::string &filepath);
 };
 
-} // namespace axis::io
+}  // namespace axis::io
 
-#endif // AXIS_IO_ESMF_WEIGHT_IO_HPP
+#endif  // AXIS_IO_ESMF_WEIGHT_IO_HPP

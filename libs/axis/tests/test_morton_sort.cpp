@@ -5,11 +5,10 @@
 
 #include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/detail/morton_sort.hpp>
 #include <cmath>
 #include <cstdint>
 #include <vector>
-
-#include <axis/detail/morton_sort.hpp>
 
 namespace axis::test {
 
@@ -118,11 +117,11 @@ TEST(MortonSort, NormalizeNegativeRange) {
 
 TEST(MortonSort, SortIndicesEmpty) {
     using MemSpace = Kokkos::HostSpace;
-    Kokkos::View<double*, MemSpace> cx("cx", 0);
-    Kokkos::View<double*, MemSpace> cy("cy", 0);
+    Kokkos::View<double *, MemSpace> cx("cx", 0);
+    Kokkos::View<double *, MemSpace> cy("cy", 0);
 
-    auto cx_const = Kokkos::View<const double*, MemSpace>(cx);
-    auto cy_const = Kokkos::View<const double*, MemSpace>(cy);
+    auto cx_const = Kokkos::View<const double *, MemSpace>(cx);
+    auto cy_const = Kokkos::View<const double *, MemSpace>(cy);
 
     auto result = axis::detail::morton_sort_indices<MemSpace>(cx_const, cy_const, 0);
     EXPECT_EQ(result.extent(0), 0u);
@@ -130,13 +129,13 @@ TEST(MortonSort, SortIndicesEmpty) {
 
 TEST(MortonSort, SortIndicesSingleElement) {
     using MemSpace = Kokkos::HostSpace;
-    Kokkos::View<double*, MemSpace> cx("cx", 1);
-    Kokkos::View<double*, MemSpace> cy("cy", 1);
+    Kokkos::View<double *, MemSpace> cx("cx", 1);
+    Kokkos::View<double *, MemSpace> cy("cy", 1);
     cx(0) = 5.0;
     cy(0) = 3.0;
 
-    auto cx_const = Kokkos::View<const double*, MemSpace>(cx);
-    auto cy_const = Kokkos::View<const double*, MemSpace>(cy);
+    auto cx_const = Kokkos::View<const double *, MemSpace>(cx);
+    auto cy_const = Kokkos::View<const double *, MemSpace>(cy);
 
     auto result = axis::detail::morton_sort_indices<MemSpace>(cx_const, cy_const, 1);
     EXPECT_EQ(result.extent(0), 1u);
@@ -147,21 +146,29 @@ TEST(MortonSort, SortIndicesProducesValidPermutation) {
     using MemSpace = Kokkos::HostSpace;
     const std::size_t n = 8;
 
-    Kokkos::View<double*, MemSpace> cx("cx", n);
-    Kokkos::View<double*, MemSpace> cy("cy", n);
+    Kokkos::View<double *, MemSpace> cx("cx", n);
+    Kokkos::View<double *, MemSpace> cy("cy", n);
 
     // Scatter points across a 2D domain
-    cx(0) = 10.0; cy(0) = 10.0;  // bottom-left
-    cx(1) = 90.0; cy(1) = 90.0;  // top-right
-    cx(2) = 10.0; cy(2) = 90.0;  // top-left
-    cx(3) = 90.0; cy(3) = 10.0;  // bottom-right
-    cx(4) = 50.0; cy(4) = 50.0;  // center
-    cx(5) = 25.0; cy(5) = 25.0;  // near bottom-left
-    cx(6) = 75.0; cy(6) = 75.0;  // near top-right
-    cx(7) = 50.0; cy(7) = 10.0;  // bottom-center
+    cx(0) = 10.0;
+    cy(0) = 10.0;  // bottom-left
+    cx(1) = 90.0;
+    cy(1) = 90.0;  // top-right
+    cx(2) = 10.0;
+    cy(2) = 90.0;  // top-left
+    cx(3) = 90.0;
+    cy(3) = 10.0;  // bottom-right
+    cx(4) = 50.0;
+    cy(4) = 50.0;  // center
+    cx(5) = 25.0;
+    cy(5) = 25.0;  // near bottom-left
+    cx(6) = 75.0;
+    cy(6) = 75.0;  // near top-right
+    cx(7) = 50.0;
+    cy(7) = 10.0;  // bottom-center
 
-    auto cx_const = Kokkos::View<const double*, MemSpace>(cx);
-    auto cy_const = Kokkos::View<const double*, MemSpace>(cy);
+    auto cx_const = Kokkos::View<const double *, MemSpace>(cx);
+    auto cy_const = Kokkos::View<const double *, MemSpace>(cy);
 
     auto perm = axis::detail::morton_sort_indices<MemSpace>(cx_const, cy_const, n);
     EXPECT_EQ(perm.extent(0), n);
@@ -181,18 +188,22 @@ TEST(MortonSort, SortIndicesGroupsSpatialNeighbors) {
     using MemSpace = Kokkos::HostSpace;
     const std::size_t n = 4;
 
-    Kokkos::View<double*, MemSpace> cx("cx", n);
-    Kokkos::View<double*, MemSpace> cy("cy", n);
+    Kokkos::View<double *, MemSpace> cx("cx", n);
+    Kokkos::View<double *, MemSpace> cy("cy", n);
 
     // Two clusters: (0,0), (1,1) are near each other; (100,100), (101,101) are near each other.
     // Morton sort should group each cluster consecutively.
-    cx(0) = 100.0; cy(0) = 100.0;
-    cx(1) = 0.0;   cy(1) = 0.0;
-    cx(2) = 101.0; cy(2) = 101.0;
-    cx(3) = 1.0;   cy(3) = 1.0;
+    cx(0) = 100.0;
+    cy(0) = 100.0;
+    cx(1) = 0.0;
+    cy(1) = 0.0;
+    cx(2) = 101.0;
+    cy(2) = 101.0;
+    cx(3) = 1.0;
+    cy(3) = 1.0;
 
-    auto cx_const = Kokkos::View<const double*, MemSpace>(cx);
-    auto cy_const = Kokkos::View<const double*, MemSpace>(cy);
+    auto cx_const = Kokkos::View<const double *, MemSpace>(cx);
+    auto cy_const = Kokkos::View<const double *, MemSpace>(cy);
 
     auto perm = axis::detail::morton_sort_indices<MemSpace>(cx_const, cy_const, n);
 

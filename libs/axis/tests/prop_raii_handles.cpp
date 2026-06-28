@@ -5,10 +5,8 @@
 // Proj_Handle) releases the underlying C resource exactly once on normal scope
 // exit and on exception-driven scope exit.
 
-#include <rapidcheck.h>
 #include <gtest/gtest.h>
-
-#include "axis/detail/raii_handles.hpp"
+#include <rapidcheck.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -17,13 +15,15 @@
 #include <string>
 #include <utility>
 
+#include "axis/detail/raii_handles.hpp"
+
 namespace axis::test {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Generate a unique temporary file path for testing.
 // ─────────────────────────────────────────────────────────────────────────────
 
-static std::string make_temp_path(const std::string& suffix) {
+static std::string make_temp_path(const std::string &suffix) {
     namespace fs = std::filesystem;
     auto tmp = fs::temp_directory_path() / ("axis_raii_test_" + suffix);
     return tmp.string();
@@ -49,37 +49,34 @@ static std::string make_temp_path(const std::string& suffix) {
 
 TEST(PropRaiiHandles, FileHandle_NormalScopeExit) {
     // **Validates: Requirements 17.2, 17.4, 17.5**
-    const auto result = rc::check(
-        "File_Handle releases FILE* exactly once on normal scope exit",
-        [](void) {
-            // Generate a random suffix to avoid collisions between iterations.
-            const auto suffix = *rc::gen::container<std::string>(
-                rc::gen::inRange('a', 'z'));
-            RC_PRE(!suffix.empty());
+    const auto result = rc::check("File_Handle releases FILE* exactly once on normal scope exit", [](void) {
+        // Generate a random suffix to avoid collisions between iterations.
+        const auto suffix = *rc::gen::container<std::string>(rc::gen::inRange('a', 'z'));
+        RC_PRE(!suffix.empty());
 
-            const std::string path = make_temp_path(suffix);
+        const std::string path = make_temp_path(suffix);
 
-            // Normal scope exit: construct File_Handle in a block.
-            {
-                axis::detail::File_Handle fh(path.c_str(), "w");
-                // The handle must be valid inside the scope.
-                RC_ASSERT(fh.get() != nullptr);
-                RC_ASSERT(static_cast<bool>(fh));
-                // Write marker data to verify the file is usable.
-                std::fputs("RAII_TEST_MARKER", fh.get());
-            }
-            // After the block, the destructor should have called fclose.
-            // Verify: the file exists and contains our marker (fclose flushes).
-            std::FILE* verify = std::fopen(path.c_str(), "r");
-            RC_ASSERT(verify != nullptr);
-            char buf[64] = {};
-            std::fgets(buf, sizeof(buf), verify);
-            std::fclose(verify);
-            RC_ASSERT(std::string(buf) == "RAII_TEST_MARKER");
+        // Normal scope exit: construct File_Handle in a block.
+        {
+            axis::detail::File_Handle fh(path.c_str(), "w");
+            // The handle must be valid inside the scope.
+            RC_ASSERT(fh.get() != nullptr);
+            RC_ASSERT(static_cast<bool>(fh));
+            // Write marker data to verify the file is usable.
+            std::fputs("RAII_TEST_MARKER", fh.get());
+        }
+        // After the block, the destructor should have called fclose.
+        // Verify: the file exists and contains our marker (fclose flushes).
+        std::FILE *verify = std::fopen(path.c_str(), "r");
+        RC_ASSERT(verify != nullptr);
+        char buf[64] = {};
+        std::fgets(buf, sizeof(buf), verify);
+        std::fclose(verify);
+        RC_ASSERT(std::string(buf) == "RAII_TEST_MARKER");
 
-            // Cleanup temp file.
-            std::remove(path.c_str());
-        });
+        // Cleanup temp file.
+        std::remove(path.c_str());
+    });
 
     ASSERT_TRUE(result);
 }
@@ -94,36 +91,33 @@ TEST(PropRaiiHandles, FileHandle_NormalScopeExit) {
 
 TEST(PropRaiiHandles, FileHandle_ExceptionScopeExit) {
     // **Validates: Requirements 17.2, 17.4, 17.5**
-    const auto result = rc::check(
-        "File_Handle releases FILE* exactly once on exception scope exit",
-        [](void) {
-            const auto suffix = *rc::gen::container<std::string>(
-                rc::gen::inRange('a', 'z'));
-            RC_PRE(!suffix.empty());
+    const auto result = rc::check("File_Handle releases FILE* exactly once on exception scope exit", [](void) {
+        const auto suffix = *rc::gen::container<std::string>(rc::gen::inRange('a', 'z'));
+        RC_PRE(!suffix.empty());
 
-            const std::string path = make_temp_path(suffix);
+        const std::string path = make_temp_path(suffix);
 
-            // Exception scope exit: File_Handle destroyed during stack unwind.
-            try {
-                axis::detail::File_Handle fh(path.c_str(), "w");
-                RC_ASSERT(fh.get() != nullptr);
-                std::fputs("EXCEPTION_MARKER", fh.get());
-                throw std::runtime_error("intentional test throw");
-            } catch (const std::runtime_error&) {
-                // Expected — destructor should have run during unwind.
-            }
+        // Exception scope exit: File_Handle destroyed during stack unwind.
+        try {
+            axis::detail::File_Handle fh(path.c_str(), "w");
+            RC_ASSERT(fh.get() != nullptr);
+            std::fputs("EXCEPTION_MARKER", fh.get());
+            throw std::runtime_error("intentional test throw");
+        } catch (const std::runtime_error &) {
+            // Expected — destructor should have run during unwind.
+        }
 
-            // After the exception, verify fclose was called (data was flushed).
-            std::FILE* verify = std::fopen(path.c_str(), "r");
-            RC_ASSERT(verify != nullptr);
-            char buf[64] = {};
-            std::fgets(buf, sizeof(buf), verify);
-            std::fclose(verify);
-            RC_ASSERT(std::string(buf) == "EXCEPTION_MARKER");
+        // After the exception, verify fclose was called (data was flushed).
+        std::FILE *verify = std::fopen(path.c_str(), "r");
+        RC_ASSERT(verify != nullptr);
+        char buf[64] = {};
+        std::fgets(buf, sizeof(buf), verify);
+        std::fclose(verify);
+        RC_ASSERT(std::string(buf) == "EXCEPTION_MARKER");
 
-            // Cleanup temp file.
-            std::remove(path.c_str());
-        });
+        // Cleanup temp file.
+        std::remove(path.c_str());
+    });
 
     ASSERT_TRUE(result);
 }
@@ -138,46 +132,43 @@ TEST(PropRaiiHandles, FileHandle_ExceptionScopeExit) {
 
 TEST(PropRaiiHandles, FileHandle_MoveSemantics) {
     // **Validates: Requirements 17.2, 17.4, 17.5**
-    const auto result = rc::check(
-        "File_Handle move transfers ownership; resource released exactly once",
-        [](void) {
-            const auto suffix = *rc::gen::container<std::string>(
-                rc::gen::inRange('a', 'z'));
-            RC_PRE(!suffix.empty());
+    const auto result = rc::check("File_Handle move transfers ownership; resource released exactly once", [](void) {
+        const auto suffix = *rc::gen::container<std::string>(rc::gen::inRange('a', 'z'));
+        RC_PRE(!suffix.empty());
 
-            const std::string path = make_temp_path(suffix);
+        const std::string path = make_temp_path(suffix);
 
-            {
-                axis::detail::File_Handle original(path.c_str(), "w");
-                RC_ASSERT(original.get() != nullptr);
+        {
+            axis::detail::File_Handle original(path.c_str(), "w");
+            RC_ASSERT(original.get() != nullptr);
 
-                // Move-construct: ownership transfers.
-                axis::detail::File_Handle moved(std::move(original));
+            // Move-construct: ownership transfers.
+            axis::detail::File_Handle moved(std::move(original));
 
-                // Original must be null (no resource to release).
-                RC_ASSERT(original.get() == nullptr);
-                RC_ASSERT(!static_cast<bool>(original));
+            // Original must be null (no resource to release).
+            RC_ASSERT(original.get() == nullptr);
+            RC_ASSERT(!static_cast<bool>(original));
 
-                // Moved-to handle must be valid.
-                RC_ASSERT(moved.get() != nullptr);
-                RC_ASSERT(static_cast<bool>(moved));
+            // Moved-to handle must be valid.
+            RC_ASSERT(moved.get() != nullptr);
+            RC_ASSERT(static_cast<bool>(moved));
 
-                // Write through the moved handle to prove it is usable.
-                std::fputs("MOVE_MARKER", moved.get());
-            }
-            // Both destructors run; only the moved handle should call fclose.
+            // Write through the moved handle to prove it is usable.
+            std::fputs("MOVE_MARKER", moved.get());
+        }
+        // Both destructors run; only the moved handle should call fclose.
 
-            // Verify the file was properly closed (content flushed).
-            std::FILE* verify = std::fopen(path.c_str(), "r");
-            RC_ASSERT(verify != nullptr);
-            char buf[64] = {};
-            std::fgets(buf, sizeof(buf), verify);
-            std::fclose(verify);
-            RC_ASSERT(std::string(buf) == "MOVE_MARKER");
+        // Verify the file was properly closed (content flushed).
+        std::FILE *verify = std::fopen(path.c_str(), "r");
+        RC_ASSERT(verify != nullptr);
+        char buf[64] = {};
+        std::fgets(buf, sizeof(buf), verify);
+        std::fclose(verify);
+        RC_ASSERT(std::string(buf) == "MOVE_MARKER");
 
-            // Cleanup temp file.
-            std::remove(path.c_str());
-        });
+        // Cleanup temp file.
+        std::remove(path.c_str());
+    });
 
     ASSERT_TRUE(result);
 }
@@ -191,30 +182,25 @@ TEST(PropRaiiHandles, FileHandle_MoveSemantics) {
 
 TEST(PropRaiiHandles, FileHandle_ConstructorThrowsOnInvalidPath) {
     // **Validates: Requirements 17.2, 17.4**
-    const auto result = rc::check(
-        "File_Handle throws std::runtime_error on invalid path; no resource leak",
-        [](void) {
-            // Generate a path that cannot be opened (nonexistent deep directory).
-            const auto suffix = *rc::gen::container<std::string>(
-                rc::gen::inRange('a', 'z'));
-            RC_PRE(!suffix.empty());
+    const auto result = rc::check("File_Handle throws std::runtime_error on invalid path; no resource leak", [](void) {
+        // Generate a path that cannot be opened (nonexistent deep directory).
+        const auto suffix = *rc::gen::container<std::string>(rc::gen::inRange('a', 'z'));
+        RC_PRE(!suffix.empty());
 
-            const std::string bad_path =
-                "/nonexistent_dir_axis_test_" + suffix + "/impossible.txt";
+        const std::string bad_path = "/nonexistent_dir_axis_test_" + suffix + "/impossible.txt";
 
-            bool threw = false;
-            try {
-                axis::detail::File_Handle fh(bad_path.c_str(), "w");
-                // Should not reach here.
-                RC_FAIL("Expected std::runtime_error was not thrown");
-            } catch (const std::runtime_error& e) {
-                threw = true;
-                // The error message should mention the path.
-                RC_ASSERT(std::string(e.what()).find("impossible.txt") !=
-                           std::string::npos);
-            }
-            RC_ASSERT(threw);
-        });
+        bool threw = false;
+        try {
+            axis::detail::File_Handle fh(bad_path.c_str(), "w");
+            // Should not reach here.
+            RC_FAIL("Expected std::runtime_error was not thrown");
+        } catch (const std::runtime_error &e) {
+            threw = true;
+            // The error message should mention the path.
+            RC_ASSERT(std::string(e.what()).find("impossible.txt") != std::string::npos);
+        }
+        RC_ASSERT(threw);
+    });
 
     ASSERT_TRUE(result);
 }
@@ -231,23 +217,21 @@ TEST(PropRaiiHandles, FileHandle_ConstructorThrowsOnInvalidPath) {
 
 TEST(PropRaiiHandles, ProjHandle_NormalScopeExit) {
     // **Validates: Requirements 17.1, 17.4, 17.5**
-    const auto result = rc::check(
-        "Proj_Handle releases PJ* exactly once on normal scope exit",
-        [](void) {
-            // Use a valid proj string; vary the datum to add randomness.
-            const std::string proj_string = "+proj=longlat +datum=WGS84";
+    const auto result = rc::check("Proj_Handle releases PJ* exactly once on normal scope exit", [](void) {
+        // Use a valid proj string; vary the datum to add randomness.
+        const std::string proj_string = "+proj=longlat +datum=WGS84";
 
-            {
-                axis::detail::Proj_Handle ph(proj_string.c_str());
-                // Handle must be valid inside the scope.
-                RC_ASSERT(ph.get() != nullptr);
-                RC_ASSERT(static_cast<bool>(ph));
-            }
-            // Destructor called proj_destroy. If it didn't, valgrind/asan
-            // would detect the leak. The property verifies no exception
-            // was thrown and the handle was successfully constructed and
-            // destroyed on the normal path.
-        });
+        {
+            axis::detail::Proj_Handle ph(proj_string.c_str());
+            // Handle must be valid inside the scope.
+            RC_ASSERT(ph.get() != nullptr);
+            RC_ASSERT(static_cast<bool>(ph));
+        }
+        // Destructor called proj_destroy. If it didn't, valgrind/asan
+        // would detect the leak. The property verifies no exception
+        // was thrown and the handle was successfully constructed and
+        // destroyed on the normal path.
+    });
 
     ASSERT_TRUE(result);
 }
@@ -258,20 +242,18 @@ TEST(PropRaiiHandles, ProjHandle_NormalScopeExit) {
 
 TEST(PropRaiiHandles, ProjHandle_ExceptionScopeExit) {
     // **Validates: Requirements 17.1, 17.4, 17.5**
-    const auto result = rc::check(
-        "Proj_Handle releases PJ* exactly once on exception scope exit",
-        [](void) {
-            const std::string proj_string = "+proj=longlat +datum=WGS84";
+    const auto result = rc::check("Proj_Handle releases PJ* exactly once on exception scope exit", [](void) {
+        const std::string proj_string = "+proj=longlat +datum=WGS84";
 
-            try {
-                axis::detail::Proj_Handle ph(proj_string.c_str());
-                RC_ASSERT(ph.get() != nullptr);
-                throw std::runtime_error("intentional test throw");
-            } catch (const std::runtime_error&) {
-                // Expected — destructor ran during stack unwinding.
-            }
-            // If proj_destroy was not called, ASAN/valgrind detects the leak.
-        });
+        try {
+            axis::detail::Proj_Handle ph(proj_string.c_str());
+            RC_ASSERT(ph.get() != nullptr);
+            throw std::runtime_error("intentional test throw");
+        } catch (const std::runtime_error &) {
+            // Expected — destructor ran during stack unwinding.
+        }
+        // If proj_destroy was not called, ASAN/valgrind detects the leak.
+    });
 
     ASSERT_TRUE(result);
 }
@@ -282,29 +264,27 @@ TEST(PropRaiiHandles, ProjHandle_ExceptionScopeExit) {
 
 TEST(PropRaiiHandles, ProjHandle_MoveSemantics) {
     // **Validates: Requirements 17.1, 17.4, 17.5**
-    const auto result = rc::check(
-        "Proj_Handle move transfers ownership; resource released exactly once",
-        [](void) {
-            const std::string proj_string = "+proj=longlat +datum=WGS84";
+    const auto result = rc::check("Proj_Handle move transfers ownership; resource released exactly once", [](void) {
+        const std::string proj_string = "+proj=longlat +datum=WGS84";
 
-            {
-                axis::detail::Proj_Handle original(proj_string.c_str());
-                RC_ASSERT(original.get() != nullptr);
+        {
+            axis::detail::Proj_Handle original(proj_string.c_str());
+            RC_ASSERT(original.get() != nullptr);
 
-                // Move-construct.
-                axis::detail::Proj_Handle moved(std::move(original));
+            // Move-construct.
+            axis::detail::Proj_Handle moved(std::move(original));
 
-                // Original must be null.
-                RC_ASSERT(original.get() == nullptr);
-                RC_ASSERT(!static_cast<bool>(original));
+            // Original must be null.
+            RC_ASSERT(original.get() == nullptr);
+            RC_ASSERT(!static_cast<bool>(original));
 
-                // Moved-to must be valid.
-                RC_ASSERT(moved.get() != nullptr);
-                RC_ASSERT(static_cast<bool>(moved));
-            }
-            // Only one proj_destroy should be called. ASAN/valgrind detects
-            // double-free or leak.
-        });
+            // Moved-to must be valid.
+            RC_ASSERT(moved.get() != nullptr);
+            RC_ASSERT(static_cast<bool>(moved));
+        }
+        // Only one proj_destroy should be called. ASAN/valgrind detects
+        // double-free or leak.
+    });
 
     ASSERT_TRUE(result);
 }
@@ -315,32 +295,28 @@ TEST(PropRaiiHandles, ProjHandle_MoveSemantics) {
 
 TEST(PropRaiiHandles, ProjHandle_ConstructorThrowsOnInvalidString) {
     // **Validates: Requirements 17.1, 17.4**
-    const auto result = rc::check(
-        "Proj_Handle throws std::runtime_error on invalid proj_string",
-        [](void) {
-            // Generate random garbage strings that PROJ cannot parse.
-            const auto garbage = *rc::gen::container<std::string>(
-                rc::gen::inRange('!', '~'));
-            // Prepend something clearly invalid.
-            const std::string bad_proj = "INVALID_PROJ_" + garbage;
+    const auto result = rc::check("Proj_Handle throws std::runtime_error on invalid proj_string", [](void) {
+        // Generate random garbage strings that PROJ cannot parse.
+        const auto garbage = *rc::gen::container<std::string>(rc::gen::inRange('!', '~'));
+        // Prepend something clearly invalid.
+        const std::string bad_proj = "INVALID_PROJ_" + garbage;
 
-            bool threw = false;
-            try {
-                axis::detail::Proj_Handle ph(bad_proj.c_str());
-                // If PROJ somehow parses this, skip the iteration.
-                RC_DISCARD("PROJ unexpectedly parsed garbage string");
-            } catch (const std::runtime_error& e) {
-                threw = true;
-                // Verify the error message mentions the failure.
-                RC_ASSERT(std::string(e.what()).find("proj_create failed") !=
-                           std::string::npos);
-            }
-            RC_ASSERT(threw);
-        });
+        bool threw = false;
+        try {
+            axis::detail::Proj_Handle ph(bad_proj.c_str());
+            // If PROJ somehow parses this, skip the iteration.
+            RC_DISCARD("PROJ unexpectedly parsed garbage string");
+        } catch (const std::runtime_error &e) {
+            threw = true;
+            // Verify the error message mentions the failure.
+            RC_ASSERT(std::string(e.what()).find("proj_create failed") != std::string::npos);
+        }
+        RC_ASSERT(threw);
+    });
 
     ASSERT_TRUE(result);
 }
 
-#endif // AXIS_ENABLE_PROJ
+#endif  // AXIS_ENABLE_PROJ
 
 }  // namespace axis::test

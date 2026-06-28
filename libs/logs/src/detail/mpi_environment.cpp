@@ -77,4 +77,4 @@ MPI_Comm Mpi_Environment::communicator() const noexcept {
     return comm_;
 }
 
-} // namespace logs::detail
+}  // namespace logs::detail

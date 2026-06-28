@@ -5,44 +5,36 @@
 /// @file src/solver/weight_generator_conservative_rect_nonuniform.cpp
 /// @brief Non-uniform rectilinear grid conservative interpolation fast-path.
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/detail/regular_grid_detector.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <vector>
 
 namespace axis::solver {
 
 namespace {
 
 KOKKOS_INLINE_FUNCTION
-double rect_overlap_nonuniform(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y,
-                               double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y) noexcept {
-    double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x)
-                                 - Kokkos::fmax(s_lo_x, d_lo_x));
-    double dy = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_y, d_hi_y)
-                                 - Kokkos::fmax(s_lo_y, d_lo_y));
+double rect_overlap_nonuniform(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y, double d_lo_x, double d_hi_x, double d_lo_y,
+                               double d_hi_y) noexcept {
+    double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x) - Kokkos::fmax(s_lo_x, d_lo_x));
+    double dy = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_y, d_hi_y) - Kokkos::fmax(s_lo_y, d_lo_y));
     return dx * dy;
 }
 
-} // namespace anonymous
+}  // namespace
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_conservative_rect_nonuniform(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RectilinearGridInfo& src_rect_info,
-    const detail::RectilinearGridInfo& dst_rect_info) {
-
+InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                       const RegridConfig &config, const detail::RectilinearGridInfo &src_rect_info,
+                                                                       const detail::RectilinearGridInfo &dst_rect_info) {
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
 
@@ -67,7 +59,7 @@ generate_conservative_rect_nonuniform(
     const bool has_src_mask = (src_mask.extent(0) == n_src);
     const bool has_dst_mask = (dst_mask.extent(0) == n_dst);
 
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
@@ -90,16 +82,16 @@ generate_conservative_rect_nonuniform(
 
             // Find overlapping source cell index ranges using binary search
             auto src_lon_start_it = std::lower_bound(src_lons.data(), src_lons.data() + src_lons.extent(0), d_lo_x);
-            auto src_lon_end_it   = std::upper_bound(src_lons.data(), src_lons.data() + src_lons.extent(0), d_hi_x);
+            auto src_lon_end_it = std::upper_bound(src_lons.data(), src_lons.data() + src_lons.extent(0), d_hi_x);
 
             int is_start = std::max(0, static_cast<int>(std::distance(src_lons.data(), src_lon_start_it) - 1));
-            int is_end   = std::min(static_cast<int>(src_ni) - 1, static_cast<int>(std::distance(src_lons.data(), src_lon_end_it)));
+            int is_end = std::min(static_cast<int>(src_ni) - 1, static_cast<int>(std::distance(src_lons.data(), src_lon_end_it)));
 
             auto src_lat_start_it = std::lower_bound(src_lats.data(), src_lats.data() + src_lats.extent(0), d_lo_y);
-            auto src_lat_end_it   = std::upper_bound(src_lats.data(), src_lats.data() + src_lats.extent(0), d_hi_y);
+            auto src_lat_end_it = std::upper_bound(src_lats.data(), src_lats.data() + src_lats.extent(0), d_hi_y);
 
             int js_start = std::max(0, static_cast<int>(std::distance(src_lats.data(), src_lat_start_it) - 1));
-            int js_end   = std::min(static_cast<int>(src_nj) - 1, static_cast<int>(std::distance(src_lats.data(), src_lat_end_it)));
+            int js_end = std::min(static_cast<int>(src_nj) - 1, static_cast<int>(std::distance(src_lats.data(), src_lat_end_it)));
 
             for (int js = js_start; js <= js_end; ++js) {
                 for (int is = is_start; is <= is_end; ++is) {
@@ -112,8 +104,7 @@ generate_conservative_rect_nonuniform(
                     double s_lo_y = src_lats(js);
                     double s_hi_y = src_lats(js + 1);
 
-                    double overlap_area = rect_overlap_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y,
-                                                                   d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                    double overlap_area = rect_overlap_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
 
                     if (overlap_area > 1e-12) {
                         double area_src = has_src_areas ? mesh_src_areas(c_src) : (s_hi_x - s_lo_x) * (s_hi_y - s_lo_y);
@@ -144,26 +135,26 @@ generate_conservative_rect_nonuniform(
     }
 
     const std::size_t nnz = weights_vec.size();
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         h_factor_list(k) = weights_vec[k];
-        h_factor_row(k)  = rows_vec[k];
-        h_factor_col(k)  = cols_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
     }
     for (std::size_t i = 0; i < n_src; ++i) {
         double s_lo_x = src_lons(i % src_ni);
@@ -190,19 +181,12 @@ generate_conservative_rect_nonuniform(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
-template InterpolationMatrix<Kokkos::HostSpace>
-generate_conservative_rect_nonuniform<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&,
-    const detail::RectilinearGridInfo&,
-    const detail::RectilinearGridInfo&);
+template InterpolationMatrix<Kokkos::HostSpace> generate_conservative_rect_nonuniform<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &,
+    const detail::RectilinearGridInfo &, const detail::RectilinearGridInfo &);
 
-} // namespace axis::solver
+}  // namespace axis::solver

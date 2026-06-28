@@ -15,11 +15,11 @@
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <cstdint>
-#include <mpi.h>
 
 #include "halo/environment.hpp"
 #include "mpi_interposition.hpp"
@@ -38,7 +38,7 @@ int g_expected_thread_level = -1;
 /// This sets up the MPI_Spy thread level and calls initialize() once.
 void ensure_initialized() {
     if (!g_initial_init_done) {
-        auto& spy = halo::testing::MPI_Spy::instance();
+        auto &spy = halo::testing::MPI_Spy::instance();
         spy.reset();
         // Configure the spy to report MPI_THREAD_SERIALIZED
         spy.set_thread_level(MPI_THREAD_SERIALIZED);
@@ -66,7 +66,7 @@ RC_GTEST_PROP(EnvironmentProperty20, InitializationIdempotence, ()) {
     // Ensure the one-time initialization has occurred
     ensure_initialized();
 
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
 
     // Record the query_thread call count BEFORE our repeated calls
     std::size_t calls_before = spy.query_thread_call_count();

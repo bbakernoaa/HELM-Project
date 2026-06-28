@@ -6,14 +6,15 @@
 ///               9.7, 11.1, 11.2
 
 #include "logs/logger.hpp"
-#include "logs/detail/context_stack.hpp"
+
+#include <mpi.h>
 
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 
-#include <mpi.h>
+#include "logs/detail/context_stack.hpp"
 
 namespace logs {
 
@@ -69,13 +70,11 @@ int Logger::thread_support_level() const noexcept {
 
 // ─── Logging Entry Points ───────────────────────────────────────────────────
 
-void Logger::log(Severity_Level severity, std::string_view message,
-                 const Submit_Options& opts) noexcept {
+void Logger::log(Severity_Level severity, std::string_view message, const Submit_Options &opts) noexcept {
     try {
         // Requirement 3.2, 3.3: Severity filtering — accept >= threshold.
         // Requirement 3.7: FATAL is never suppressed regardless of threshold.
-        if (severity != Severity_Level::FATAL &&
-            severity < threshold_.load(std::memory_order_acquire)) {
+        if (severity != Severity_Level::FATAL && severity < threshold_.load(std::memory_order_acquire)) {
             return;
         }
 
@@ -92,12 +91,7 @@ void Logger::log(Severity_Level severity, std::string_view message,
         }
 
         // Construct immutable Log_Record.
-        Log_Record record(severity,
-                          std::string(message),
-                          current_rank,
-                          opts.location,
-                          std::move(context_labels),
-                          std::move(stack_trace_text));
+        Log_Record record(severity, std::string(message), current_rank, opts.location, std::move(context_labels), std::move(stack_trace_text));
 
         // Buffer for consolidation.
         {
@@ -132,8 +126,7 @@ void Logger::log(Severity_Level severity, std::string_view message,
     }
 }
 
-[[noreturn]] void Logger::fatal(std::string_view message,
-                                const Submit_Options& opts) noexcept {
+[[noreturn]] void Logger::fatal(std::string_view message, const Submit_Options &opts) noexcept {
     // Delegate to log() which handles the FATAL path.
     log(Severity_Level::FATAL, message, opts);
 
@@ -174,18 +167,16 @@ void Logger::consolidate() noexcept {
 
         if (mpi_.has_communicator()) {
             // Requirement 4.2: Collective consolidation via MPI gather.
-            representatives = engine_.consolidate_collective(
-                std::span<const Log_Record>(buffered), mpi_);
+            representatives = engine_.consolidate_collective(std::span<const Log_Record>(buffered), mpi_);
         } else {
             // Requirement 4.9: Local consolidation fallback, no MPI issued.
-            representatives = engine_.consolidate_local(
-                std::span<const Log_Record>(buffered));
+            representatives = engine_.consolidate_local(std::span<const Log_Record>(buffered));
         }
 
         // Emit representatives to sinks.
         // For collective path: only root (rank 0) gets non-empty results.
         // For local path: the calling process gets results.
-        for (const auto& rep : representatives) {
+        for (const auto &rep : representatives) {
             // Format consolidated record as:
             // [CONSOLIDATED] [SEVERITY] (N ranks: r0-r1, r5-r9) message\n
             std::string formatted = "[CONSOLIDATED] [";
@@ -213,7 +204,7 @@ void Logger::consolidate() noexcept {
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
-std::string Logger::format_record(const Log_Record& record) const {
+std::string Logger::format_record(const Log_Record &record) const {
     // Format: [RANK:0042] [INFO] [ctx1 > ctx2] message text\n
     //
     // Rank at fixed position, zero-padded to 4 digits (or more if rank > 9999).
@@ -235,7 +226,7 @@ std::string Logger::format_record(const Log_Record& record) const {
     oss << " [" << to_string(record.severity()) << "]";
 
     // Context labels.
-    const auto& labels = record.context_labels();
+    const auto &labels = record.context_labels();
     if (!labels.empty()) {
         oss << " [";
         for (std::size_t i = 0; i < labels.size(); ++i) {
@@ -263,7 +254,7 @@ void Logger::dispatch_to_sinks(std::string_view formatted) noexcept {
             return;
         }
         // Requirement 6.3: Write to each sink exactly once.
-        for (auto& sink : sinks_) {
+        for (auto &sink : sinks_) {
             // Requirement 6.6: Sink write-failure isolation — absorb per-sink
             // failures so remaining sinks still receive the record.
             // Requirement 6.7: Retain the failing sink (do not remove it).
@@ -282,7 +273,7 @@ void Logger::dispatch_to_sinks(std::string_view formatted) noexcept {
 void Logger::flush_all_sinks() noexcept {
     try {
         std::lock_guard<std::mutex> lock(sinks_mutex_);
-        for (auto& sink : sinks_) {
+        for (auto &sink : sinks_) {
             (void)sink.flush();
         }
     } catch (...) {
@@ -314,4 +305,4 @@ void Logger::emit_diagnostic(std::string_view context) noexcept {
     }
 }
 
-} // namespace logs
+}  // namespace logs

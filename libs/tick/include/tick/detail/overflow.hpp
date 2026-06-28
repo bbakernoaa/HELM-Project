@@ -9,8 +9,7 @@ namespace tick::detail {
 
 /// Overflow-checked addition for int64_t.
 /// Returns a + b, or throws std::overflow_error if the result overflows.
-[[nodiscard]] constexpr auto checked_add(std::int64_t a, std::int64_t b) -> std::int64_t
-{
+[[nodiscard]] constexpr auto checked_add(std::int64_t a, std::int64_t b) -> std::int64_t {
     if (std::is_constant_evaluated()) {
         // Constexpr path: limit-based pre-checks
         if (b > 0 && a > std::numeric_limits<std::int64_t>::max() - b) {
@@ -32,8 +31,7 @@ namespace tick::detail {
 
 /// Overflow-checked subtraction for int64_t.
 /// Returns a - b, or throws std::overflow_error if the result overflows.
-[[nodiscard]] constexpr auto checked_sub(std::int64_t a, std::int64_t b) -> std::int64_t
-{
+[[nodiscard]] constexpr auto checked_sub(std::int64_t a, std::int64_t b) -> std::int64_t {
     if (std::is_constant_evaluated()) {
         // Constexpr path: limit-based pre-checks
         if (b < 0 && a > std::numeric_limits<std::int64_t>::max() + b) {
@@ -55,8 +53,7 @@ namespace tick::detail {
 
 /// Overflow-checked multiplication for int64_t.
 /// Returns a * b, or throws std::overflow_error if the result overflows.
-[[nodiscard]] constexpr auto checked_mul(std::int64_t a, std::int64_t b) -> std::int64_t
-{
+[[nodiscard]] constexpr auto checked_mul(std::int64_t a, std::int64_t b) -> std::int64_t {
     if (std::is_constant_evaluated()) {
         // Constexpr path: limit-based pre-checks
         if (a == 0 || b == 0) {
@@ -117,4 +114,4 @@ namespace tick::detail {
     }
 }
 
-} // namespace tick::detail
+}  // namespace tick::detail

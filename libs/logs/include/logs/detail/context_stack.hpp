@@ -18,6 +18,6 @@ void pop_context() noexcept;
 /// Snapshot the current thread's context stack (outermost to innermost).
 [[nodiscard]] std::vector<std::string> snapshot_context();
 
-} // namespace logs::detail
+}  // namespace logs::detail
 
-#endif // LOGS_DETAIL_CONTEXT_STACK_HPP
+#endif  // LOGS_DETAIL_CONTEXT_STACK_HPP

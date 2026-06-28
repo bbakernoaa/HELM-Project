@@ -24,7 +24,7 @@ using halo::Neighbor_Info;
 
 // Test fixture supplying a live Communicator and its rank/size.
 class HaloPlanTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         size_ = comm_->size();
@@ -143,12 +143,15 @@ TEST_F(HaloPlanTest, MoveTransfersContents) {
 
 // ─── Global MPI environment ─────────────────────────────────────────────────
 class MpiEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override { MPI_Init(nullptr, nullptr); }
-    void TearDown() override { MPI_Finalize(); }
+   public:
+    void SetUp() override {
+        MPI_Init(nullptr, nullptr);
+    }
+    void TearDown() override {
+        MPI_Finalize();
+    }
 };
 
 }  // namespace
 
-static ::testing::Environment* const mpi_env =
-    ::testing::AddGlobalTestEnvironment(new MpiEnvironment);
+static ::testing::Environment *const mpi_env = ::testing::AddGlobalTestEnvironment(new MpiEnvironment);

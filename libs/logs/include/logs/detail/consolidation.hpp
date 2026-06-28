@@ -4,22 +4,22 @@
 /// @file detail/consolidation.hpp
 /// @brief Consolidation_Key, Rank_Range, compact_ranges, and Consolidation_Engine.
 
-#include "logs/log_record.hpp"
-#include "logs/detail/mpi_environment.hpp"
-#include "logs/detail/serialized_mpi_guard.hpp"
-
 #include <span>
 #include <string>
 #include <vector>
+
+#include "logs/detail/mpi_environment.hpp"
+#include "logs/detail/serialized_mpi_guard.hpp"
+#include "logs/log_record.hpp"
 
 namespace logs::detail {
 
 /// Identity used for consolidation: severity + payload, EXCLUDING rank.
 struct Consolidation_Key {
     Severity_Level severity;
-    std::string    message;
+    std::string message;
 
-    bool operator==(const Consolidation_Key&) const = default;
+    bool operator==(const Consolidation_Key &) const = default;
 };
 
 /// A maximal contiguous span of contributing ranks.
@@ -34,22 +34,19 @@ struct Rank_Range {
 
 /// Representative consolidated record.
 struct Consolidated_Record {
-    Consolidation_Key       key;
-    int                     rank_count;
+    Consolidation_Key key;
+    int rank_count;
     std::vector<Rank_Range> ranges;
 };
 
 /// Cross-rank consolidation engine.
 class Consolidation_Engine {
-public:
-    [[nodiscard]] std::vector<Consolidated_Record>
-    consolidate_collective(std::span<const Log_Record> buffered,
-                           Mpi_Environment& env) noexcept;
+   public:
+    [[nodiscard]] std::vector<Consolidated_Record> consolidate_collective(std::span<const Log_Record> buffered, Mpi_Environment &env) noexcept;
 
-    [[nodiscard]] std::vector<Consolidated_Record>
-    consolidate_local(std::span<const Log_Record> buffered) noexcept;
+    [[nodiscard]] std::vector<Consolidated_Record> consolidate_local(std::span<const Log_Record> buffered) noexcept;
 };
 
-} // namespace logs::detail
+}  // namespace logs::detail
 
-#endif // LOGS_DETAIL_CONSOLIDATION_HPP
+#endif  // LOGS_DETAIL_CONSOLIDATION_HPP

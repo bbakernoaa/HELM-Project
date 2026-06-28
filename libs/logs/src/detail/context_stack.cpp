@@ -7,7 +7,7 @@ namespace logs::detail {
 
 namespace {
 thread_local std::vector<std::string> tl_context_stack;
-} // anonymous namespace
+}  // anonymous namespace
 
 void push_context(std::string label) {
     tl_context_stack.push_back(std::move(label));
@@ -23,4 +23,4 @@ std::vector<std::string> snapshot_context() {
     return tl_context_stack;
 }
 
-} // namespace logs::detail
+}  // namespace logs::detail

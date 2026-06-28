@@ -9,14 +9,14 @@
 /// Requirements: 13.7, 13.8, 13.9
 
 #include <rapidcheck.h>
-#include <dagr/pipeline_config.hpp>
-#include <tick/duration.hpp>
 
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <dagr/pipeline_config.hpp>
 #include <set>
 #include <string>
+#include <tick/duration.hpp>
 #include <vector>
 
 namespace dagr::gen {
@@ -26,8 +26,8 @@ namespace dagr::gen {
 /// Generated DAG result containing task names and edges.
 /// Provides a valid acyclic topology suitable for Pipeline_Config construction.
 struct Generated_DAG {
-    std::vector<std::string>     task_names;  ///< One name per node (index = node ID)
-    std::vector<Dependency_Edge> edges;       ///< Directed edges (producer → consumer)
+    std::vector<std::string> task_names;  ///< One name per node (index = node ID)
+    std::vector<Dependency_Edge> edges;   ///< Directed edges (producer → consumer)
 };
 
 /// Generator for random acyclic DAGs via layered construction.
@@ -39,8 +39,7 @@ struct Generated_DAG {
 /// @param min_nodes  Minimum number of nodes (≥ 2)
 /// @param max_nodes  Maximum number of nodes (≤ 128)
 /// @param max_edges  Maximum number of edges to generate (≤ 512)
-inline auto acyclic_dag(std::uint32_t min_nodes, std::uint32_t max_nodes,
-                        std::uint32_t max_edges) {
+inline auto acyclic_dag(std::uint32_t min_nodes, std::uint32_t max_nodes, std::uint32_t max_edges) {
     return rc::gen::exec([min_nodes, max_nodes, max_edges] {
         // Generate node count
         auto node_count = *rc::gen::inRange<std::uint32_t>(min_nodes, max_nodes + 1);
@@ -72,15 +71,12 @@ inline auto acyclic_dag(std::uint32_t min_nodes, std::uint32_t max_nodes,
         std::vector<Dependency_Edge> edges;
 
         // Generate edges by randomly sampling from valid layer pairs
-        auto edge_count = *rc::gen::inRange<std::uint32_t>(
-            1, std::min(max_edges, node_count * (node_count - 1) / 2) + 1);
+        auto edge_count = *rc::gen::inRange<std::uint32_t>(1, std::min(max_edges, node_count * (node_count - 1) / 2) + 1);
 
         // Use a set to avoid duplicate edges
         std::set<std::pair<std::uint32_t, std::uint32_t>> edge_set;
 
-        for (std::uint32_t attempt = 0;
-             attempt < edge_count * 3 && edge_set.size() < edge_count;
-             ++attempt) {
+        for (std::uint32_t attempt = 0; attempt < edge_count * 3 && edge_set.size() < edge_count; ++attempt) {
             auto src = *rc::gen::inRange<std::uint32_t>(0, node_count);
             auto dst = *rc::gen::inRange<std::uint32_t>(0, node_count);
 
@@ -91,7 +87,7 @@ inline auto acyclic_dag(std::uint32_t min_nodes, std::uint32_t max_nodes,
         }
 
         edges.reserve(edge_set.size());
-        for (const auto& [src, dst] : edge_set) {
+        for (const auto &[src, dst] : edge_set) {
             edges.push_back(Dependency_Edge{src, dst});
         }
 
@@ -148,9 +144,7 @@ inline auto cyclic_graph(std::uint32_t min_nodes, std::uint32_t max_nodes) {
         std::set<std::pair<std::uint32_t, std::uint32_t>> edge_set;
 
         auto edge_count = *rc::gen::inRange<std::uint32_t>(1, node_count + 1);
-        for (std::uint32_t attempt = 0;
-             attempt < edge_count * 3 && edge_set.size() < edge_count;
-             ++attempt) {
+        for (std::uint32_t attempt = 0; attempt < edge_count * 3 && edge_set.size() < edge_count; ++attempt) {
             auto src = *rc::gen::inRange<std::uint32_t>(0, node_count);
             auto dst = *rc::gen::inRange<std::uint32_t>(0, node_count);
             if (node_layer[src] < node_layer[dst]) {
@@ -158,15 +152,15 @@ inline auto cyclic_graph(std::uint32_t min_nodes, std::uint32_t max_nodes) {
             }
         }
 
-        for (const auto& [src, dst] : edge_set) {
+        for (const auto &[src, dst] : edge_set) {
             edges.push_back(Dependency_Edge{src, dst});
         }
 
         // Add a back-edge to introduce a cycle: from a higher-layer node to
         // a lower-layer node (or same-layer for self-loop avoidance, pick
         // strictly higher → lower)
-        std::uint32_t back_src = node_count - 1; // highest layer
-        std::uint32_t back_dst = 0;              // lowest layer
+        std::uint32_t back_src = node_count - 1;  // highest layer
+        std::uint32_t back_dst = 0;               // lowest layer
 
         // Try to find a random back-edge pair
         for (std::uint32_t attempt = 0; attempt < node_count * 2; ++attempt) {
@@ -203,14 +197,10 @@ inline auto valid_stream_descriptor() {
         }
 
         // Random temporal profile
-        auto profile = *rc::gen::inRange<int>(0, 2) == 0
-                           ? Temporal_Profile::linear
-                           : Temporal_Profile::step;
+        auto profile = *rc::gen::inRange<int>(0, 2) == 0 ? Temporal_Profile::linear : Temporal_Profile::step;
 
         // Random out-of-bounds policy
-        auto oob = *rc::gen::inRange<int>(0, 2) == 0
-                       ? OutOfBounds_Policy::clamp
-                       : OutOfBounds_Policy::cycle;
+        auto oob = *rc::gen::inRange<int>(0, 2) == 0 ? OutOfBounds_Policy::clamp : OutOfBounds_Policy::cycle;
 
         // Generate a non-empty dataset path
         auto path_len = *rc::gen::inRange(3, 32);
@@ -221,16 +211,10 @@ inline auto valid_stream_descriptor() {
         path_str += ".zarr";
 
         // Generate a positive snapshot interval (1 hour to 30 days in nanoseconds)
-        auto interval_hours = *rc::gen::inRange<std::int64_t>(1, 721); // 1 hour to 30 days
+        auto interval_hours = *rc::gen::inRange<std::int64_t>(1, 721);  // 1 hour to 30 days
         auto snapshot_interval = tick::Duration{interval_hours * 3'600'000'000'000LL};
 
-        return Stream_Descriptor{
-            std::move(name),
-            profile,
-            oob,
-            std::filesystem::path{std::move(path_str)},
-            snapshot_interval
-        };
+        return Stream_Descriptor{std::move(name), profile, oob, std::filesystem::path{std::move(path_str)}, snapshot_interval};
     });
 }
 
@@ -267,22 +251,14 @@ inline auto valid_pipeline_config(std::uint32_t min_streams, std::uint32_t max_s
         }
 
         // Generate a matching acyclic DAG
-        auto dag = *acyclic_dag(stream_count, stream_count,
-                                std::min<std::uint32_t>(stream_count * 2, 512));
+        auto dag = *acyclic_dag(stream_count, stream_count, std::min<std::uint32_t>(stream_count * 2, 512));
 
         // Generate valid concurrency and timeout values
         auto concurrency = *rc::gen::inRange<std::uint32_t>(1, 65);
         auto deadlock_timeout = *rc::gen::inRange<std::uint32_t>(1, 3601);
         auto shutdown_timeout = *rc::gen::inRange<std::uint32_t>(1, 61);
 
-        return Pipeline_Config{
-            std::move(streams),
-            std::move(dag.task_names),
-            std::move(dag.edges),
-            concurrency,
-            deadlock_timeout,
-            shutdown_timeout
-        };
+        return Pipeline_Config{std::move(streams), std::move(dag.task_names), std::move(dag.edges), concurrency, deadlock_timeout, shutdown_timeout};
     });
 }
 
@@ -310,7 +286,7 @@ inline auto max_concurrency() {
 ///
 /// Thread-safe: uses std::memory_order_seq_cst for all operations.
 class Completion_Sequence_Counter {
-public:
+   public:
     Completion_Sequence_Counter() noexcept = default;
 
     /// Record a completion event and return its sequence number.
@@ -329,8 +305,8 @@ public:
         counter_.store(0, std::memory_order_seq_cst);
     }
 
-private:
+   private:
     std::atomic<std::uint64_t> counter_{0};
 };
 
-} // namespace dagr::gen
+}  // namespace dagr::gen

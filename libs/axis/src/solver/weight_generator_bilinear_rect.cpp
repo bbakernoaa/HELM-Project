@@ -14,19 +14,17 @@
 ///
 /// Requirements: 1.1, 2.1–2.8, 3.1–3.5, 4.1–4.6, 7.1–7.4
 
-#include <cmath>
-#include <cstddef>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/detail/regular_grid_detector.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace axis::solver {
 
@@ -37,13 +35,13 @@ namespace axis::solver {
 /// @brief Internal helper struct encapsulating the bilinear weight computation
 ///        for a single destination point on a regular source grid.
 struct BilinearRectKernel {
-    double      lon_min;
-    double      lat_min;
-    double      delta_lon;
-    double      delta_lat;
+    double lon_min;
+    double lat_min;
+    double delta_lon;
+    double delta_lat;
     std::size_t ni;
     std::size_t nj;
-    bool        is_periodic;
+    bool is_periodic;
 
     /// @brief Compute bilinear weights and source cell indices for a destination
     ///        point at (lon_d, lat_d).
@@ -59,9 +57,7 @@ struct BilinearRectKernel {
     /// @param[out] wts    Array of 4 bilinear weights
     /// @return true if the point is mappable, false if outside bounds
     KOKKOS_INLINE_FUNCTION
-    bool compute_weights(double lon_d, double lat_d,
-                         std::size_t* idx, double* wts) const noexcept {
-
+    bool compute_weights(double lon_d, double lat_d, std::size_t *idx, double *wts) const noexcept {
         // ── Longitude normalization for periodic grids ──
         if (is_periodic) {
             // Normalize longitude into [lon_min, lon_min + 360) using a single
@@ -84,8 +80,7 @@ struct BilinearRectKernel {
         if (!is_periodic) {
             // The valid interpolation range is fi ∈ [-0.5, ni-0.5]
             // (anything outside the grid boundary is unmapped)
-            if (fi < -0.5 || fi > static_cast<double>(ni) - 0.5 ||
-                fj < -0.5 || fj > static_cast<double>(nj) - 0.5) {
+            if (fi < -0.5 || fi > static_cast<double>(ni) - 0.5 || fj < -0.5 || fj > static_cast<double>(nj) - 0.5) {
                 return false;  // Outside bounds
             }
         } else {
@@ -146,16 +141,16 @@ struct BilinearRectKernel {
         }
 
         // ── Flat source cell indices: j * ni + i ──
-        idx[0] = static_cast<std::size_t>(j)  * ni + static_cast<std::size_t>(i);
-        idx[1] = static_cast<std::size_t>(j)  * ni + static_cast<std::size_t>(i1);
+        idx[0] = static_cast<std::size_t>(j) * ni + static_cast<std::size_t>(i);
+        idx[1] = static_cast<std::size_t>(j) * ni + static_cast<std::size_t>(i1);
         idx[2] = static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i);
         idx[3] = static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i1);
 
         // ── Bilinear weights ──
         wts[0] = (1.0 - tx) * (1.0 - ty);  // w00
-        wts[1] = tx * (1.0 - ty);           // w10
-        wts[2] = (1.0 - tx) * ty;           // w01
-        wts[3] = tx * ty;                   // w11
+        wts[1] = tx * (1.0 - ty);          // w10
+        wts[2] = (1.0 - tx) * ty;          // w01
+        wts[3] = tx * ty;                  // w11
 
         return true;
     }
@@ -176,14 +171,10 @@ struct BilinearRectKernel {
 /// @param dst_grid_info  RegularGridInfo for destination mesh (unused but kept for API consistency)
 /// @return InterpolationMatrix with bilinear weights (exactly 4 per interior dst cell)
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_bilinear_rect(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RegularGridInfo& src_grid_info,
-    [[maybe_unused]] const detail::RegularGridInfo& dst_grid_info) {
-
+InterpolationMatrix<MemorySpace> generate_bilinear_rect(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                        const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config,
+                                                        const detail::RegularGridInfo &src_grid_info,
+                                                        [[maybe_unused]] const detail::RegularGridInfo &dst_grid_info) {
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
 
@@ -195,8 +186,8 @@ generate_bilinear_rect(
         return InterpolationMatrix<MemorySpace>();
     }
 
-    const double lon_min   = src_grid_info.lon_min;
-    const double lat_min   = src_grid_info.lat_min;
+    const double lon_min = src_grid_info.lon_min;
+    const double lat_min = src_grid_info.lat_min;
     const double delta_lon = src_grid_info.delta_lon;
     const double delta_lat = src_grid_info.delta_lat;
 
@@ -207,17 +198,16 @@ generate_bilinear_rect(
     const bool is_periodic = std::abs(lon_span - 360.0) < period_tol;
 
     // ── Construct the compute kernel ──
-    BilinearRectKernel kernel{lon_min, lat_min, delta_lon, delta_lat,
-                              ni, nj, is_periodic};
+    BilinearRectKernel kernel{lon_min, lat_min, delta_lon, delta_lat, ni, nj, is_periodic};
 
     // ── Access destination mesh connectivity and coordinates for centroid computation ──
-    const auto& offsets = dst_mesh.conn_offsets_view();
-    const auto& indices = dst_mesh.conn_indices_view();
-    const auto& coords  = dst_mesh.node_coords_view();
+    const auto &offsets = dst_mesh.conn_offsets_view();
+    const auto &indices = dst_mesh.conn_indices_view();
+    const auto &coords = dst_mesh.node_coords_view();
 
     // ── Accumulate COO entries ──
     // Reserve for 4 entries per destination cell (bilinear stencil)
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
@@ -229,7 +219,7 @@ generate_bilinear_rect(
     for (std::size_t c = 0; c < n_dst; ++c) {
         // ── Compute destination cell centroid (arithmetic mean of vertices) ──
         auto start = static_cast<std::size_t>(offsets(c));
-        auto end   = static_cast<std::size_t>(offsets(c + 1));
+        auto end = static_cast<std::size_t>(offsets(c + 1));
         std::size_t n_verts = end - start;
 
         double lon_sum = 0.0;
@@ -245,16 +235,14 @@ generate_bilinear_rect(
 
         // ── Compute bilinear weights ──
         std::size_t src_idx[4];
-        double      wts[4];
+        double wts[4];
 
         bool mapped = kernel.compute_weights(lon_d, lat_d, src_idx, wts);
 
         if (!mapped) {
             // Point is outside source grid bounds (non-periodic)
             if (config.unmapped == UnmappedAction::Error) {
-                throw std::runtime_error(
-                    "Unmapped destination cell " + std::to_string(c) +
-                    " in bilinear regular-grid fast-path");
+                throw std::runtime_error("Unmapped destination cell " + std::to_string(c) + " in bilinear regular-grid fast-path");
             }
             // UnmappedAction::Ignore — skip this cell (zero-row)
             continue;
@@ -271,27 +259,27 @@ generate_bilinear_rect(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     // Fill COO entries
     for (std::size_t k = 0; k < nnz; ++k) {
         h_factor_list(k) = weights_vec[k];
-        h_factor_row(k)  = rows_vec[k];
-        h_factor_col(k)  = cols_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
     }
 
     // frac_a = 1.0 for all source cells (bilinear convention)
@@ -324,11 +312,8 @@ generate_bilinear_rect(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -337,12 +322,9 @@ generate_bilinear_rect(
 //  weight_generator.cpp; bilinear rect fast-path is host-only for now.)
 // ─────────────────────────────────────────────────────────────────────────────
 
-template InterpolationMatrix<Kokkos::HostSpace>
-generate_bilinear_rect<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&,
-    const detail::RegularGridInfo&,
-    const detail::RegularGridInfo&);
+template InterpolationMatrix<Kokkos::HostSpace> generate_bilinear_rect<Kokkos::HostSpace>(const topology::UnstructuredMesh<Kokkos::HostSpace> &,
+                                                                                          const topology::UnstructuredMesh<Kokkos::HostSpace> &,
+                                                                                          const RegridConfig &, const detail::RegularGridInfo &,
+                                                                                          const detail::RegularGridInfo &);
 
-} // namespace axis::solver
+}  // namespace axis::solver

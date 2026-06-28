@@ -10,18 +10,16 @@
 //   null pointer (-1) > invalid rank (-2) > invalid memory space (-4) >
 //   invalid dims (-1) > registry full (-5) > internal (-99).
 
-#include <span/span_constants.h>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
+#include <span/span_constants.h>
 
 #include <cstdint>
 #include <vector>
 
 extern "C" {
-int helm_span_register_legacy_ptr(void* ptr, const int64_t* dims, int rank,
-                                  int memory_space_token, int* handle_out);
+int helm_span_register_legacy_ptr(void *ptr, const int64_t *dims, int rank, int memory_space_token, int *handle_out);
 int helm_span_unregister(int handle);
 }
 
@@ -87,8 +85,7 @@ RC_GTEST_PROP(CApiErrorPriority, InvalidDimsReturnsError, ()) {
     dims[static_cast<std::size_t>(bad_idx)] = *rc::gen::element<int64_t>(0, -1, -99);
     int handle;
 
-    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank,
-                                               HELM_SPAN_MEM_HOST, &handle);
+    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank, HELM_SPAN_MEM_HOST, &handle);
     RC_ASSERT(result < 0);  // Some negative error code (ERR_NULL_PTR reused for dims)
 }
 
@@ -101,8 +98,7 @@ RC_GTEST_PROP(CApiErrorPriority, NullPtrAlone, ()) {
     std::vector<int64_t> dims(static_cast<std::size_t>(valid_rank), 10);
     int handle;
 
-    int result = helm_span_register_legacy_ptr(nullptr, dims.data(), valid_rank,
-                                               HELM_SPAN_MEM_HOST, &handle);
+    int result = helm_span_register_legacy_ptr(nullptr, dims.data(), valid_rank, HELM_SPAN_MEM_HOST, &handle);
     RC_ASSERT(result == HELM_SPAN_ERR_NULL_PTR);
 }
 
@@ -116,8 +112,7 @@ RC_GTEST_PROP(CApiErrorPriority, InvalidRankAlone, ()) {
     int64_t dims[] = {10, 10, 10, 10, 10, 10, 10};
     int handle;
 
-    int result = helm_span_register_legacy_ptr(buf, dims, bad_rank,
-                                               HELM_SPAN_MEM_HOST, &handle);
+    int result = helm_span_register_legacy_ptr(buf, dims, bad_rank, HELM_SPAN_MEM_HOST, &handle);
     RC_ASSERT(result == HELM_SPAN_ERR_INVALID_RANK);
 }
 
@@ -133,8 +128,7 @@ RC_GTEST_PROP(CApiErrorPriority, InvalidMemSpaceAlone, ()) {
     int bad_mem = *rc::gen::element(-1, 3, 99);
     int handle;
 
-    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank,
-                                               bad_mem, &handle);
+    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank, bad_mem, &handle);
     RC_ASSERT(result == HELM_SPAN_ERR_INVALID_MEMORY_SPACE);
 }
 
@@ -152,8 +146,7 @@ RC_GTEST_PROP(CApiErrorPriority, InvalidDimsAlone, ()) {
     dims[static_cast<std::size_t>(bad_idx)] = *rc::gen::element<int64_t>(0, -1, -99);
     int handle;
 
-    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank,
-                                               HELM_SPAN_MEM_HOST, &handle);
+    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank, HELM_SPAN_MEM_HOST, &handle);
     RC_ASSERT(result == HELM_SPAN_ERR_NULL_PTR);  // dims error reuses ERR_NULL_PTR
 }
 
@@ -167,13 +160,12 @@ RC_GTEST_PROP(CApiErrorPriority, SuccessCase, ()) {
     std::vector<int64_t> dims(static_cast<std::size_t>(valid_rank));
 
     // Generate valid positive dims
-    for (auto& d : dims) {
+    for (auto &d : dims) {
         d = *rc::gen::inRange<int64_t>(1, 100);
     }
     int handle;
 
-    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank,
-                                               HELM_SPAN_MEM_HOST, &handle);
+    int result = helm_span_register_legacy_ptr(buf, dims.data(), valid_rank, HELM_SPAN_MEM_HOST, &handle);
     RC_ASSERT(result == HELM_SPAN_SUCCESS);
     RC_ASSERT(handle > 0);
 

@@ -20,7 +20,6 @@
 /// Templated on MemorySpace; explicit instantiation for HostSpace in .cpp.
 
 #include <Kokkos_Core.hpp>
-
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/types.hpp>
@@ -56,9 +55,7 @@ struct ConservationReport {
 /// @param frac_a      Source fractions [n_src]
 /// @return            The integrated source quantity
 template <class MemorySpace = Kokkos::HostSpace>
-[[nodiscard]] double source_integral(field_view<const double, 1> src_field,
-                                     field_view<const double, 1> area_a,
-                                     field_view<const double, 1> frac_a);
+[[nodiscard]] double source_integral(field_view<const double, 1> src_field, field_view<const double, 1> area_a, field_view<const double, 1> frac_a);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // destination_integral — NormType-aware Kokkos reduction
@@ -76,10 +73,8 @@ template <class MemorySpace = Kokkos::HostSpace>
 /// @param norm_type   Normalization type (DstArea or FracArea)
 /// @return            The integrated destination quantity
 template <class MemorySpace = Kokkos::HostSpace>
-[[nodiscard]] double destination_integral(field_view<const double, 1> dst_field,
-                                          field_view<const double, 1> area_b,
-                                          field_view<const double, 1> frac_b,
-                                          NormType norm_type);
+[[nodiscard]] double destination_integral(field_view<const double, 1> dst_field, field_view<const double, 1> area_b,
+                                          field_view<const double, 1> frac_b, NormType norm_type);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // check_conservation — build a full ConservationReport
@@ -98,11 +93,8 @@ template <class MemorySpace = Kokkos::HostSpace>
 /// @param norm_type   Normalization type used in the apply
 /// @return            ConservationReport with integrals and error metrics
 template <class MemorySpace = Kokkos::HostSpace>
-[[nodiscard]] ConservationReport
-check_conservation(field_view<const double, 1> src_field,
-                   field_view<const double, 1> dst_field,
-                   const InterpolationMatrix<MemorySpace>& matrix,
-                   NormType norm_type);
+[[nodiscard]] ConservationReport check_conservation(field_view<const double, 1> src_field, field_view<const double, 1> dst_field,
+                                                    const InterpolationMatrix<MemorySpace> &matrix, NormType norm_type);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // adjust_by_fraction — recover true values from DstArea-normalized output
@@ -120,9 +112,8 @@ check_conservation(field_view<const double, 1> src_field,
 /// @param dst_field   Mutable destination field values [n_dst] (modified in place)
 /// @param frac_b      Destination fractions [n_dst]
 template <class MemorySpace = Kokkos::HostSpace>
-void adjust_by_fraction(field_view<double, 1> dst_field,
-                        field_view<const double, 1> frac_b);
+void adjust_by_fraction(field_view<double, 1> dst_field, field_view<const double, 1> frac_b);
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_CONSERVATION_HPP
+#endif  // AXIS_SOLVER_CONSERVATION_HPP

@@ -10,13 +10,12 @@
 // **Validates: Requirements 5.2, 5.3, 5.4, 5.5, 5.11**
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <span/triple_buffer.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <cstddef>
+#include <span/triple_buffer.hpp>
 #include <stdexcept>
 #include <vector>
 
@@ -27,7 +26,7 @@ rc::Gen<std::size_t> genBufferSize() {
     return rc::gen::inRange<std::size_t>(1, 1001);
 }
 
-} // namespace
+}  // namespace
 
 // ─── Valid Construction ──────────────────────────────────────────────────────
 // For any three distinct heap buffers with random size in [1, 1000],
@@ -44,8 +43,7 @@ RC_GTEST_PROP(TripleBufferConstruction, ValidInputsSucceed, ()) {
     std::vector<double> buf_io(n_elements);
 
     // Pointers are guaranteed distinct (separate heap allocations)
-    span::TripleBuffer<double> tb(buf_write.data(), buf_read.data(),
-                                  buf_io.data(), n_elements);
+    span::TripleBuffer<double> tb(buf_write.data(), buf_read.data(), buf_io.data(), n_elements);
 
     // write_ptr(), read_ptr(), io_ptr() are non-null
     RC_ASSERT(tb.write_ptr() != nullptr);
@@ -78,10 +76,7 @@ RC_GTEST_PROP(TripleBufferConstruction, NullWritePtrThrows, ()) {
     std::vector<double> buf_read(n_elements);
     std::vector<double> buf_io(n_elements);
 
-    RC_ASSERT_THROWS_AS(
-        span::TripleBuffer<double>(nullptr, buf_read.data(),
-                                   buf_io.data(), n_elements),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(span::TripleBuffer<double>(nullptr, buf_read.data(), buf_io.data(), n_elements), std::invalid_argument);
 }
 
 RC_GTEST_PROP(TripleBufferConstruction, NullReadPtrThrows, ()) {
@@ -89,10 +84,7 @@ RC_GTEST_PROP(TripleBufferConstruction, NullReadPtrThrows, ()) {
     std::vector<double> buf_write(n_elements);
     std::vector<double> buf_io(n_elements);
 
-    RC_ASSERT_THROWS_AS(
-        span::TripleBuffer<double>(buf_write.data(), nullptr,
-                                   buf_io.data(), n_elements),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(span::TripleBuffer<double>(buf_write.data(), nullptr, buf_io.data(), n_elements), std::invalid_argument);
 }
 
 RC_GTEST_PROP(TripleBufferConstruction, NullIoPtrThrows, ()) {
@@ -100,10 +92,7 @@ RC_GTEST_PROP(TripleBufferConstruction, NullIoPtrThrows, ()) {
     std::vector<double> buf_write(n_elements);
     std::vector<double> buf_read(n_elements);
 
-    RC_ASSERT_THROWS_AS(
-        span::TripleBuffer<double>(buf_write.data(), buf_read.data(),
-                                   nullptr, n_elements),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(span::TripleBuffer<double>(buf_write.data(), buf_read.data(), nullptr, n_elements), std::invalid_argument);
 }
 
 RC_GTEST_PROP(TripleBufferConstruction, ZeroElementsThrows, ()) {
@@ -111,10 +100,7 @@ RC_GTEST_PROP(TripleBufferConstruction, ZeroElementsThrows, ()) {
     std::vector<double> buf_read(1);
     std::vector<double> buf_io(1);
 
-    RC_ASSERT_THROWS_AS(
-        span::TripleBuffer<double>(buf_write.data(), buf_read.data(),
-                                   buf_io.data(), 0),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(span::TripleBuffer<double>(buf_write.data(), buf_read.data(), buf_io.data(), 0), std::invalid_argument);
 }
 
 RC_GTEST_PROP(TripleBufferConstruction, DuplicatePointersThrow, ()) {
@@ -123,20 +109,11 @@ RC_GTEST_PROP(TripleBufferConstruction, DuplicatePointersThrow, ()) {
     std::vector<double> buf_b(n_elements);
 
     // write == read
-    RC_ASSERT_THROWS_AS(
-        span::TripleBuffer<double>(buf_a.data(), buf_a.data(),
-                                   buf_b.data(), n_elements),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(span::TripleBuffer<double>(buf_a.data(), buf_a.data(), buf_b.data(), n_elements), std::invalid_argument);
 
     // write == io
-    RC_ASSERT_THROWS_AS(
-        span::TripleBuffer<double>(buf_a.data(), buf_b.data(),
-                                   buf_a.data(), n_elements),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(span::TripleBuffer<double>(buf_a.data(), buf_b.data(), buf_a.data(), n_elements), std::invalid_argument);
 
     // read == io
-    RC_ASSERT_THROWS_AS(
-        span::TripleBuffer<double>(buf_b.data(), buf_a.data(),
-                                   buf_a.data(), n_elements),
-        std::invalid_argument);
+    RC_ASSERT_THROWS_AS(span::TripleBuffer<double>(buf_b.data(), buf_a.data(), buf_a.data(), n_elements), std::invalid_argument);
 }

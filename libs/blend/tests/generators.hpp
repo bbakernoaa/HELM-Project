@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <Kokkos_Core.hpp>
-#include <blend/helm_math_blend.hpp>
 #include <rapidcheck.h>
 
+#include <Kokkos_Core.hpp>
+#include <blend/helm_math_blend.hpp>
 #include <cstddef>
 #include <vector>
 
@@ -25,8 +25,7 @@ inline auto array_length(std::size_t max_len = 256) {
 /// Generate a vector of random doubles in [-1e6, 1e6].
 /// Uses integer mapping since rc::gen::inRange<double> is unsupported.
 inline auto field_data(std::size_t len) {
-    auto elem_gen = rc::gen::map(rc::gen::inRange<int>(-1000000000, 1000000001),
-                                 [](int x) { return static_cast<double>(x) / 1000.0; });
+    auto elem_gen = rc::gen::map(rc::gen::inRange<int>(-1000000000, 1000000001), [](int x) { return static_cast<double>(x) / 1000.0; });
     return rc::gen::container<std::vector<double>>(len, elem_gen);
 }
 
@@ -40,4 +39,4 @@ inline auto alpha_wide() {
     return rc::gen::map(rc::gen::inRange<int>(-100000, 100001), [](int x) { return static_cast<double>(x) / 10000.0; });
 }
 
-} // namespace blend::gen
+}  // namespace blend::gen

@@ -38,21 +38,21 @@ namespace span::detail {
 ///   auto obj = reg.lookup(h);
 ///   reg.unregister(h);
 class HandleRegistry {
-public:
+   public:
     /// Maximum number of concurrent active entries.
     static constexpr std::size_t MAX_CAPACITY = 65536;
 
     /// Access the process-wide singleton instance.
-    static HandleRegistry& instance() {
+    static HandleRegistry &instance() {
         static HandleRegistry singleton;
         return singleton;
     }
 
     // Non-copyable, non-movable (singleton)
-    HandleRegistry(const HandleRegistry&) = delete;
-    HandleRegistry& operator=(const HandleRegistry&) = delete;
-    HandleRegistry(HandleRegistry&&) = delete;
-    HandleRegistry& operator=(HandleRegistry&&) = delete;
+    HandleRegistry(const HandleRegistry &) = delete;
+    HandleRegistry &operator=(const HandleRegistry &) = delete;
+    HandleRegistry(HandleRegistry &&) = delete;
+    HandleRegistry &operator=(HandleRegistry &&) = delete;
 
     /// Register a view and return a unique positive integer handle.
     ///
@@ -144,12 +144,8 @@ public:
         return active_count_;
     }
 
-private:
-    HandleRegistry()
-        : slots_(MAX_CAPACITY)
-        , occupied_(MAX_CAPACITY, false)
-        , next_handle_(1)
-        , active_count_(0) {}
+   private:
+    HandleRegistry() : slots_(MAX_CAPACITY), occupied_(MAX_CAPACITY, false), next_handle_(1), active_count_(0) {}
 
     ~HandleRegistry() = default;
 
@@ -167,12 +163,12 @@ private:
 
     mutable std::mutex mutex_;
     std::vector<std::shared_ptr<void>> slots_;  ///< Pre-allocated, index = handle-1
-    std::vector<bool> occupied_;                 ///< Tracks which slots are active
-    std::queue<int> free_list_;                  ///< Recycled handle indices
-    int next_handle_;                            ///< Monotonic until free_list non-empty
-    std::size_t active_count_;                   ///< Current number of active entries
+    std::vector<bool> occupied_;                ///< Tracks which slots are active
+    std::queue<int> free_list_;                 ///< Recycled handle indices
+    int next_handle_;                           ///< Monotonic until free_list non-empty
+    std::size_t active_count_;                  ///< Current number of active entries
 };
 
-} // namespace span::detail
+}  // namespace span::detail
 
-#endif // SPAN_HANDLE_REGISTRY_HPP
+#endif  // SPAN_HANDLE_REGISTRY_HPP

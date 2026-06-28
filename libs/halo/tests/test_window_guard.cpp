@@ -27,13 +27,9 @@ namespace {
 // MPI_COMM_SELF. The returned window is owned by the caller (wrap it in a
 // Window_Guard). MPI_Win_create is collective, but over MPI_COMM_SELF each rank
 // is its own group of one, so there is no inter-rank dependency.
-MPI_Win make_self_window(int* buffer, int count) {
+MPI_Win make_self_window(int *buffer, int count) {
     MPI_Win win = MPI_WIN_NULL;
-    MPI_Win_create(buffer,
-                   static_cast<MPI_Aint>(count * static_cast<int>(sizeof(int))),
-                   static_cast<int>(sizeof(int)),
-                   MPI_INFO_NULL,
-                   MPI_COMM_SELF,
+    MPI_Win_create(buffer, static_cast<MPI_Aint>(count * static_cast<int>(sizeof(int))), static_cast<int>(sizeof(int)), MPI_INFO_NULL, MPI_COMM_SELF,
                    &win);
     return win;
 }
@@ -75,8 +71,7 @@ TEST(WindowGuardTest, ActiveEpochFenceClosesAndDataLands) {
 
         MPI_Win_fence(0, win);  // open access epoch
         // Put source -> our own rank-0-of-SELF window.
-        MPI_Put(source, 4, MPI_INT, /*target_rank=*/0, /*target_disp=*/0,
-                4, MPI_INT, win);
+        MPI_Put(source, 4, MPI_INT, /*target_rank=*/0, /*target_disp=*/0, 4, MPI_INT, win);
         guard.set_epoch_active(true);  // destructor will fence(0) before free
     }  // ~Window_Guard: MPI_Win_fence(0) completes the Put, then MPI_Win_free
 
@@ -115,8 +110,8 @@ TEST(WindowGuardTest, MoveConstructionNullifiesSource) {
     halo::Window_Guard src(win);
     halo::Window_Guard dst(std::move(src));
 
-    EXPECT_EQ(dst.handle(), win);             // destination owns the window
-    EXPECT_EQ(src.handle(), MPI_WIN_NULL);    // source nullified
+    EXPECT_EQ(dst.handle(), win);           // destination owns the window
+    EXPECT_EQ(src.handle(), MPI_WIN_NULL);  // source nullified
 }  // only dst frees; src destruction is a no-op
 
 // ─── Move assignment transfers ownership; source becomes NULL (Req 3.3) ─────
@@ -149,12 +144,15 @@ TEST(WindowGuardTest, SetEpochActiveDoesNotAffectHandle) {
 
 // ─── Global MPI environment ─────────────────────────────────────────────────
 class MpiEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override { MPI_Init(nullptr, nullptr); }
-    void TearDown() override { MPI_Finalize(); }
+   public:
+    void SetUp() override {
+        MPI_Init(nullptr, nullptr);
+    }
+    void TearDown() override {
+        MPI_Finalize();
+    }
 };
 
 }  // namespace
 
-static ::testing::Environment* const mpi_env =
-    ::testing::AddGlobalTestEnvironment(new MpiEnvironment);
+static ::testing::Environment *const mpi_env = ::testing::AddGlobalTestEnvironment(new MpiEnvironment);

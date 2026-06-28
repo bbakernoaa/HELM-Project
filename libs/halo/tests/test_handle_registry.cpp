@@ -7,21 +7,22 @@
 // Requirements: 14.3, 14.4, 14.13
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include "../src/fortran/handle_registry.hpp"
-
 #include <gtest/gtest.h>
+
+#include <algorithm>
+#include <set>
 #include <thread>
 #include <vector>
-#include <set>
-#include <algorithm>
 
-using halo::fortran::Handle_Registry;
+#include "../src/fortran/handle_registry.hpp"
+
 using halo::fortran::HALO_HANDLE_INVALID;
+using halo::fortran::Handle_Registry;
 
 // ─── Test Fixture ────────────────────────────────────────────────────────────
 
 class HandleRegistryTest : public ::testing::Test {
-protected:
+   protected:
     // Note: The registry is a singleton with monotonically increasing tokens.
     // Tests must account for tokens being consumed across tests within a
     // single process. We verify relative behavior rather than absolute values.
@@ -31,8 +32,8 @@ protected:
 
 TEST_F(HandleRegistryTest, RegisterReturnsPositiveToken) {
     int dummy = 42;
-    auto& reg = Handle_Registry::instance();
-    int token = reg.register_handle(static_cast<void*>(&dummy));
+    auto &reg = Handle_Registry::instance();
+    int token = reg.register_handle(static_cast<void *>(&dummy));
 
     EXPECT_GT(token, HALO_HANDLE_INVALID);
 
@@ -42,11 +43,11 @@ TEST_F(HandleRegistryTest, RegisterReturnsPositiveToken) {
 
 TEST_F(HandleRegistryTest, RegisterReturnsUniqueTokens) {
     int a = 1, b = 2, c = 3;
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
-    int t1 = reg.register_handle(static_cast<void*>(&a));
-    int t2 = reg.register_handle(static_cast<void*>(&b));
-    int t3 = reg.register_handle(static_cast<void*>(&c));
+    int t1 = reg.register_handle(static_cast<void *>(&a));
+    int t2 = reg.register_handle(static_cast<void *>(&b));
+    int t3 = reg.register_handle(static_cast<void *>(&c));
 
     EXPECT_NE(t1, t2);
     EXPECT_NE(t2, t3);
@@ -65,11 +66,11 @@ TEST_F(HandleRegistryTest, RegisterReturnsUniqueTokens) {
 
 TEST_F(HandleRegistryTest, TokensAreMonotonicallyIncreasing) {
     int a = 1, b = 2, c = 3;
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
-    int t1 = reg.register_handle(static_cast<void*>(&a));
-    int t2 = reg.register_handle(static_cast<void*>(&b));
-    int t3 = reg.register_handle(static_cast<void*>(&c));
+    int t1 = reg.register_handle(static_cast<void *>(&a));
+    int t2 = reg.register_handle(static_cast<void *>(&b));
+    int t3 = reg.register_handle(static_cast<void *>(&c));
 
     EXPECT_LT(t1, t2);
     EXPECT_LT(t2, t3);
@@ -84,18 +85,18 @@ TEST_F(HandleRegistryTest, TokensAreMonotonicallyIncreasing) {
 
 TEST_F(HandleRegistryTest, LookupReturnsRegisteredPointer) {
     int dummy = 99;
-    auto& reg = Handle_Registry::instance();
-    int token = reg.register_handle(static_cast<void*>(&dummy));
+    auto &reg = Handle_Registry::instance();
+    int token = reg.register_handle(static_cast<void *>(&dummy));
 
-    void* result = reg.lookup(token);
-    EXPECT_EQ(result, static_cast<void*>(&dummy));
+    void *result = reg.lookup(token);
+    EXPECT_EQ(result, static_cast<void *>(&dummy));
 
     // Cleanup
     reg.release(token);
 }
 
 TEST_F(HandleRegistryTest, LookupReturnsNullptrForInvalidToken) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     // Token 0 (HALO_HANDLE_INVALID) should never be registered
     EXPECT_EQ(reg.lookup(HALO_HANDLE_INVALID), nullptr);
@@ -109,8 +110,8 @@ TEST_F(HandleRegistryTest, LookupReturnsNullptrForInvalidToken) {
 
 TEST_F(HandleRegistryTest, LookupReturnsNullptrAfterRelease) {
     int dummy = 77;
-    auto& reg = Handle_Registry::instance();
-    int token = reg.register_handle(static_cast<void*>(&dummy));
+    auto &reg = Handle_Registry::instance();
+    int token = reg.register_handle(static_cast<void *>(&dummy));
 
     reg.release(token);
 
@@ -121,11 +122,11 @@ TEST_F(HandleRegistryTest, LookupReturnsNullptrAfterRelease) {
 
 TEST_F(HandleRegistryTest, ReleaseReturnsPointerAndInvalidatesToken) {
     int dummy = 55;
-    auto& reg = Handle_Registry::instance();
-    int token = reg.register_handle(static_cast<void*>(&dummy));
+    auto &reg = Handle_Registry::instance();
+    int token = reg.register_handle(static_cast<void *>(&dummy));
 
-    void* released = reg.release(token);
-    EXPECT_EQ(released, static_cast<void*>(&dummy));
+    void *released = reg.release(token);
+    EXPECT_EQ(released, static_cast<void *>(&dummy));
 
     // Token is now invalid
     EXPECT_FALSE(reg.valid(token));
@@ -133,7 +134,7 @@ TEST_F(HandleRegistryTest, ReleaseReturnsPointerAndInvalidatesToken) {
 }
 
 TEST_F(HandleRegistryTest, ReleaseReturnsNullptrForUnknownToken) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     EXPECT_EQ(reg.release(HALO_HANDLE_INVALID), nullptr);
     EXPECT_EQ(reg.release(888888), nullptr);
@@ -142,13 +143,13 @@ TEST_F(HandleRegistryTest, ReleaseReturnsNullptrForUnknownToken) {
 
 TEST_F(HandleRegistryTest, DoubleReleaseReturnsNullptr) {
     int dummy = 33;
-    auto& reg = Handle_Registry::instance();
-    int token = reg.register_handle(static_cast<void*>(&dummy));
+    auto &reg = Handle_Registry::instance();
+    int token = reg.register_handle(static_cast<void *>(&dummy));
 
-    void* first = reg.release(token);
-    void* second = reg.release(token);
+    void *first = reg.release(token);
+    void *second = reg.release(token);
 
-    EXPECT_EQ(first, static_cast<void*>(&dummy));
+    EXPECT_EQ(first, static_cast<void *>(&dummy));
     EXPECT_EQ(second, nullptr);
 }
 
@@ -156,8 +157,8 @@ TEST_F(HandleRegistryTest, DoubleReleaseReturnsNullptr) {
 
 TEST_F(HandleRegistryTest, ValidReturnsTrueForRegisteredToken) {
     int dummy = 11;
-    auto& reg = Handle_Registry::instance();
-    int token = reg.register_handle(static_cast<void*>(&dummy));
+    auto &reg = Handle_Registry::instance();
+    int token = reg.register_handle(static_cast<void *>(&dummy));
 
     EXPECT_TRUE(reg.valid(token));
 
@@ -166,7 +167,7 @@ TEST_F(HandleRegistryTest, ValidReturnsTrueForRegisteredToken) {
 }
 
 TEST_F(HandleRegistryTest, ValidReturnsFalseForInvalidToken) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     EXPECT_FALSE(reg.valid(HALO_HANDLE_INVALID));
     EXPECT_FALSE(reg.valid(777777));
@@ -175,8 +176,8 @@ TEST_F(HandleRegistryTest, ValidReturnsFalseForInvalidToken) {
 
 TEST_F(HandleRegistryTest, ValidReturnsFalseAfterRelease) {
     int dummy = 22;
-    auto& reg = Handle_Registry::instance();
-    int token = reg.register_handle(static_cast<void*>(&dummy));
+    auto &reg = Handle_Registry::instance();
+    int token = reg.register_handle(static_cast<void *>(&dummy));
 
     EXPECT_TRUE(reg.valid(token));
     reg.release(token);
@@ -186,14 +187,14 @@ TEST_F(HandleRegistryTest, ValidReturnsFalseAfterRelease) {
 // ─── Token Reuse Prevention ─────────────────────────────────────────────────
 
 TEST_F(HandleRegistryTest, ReleasedTokensAreNeverReused) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
     int a = 1, b = 2;
 
-    int t1 = reg.register_handle(static_cast<void*>(&a));
+    int t1 = reg.register_handle(static_cast<void *>(&a));
     reg.release(t1);
 
     // New registration should get a different (higher) token
-    int t2 = reg.register_handle(static_cast<void*>(&b));
+    int t2 = reg.register_handle(static_cast<void *>(&b));
     EXPECT_NE(t1, t2);
     EXPECT_GT(t2, t1);
 
@@ -204,7 +205,7 @@ TEST_F(HandleRegistryTest, ReleasedTokensAreNeverReused) {
 // ─── Thread Safety Tests ─────────────────────────────────────────────────────
 
 TEST_F(HandleRegistryTest, ConcurrentRegistrationsProduceUniqueTokens) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
     constexpr int num_threads = 8;
     constexpr int registrations_per_thread = 100;
 
@@ -216,19 +217,19 @@ TEST_F(HandleRegistryTest, ConcurrentRegistrationsProduceUniqueTokens) {
         threads.emplace_back([&, t]() {
             for (int i = 0; i < registrations_per_thread; ++i) {
                 int idx = t * registrations_per_thread + i;
-                int token = reg.register_handle(static_cast<void*>(&dummy_data[idx]));
+                int token = reg.register_handle(static_cast<void *>(&dummy_data[idx]));
                 thread_tokens[t].push_back(token);
             }
         });
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
     // Collect all tokens and verify uniqueness
     std::set<int> all_tokens;
-    for (auto& tokens : thread_tokens) {
+    for (auto &tokens : thread_tokens) {
         for (int token : tokens) {
             EXPECT_GT(token, HALO_HANDLE_INVALID);
             auto [_, inserted] = all_tokens.insert(token);
@@ -236,8 +237,7 @@ TEST_F(HandleRegistryTest, ConcurrentRegistrationsProduceUniqueTokens) {
         }
     }
 
-    EXPECT_EQ(all_tokens.size(),
-              static_cast<size_t>(num_threads * registrations_per_thread));
+    EXPECT_EQ(all_tokens.size(), static_cast<size_t>(num_threads * registrations_per_thread));
 
     // Cleanup
     for (int token : all_tokens) {
@@ -246,14 +246,14 @@ TEST_F(HandleRegistryTest, ConcurrentRegistrationsProduceUniqueTokens) {
 }
 
 TEST_F(HandleRegistryTest, ConcurrentLookupAndReleaseAreThreadSafe) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
     constexpr int num_handles = 50;
 
     // Register handles
     std::vector<int> tokens;
     std::vector<int> dummy_data(num_handles);
     for (int i = 0; i < num_handles; ++i) {
-        tokens.push_back(reg.register_handle(static_cast<void*>(&dummy_data[i])));
+        tokens.push_back(reg.register_handle(static_cast<void *>(&dummy_data[i])));
     }
 
     // Concurrent lookups and releases
@@ -279,7 +279,7 @@ TEST_F(HandleRegistryTest, ConcurrentLookupAndReleaseAreThreadSafe) {
         });
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 

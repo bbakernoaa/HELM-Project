@@ -17,7 +17,6 @@
 
 #include <conf/config.hpp>
 #include <conf/error.hpp>
-
 #include <string>
 #include <string_view>
 
@@ -28,7 +27,7 @@ namespace {
 /// A small but real Config built from a fixed YAML string so there is a valid
 /// tree to query against. Contains nested maps, sequences, and scalars.
 conf::Config make_fixture_config() {
-    static const char* yaml = R"(
+    static const char *yaml = R"(
 server:
   host: localhost
   port: 8080
@@ -53,23 +52,15 @@ null_key: ~
 
 /// The set of valid Error_Codes that a throwing accessor may carry.
 bool is_valid_error_code(conf::Error_Code code) {
-    return code == conf::Error_Code::Invalid_Arg ||
-           code == conf::Error_Code::Key_Not_Found ||
-           code == conf::Error_Code::Type_Mismatch;
+    return code == conf::Error_Code::Invalid_Arg || code == conf::Error_Code::Key_Not_Found || code == conf::Error_Code::Type_Mismatch;
 }
 
 /// Generate an arbitrary byte string of 0 to max_len bytes (any byte 0x00-0xFF).
 rc::Gen<std::string> genArbitraryPath(std::size_t max_len) {
     return rc::gen::withSize([max_len](int /*size*/) {
-        return rc::gen::mapcat(
-            rc::gen::inRange<std::size_t>(0, max_len + 1),
-            [](std::size_t len) {
-                return rc::gen::container<std::string>(
-                    len,
-                    rc::gen::inRange<char>(
-                        std::numeric_limits<char>::min(),
-                        std::numeric_limits<char>::max()));
-            });
+        return rc::gen::mapcat(rc::gen::inRange<std::size_t>(0, max_len + 1), [](std::size_t len) {
+            return rc::gen::container<std::string>(len, rc::gen::inRange<char>(std::numeric_limits<char>::min(), std::numeric_limits<char>::max()));
+        });
     });
 }
 
@@ -79,39 +70,27 @@ rc::Gen<std::string> genDotHeavyPath() {
         // Empty string
         rc::gen::just(std::string("")),
         // Leading dot
-        rc::gen::map(
-            rc::gen::container<std::string>(
-                rc::gen::inRange<char>('a', 'z' + 1)),
-            [](std::string s) { return "." + s; }),
+        rc::gen::map(rc::gen::container<std::string>(rc::gen::inRange<char>('a', 'z' + 1)), [](std::string s) { return "." + s; }),
         // Trailing dot
-        rc::gen::map(
-            rc::gen::container<std::string>(
-                rc::gen::inRange<char>('a', 'z' + 1)),
-            [](std::string s) { return s + "."; }),
+        rc::gen::map(rc::gen::container<std::string>(rc::gen::inRange<char>('a', 'z' + 1)), [](std::string s) { return s + "."; }),
         // Consecutive dots
-        rc::gen::map(
-            rc::gen::inRange(2, 20),
-            [](int n) { return std::string(static_cast<std::size_t>(n), '.'); }),
+        rc::gen::map(rc::gen::inRange(2, 20), [](int n) { return std::string(static_cast<std::size_t>(n), '.'); }),
         // Mixed: segments with empty segments (dots surrounded by keys)
-        rc::gen::map(
-            rc::gen::inRange(1, 5),
-            [](int n) {
-                std::string result = "a";
-                for (int i = 0; i < n; ++i) {
-                    result += "..b";
-                }
-                return result;
-            }));
+        rc::gen::map(rc::gen::inRange(1, 5), [](int n) {
+            std::string result = "a";
+            for (int i = 0; i < n; ++i) {
+                result += "..b";
+            }
+            return result;
+        }));
 }
 
 /// Generate oversized digit-run strings (numbers way too large for any index).
 rc::Gen<std::string> genOversizedDigitRun() {
-    return rc::gen::map(
-        rc::gen::inRange(10, 100),
-        [](int len) {
-            // Build a string of 'len' 9s — guaranteed to overflow any sane index.
-            return std::string(static_cast<std::size_t>(len), '9');
-        });
+    return rc::gen::map(rc::gen::inRange(10, 100), [](int len) {
+        // Build a string of 'len' 9s — guaranteed to overflow any sane index.
+        return std::string(static_cast<std::size_t>(len), '9');
+    });
 }
 
 }  // anonymous namespace
@@ -191,7 +170,7 @@ RC_GTEST_PROP(ResolverTotalityProperty3, ThrowingAccessorsReturnValueOrTypedErro
         try {
             (void)cfg.get_int(path);
             returned_value = true;
-        } catch (const conf::Conf_Error& e) {
+        } catch (const conf::Conf_Error &e) {
             threw_conf_error = true;
             caught_code = e.code();
         } catch (...) {
@@ -214,7 +193,7 @@ RC_GTEST_PROP(ResolverTotalityProperty3, ThrowingAccessorsReturnValueOrTypedErro
         try {
             (void)cfg.get_double(path);
             returned_value = true;
-        } catch (const conf::Conf_Error& e) {
+        } catch (const conf::Conf_Error &e) {
             threw_conf_error = true;
             caught_code = e.code();
         } catch (...) {
@@ -236,7 +215,7 @@ RC_GTEST_PROP(ResolverTotalityProperty3, ThrowingAccessorsReturnValueOrTypedErro
         try {
             (void)cfg.get_bool(path);
             returned_value = true;
-        } catch (const conf::Conf_Error& e) {
+        } catch (const conf::Conf_Error &e) {
             threw_conf_error = true;
             caught_code = e.code();
         } catch (...) {
@@ -258,7 +237,7 @@ RC_GTEST_PROP(ResolverTotalityProperty3, ThrowingAccessorsReturnValueOrTypedErro
         try {
             (void)cfg.get_string(path);
             returned_value = true;
-        } catch (const conf::Conf_Error& e) {
+        } catch (const conf::Conf_Error &e) {
             threw_conf_error = true;
             caught_code = e.code();
         } catch (...) {
@@ -305,7 +284,7 @@ RC_GTEST_PROP(ResolverTotalityProperty3, EmptyAndDotHeavyPaths, ()) {
     bool threw_conf_error = false;
     try {
         (void)cfg.get_int(path);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         threw_conf_error = true;
         RC_ASSERT(e.code() == conf::Error_Code::Invalid_Arg);
     } catch (...) {
@@ -347,7 +326,7 @@ RC_GTEST_PROP(ResolverTotalityProperty3, OversizedDigitRuns, ()) {
     bool threw_conf_error = false;
     try {
         (void)cfg.get_int(path);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         threw_conf_error = true;
         RC_ASSERT(is_valid_error_code(e.code()));
     } catch (...) {
@@ -366,7 +345,7 @@ RC_GTEST_PROP(ResolverTotalityProperty3, OversizedDigitRuns, ()) {
     bool threw_sub = false;
     try {
         (void)cfg.get_int(sub_path);
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         threw_sub = true;
         RC_ASSERT(is_valid_error_code(e.code()));
     } catch (...) {

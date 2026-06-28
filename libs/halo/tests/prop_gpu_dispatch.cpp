@@ -12,16 +12,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-#include <mpi.h>
 
 #include "halo/communicator.hpp"
 #include "halo/detail/memory_traits.hpp"
@@ -33,37 +32,26 @@
 // These verify the fundamental trait logic at compile time.
 
 // HostSpace is never a device space
-static_assert(!halo::detail::is_device_space_v<Kokkos::HostSpace>,
-              "HostSpace must NOT be classified as a device space");
+static_assert(!halo::detail::is_device_space_v<Kokkos::HostSpace>, "HostSpace must NOT be classified as a device space");
 
 // A host view never requires staging (regardless of HALO_GPU_AWARE_MPI)
-static_assert(
-    !halo::detail::requires_staging_v<Kokkos::View<double*, Kokkos::HostSpace>>,
-    "Host views must NEVER require staging");
+static_assert(!halo::detail::requires_staging_v<Kokkos::View<double *, Kokkos::HostSpace>>, "Host views must NEVER require staging");
 
 // Verify the trait for float and int host views as well
-static_assert(
-    !halo::detail::requires_staging_v<Kokkos::View<float*, Kokkos::HostSpace>>,
-    "Float host views must NEVER require staging");
+static_assert(!halo::detail::requires_staging_v<Kokkos::View<float *, Kokkos::HostSpace>>, "Float host views must NEVER require staging");
 
-static_assert(
-    !halo::detail::requires_staging_v<Kokkos::View<int*, Kokkos::HostSpace>>,
-    "Int host views must NEVER require staging");
+static_assert(!halo::detail::requires_staging_v<Kokkos::View<int *, Kokkos::HostSpace>>, "Int host views must NEVER require staging");
 
 // Verify view_memory_space_t extracts the correct space
-static_assert(
-    std::is_same_v<
-        halo::detail::view_memory_space_t<Kokkos::View<double*, Kokkos::HostSpace>>,
-        Kokkos::HostSpace>,
-    "view_memory_space_t must extract HostSpace from a HostSpace view");
+static_assert(std::is_same_v<halo::detail::view_memory_space_t<Kokkos::View<double *, Kokkos::HostSpace>>, Kokkos::HostSpace>,
+              "view_memory_space_t must extract HostSpace from a HostSpace view");
 
 // ─── Compile-Time Verification of GPU-Aware Flag Logic ───────────────────────
 // In this build (no HALO_GPU_AWARE_MPI defined), device views WOULD require
 // staging. Since we don't have actual GPU backends enabled, we verify the
 // preprocessor logic is correct by checking the flag is NOT defined.
 #ifdef HALO_GPU_AWARE_MPI
-static_assert(false,
-    "HALO_GPU_AWARE_MPI should NOT be defined in the default test build");
+static_assert(false, "HALO_GPU_AWARE_MPI should NOT be defined in the default test build");
 #endif
 
 // ─── RapidCheck Generators ───────────────────────────────────────────────────
@@ -94,8 +82,7 @@ rc::Gen<std::vector<halo::Neighbor_Info>> genNonEmptyNeighborList() {
         std::vector<halo::Neighbor_Info> neighbors;
         neighbors.reserve(selected.size());
         for (int rank : selected) {
-            std::size_t count = static_cast<std::size_t>(
-                *rc::gen::inRange(1, 101));
+            std::size_t count = static_cast<std::size_t>(*rc::gen::inRange(1, 101));
             neighbors.push_back({rank, count});
         }
 
@@ -126,7 +113,7 @@ rc::Gen<std::vector<halo::Neighbor_Info>> genNonEmptyNeighborList() {
 // **Validates: Requirements 6.4, 7.6**
 
 RC_GTEST_PROP(GpuDispatchProperty14, DirectPathUsesViewPointers, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -146,10 +133,10 @@ RC_GTEST_PROP(GpuDispatchProperty14, DirectPathUsesViewPointers, ()) {
     std::size_t total_send = plan.total_send_elements();
     std::size_t total_recv = plan.total_recv_elements();
     std::size_t total_elements = total_send + total_recv;
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
     // Get the raw data pointer from the view
-    double* view_data = view.data();
+    double *view_data = view.data();
 
     // Reset spy after plan construction
     spy.reset();
@@ -159,19 +146,19 @@ RC_GTEST_PROP(GpuDispatchProperty14, DirectPathUsesViewPointers, ()) {
     halo::exchange_blocking(plan, view);
 
     // Inspect the MPI_Spy call records
-    auto const& calls = spy.calls();
+    auto const &calls = spy.calls();
 
     // Collect all Irecv buffer pointers
-    std::vector<void*> irecv_bufs;
-    for (auto const& call : calls) {
+    std::vector<void *> irecv_bufs;
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Irecv) {
             irecv_bufs.push_back(call.handle);
         }
     }
 
     // Collect all Isend buffer pointers
-    std::vector<void*> isend_bufs;
-    for (auto const& call : calls) {
+    std::vector<void *> isend_bufs;
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Isend) {
             isend_bufs.push_back(call.handle);
         }
@@ -184,8 +171,8 @@ RC_GTEST_PROP(GpuDispatchProperty14, DirectPathUsesViewPointers, ()) {
     // Property 14: All Irecv buffers must point INTO the view's memory
     // (i.e., view.data() + some offset). The receive region starts after
     // the send region in the view layout.
-    for (void* buf : irecv_bufs) {
-        auto* ptr = static_cast<double*>(buf);
+    for (void *buf : irecv_bufs) {
+        auto *ptr = static_cast<double *>(buf);
         // The pointer must be within [view_data, view_data + total_elements)
         RC_ASSERT(ptr >= view_data);
         RC_ASSERT(ptr < view_data + total_elements);
@@ -193,8 +180,8 @@ RC_GTEST_PROP(GpuDispatchProperty14, DirectPathUsesViewPointers, ()) {
 
     // Property 14: All Isend buffers must point INTO the view's memory
     // (i.e., view.data() + some offset). The send region starts at offset 0.
-    for (void* buf : isend_bufs) {
-        auto* ptr = static_cast<double*>(buf);
+    for (void *buf : isend_bufs) {
+        auto *ptr = static_cast<double *>(buf);
         // The pointer must be within [view_data, view_data + total_elements)
         RC_ASSERT(ptr >= view_data);
         RC_ASSERT(ptr < view_data + total_elements);
@@ -210,7 +197,7 @@ RC_GTEST_PROP(GpuDispatchProperty14, DirectPathUsesViewPointers, ()) {
 // **Validates: Requirements 7.6**
 
 RC_GTEST_PROP(GpuDispatchProperty14, AsyncDirectPathUsesViewPointers, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     auto send_neighbors = *genNonEmptyNeighborList();
@@ -225,9 +212,9 @@ RC_GTEST_PROP(GpuDispatchProperty14, AsyncDirectPathUsesViewPointers, ()) {
     std::size_t total_send = plan.total_send_elements();
     std::size_t total_recv = plan.total_recv_elements();
     std::size_t total_elements = total_send + total_recv;
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
-    double* view_data = view.data();
+    double *view_data = view.data();
 
     // Reset spy after plan construction
     spy.reset();
@@ -236,19 +223,19 @@ RC_GTEST_PROP(GpuDispatchProperty14, AsyncDirectPathUsesViewPointers, ()) {
     auto handle = halo::exchange_async(plan, view);
 
     // Inspect the MPI_Spy call records
-    auto const& calls = spy.calls();
+    auto const &calls = spy.calls();
 
     // Collect all Irecv buffer pointers
-    std::vector<void*> irecv_bufs;
-    for (auto const& call : calls) {
+    std::vector<void *> irecv_bufs;
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Irecv) {
             irecv_bufs.push_back(call.handle);
         }
     }
 
     // Collect all Isend buffer pointers
-    std::vector<void*> isend_bufs;
-    for (auto const& call : calls) {
+    std::vector<void *> isend_bufs;
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Isend) {
             isend_bufs.push_back(call.handle);
         }
@@ -259,15 +246,15 @@ RC_GTEST_PROP(GpuDispatchProperty14, AsyncDirectPathUsesViewPointers, ()) {
     RC_ASSERT(isend_bufs.size() == send_neighbors.size());
 
     // All Irecv buffers must point directly into the view's memory
-    for (void* buf : irecv_bufs) {
-        auto* ptr = static_cast<double*>(buf);
+    for (void *buf : irecv_bufs) {
+        auto *ptr = static_cast<double *>(buf);
         RC_ASSERT(ptr >= view_data);
         RC_ASSERT(ptr < view_data + total_elements);
     }
 
     // All Isend buffers must point directly into the view's memory
-    for (void* buf : isend_bufs) {
-        auto* ptr = static_cast<double*>(buf);
+    for (void *buf : isend_bufs) {
+        auto *ptr = static_cast<double *>(buf);
         RC_ASSERT(ptr >= view_data);
         RC_ASSERT(ptr < view_data + total_elements);
     }
@@ -294,7 +281,7 @@ RC_GTEST_PROP(GpuDispatchProperty14, AsyncDirectPathUsesViewPointers, ()) {
 // **Validates: Requirements 6.5, 7.7**
 
 RC_GTEST_PROP(GpuDispatchProperty15, HostViewsNeverStage, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate non-empty send and receive neighbor lists
@@ -310,9 +297,9 @@ RC_GTEST_PROP(GpuDispatchProperty15, HostViewsNeverStage, ()) {
     std::size_t total_send = plan.total_send_elements();
     std::size_t total_recv = plan.total_recv_elements();
     std::size_t total_elements = total_send + total_recv;
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
-    double* view_data = view.data();
+    double *view_data = view.data();
 
     // Reset spy after plan construction
     spy.reset();
@@ -320,7 +307,7 @@ RC_GTEST_PROP(GpuDispatchProperty15, HostViewsNeverStage, ()) {
     // Execute the blocking exchange
     halo::exchange_blocking(plan, view);
 
-    auto const& calls = spy.calls();
+    auto const &calls = spy.calls();
 
     // Verify NO staging occurred: all MPI buffer pointers must be within
     // the original view's memory range. If staging had occurred, the buffers
@@ -329,9 +316,9 @@ RC_GTEST_PROP(GpuDispatchProperty15, HostViewsNeverStage, ()) {
 
     // Check send buffers: must be at view_data + offset within send region
     std::size_t send_offset = 0;
-    for (auto const& call : calls) {
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Isend) {
-            auto* ptr = static_cast<double*>(call.handle);
+            auto *ptr = static_cast<double *>(call.handle);
             // Must point within the view's send region [0, total_send)
             RC_ASSERT(ptr >= view_data);
             RC_ASSERT(ptr < view_data + total_send);
@@ -339,9 +326,9 @@ RC_GTEST_PROP(GpuDispatchProperty15, HostViewsNeverStage, ()) {
     }
 
     // Check receive buffers: must be at view_data + offset within recv region
-    for (auto const& call : calls) {
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Irecv) {
-            auto* ptr = static_cast<double*>(call.handle);
+            auto *ptr = static_cast<double *>(call.handle);
             // Must point within the view's recv region [total_send, total_elements)
             RC_ASSERT(ptr >= view_data + total_send);
             RC_ASSERT(ptr < view_data + total_elements);
@@ -358,7 +345,7 @@ RC_GTEST_PROP(GpuDispatchProperty15, HostViewsNeverStage, ()) {
 // **Validates: Requirements 7.7**
 
 RC_GTEST_PROP(GpuDispatchProperty15, AsyncHostViewsNeverStage, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     auto send_neighbors = *genNonEmptyNeighborList();
@@ -373,9 +360,9 @@ RC_GTEST_PROP(GpuDispatchProperty15, AsyncHostViewsNeverStage, ()) {
     std::size_t total_send = plan.total_send_elements();
     std::size_t total_recv = plan.total_recv_elements();
     std::size_t total_elements = total_send + total_recv;
-    Kokkos::View<double*, Kokkos::HostSpace> view("test_view", total_elements);
+    Kokkos::View<double *, Kokkos::HostSpace> view("test_view", total_elements);
 
-    double* view_data = view.data();
+    double *view_data = view.data();
 
     // Reset spy after plan construction
     spy.reset();
@@ -383,21 +370,21 @@ RC_GTEST_PROP(GpuDispatchProperty15, AsyncHostViewsNeverStage, ()) {
     // Execute the async exchange
     auto handle = halo::exchange_async(plan, view);
 
-    auto const& calls = spy.calls();
+    auto const &calls = spy.calls();
 
     // Verify send buffers point directly into the view's send region
-    for (auto const& call : calls) {
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Isend) {
-            auto* ptr = static_cast<double*>(call.handle);
+            auto *ptr = static_cast<double *>(call.handle);
             RC_ASSERT(ptr >= view_data);
             RC_ASSERT(ptr < view_data + total_send);
         }
     }
 
     // Verify receive buffers point directly into the view's recv region
-    for (auto const& call : calls) {
+    for (auto const &call : calls) {
         if (call.type == halo::testing::MPI_Call_Record::Type::Irecv) {
-            auto* ptr = static_cast<double*>(call.handle);
+            auto *ptr = static_cast<double *>(call.handle);
             RC_ASSERT(ptr >= view_data + total_send);
             RC_ASSERT(ptr < view_data + total_elements);
         }
@@ -418,14 +405,14 @@ RC_GTEST_PROP(GpuDispatchProperty15, TraitCorrectlyIdentifiesStagingNeed, ()) {
     std::size_t size = static_cast<std::size_t>(*rc::gen::inRange(1, 10001));
 
     // Create views of different value types in HostSpace
-    Kokkos::View<double*, Kokkos::HostSpace> double_view("dv", size);
-    Kokkos::View<float*, Kokkos::HostSpace> float_view("fv", size);
-    Kokkos::View<int*, Kokkos::HostSpace> int_view("iv", size);
+    Kokkos::View<double *, Kokkos::HostSpace> double_view("dv", size);
+    Kokkos::View<float *, Kokkos::HostSpace> float_view("fv", size);
+    Kokkos::View<int *, Kokkos::HostSpace> int_view("iv", size);
 
     // None of these should require staging (they're all in HostSpace)
-    using double_view_t = Kokkos::View<double*, Kokkos::HostSpace>;
-    using float_view_t = Kokkos::View<float*, Kokkos::HostSpace>;
-    using int_view_t = Kokkos::View<int*, Kokkos::HostSpace>;
+    using double_view_t = Kokkos::View<double *, Kokkos::HostSpace>;
+    using float_view_t = Kokkos::View<float *, Kokkos::HostSpace>;
+    using int_view_t = Kokkos::View<int *, Kokkos::HostSpace>;
 
     RC_ASSERT((!halo::detail::requires_staging_v<double_view_t>));
     RC_ASSERT((!halo::detail::requires_staging_v<float_view_t>));
@@ -435,16 +422,14 @@ RC_GTEST_PROP(GpuDispatchProperty15, TraitCorrectlyIdentifiesStagingNeed, ()) {
     RC_ASSERT((!halo::detail::is_device_space_v<Kokkos::HostSpace>));
 
     // Verify the memory space extraction works correctly
-    RC_ASSERT((std::is_same_v<
-        halo::detail::view_memory_space_t<double_view_t>,
-        Kokkos::HostSpace>));
+    RC_ASSERT((std::is_same_v<halo::detail::view_memory_space_t<double_view_t>, Kokkos::HostSpace>));
 }
 
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 // RapidCheck/GTest property tests need Kokkos initialized for View allocation.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -458,5 +443,4 @@ public:
 };
 
 // Register the Kokkos environment with GTest
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);

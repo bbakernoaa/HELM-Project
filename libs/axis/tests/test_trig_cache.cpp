@@ -5,19 +5,22 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
+#include <axis/detail/regular_grid_detector.hpp>
+#include <axis/detail/trig_cache.hpp>
 #include <cmath>
 #include <cstddef>
 
-#include <axis/detail/trig_cache.hpp>
-#include <axis/detail/regular_grid_detector.hpp>
-
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -28,20 +31,17 @@ static constexpr double pi = 3.14159265358979323846;
 static constexpr double deg2rad = pi / 180.0;
 
 // Helper: create a valid RegularGridInfo for testing
-static detail::RegularGridInfo make_grid_info(
-    std::size_t ni, std::size_t nj,
-    double lon_min, double delta_lon,
-    double lat_min, double delta_lat) {
+static detail::RegularGridInfo make_grid_info(std::size_t ni, std::size_t nj, double lon_min, double delta_lon, double lat_min, double delta_lat) {
     detail::RegularGridInfo info;
     info.is_regular = true;
-    info.ni         = ni;
-    info.nj         = nj;
-    info.lon_min    = lon_min;
-    info.lon_max    = lon_min + static_cast<double>(ni) * delta_lon;
-    info.delta_lon  = delta_lon;
-    info.lat_min    = lat_min;
-    info.lat_max    = lat_min + static_cast<double>(nj) * delta_lat;
-    info.delta_lat  = delta_lat;
+    info.ni = ni;
+    info.nj = nj;
+    info.lon_min = lon_min;
+    info.lon_max = lon_min + static_cast<double>(ni) * delta_lon;
+    info.delta_lon = delta_lon;
+    info.lat_min = lat_min;
+    info.lat_max = lat_min + static_cast<double>(nj) * delta_lat;
+    info.delta_lat = delta_lat;
     return info;
 }
 
@@ -104,10 +104,8 @@ TEST(TrigCache, CachedValuesMatchDirectComputation) {
         double expected_sin = std::sin(lon_rad);
         double expected_cos = std::cos(lon_rad);
 
-        EXPECT_NEAR(cache.sin_lon(i), expected_sin, 1e-15)
-            << "sin_lon mismatch at i=" << i;
-        EXPECT_NEAR(cache.cos_lon(i), expected_cos, 1e-15)
-            << "cos_lon mismatch at i=" << i;
+        EXPECT_NEAR(cache.sin_lon(i), expected_sin, 1e-15) << "sin_lon mismatch at i=" << i;
+        EXPECT_NEAR(cache.cos_lon(i), expected_cos, 1e-15) << "cos_lon mismatch at i=" << i;
     }
 
     // Verify latitude sin/cos values
@@ -116,10 +114,8 @@ TEST(TrigCache, CachedValuesMatchDirectComputation) {
         double expected_sin = std::sin(lat_rad);
         double expected_cos = std::cos(lat_rad);
 
-        EXPECT_NEAR(cache.sin_lat(j), expected_sin, 1e-15)
-            << "sin_lat mismatch at j=" << j;
-        EXPECT_NEAR(cache.cos_lat(j), expected_cos, 1e-15)
-            << "cos_lat mismatch at j=" << j;
+        EXPECT_NEAR(cache.sin_lat(j), expected_sin, 1e-15) << "sin_lat mismatch at j=" << j;
+        EXPECT_NEAR(cache.cos_lat(j), expected_cos, 1e-15) << "cos_lat mismatch at j=" << j;
     }
 }
 
@@ -152,12 +148,9 @@ TEST(TrigCache, XyzCachedMatchesDirectComputation) {
             double expected_y = std::cos(lat_rad) * std::sin(lon_rad);
             double expected_z = std::sin(lat_rad);
 
-            EXPECT_NEAR(xyz.x, expected_x, 1e-15)
-                << "x mismatch at i=" << i << ", j=" << j;
-            EXPECT_NEAR(xyz.y, expected_y, 1e-15)
-                << "y mismatch at i=" << i << ", j=" << j;
-            EXPECT_NEAR(xyz.z, expected_z, 1e-15)
-                << "z mismatch at i=" << i << ", j=" << j;
+            EXPECT_NEAR(xyz.x, expected_x, 1e-15) << "x mismatch at i=" << i << ", j=" << j;
+            EXPECT_NEAR(xyz.y, expected_y, 1e-15) << "y mismatch at i=" << i << ", j=" << j;
+            EXPECT_NEAR(xyz.z, expected_z, 1e-15) << "z mismatch at i=" << i << ", j=" << j;
         }
     }
 }
@@ -183,8 +176,7 @@ TEST(TrigCache, XyzOutputIsUnitSphere) {
         for (std::size_t i = 0; i < ni; ++i) {
             auto xyz = detail::lonlat_to_xyz_cached(cache, i, j);
             double norm = std::sqrt(xyz.x * xyz.x + xyz.y * xyz.y + xyz.z * xyz.z);
-            EXPECT_NEAR(norm, 1.0, 1e-14)
-                << "Not unit sphere at i=" << i << ", j=" << j;
+            EXPECT_NEAR(norm, 1.0, 1e-14) << "Not unit sphere at i=" << i << ", j=" << j;
         }
     }
 }
@@ -271,10 +263,8 @@ TEST(NodeTrigCache, NodeValuesMatchDirectComputation) {
         double expected_sin = std::sin(lon_rad);
         double expected_cos = std::cos(lon_rad);
 
-        EXPECT_NEAR(cache.sin_lon(i), expected_sin, 1e-15)
-            << "node sin_lon mismatch at i=" << i;
-        EXPECT_NEAR(cache.cos_lon(i), expected_cos, 1e-15)
-            << "node cos_lon mismatch at i=" << i;
+        EXPECT_NEAR(cache.sin_lon(i), expected_sin, 1e-15) << "node sin_lon mismatch at i=" << i;
+        EXPECT_NEAR(cache.cos_lon(i), expected_cos, 1e-15) << "node cos_lon mismatch at i=" << i;
     }
 
     // Verify latitude node sin/cos (nj+1 entries at lat_min + j * delta_lat)
@@ -283,10 +273,8 @@ TEST(NodeTrigCache, NodeValuesMatchDirectComputation) {
         double expected_sin = std::sin(lat_rad);
         double expected_cos = std::cos(lat_rad);
 
-        EXPECT_NEAR(cache.sin_lat(j), expected_sin, 1e-15)
-            << "node sin_lat mismatch at j=" << j;
-        EXPECT_NEAR(cache.cos_lat(j), expected_cos, 1e-15)
-            << "node cos_lat mismatch at j=" << j;
+        EXPECT_NEAR(cache.sin_lat(j), expected_sin, 1e-15) << "node sin_lat mismatch at j=" << j;
+        EXPECT_NEAR(cache.cos_lat(j), expected_cos, 1e-15) << "node cos_lat mismatch at j=" << j;
     }
 }
 
@@ -315,12 +303,9 @@ TEST(NodeTrigCache, XyzNodeCachedMatchesDirectComputation) {
             double expected_y = std::cos(lat_rad) * std::sin(lon_rad);
             double expected_z = std::sin(lat_rad);
 
-            EXPECT_NEAR(xyz.x, expected_x, 1e-15)
-                << "node x mismatch at i=" << i << ", j=" << j;
-            EXPECT_NEAR(xyz.y, expected_y, 1e-15)
-                << "node y mismatch at i=" << i << ", j=" << j;
-            EXPECT_NEAR(xyz.z, expected_z, 1e-15)
-                << "node z mismatch at i=" << i << ", j=" << j;
+            EXPECT_NEAR(xyz.x, expected_x, 1e-15) << "node x mismatch at i=" << i << ", j=" << j;
+            EXPECT_NEAR(xyz.y, expected_y, 1e-15) << "node y mismatch at i=" << i << ", j=" << j;
+            EXPECT_NEAR(xyz.z, expected_z, 1e-15) << "node z mismatch at i=" << i << ", j=" << j;
         }
     }
 }
@@ -342,8 +327,7 @@ TEST(NodeTrigCache, XyzNodeOutputIsUnitSphere) {
         for (std::size_t i = 0; i <= ni; ++i) {
             auto xyz = detail::lonlat_to_xyz_node_cached(cache, i, j);
             double norm = std::sqrt(xyz.x * xyz.x + xyz.y * xyz.y + xyz.z * xyz.z);
-            EXPECT_NEAR(norm, 1.0, 1e-14)
-                << "Node not on unit sphere at i=" << i << ", j=" << j;
+            EXPECT_NEAR(norm, 1.0, 1e-14) << "Node not on unit sphere at i=" << i << ", j=" << j;
         }
     }
 }

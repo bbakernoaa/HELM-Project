@@ -17,11 +17,10 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <conf/config.hpp>
-#include <conf/error.hpp>
-
 #include <charconv>
 #include <cmath>
+#include <conf/config.hpp>
+#include <conf/error.hpp>
 #include <cstring>
 #include <iomanip>
 #include <sstream>
@@ -42,8 +41,7 @@ std::string yaml_int(int32_t val) {
 std::string yaml_double(double val) {
     // Use std::to_chars for round-trip-safe formatting with max precision.
     char buf[64];
-    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), val,
-                                    std::chars_format::general, 17);
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), val, std::chars_format::general, 17);
     std::string repr(buf, static_cast<std::size_t>(ptr - buf));
     return "key: " + repr + "\n";
 }
@@ -54,18 +52,30 @@ std::string yaml_bool(bool val) {
 }
 
 /// Serialize a string as a double-quoted YAML value, escaping special chars.
-std::string yaml_string(const std::string& val) {
+std::string yaml_string(const std::string &val) {
     std::string escaped;
     escaped.reserve(val.size() + 16);
     escaped += "key: \"";
     for (unsigned char ch : val) {
         switch (ch) {
-            case '"':  escaped += "\\\""; break;
-            case '\\': escaped += "\\\\"; break;
-            case '\n': escaped += "\\n";  break;
-            case '\r': escaped += "\\r";  break;
-            case '\t': escaped += "\\t";  break;
-            case '\0': escaped += "\\0";  break;
+            case '"':
+                escaped += "\\\"";
+                break;
+            case '\\':
+                escaped += "\\\\";
+                break;
+            case '\n':
+                escaped += "\\n";
+                break;
+            case '\r':
+                escaped += "\\r";
+                break;
+            case '\t':
+                escaped += "\\t";
+                break;
+            case '\0':
+                escaped += "\\0";
+                break;
             default:
                 escaped += static_cast<char>(ch);
                 break;
@@ -77,17 +87,13 @@ std::string yaml_string(const std::string& val) {
 
 /// Generate a printable ASCII character (0x20–0x7E).
 rc::Gen<char> genPrintableAscii() {
-    return rc::gen::map(rc::gen::inRange(0x20, 0x7F), [](int c) {
-        return static_cast<char>(c);
-    });
+    return rc::gen::map(rc::gen::inRange(0x20, 0x7F), [](int c) { return static_cast<char>(c); });
 }
 
 /// Generate a printable ASCII string of bounded length (0–1000 bytes).
 rc::Gen<std::string> genPrintableString() {
     return rc::gen::mapcat(rc::gen::inRange<std::size_t>(0, 1001),
-        [](std::size_t len) {
-            return rc::gen::container<std::string>(len, genPrintableAscii());
-        });
+                           [](std::size_t len) { return rc::gen::container<std::string>(len, genPrintableAscii()); });
 }
 
 }  // anonymous namespace

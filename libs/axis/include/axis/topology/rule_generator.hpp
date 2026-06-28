@@ -40,7 +40,7 @@ namespace axis::topology {
 ///   - If the bounding box maximum coordinate is less than its minimum coordinate, an exception is thrown.
 ///   - If the Gaussian grid parameter gaussian_n is non-positive for Gaussian-style grids, an exception is thrown.
 class RuleGenerator {
-public:
+   public:
     /// @brief Generate an UnstructuredMesh from specified grid rules parameters.
     ///
     /// Constructs a fully populated UnstructuredMesh structure entirely within the target memory space
@@ -53,10 +53,9 @@ public:
     ///                              are violated (max < min), if resolution spacing is non-positive, or if the Gaussian N parameter
     ///                              is invalid (<= 0) for Gaussian-based grids.
     template <class MemorySpace = Kokkos::HostSpace>
-    [[nodiscard]] static UnstructuredMesh<MemorySpace>
-        generate(const ingest::GridRulesParams& rules);
+    [[nodiscard]] static UnstructuredMesh<MemorySpace> generate(const ingest::GridRulesParams &rules);
 };
 
-} // namespace axis::topology
+}  // namespace axis::topology
 
-#endif // AXIS_TOPOLOGY_RULE_GENERATOR_HPP
+#endif  // AXIS_TOPOLOGY_RULE_GENERATOR_HPP

@@ -4,12 +4,12 @@
 
 #include <gtest/gtest.h>
 
-#include "dagr/detail/rank_pool.hpp"
-
 #include <set>
 #include <stdexcept>
 #include <thread>
 #include <vector>
+
+#include "dagr/detail/rank_pool.hpp"
 
 using dagr::detail::Rank_Pool;
 
@@ -27,7 +27,7 @@ TEST(RankPool, ZeroCountAllocationMessageIsDescriptive) {
     try {
         [[maybe_unused]] auto result = pool.try_allocate(0);
         FAIL() << "Expected std::invalid_argument";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
         EXPECT_FALSE(msg.empty()) << "Error message should not be empty";
     }
@@ -111,8 +111,7 @@ TEST(RankPool, AllocatedRanksAreFromPool) {
 
     // All allocated ranks must be from the initial set
     for (int rank : allocated) {
-        EXPECT_TRUE(initial_ranks.count(rank) > 0)
-            << "Allocated rank " << rank << " not in initial pool";
+        EXPECT_TRUE(initial_ranks.count(rank) > 0) << "Allocated rank " << rank << " not in initial pool";
     }
 }
 
@@ -180,8 +179,7 @@ TEST(RankPool, RemoveAvailableOnlyRemovesNonAllocated) {
     // Removed set should contain exactly the non-allocated ranks
     EXPECT_EQ(removed.size(), 3u);
     for (int r : removed) {
-        EXPECT_EQ(allocated.count(r), 0u)
-            << "Rank " << r << " was allocated but was removed";
+        EXPECT_EQ(allocated.count(r), 0u) << "Rank " << r << " was allocated but was removed";
     }
 
     // After removal, total should be reduced to just the allocated count
@@ -225,9 +223,7 @@ TEST(RankPool, InvariantHoldsAcrossMultipleOperations) {
     Rank_Pool pool({0, 1, 2, 3, 4, 5, 6, 7});
 
     // Check invariant at every step
-    auto check_invariant = [&pool]() {
-        EXPECT_EQ(pool.available_ranks() + pool.allocated_ranks(), pool.total_ranks());
-    };
+    auto check_invariant = [&pool]() { EXPECT_EQ(pool.available_ranks() + pool.allocated_ranks(), pool.total_ranks()); };
 
     check_invariant();
 
@@ -303,7 +299,7 @@ TEST(RankPool, ConcurrentAllocateReleaseSafety) {
         });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 
@@ -343,7 +339,7 @@ TEST(RankPool, ConcurrentMultiRankAllocateRelease) {
         });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 

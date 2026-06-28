@@ -6,15 +6,13 @@
 /// @brief RuleGenerator implementation — builds meshes from GridRulesParams via
 ///        Kokkos parallel kernels. Zero file I/O, zero YAML/JSON parsing.
 
+#include <Kokkos_Core.hpp>
 #include <axis/topology/rule_generator.hpp>
-
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
 
 #ifdef AXIS_ENABLE_PROJ
 #include <axis/topology/projection_builder.hpp>
@@ -28,35 +26,29 @@ namespace {
 // Validation helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-void validate_bbox(const ingest::GridRulesParams& rules) {
+void validate_bbox(const ingest::GridRulesParams &rules) {
     if (rules.max_x <= rules.min_x) {
-        throw std::invalid_argument(
-            "RuleGenerator: max_x (" + std::to_string(rules.max_x) +
-            ") must be greater than min_x (" + std::to_string(rules.min_x) + ")");
+        throw std::invalid_argument("RuleGenerator: max_x (" + std::to_string(rules.max_x) + ") must be greater than min_x (" +
+                                    std::to_string(rules.min_x) + ")");
     }
     if (rules.max_y <= rules.min_y) {
-        throw std::invalid_argument(
-            "RuleGenerator: max_y (" + std::to_string(rules.max_y) +
-            ") must be greater than min_y (" + std::to_string(rules.min_y) + ")");
+        throw std::invalid_argument("RuleGenerator: max_y (" + std::to_string(rules.max_y) + ") must be greater than min_y (" +
+                                    std::to_string(rules.min_y) + ")");
     }
 }
 
-void validate_resolution(const ingest::GridRulesParams& rules) {
+void validate_resolution(const ingest::GridRulesParams &rules) {
     if (rules.r_x <= 0.0) {
-        throw std::invalid_argument(
-            "RuleGenerator: r_x must be positive, got " + std::to_string(rules.r_x));
+        throw std::invalid_argument("RuleGenerator: r_x must be positive, got " + std::to_string(rules.r_x));
     }
     if (rules.r_y <= 0.0) {
-        throw std::invalid_argument(
-            "RuleGenerator: r_y must be positive, got " + std::to_string(rules.r_y));
+        throw std::invalid_argument("RuleGenerator: r_y must be positive, got " + std::to_string(rules.r_y));
     }
 }
 
-void validate_gaussian_n(const ingest::GridRulesParams& rules) {
+void validate_gaussian_n(const ingest::GridRulesParams &rules) {
     if (rules.gaussian_n <= 0) {
-        throw std::invalid_argument(
-            "RuleGenerator: gaussian_n must be positive for Gaussian kinds, got " +
-            std::to_string(rules.gaussian_n));
+        throw std::invalid_argument("RuleGenerator: gaussian_n must be positive for Gaussian kinds, got " + std::to_string(rules.gaussian_n));
     }
 }
 
@@ -111,7 +103,7 @@ std::vector<double> compute_gaussian_latitudes(int N) {
 /// ni = floor((max_x - min_x) / r_x), nj = floor((max_y - min_y) / r_y)
 /// Each cell is a quadrilateral defined by 4 corner nodes.
 template <class MemorySpace>
-UnstructuredMesh<MemorySpace> generate_regular_latlon(const ingest::GridRulesParams& rules) {
+UnstructuredMesh<MemorySpace> generate_regular_latlon(const ingest::GridRulesParams &rules) {
     validate_bbox(rules);
     validate_resolution(rules);
 
@@ -121,19 +113,17 @@ UnstructuredMesh<MemorySpace> generate_regular_latlon(const ingest::GridRulesPar
     if (ni == 0 || nj == 0) {
         throw std::invalid_argument(
             "RuleGenerator: RegularLatLon resolution produces zero cells "
-            "(ni=" + std::to_string(ni) + ", nj=" + std::to_string(nj) + ")");
+            "(ni=" +
+            std::to_string(ni) + ", nj=" + std::to_string(nj) + ")");
     }
 
     const std::size_t n_nodes = (ni + 1) * (nj + 1);
     const std::size_t n_cells = ni * nj;
 
     // Allocate Kokkos views
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace>
-        node_coords("rule_rll_coords", n_nodes, 2);
-    Kokkos::View<index_t*, MemorySpace>
-        conn_offsets("rule_rll_offsets", n_cells + 1);
-    Kokkos::View<index_t*, MemorySpace>
-        conn_indices("rule_rll_indices", n_cells * 4);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> node_coords("rule_rll_coords", n_nodes, 2);
+    Kokkos::View<index_t *, MemorySpace> conn_offsets("rule_rll_offsets", n_cells + 1);
+    Kokkos::View<index_t *, MemorySpace> conn_indices("rule_rll_indices", n_cells * 4);
 
     const double min_x = rules.min_x;
     const double min_y = rules.min_y;
@@ -142,9 +132,8 @@ UnstructuredMesh<MemorySpace> generate_regular_latlon(const ingest::GridRulesPar
     const std::size_t ni_cap = ni;
 
     // Fill node coordinates via Kokkos parallel kernel
-    Kokkos::parallel_for("RuleGen_RLL_Nodes",
-        Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_nodes),
-        KOKKOS_LAMBDA(const std::size_t idx) {
+    Kokkos::parallel_for(
+        "RuleGen_RLL_Nodes", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_nodes), KOKKOS_LAMBDA(const std::size_t idx) {
             const std::size_t i = idx % (ni_cap + 1);
             const std::size_t j = idx / (ni_cap + 1);
             node_coords(idx, 0) = min_x + static_cast<double>(i) * r_x;
@@ -153,9 +142,8 @@ UnstructuredMesh<MemorySpace> generate_regular_latlon(const ingest::GridRulesPar
 
     // Fill CSR connectivity via Kokkos parallel kernel
     // Each cell (i, j) -> quad with 4 corners: (i,j), (i+1,j), (i+1,j+1), (i,j+1)
-    Kokkos::parallel_for("RuleGen_RLL_Cells",
-        Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_cells),
-        KOKKOS_LAMBDA(const std::size_t c) {
+    Kokkos::parallel_for(
+        "RuleGen_RLL_Cells", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
             const std::size_t i = c % ni_cap;
             const std::size_t j = c / ni_cap;
             const std::size_t stride = ni_cap + 1;
@@ -177,11 +165,7 @@ UnstructuredMesh<MemorySpace> generate_regular_latlon(const ingest::GridRulesPar
 
     Kokkos::fence();
 
-    return UnstructuredMesh<MemorySpace>(
-        std::move(node_coords),
-        std::move(conn_offsets),
-        std::move(conn_indices),
-        CoordinateSystem::SphericalDeg);
+    return UnstructuredMesh<MemorySpace>(std::move(node_coords), std::move(conn_offsets), std::move(conn_indices), CoordinateSystem::SphericalDeg);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -192,12 +176,12 @@ UnstructuredMesh<MemorySpace> generate_regular_latlon(const ingest::GridRulesPar
 /// Uses gaussian_n to determine latitude circles (2*N latitudes), with
 /// regular longitude spacing (4*N points per latitude circle).
 template <class MemorySpace>
-UnstructuredMesh<MemorySpace> generate_gaussian_regular(const ingest::GridRulesParams& rules) {
+UnstructuredMesh<MemorySpace> generate_gaussian_regular(const ingest::GridRulesParams &rules) {
     validate_gaussian_n(rules);
 
     const int N = static_cast<int>(rules.gaussian_n);
-    const std::size_t n_lat = static_cast<std::size_t>(2 * N);   // number of latitude circles
-    const std::size_t n_lon = static_cast<std::size_t>(4 * N);   // points per circle
+    const std::size_t n_lat = static_cast<std::size_t>(2 * N);  // number of latitude circles
+    const std::size_t n_lon = static_cast<std::size_t>(4 * N);  // points per circle
 
     const std::size_t n_nodes = (n_lon + 1) * (n_lat + 1);
     const std::size_t n_cells = n_lon * n_lat;
@@ -218,16 +202,12 @@ UnstructuredMesh<MemorySpace> generate_gaussian_regular(const ingest::GridRulesP
     const double dlon = 360.0 / static_cast<double>(n_lon);
 
     // Allocate Kokkos views
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace>
-        node_coords("rule_gr_coords", n_nodes, 2);
-    Kokkos::View<index_t*, MemorySpace>
-        conn_offsets("rule_gr_offsets", n_cells + 1);
-    Kokkos::View<index_t*, MemorySpace>
-        conn_indices("rule_gr_indices", n_cells * 4);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> node_coords("rule_gr_coords", n_nodes, 2);
+    Kokkos::View<index_t *, MemorySpace> conn_offsets("rule_gr_offsets", n_cells + 1);
+    Kokkos::View<index_t *, MemorySpace> conn_indices("rule_gr_indices", n_cells * 4);
 
     // Copy latitude bounds to device
-    Kokkos::View<double*, MemorySpace>
-        lat_bounds_d("rule_gr_lat_bounds", n_lat + 1);
+    Kokkos::View<double *, MemorySpace> lat_bounds_d("rule_gr_lat_bounds", n_lat + 1);
     auto lat_bounds_h = Kokkos::create_mirror_view(lat_bounds_d);
     for (std::size_t j = 0; j <= n_lat; ++j) {
         lat_bounds_h(j) = lat_bounds[j];
@@ -237,9 +217,8 @@ UnstructuredMesh<MemorySpace> generate_gaussian_regular(const ingest::GridRulesP
     const std::size_t n_lon_cap = n_lon;
 
     // Fill node coordinates
-    Kokkos::parallel_for("RuleGen_GR_Nodes",
-        Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_nodes),
-        KOKKOS_LAMBDA(const std::size_t idx) {
+    Kokkos::parallel_for(
+        "RuleGen_GR_Nodes", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_nodes), KOKKOS_LAMBDA(const std::size_t idx) {
             const std::size_t i = idx % (n_lon_cap + 1);
             const std::size_t j = idx / (n_lon_cap + 1);
             node_coords(idx, 0) = static_cast<double>(i) * dlon;
@@ -247,9 +226,8 @@ UnstructuredMesh<MemorySpace> generate_gaussian_regular(const ingest::GridRulesP
         });
 
     // Fill CSR connectivity (quads)
-    Kokkos::parallel_for("RuleGen_GR_Cells",
-        Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_cells),
-        KOKKOS_LAMBDA(const std::size_t c) {
+    Kokkos::parallel_for(
+        "RuleGen_GR_Cells", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
             const std::size_t i = c % n_lon_cap;
             const std::size_t j = c / n_lon_cap;
             const std::size_t stride = n_lon_cap + 1;
@@ -271,11 +249,7 @@ UnstructuredMesh<MemorySpace> generate_gaussian_regular(const ingest::GridRulesP
 
     Kokkos::fence();
 
-    return UnstructuredMesh<MemorySpace>(
-        std::move(node_coords),
-        std::move(conn_offsets),
-        std::move(conn_indices),
-        CoordinateSystem::SphericalDeg);
+    return UnstructuredMesh<MemorySpace>(std::move(node_coords), std::move(conn_offsets), std::move(conn_indices), CoordinateSystem::SphericalDeg);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -300,7 +274,7 @@ inline std::vector<std::size_t> octahedral_nlon_per_lat(int N) {
 /// Each latitude circle has a variable number of points (octahedral formula).
 /// Cells are quadrilaterals connecting adjacent latitude circles.
 template <class MemorySpace>
-UnstructuredMesh<MemorySpace> generate_gaussian_reduced(const ingest::GridRulesParams& rules) {
+UnstructuredMesh<MemorySpace> generate_gaussian_reduced(const ingest::GridRulesParams &rules) {
     validate_gaussian_n(rules);
 
     const int N = static_cast<int>(rules.gaussian_n);
@@ -349,16 +323,13 @@ UnstructuredMesh<MemorySpace> generate_gaussian_reduced(const ingest::GridRulesP
     lat_bounds[n_lat] = -90.0;
 
     // Allocate Kokkos views
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace>
-        node_coords("rule_gred_coords", n_mesh_nodes, 2);
-    Kokkos::View<index_t*, MemorySpace>
-        conn_offsets("rule_gred_offsets", n_cells + 1);
-    Kokkos::View<index_t*, MemorySpace>
-        conn_indices("rule_gred_indices", n_cells * 4);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> node_coords("rule_gred_coords", n_mesh_nodes, 2);
+    Kokkos::View<index_t *, MemorySpace> conn_offsets("rule_gred_offsets", n_cells + 1);
+    Kokkos::View<index_t *, MemorySpace> conn_indices("rule_gred_indices", n_cells * 4);
 
     // Copy lat_bounds and nlons to device using index_t (int64_t) for portability
-    Kokkos::View<double*, MemorySpace> lat_bounds_d("gred_lat_bounds", n_lat + 1);
-    Kokkos::View<index_t*, MemorySpace> nlons_d("gred_nlons", n_lat);
+    Kokkos::View<double *, MemorySpace> lat_bounds_d("gred_lat_bounds", n_lat + 1);
+    Kokkos::View<index_t *, MemorySpace> nlons_d("gred_nlons", n_lat);
 
     {
         auto lat_bounds_h = Kokkos::create_mirror_view(lat_bounds_d);
@@ -380,15 +351,13 @@ UnstructuredMesh<MemorySpace> generate_gaussian_reduced(const ingest::GridRulesP
     // Fill nodes and connectivity via Kokkos parallel kernel.
     // Each cell c corresponds to grid point (lat_j, lon_i) where c is computed
     // from the prefix sum. Each cell gets 4 unique corner nodes.
-    Kokkos::parallel_for("RuleGen_GRed_Cells",
-        Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_cells),
-        KOKKOS_LAMBDA(const std::size_t c) {
+    Kokkos::parallel_for(
+        "RuleGen_GRed_Cells", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
             // Find which latitude circle this cell belongs to via linear scan
             // (acceptable for generation — O(N) per cell, total O(N * sum(nlons)))
             std::size_t j = 0;
             std::size_t remaining = c;
-            while (j < n_lat_cap &&
-                   remaining >= static_cast<std::size_t>(nlons_d(j))) {
+            while (j < n_lat_cap && remaining >= static_cast<std::size_t>(nlons_d(j))) {
                 remaining -= static_cast<std::size_t>(nlons_d(j));
                 ++j;
             }
@@ -431,11 +400,7 @@ UnstructuredMesh<MemorySpace> generate_gaussian_reduced(const ingest::GridRulesP
 
     Kokkos::fence();
 
-    return UnstructuredMesh<MemorySpace>(
-        std::move(node_coords),
-        std::move(conn_offsets),
-        std::move(conn_indices),
-        CoordinateSystem::SphericalDeg);
+    return UnstructuredMesh<MemorySpace>(std::move(node_coords), std::move(conn_offsets), std::move(conn_indices), CoordinateSystem::SphericalDeg);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -445,13 +410,12 @@ UnstructuredMesh<MemorySpace> generate_gaussian_reduced(const ingest::GridRulesP
 /// Generate a regular grid in projection space, then transform to geographic
 /// coordinates via ProjectionBuilder (requires AXIS_ENABLE_PROJ).
 template <class MemorySpace>
-UnstructuredMesh<MemorySpace> generate_projected(const ingest::GridRulesParams& rules) {
+UnstructuredMesh<MemorySpace> generate_projected(const ingest::GridRulesParams &rules) {
     validate_bbox(rules);
     validate_resolution(rules);
 
     if (rules.proj_string.empty()) {
-        throw std::invalid_argument(
-            "RuleGenerator: Projected kind requires a non-empty proj_string");
+        throw std::invalid_argument("RuleGenerator: Projected kind requires a non-empty proj_string");
     }
 
 #ifdef AXIS_ENABLE_PROJ
@@ -462,7 +426,8 @@ UnstructuredMesh<MemorySpace> generate_projected(const ingest::GridRulesParams& 
     if (ni == 0 || nj == 0) {
         throw std::invalid_argument(
             "RuleGenerator: Projected resolution produces zero cells "
-            "(ni=" + std::to_string(ni) + ", nj=" + std::to_string(nj) + ")");
+            "(ni=" +
+            std::to_string(ni) + ", nj=" + std::to_string(nj) + ")");
     }
 
     const std::size_t n_points = ni * nj;
@@ -499,16 +464,15 @@ UnstructuredMesh<MemorySpace> generate_projected(const ingest::GridRulesParams& 
 #endif
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RuleGenerator::generate — explicit template instantiation
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-UnstructuredMesh<MemorySpace>
-RuleGenerator::generate(const ingest::GridRulesParams& rules) {
-    const auto& kind = rules.kind;
+UnstructuredMesh<MemorySpace> RuleGenerator::generate(const ingest::GridRulesParams &rules) {
+    const auto &kind = rules.kind;
 
     if (kind == "RegularLatLon") {
         return generate_regular_latlon<MemorySpace>(rules);
@@ -519,24 +483,21 @@ RuleGenerator::generate(const ingest::GridRulesParams& rules) {
     } else if (kind == "Projected") {
         return generate_projected<MemorySpace>(rules);
     } else {
-        throw std::invalid_argument(
-            "RuleGenerator: unrecognized rule kind '" + kind + "'. "
-            "Supported kinds: RegularLatLon, GaussianRegular, GaussianReduced, Projected");
+        throw std::invalid_argument("RuleGenerator: unrecognized rule kind '" + kind +
+                                    "'. "
+                                    "Supported kinds: RegularLatLon, GaussianRegular, GaussianReduced, Projected");
     }
 }
 
 // Explicit instantiation for Kokkos::HostSpace
-template UnstructuredMesh<Kokkos::HostSpace>
-RuleGenerator::generate<Kokkos::HostSpace>(const ingest::GridRulesParams& rules);
+template UnstructuredMesh<Kokkos::HostSpace> RuleGenerator::generate<Kokkos::HostSpace>(const ingest::GridRulesParams &rules);
 
 #ifdef KOKKOS_ENABLE_CUDA
-template UnstructuredMesh<Kokkos::CudaSpace>
-RuleGenerator::generate<Kokkos::CudaSpace>(const ingest::GridRulesParams& rules);
+template UnstructuredMesh<Kokkos::CudaSpace> RuleGenerator::generate<Kokkos::CudaSpace>(const ingest::GridRulesParams &rules);
 #endif
 
 #ifdef KOKKOS_ENABLE_HIP
-template UnstructuredMesh<Kokkos::HIPSpace>
-RuleGenerator::generate<Kokkos::HIPSpace>(const ingest::GridRulesParams& rules);
+template UnstructuredMesh<Kokkos::HIPSpace> RuleGenerator::generate<Kokkos::HIPSpace>(const ingest::GridRulesParams &rules);
 #endif
 
-} // namespace axis::topology
+}  // namespace axis::topology

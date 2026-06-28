@@ -23,12 +23,10 @@
 /// field_view — and is consumable by AMIO or Python for serialization to SCRIP
 /// NetCDF weight files. Header-only: no associated .cpp compilation unit.
 
-#include <cstddef>
-
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
 #include <axis/solver/regrid_config.hpp>
+#include <axis/types.hpp>
+#include <cstddef>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Forward declarations
@@ -37,12 +35,12 @@
 namespace axis::topology {
 template <class MemorySpace>
 class UnstructuredMesh;
-} // namespace axis::topology
+}  // namespace axis::topology
 
 namespace axis::solver {
 template <class MemorySpace>
 class InterpolationMatrix;
-} // namespace axis::solver
+}  // namespace axis::solver
 
 namespace axis::ingest {
 
@@ -57,7 +55,7 @@ namespace axis::ingest {
 /// serializes these views to a SCRIP NetCDF file.
 struct ScripEgress {
     /// @brief Interpolation weights list (often labeled 'S' in SCRIP), size [n_s].
-    field_view<const double, 1>  S{};
+    field_view<const double, 1> S{};
 
     /// @brief 1-based source cell index per nonzero weight factor (0-based internally, converted to 1-based), size [n_s].
     field_view<const index_t, 1> col{};
@@ -96,13 +94,13 @@ struct ScripEgress {
     std::size_t dst_grid_dims[2]{};
 
     /// @brief SCRIP remap method identifier string (e.g., "conservative", "bilinear", "nearest_neighbor", etc.).
-    const char* remap_method{};
+    const char *remap_method{};
 
     /// @brief SCRIP normalization option string (e.g., "destarea" or "fracarea").
-    const char* norm_option{};
+    const char *norm_option{};
 
     /// @brief SCRIP descriptive map method string (e.g., "Conservative remapping", "Bilinear remapping", etc.).
-    const char* map_method{};
+    const char *map_method{};
 
     /// @brief Number of nonzero interpolation weight factors.
     std::size_t n_s{0};
@@ -126,29 +124,30 @@ struct ScripEgressResult {
 
     /// @brief Access the egress view struct.
     /// @return A @c const @c ScripEgress& viewing the underlying data.
-    [[nodiscard]] const ScripEgress& get() const noexcept { return egress; }
+    [[nodiscard]] const ScripEgress &get() const noexcept {
+        return egress;
+    }
 
     /// @brief Implicit conversion to ScripEgress for ergonomic use.
     /// @return A @c const @c ScripEgress& viewing the underlying data.
-    [[nodiscard]] operator const ScripEgress&() const noexcept { return egress; }
+    [[nodiscard]] operator const ScripEgress &() const noexcept {
+        return egress;
+    }
 
-private:
+   private:
     template <class MS>
-    friend ScripEgressResult<MS> scrip_egress(
-        const solver::InterpolationMatrix<MS>& matrix,
-        const topology::UnstructuredMesh<MS>& src,
-        const topology::UnstructuredMesh<MS>& dst,
-        const solver::RegridConfig& config);
+    friend ScripEgressResult<MS> scrip_egress(const solver::InterpolationMatrix<MS> &matrix, const topology::UnstructuredMesh<MS> &src,
+                                              const topology::UnstructuredMesh<MS> &dst, const solver::RegridConfig &config);
 
     // Owned storage for 1-based index arrays (lightweight nnz allocation)
-    Kokkos::View<index_t*, MemorySpace> col_1based_;
-    Kokkos::View<index_t*, MemorySpace> row_1based_;
+    Kokkos::View<index_t *, MemorySpace> col_1based_;
+    Kokkos::View<index_t *, MemorySpace> row_1based_;
 
     // Owned storage for computed cell center coordinates
-    Kokkos::View<double*, MemorySpace> src_center_lon_;
-    Kokkos::View<double*, MemorySpace> src_center_lat_;
-    Kokkos::View<double*, MemorySpace> dst_center_lon_;
-    Kokkos::View<double*, MemorySpace> dst_center_lat_;
+    Kokkos::View<double *, MemorySpace> src_center_lon_;
+    Kokkos::View<double *, MemorySpace> src_center_lat_;
+    Kokkos::View<double *, MemorySpace> dst_center_lon_;
+    Kokkos::View<double *, MemorySpace> dst_center_lat_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +159,7 @@ namespace detail {
 /// @brief Map InterpolationMethod enum to SCRIP remap_method string.
 /// @param m The interpolation method enum.
 /// @return The string identifier (e.g. "conservative", "bilinear", "nearest_neighbor").
-inline constexpr const char* scrip_remap_method(solver::InterpolationMethod m) noexcept {
+inline constexpr const char *scrip_remap_method(solver::InterpolationMethod m) noexcept {
     switch (m) {
         case solver::InterpolationMethod::Conservative1stOrder:
         case solver::InterpolationMethod::Conservative2ndOrder:
@@ -181,7 +180,7 @@ inline constexpr const char* scrip_remap_method(solver::InterpolationMethod m) n
 /// @brief Map InterpolationMethod enum to SCRIP map_method description.
 /// @param m The interpolation method enum.
 /// @return The description string (e.g. "Conservative remapping", "Bilinear remapping").
-inline constexpr const char* scrip_map_method(solver::InterpolationMethod m) noexcept {
+inline constexpr const char *scrip_map_method(solver::InterpolationMethod m) noexcept {
     switch (m) {
         case solver::InterpolationMethod::Conservative1stOrder:
             return "Conservative remapping";
@@ -203,15 +202,18 @@ inline constexpr const char* scrip_map_method(solver::InterpolationMethod m) noe
 /// @brief Map NormType enum to SCRIP norm_option string.
 /// @param n The normalization type enum.
 /// @return The string identifier (e.g. "destarea", "fracarea").
-inline constexpr const char* scrip_norm_option(solver::NormType n) noexcept {
+inline constexpr const char *scrip_norm_option(solver::NormType n) noexcept {
     switch (n) {
-        case solver::NormType::DstArea:  return "destarea";
-        case solver::NormType::FracArea: return "fracarea";
-        default:                         return "destarea";
+        case solver::NormType::DstArea:
+            return "destarea";
+        case solver::NormType::FracArea:
+            return "fracarea";
+        default:
+            return "destarea";
     }
 }
 
-} // namespace detail
+}  // namespace detail
 
 // ─────────────────────────────────────────────────────────────────────────────
 // scrip_egress() factory function
@@ -231,12 +233,8 @@ inline constexpr const char* scrip_norm_option(solver::NormType n) noexcept {
 /// @param config  RegridConfig used to determine method strings
 /// @return ScripEgressResult owning the offset buffers; access .egress or .get()
 template <class MS>
-[[nodiscard]] ScripEgressResult<MS> scrip_egress(
-    const solver::InterpolationMatrix<MS>& matrix,
-    const topology::UnstructuredMesh<MS>& src,
-    const topology::UnstructuredMesh<MS>& dst,
-    const solver::RegridConfig& config)
-{
+[[nodiscard]] ScripEgressResult<MS> scrip_egress(const solver::InterpolationMatrix<MS> &matrix, const topology::UnstructuredMesh<MS> &src,
+                                                 const topology::UnstructuredMesh<MS> &dst, const solver::RegridConfig &config) {
     ScripEgressResult<MS> result;
     const auto n_s = matrix.nnz();
     const auto n_a = matrix.n_src();
@@ -244,20 +242,18 @@ template <class MS>
 
     // ─── 1-based index arrays (lightweight allocation + offset) ─────────────
 
-    result.col_1based_ = Kokkos::View<index_t*, MS>("scrip_col_1based", n_s);
-    result.row_1based_ = Kokkos::View<index_t*, MS>("scrip_row_1based", n_s);
+    result.col_1based_ = Kokkos::View<index_t *, MS>("scrip_col_1based", n_s);
+    result.row_1based_ = Kokkos::View<index_t *, MS>("scrip_row_1based", n_s);
 
     // Get internal Kokkos Views for the 0-based indices
-    const auto& factor_col_view = matrix.factor_col_view();
-    const auto& factor_row_view = matrix.factor_row_view();
+    const auto &factor_col_view = matrix.factor_col_view();
+    const auto &factor_row_view = matrix.factor_row_view();
     auto col_1based = result.col_1based_;
     auto row_1based = result.row_1based_;
 
     // Apply +1 offset via Kokkos parallel_for
     Kokkos::parallel_for(
-        "scrip_egress_offset_indices",
-        Kokkos::RangePolicy<typename MS::execution_space>(0, n_s),
-        KOKKOS_LAMBDA(const std::size_t k) {
+        "scrip_egress_offset_indices", Kokkos::RangePolicy<typename MS::execution_space>(0, n_s), KOKKOS_LAMBDA(const std::size_t k) {
             col_1based(k) = factor_col_view(k) + 1;
             row_1based(k) = factor_row_view(k) + 1;
         });
@@ -272,21 +268,19 @@ template <class MS>
     // Source mesh centroids
     {
         const auto n_cells = src.n_cells();
-        result.src_center_lon_ = Kokkos::View<double*, MS>("scrip_src_clon", n_cells);
-        result.src_center_lat_ = Kokkos::View<double*, MS>("scrip_src_clat", n_cells);
+        result.src_center_lon_ = Kokkos::View<double *, MS>("scrip_src_clon", n_cells);
+        result.src_center_lat_ = Kokkos::View<double *, MS>("scrip_src_clat", n_cells);
 
-        const auto& nodes = src.node_coords_view();
-        const auto& offsets = src.conn_offsets_view();
-        const auto& indices = src.conn_indices_view();
+        const auto &nodes = src.node_coords_view();
+        const auto &offsets = src.conn_offsets_view();
+        const auto &indices = src.conn_indices_view();
         auto clon = result.src_center_lon_;
         auto clat = result.src_center_lat_;
 
         Kokkos::parallel_for(
-            "scrip_egress_src_centroids",
-            Kokkos::RangePolicy<typename MS::execution_space>(0, n_cells),
-            KOKKOS_LAMBDA(const std::size_t c) {
+            "scrip_egress_src_centroids", Kokkos::RangePolicy<typename MS::execution_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
                 const auto start = offsets(c);
-                const auto end   = offsets(c + 1);
+                const auto end = offsets(c + 1);
                 const auto nverts = end - start;
                 double lon_sum = 0.0;
                 double lat_sum = 0.0;
@@ -303,21 +297,19 @@ template <class MS>
     // Destination mesh centroids
     {
         const auto n_cells = dst.n_cells();
-        result.dst_center_lon_ = Kokkos::View<double*, MS>("scrip_dst_clon", n_cells);
-        result.dst_center_lat_ = Kokkos::View<double*, MS>("scrip_dst_clat", n_cells);
+        result.dst_center_lon_ = Kokkos::View<double *, MS>("scrip_dst_clon", n_cells);
+        result.dst_center_lat_ = Kokkos::View<double *, MS>("scrip_dst_clat", n_cells);
 
-        const auto& nodes = dst.node_coords_view();
-        const auto& offsets = dst.conn_offsets_view();
-        const auto& indices = dst.conn_indices_view();
+        const auto &nodes = dst.node_coords_view();
+        const auto &offsets = dst.conn_offsets_view();
+        const auto &indices = dst.conn_indices_view();
         auto clon = result.dst_center_lon_;
         auto clat = result.dst_center_lat_;
 
         Kokkos::parallel_for(
-            "scrip_egress_dst_centroids",
-            Kokkos::RangePolicy<typename MS::execution_space>(0, n_cells),
-            KOKKOS_LAMBDA(const std::size_t c) {
+            "scrip_egress_dst_centroids", Kokkos::RangePolicy<typename MS::execution_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
                 const auto start = offsets(c);
-                const auto end   = offsets(c + 1);
+                const auto end = offsets(c + 1);
                 const auto nverts = end - start;
                 double lon_sum = 0.0;
                 double lat_sum = 0.0;
@@ -335,7 +327,7 @@ template <class MS>
 
     // ─── Populate the ScripEgress view struct ───────────────────────────────
 
-    auto& eg = result.egress;
+    auto &eg = result.egress;
 
     // Weights — zero-copy view into InterpolationMatrix
     eg.S = matrix.factor_list();
@@ -364,8 +356,8 @@ template <class MS>
 
     // Method strings from config
     eg.remap_method = detail::scrip_remap_method(config.method);
-    eg.norm_option  = detail::scrip_norm_option(config.norm_type);
-    eg.map_method   = detail::scrip_map_method(config.method);
+    eg.norm_option = detail::scrip_norm_option(config.norm_type);
+    eg.map_method = detail::scrip_map_method(config.method);
 
     // Number of nonzero weights
     eg.n_s = n_s;
@@ -373,6 +365,6 @@ template <class MS>
     return result;
 }
 
-} // namespace axis::ingest
+}  // namespace axis::ingest
 
-#endif // AXIS_INGEST_SCRIP_EGRESS_HPP
+#endif  // AXIS_INGEST_SCRIP_EGRESS_HPP

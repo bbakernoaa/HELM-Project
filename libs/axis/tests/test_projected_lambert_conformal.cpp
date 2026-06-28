@@ -8,15 +8,13 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
-#include <axis/topology/projection_builder.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/topology/structured_grid.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
 #include <axis/solver/regrid_config.hpp>
-
+#include <axis/solver/weight_generator.hpp>
+#include <axis/topology/projection_builder.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <vector>
@@ -31,8 +29,7 @@ TEST(ProjectedLambertConformal, EndToEndInterpolationAllMethods) {
 #endif
 
     // ── Source: Lambert Conformal Conic Grid (LCC) ──
-    const std::string lcc_proj = 
-        "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs";
+    const std::string lcc_proj = "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs";
 
     const std::size_t ni = 6;
     const std::size_t nj = 6;
@@ -40,9 +37,9 @@ TEST(ProjectedLambertConformal, EndToEndInterpolationAllMethods) {
 
     // Define coordinate ranges in projection space (meters)
     double min_x = -50000.0;
-    double max_x =  50000.0;
+    double max_x = 50000.0;
     double min_y = -50000.0;
-    double max_y =  50000.0;
+    double max_y = 50000.0;
 
     double dx = (max_x - min_x) / ni;
     double dy = (max_y - min_y) / nj;
@@ -83,8 +80,8 @@ TEST(ProjectedLambertConformal, EndToEndInterpolationAllMethods) {
     // Build destination grid center points around -96 deg lon, 40 deg lat
     double dst_min_lon = -96.5;
     double dst_max_lon = -95.5;
-    double dst_min_lat =  39.5;
-    double dst_max_lat =  40.5;
+    double dst_min_lat = 39.5;
+    double dst_max_lat = 40.5;
 
     double d_lon = (dst_max_lon - dst_min_lon) / dst_ni;
     double d_lat = (dst_max_lat - dst_min_lat) / dst_nj;
@@ -111,22 +108,18 @@ TEST(ProjectedLambertConformal, EndToEndInterpolationAllMethods) {
         }
     }
 
-    Kokkos::View<double*, MemSpace> dst_center_lon("dst_center_lon", dst_n_points);
-    Kokkos::View<double*, MemSpace> dst_center_lat("dst_center_lat", dst_n_points);
+    Kokkos::View<double *, MemSpace> dst_center_lon("dst_center_lon", dst_n_points);
+    Kokkos::View<double *, MemSpace> dst_center_lat("dst_center_lat", dst_n_points);
     for (std::size_t idx = 0; idx < dst_n_points; ++idx) {
         dst_center_lon(idx) = dst_cx[idx];
         dst_center_lat(idx) = dst_cy[idx];
     }
 
-    topology::StructuredGrid<MemSpace> dst_grid(
-        dst_ni, dst_nj,
-        dst_center_lon,
-        dst_center_lat,
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> dst_grid(dst_ni, dst_nj, dst_center_lon, dst_center_lat, topology::CoordinateSystem::SphericalDeg);
 
     // Set corners
-    Kokkos::View<double*, MemSpace> dst_corners_lon("dst_corners_lon", dst_nc_lon * dst_nc_lat);
-    Kokkos::View<double*, MemSpace> dst_corners_lat("dst_corners_lat", dst_nc_lon * dst_nc_lat);
+    Kokkos::View<double *, MemSpace> dst_corners_lon("dst_corners_lon", dst_nc_lon * dst_nc_lat);
+    Kokkos::View<double *, MemSpace> dst_corners_lat("dst_corners_lat", dst_nc_lon * dst_nc_lat);
     for (std::size_t idx = 0; idx < dst_nc_lon * dst_nc_lat; ++idx) {
         dst_corners_lon(idx) = dst_crx[idx];
         dst_corners_lat(idx) = dst_cry[idx];
@@ -207,4 +200,4 @@ TEST(ProjectedLambertConformal, EndToEndInterpolationAllMethods) {
     }
 }
 
-} // namespace axis::test
+}  // namespace axis::test

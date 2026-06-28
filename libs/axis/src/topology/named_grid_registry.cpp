@@ -20,18 +20,16 @@
 ///   Gaussian latitudes are computed using Newton's method for Legendre
 ///   polynomial roots on the unit sphere (iterative, pure math, no tables).
 
-#include <axis/topology/named_grid_registry.hpp>
-#include <axis/ingest/grid_descriptor.hpp>
-#include <axis/topology/projection_builder.hpp>
-
+#include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/ingest/grid_descriptor.hpp>
+#include <axis/topology/named_grid_registry.hpp>
+#include <axis/topology/projection_builder.hpp>
 #include <cctype>
 #include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
 
 namespace axis::topology {
 
@@ -140,7 +138,7 @@ std::size_t regular_total_nodes(int N) {
 /// latitude circles. Between circles j and j+1 with nlon_j and nlon_{j+1}
 /// points, the number of cells is max(nlon_j, nlon_{j+1}).
 /// Total cells = sum_{j=0}^{2N-2} max(nlon[j], nlon[j+1])
-std::size_t reduced_total_cells(const std::vector<int>& nlons) {
+std::size_t reduced_total_cells(const std::vector<int> &nlons) {
     std::size_t total = 0;
     for (std::size_t j = 0; j + 1 < nlons.size(); ++j) {
         total += static_cast<std::size_t>(std::max(nlons[j], nlons[j + 1]));
@@ -170,8 +168,7 @@ UnstructuredMesh<MemorySpace> generate_regular_gaussian(int N) {
 
     // ─── Build node coordinates on host ─────────────────────────────────────
     // Nodes are stored as [n_nodes, 2] with col 0 = lon, col 1 = lat (degrees)
-    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace>
-        h_coords("h_coords", n_nodes, 2);
+    Kokkos::View<double **, Kokkos::LayoutLeft, Kokkos::HostSpace> h_coords("h_coords", n_nodes, 2);
 
     // Fill node coordinates: latitude circles from north to south,
     // each with n_lon evenly spaced longitudes in [0, 360)
@@ -194,8 +191,8 @@ UnstructuredMesh<MemorySpace> generate_regular_gaussian(int N) {
     // Connectivity wraps around in longitude.
     const std::size_t nnz = n_cells * 4;  // 4 nodes per quad cell
 
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_offsets("h_offsets", n_cells + 1);
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_indices("h_indices", nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_offsets("h_offsets", n_cells + 1);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_indices("h_indices", nnz);
 
     // Fill offsets: uniform 4 nodes per cell
     for (std::size_t c = 0; c <= n_cells; ++c) {
@@ -229,22 +226,17 @@ UnstructuredMesh<MemorySpace> generate_regular_gaussian(int N) {
 
     // ─── Copy to target MemorySpace ─────────────────────────────────────────
     if constexpr (std::is_same_v<MemorySpace, Kokkos::HostSpace>) {
-        return UnstructuredMesh<MemorySpace>(
-            std::move(h_coords), std::move(h_offsets), std::move(h_indices),
-            CoordinateSystem::SphericalDeg);
+        return UnstructuredMesh<MemorySpace>(std::move(h_coords), std::move(h_offsets), std::move(h_indices), CoordinateSystem::SphericalDeg);
     } else {
-        Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace>
-            d_coords("d_coords", n_nodes, 2);
-        Kokkos::View<index_t*, MemorySpace> d_offsets("d_offsets", n_cells + 1);
-        Kokkos::View<index_t*, MemorySpace> d_indices("d_indices", nnz);
+        Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> d_coords("d_coords", n_nodes, 2);
+        Kokkos::View<index_t *, MemorySpace> d_offsets("d_offsets", n_cells + 1);
+        Kokkos::View<index_t *, MemorySpace> d_indices("d_indices", nnz);
 
         Kokkos::deep_copy(d_coords, h_coords);
         Kokkos::deep_copy(d_offsets, h_offsets);
         Kokkos::deep_copy(d_indices, h_indices);
 
-        return UnstructuredMesh<MemorySpace>(
-            std::move(d_coords), std::move(d_offsets), std::move(d_indices),
-            CoordinateSystem::SphericalDeg);
+        return UnstructuredMesh<MemorySpace>(std::move(d_coords), std::move(d_offsets), std::move(d_indices), CoordinateSystem::SphericalDeg);
     }
 }
 
@@ -268,16 +260,14 @@ UnstructuredMesh<MemorySpace> generate_octahedral_gaussian(int N) {
     std::vector<double> lats = compute_gaussian_latitudes(N);
 
     // ─── Build node coordinates on host ─────────────────────────────────────
-    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace>
-        h_coords("h_coords", n_nodes, 2);
+    Kokkos::View<double **, Kokkos::LayoutLeft, Kokkos::HostSpace> h_coords("h_coords", n_nodes, 2);
 
     // Compute row start offsets for quick node lookup
     std::vector<std::size_t> row_starts(static_cast<std::size_t>(n_lat) + 1);
     row_starts[0] = 0;
     for (int j = 0; j < n_lat; ++j) {
         row_starts[static_cast<std::size_t>(j) + 1] =
-            row_starts[static_cast<std::size_t>(j)] +
-            static_cast<std::size_t>(nlons[static_cast<std::size_t>(j)]);
+            row_starts[static_cast<std::size_t>(j)] + static_cast<std::size_t>(nlons[static_cast<std::size_t>(j)]);
     }
 
     // Fill node coordinates
@@ -308,8 +298,8 @@ UnstructuredMesh<MemorySpace> generate_octahedral_gaussian(int N) {
     // First pass: count total connectivity entries (always 4 per quad cell)
     const std::size_t nnz = n_cells * 4;
 
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_offsets("h_offsets", n_cells + 1);
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_indices("h_indices", nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_offsets("h_offsets", n_cells + 1);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_indices("h_indices", nnz);
 
     // Fill offsets
     for (std::size_t c = 0; c <= n_cells; ++c) {
@@ -358,26 +348,21 @@ UnstructuredMesh<MemorySpace> generate_octahedral_gaussian(int N) {
 
     // ─── Copy to target MemorySpace ─────────────────────────────────────────
     if constexpr (std::is_same_v<MemorySpace, Kokkos::HostSpace>) {
-        return UnstructuredMesh<MemorySpace>(
-            std::move(h_coords), std::move(h_offsets), std::move(h_indices),
-            CoordinateSystem::SphericalDeg);
+        return UnstructuredMesh<MemorySpace>(std::move(h_coords), std::move(h_offsets), std::move(h_indices), CoordinateSystem::SphericalDeg);
     } else {
-        Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace>
-            d_coords("d_coords", n_nodes, 2);
-        Kokkos::View<index_t*, MemorySpace> d_offsets("d_offsets", n_cells + 1);
-        Kokkos::View<index_t*, MemorySpace> d_indices("d_indices", nnz);
+        Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> d_coords("d_coords", n_nodes, 2);
+        Kokkos::View<index_t *, MemorySpace> d_offsets("d_offsets", n_cells + 1);
+        Kokkos::View<index_t *, MemorySpace> d_indices("d_indices", nnz);
 
         Kokkos::deep_copy(d_coords, h_coords);
         Kokkos::deep_copy(d_offsets, h_offsets);
         Kokkos::deep_copy(d_indices, h_indices);
 
-        return UnstructuredMesh<MemorySpace>(
-            std::move(d_coords), std::move(d_offsets), std::move(d_indices),
-            CoordinateSystem::SphericalDeg);
+        return UnstructuredMesh<MemorySpace>(std::move(d_coords), std::move(d_offsets), std::move(d_indices), CoordinateSystem::SphericalDeg);
     }
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Grid generation: NOAA NWS GRIB Grids (G family - Extensible)
@@ -386,14 +371,14 @@ UnstructuredMesh<MemorySpace> generate_octahedral_gaussian(int N) {
 /// @struct NoaaGribDefinition
 /// @brief Declarative metadata structure for NOAA GRIB grids.
 struct NoaaGribDefinition {
-    int number;              ///< Official GRIB grid number.
-    std::size_t ni;          ///< Columns count (Ni).
-    std::size_t nj;          ///< Rows count (Nj).
-    double lon_start;        ///< Leftmost longitude boundary (for regular grids).
-    double lat_start;        ///< Southernmost latitude boundary (for regular grids).
-    double dlon;             ///< Longitude grid spacing (for regular grids).
-    double dlat;             ///< Latitude grid spacing (for regular grids).
-    const char* proj_string; ///< PROJ-compliant string (nullptr if regular global grid).
+    int number;               ///< Official GRIB grid number.
+    std::size_t ni;           ///< Columns count (Ni).
+    std::size_t nj;           ///< Rows count (Nj).
+    double lon_start;         ///< Leftmost longitude boundary (for regular grids).
+    double lat_start;         ///< Southernmost latitude boundary (for regular grids).
+    double dlon;              ///< Longitude grid spacing (for regular grids).
+    double dlat;              ///< Latitude grid spacing (for regular grids).
+    const char *proj_string;  ///< PROJ-compliant string (nullptr if regular global grid).
 };
 
 /// @brief Global declarative registry of supported NOAA GRIB grids.
@@ -404,25 +389,19 @@ static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
     // grid4: GFS 0.5 degree global grid
     {4, 720, 361, -180.0, -90.0, 0.5, 0.5, nullptr},
     // grid218: NAM / RAP 12km ConUS Lambert Conformal grid (requires PROJ)
-    {218, 614, 428, 0.0, 0.0, 0.0, 0.0,
-     "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"}
-};
+    {218, 614, 428, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"}};
 
 /// @brief Total count of registered NOAA NWS grids in our static array.
 static constexpr std::size_t NOAA_GRIB_GRIDS_COUNT = sizeof(NOAA_GRIB_GRIDS) / sizeof(NOAA_GRIB_GRIDS[0]);
 
 /// @brief Generates a standard regular lat-lon grid as an UnstructuredMesh.
 template <class MemorySpace>
-inline UnstructuredMesh<MemorySpace> generate_regular_grid(
-    std::size_t ni, std::size_t nj,
-    double lon_start, double lat_start,
-    double dlon, double dlat) {
-
+inline UnstructuredMesh<MemorySpace> generate_regular_grid(std::size_t ni, std::size_t nj, double lon_start, double lat_start, double dlon,
+                                                           double dlat) {
     const std::size_t n_nodes = (ni + 1) * (nj + 1);
     const std::size_t n_cells = ni * nj;
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace>
-        h_coords("h_coords", n_nodes, 2);
+    Kokkos::View<double **, Kokkos::LayoutLeft, Kokkos::HostSpace> h_coords("h_coords", n_nodes, 2);
 
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
@@ -432,8 +411,8 @@ inline UnstructuredMesh<MemorySpace> generate_regular_grid(
         }
     }
 
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_offsets("h_offsets", n_cells + 1);
-    Kokkos::View<index_t*, Kokkos::HostSpace> h_indices("h_indices", n_cells * 4);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_offsets("h_offsets", n_cells + 1);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_indices("h_indices", n_cells * 4);
 
     h_offsets(0) = 0;
     for (std::size_t j = 0; j < nj; ++j) {
@@ -458,24 +437,19 @@ inline UnstructuredMesh<MemorySpace> generate_regular_grid(
     auto conn_offsets = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_offsets);
     auto conn_indices = Kokkos::create_mirror_view_and_copy(MemorySpace(), h_indices);
 
-    return UnstructuredMesh<MemorySpace>(
-        std::move(node_coords),
-        std::move(conn_offsets),
-        std::move(conn_indices),
-        CoordinateSystem::SphericalDeg);
+    return UnstructuredMesh<MemorySpace>(std::move(node_coords), std::move(conn_offsets), std::move(conn_indices), CoordinateSystem::SphericalDeg);
 }
 
 /// @brief Analytically generates a registered NOAA NWS GRIB grid.
 template <class MemorySpace>
 inline UnstructuredMesh<MemorySpace> generate_noaa_grib_grid(int number) {
     for (std::size_t idx = 0; idx < NOAA_GRIB_GRIDS_COUNT; ++idx) {
-        const auto& grid_def = NOAA_GRIB_GRIDS[idx];
+        const auto &grid_def = NOAA_GRIB_GRIDS[idx];
         if (grid_def.number == number) {
             if (grid_def.proj_string != nullptr) {
 #ifndef AXIS_ENABLE_PROJ
-                throw std::runtime_error(
-                    "NamedGridRegistry::generate: requested projected grid \"grid" +
-                    std::to_string(number) + "\" but AXIS was compiled without PROJ support.");
+                throw std::runtime_error("NamedGridRegistry::generate: requested projected grid \"grid" + std::to_string(number) +
+                                         "\" but AXIS was compiled without PROJ support.");
 #else
                 axis::ingest::ProjectedParams params;
                 params.proj_string = grid_def.proj_string;
@@ -486,9 +460,9 @@ inline UnstructuredMesh<MemorySpace> generate_noaa_grib_grid(int number) {
 
                 // Set coordinates in projection space for NAM Grid 218
                 double min_x = -3733392.0;
-                double max_x =  3733392.0;
+                double max_x = 3733392.0;
                 double min_y = -2602779.0;
-                double max_y =  2602779.0;
+                double max_y = 2602779.0;
                 double dx = (max_x - min_x) / (ni - 1);
                 double dy = (max_y - min_y) / (nj - 1);
 
@@ -512,60 +486,50 @@ inline UnstructuredMesh<MemorySpace> generate_noaa_grib_grid(int number) {
                 return grid.to_unstructured();
 #endif
             } else {
-                return generate_regular_grid<MemorySpace>(
-                    grid_def.ni, grid_def.nj,
-                    grid_def.lon_start, grid_def.lat_start,
-                    grid_def.dlon, grid_def.dlat);
+                return generate_regular_grid<MemorySpace>(grid_def.ni, grid_def.nj, grid_def.lon_start, grid_def.lat_start, grid_def.dlon,
+                                                          grid_def.dlat);
             }
         }
     }
 
-    throw std::invalid_argument(
-        "NamedGridRegistry::generate: unregistered NOAA GRIB grid number grid" +
-        std::to_string(number));
+    throw std::invalid_argument("NamedGridRegistry::generate: unregistered NOAA GRIB grid number grid" + std::to_string(number));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NamedGridRegistry public interface
 // ─────────────────────────────────────────────────────────────────────────────
 
-NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string& name) {
+NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string &name) {
     if (name.empty()) {
-        throw std::invalid_argument(
-            "NamedGridRegistry::parse: empty grid name string");
+        throw std::invalid_argument("NamedGridRegistry::parse: empty grid name string");
     }
 
     std::string lower_name = name;
-    for (char& c : lower_name) {
+    for (char &c : lower_name) {
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
 
     // Support case-insensitive NOAA GRIB grid numbers (e.g. "grid218")
     if (lower_name.rfind("grid", 0) == 0) {
         if (name.size() < 5) {
-            throw std::invalid_argument(
-                "NamedGridRegistry::parse: grid name \"" + name +
-                "\" has no number after the 'grid' prefix");
+            throw std::invalid_argument("NamedGridRegistry::parse: grid name \"" + name + "\" has no number after the 'grid' prefix");
         }
         std::string num_str = name.substr(4);
         for (char ch : num_str) {
             if (!std::isdigit(static_cast<unsigned char>(ch))) {
-                throw std::invalid_argument(
-                    "NamedGridRegistry::parse: non-numeric character '" +
-                    std::string(1, ch) + "' in number portion of name \"" + name + "\"");
+                throw std::invalid_argument("NamedGridRegistry::parse: non-numeric character '" + std::string(1, ch) +
+                                            "' in number portion of name \"" + name + "\"");
             }
         }
         int grid_num = 0;
         try {
             grid_num = std::stoi(num_str);
         } catch (...) {
-            throw std::invalid_argument(
-                "NamedGridRegistry::parse: cannot parse number from name \"" + name + "\"");
+            throw std::invalid_argument("NamedGridRegistry::parse: cannot parse number from name \"" + name + "\"");
         }
         if (grid_num <= 0) {
-            throw std::invalid_argument(
-                "NamedGridRegistry::parse: grid number must be positive, got " +
-                std::to_string(grid_num) + " in name \"" + name + "\"");
+            throw std::invalid_argument("NamedGridRegistry::parse: grid number must be positive, got " + std::to_string(grid_num) + " in name \"" +
+                                        name + "\"");
         }
         bool found_grib = false;
         for (std::size_t idx = 0; idx < NOAA_GRIB_GRIDS_COUNT; ++idx) {
@@ -575,9 +539,7 @@ NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string& name) 
             }
         }
         if (!found_grib) {
-            throw std::invalid_argument(
-                "NamedGridRegistry::parse: unregistered NOAA GRIB grid number grid" +
-                std::to_string(grid_num));
+            throw std::invalid_argument("NamedGridRegistry::parse: unregistered NOAA GRIB grid number grid" + std::to_string(grid_num));
         }
         return ParsedName{'G', grid_num};
     }
@@ -586,17 +548,13 @@ NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string& name) 
 
     // Validate family
     if (family != 'O' && family != 'F' && family != 'N') {
-        throw std::invalid_argument(
-            "NamedGridRegistry::parse: unknown grid family '" +
-            std::string(1, name[0]) + "' in name \"" + name +
-            "\"; registered families are O, F, N, and grid<num>");
+        throw std::invalid_argument("NamedGridRegistry::parse: unknown grid family '" + std::string(1, name[0]) + "' in name \"" + name +
+                                    "\"; registered families are O, F, N, and grid<num>");
     }
 
     // Parse number
     if (name.size() < 2) {
-        throw std::invalid_argument(
-            "NamedGridRegistry::parse: grid name \"" + name +
-            "\" has no number after the family prefix");
+        throw std::invalid_argument("NamedGridRegistry::parse: grid name \"" + name + "\" has no number after the family prefix");
     }
 
     std::string num_str = name.substr(1);
@@ -604,30 +562,27 @@ NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string& name) 
     // Validate that the remainder is a valid integer
     for (char ch : num_str) {
         if (!std::isdigit(static_cast<unsigned char>(ch))) {
-            throw std::invalid_argument(
-                "NamedGridRegistry::parse: non-numeric character '" +
-                std::string(1, ch) + "' in number portion of name \"" + name + "\"");
+            throw std::invalid_argument("NamedGridRegistry::parse: non-numeric character '" + std::string(1, ch) + "' in number portion of name \"" +
+                                        name + "\"");
         }
     }
 
     int number = 0;
     try {
         number = std::stoi(num_str);
-    } catch (const std::exception&) {
-        throw std::invalid_argument(
-            "NamedGridRegistry::parse: cannot parse number from name \"" + name + "\"");
+    } catch (const std::exception &) {
+        throw std::invalid_argument("NamedGridRegistry::parse: cannot parse number from name \"" + name + "\"");
     }
 
     if (number <= 0) {
-        throw std::invalid_argument(
-            "NamedGridRegistry::parse: grid number must be positive, got " +
-            std::to_string(number) + " in name \"" + name + "\"");
+        throw std::invalid_argument("NamedGridRegistry::parse: grid number must be positive, got " + std::to_string(number) + " in name \"" + name +
+                                    "\"");
     }
 
     return ParsedName{family, number};
 }
 
-bool NamedGridRegistry::is_registered(const std::string& name) noexcept {
+bool NamedGridRegistry::is_registered(const std::string &name) noexcept {
     try {
         parse(name);
         return true;
@@ -642,8 +597,7 @@ std::vector<char> NamedGridRegistry::registered_families() {
 
 // Explicit instantiation of generate for HostSpace
 template <>
-UnstructuredMesh<Kokkos::HostSpace>
-NamedGridRegistry::generate<Kokkos::HostSpace>(const std::string& name) {
+UnstructuredMesh<Kokkos::HostSpace> NamedGridRegistry::generate<Kokkos::HostSpace>(const std::string &name) {
     ParsedName parsed = parse(name);
 
     switch (parsed.family) {
@@ -658,10 +612,8 @@ NamedGridRegistry::generate<Kokkos::HostSpace>(const std::string& name) {
             return generate_regular_gaussian<Kokkos::HostSpace>(parsed.number);
         default:
             // Should not reach here due to parse() validation
-            throw std::invalid_argument(
-                "NamedGridRegistry::generate: unknown family '" +
-                std::string(1, parsed.family) + "'");
+            throw std::invalid_argument("NamedGridRegistry::generate: unknown family '" + std::string(1, parsed.family) + "'");
     }
 }
 
-} // namespace axis::topology
+}  // namespace axis::topology

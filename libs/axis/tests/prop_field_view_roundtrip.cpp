@@ -22,14 +22,12 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/detail/mdspan_interop.hpp>
+#include <axis/types.hpp>
 #include <cstddef>
 #include <cstring>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/mdspan_interop.hpp>
-#include <axis/types.hpp>
 
 namespace {
 
@@ -156,8 +154,7 @@ RC_GTEST_PROP(FieldViewRoundtripProperty1, ToMdspanPreservesPointer, ()) {
     auto data = *genDoubleVector(n);
 
     // Create an unmanaged Kokkos::View manually (simulating what to_view returns)
-    using view_type = Kokkos::View<double*, Kokkos::LayoutLeft,
-                                   Kokkos::HostSpace, Kokkos::MemoryUnmanaged>;
+    using view_type = Kokkos::View<double *, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryUnmanaged>;
     view_type view(data.data(), n);
 
     auto result = axis::detail::to_mdspan(view);
@@ -171,7 +168,7 @@ RC_GTEST_PROP(FieldViewRoundtripProperty1, ToMdspanPreservesPointer, ()) {
 // RapidCheck/GTest property tests need Kokkos initialized for View allocation.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -185,7 +182,6 @@ public:
 };
 
 // Register the Kokkos environment with GTest
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

@@ -15,16 +15,14 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/solver/apply.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/solver/apply.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/types.hpp>
 
 namespace {
 
@@ -51,60 +49,63 @@ MatrixData generateRandomMatrix() {
     std::vector<axis::index_t> cols(nnz);
 
     for (std::size_t k = 0; k < nnz; ++k) {
-        weights[k] = *rc::gen::map(rc::gen::inRange(-10000, 10001),
-                                   [](int v) { return static_cast<double>(v) / 1000.0; });
-        rows[k] = static_cast<axis::index_t>(
-            *rc::gen::inRange<std::size_t>(0, n_dst));
-        cols[k] = static_cast<axis::index_t>(
-            *rc::gen::inRange<std::size_t>(0, n_src));
+        weights[k] = *rc::gen::map(rc::gen::inRange(-10000, 10001), [](int v) { return static_cast<double>(v) / 1000.0; });
+        rows[k] = static_cast<axis::index_t>(*rc::gen::inRange<std::size_t>(0, n_dst));
+        cols[k] = static_cast<axis::index_t>(*rc::gen::inRange<std::size_t>(0, n_src));
     }
 
-    Kokkos::View<double*, Kokkos::HostSpace>       fl("fl", nnz);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fr("fr", nnz);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fc("fc", nnz);
-    Kokkos::View<double*, Kokkos::HostSpace>       fa("fa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       fb("fb", n_dst);
-    Kokkos::View<double*, Kokkos::HostSpace>       aa("aa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       ab("ab", n_dst);
+    Kokkos::View<double *, Kokkos::HostSpace> fl("fl", nnz);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fr("fr", nnz);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fc("fc", nnz);
+    Kokkos::View<double *, Kokkos::HostSpace> fa("fa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> fb("fb", n_dst);
+    Kokkos::View<double *, Kokkos::HostSpace> aa("aa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> ab("ab", n_dst);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         fl(k) = weights[k];
         fr(k) = rows[k];
         fc(k) = cols[k];
     }
-    for (std::size_t i = 0; i < n_src; ++i) { fa(i) = 1.0; aa(i) = 1.0; }
-    for (std::size_t j = 0; j < n_dst; ++j) { fb(j) = 1.0; ab(j) = 1.0; }
+    for (std::size_t i = 0; i < n_src; ++i) {
+        fa(i) = 1.0;
+        aa(i) = 1.0;
+    }
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        fb(j) = 1.0;
+        ab(j) = 1.0;
+    }
 
-    axis::solver::InterpolationMatrix<Kokkos::HostSpace> matrix(
-        std::move(fl), std::move(fr), std::move(fc),
-        std::move(fa), std::move(fb), std::move(aa), std::move(ab),
-        n_src, n_dst);
+    axis::solver::InterpolationMatrix<Kokkos::HostSpace> matrix(std::move(fl), std::move(fr), std::move(fc), std::move(fa), std::move(fb),
+                                                                std::move(aa), std::move(ab), n_src, n_dst);
 
-    return MatrixData{std::move(matrix), std::move(weights), std::move(rows),
-                      std::move(cols), n_src, n_dst, nnz};
+    return MatrixData{std::move(matrix), std::move(weights), std::move(rows), std::move(cols), n_src, n_dst, nnz};
 }
 
 /// Build a trivial InterpolationMatrix with given dimensions for validation tests.
-axis::solver::InterpolationMatrix<Kokkos::HostSpace>
-buildTrivialMatrix(std::size_t n_src, std::size_t n_dst) {
-    Kokkos::View<double*, Kokkos::HostSpace>       fl("fl", 1);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fr("fr", 1);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fc("fc", 1);
-    Kokkos::View<double*, Kokkos::HostSpace>       fa("fa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       fb("fb", n_dst);
-    Kokkos::View<double*, Kokkos::HostSpace>       aa("aa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       ab("ab", n_dst);
+axis::solver::InterpolationMatrix<Kokkos::HostSpace> buildTrivialMatrix(std::size_t n_src, std::size_t n_dst) {
+    Kokkos::View<double *, Kokkos::HostSpace> fl("fl", 1);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fr("fr", 1);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fc("fc", 1);
+    Kokkos::View<double *, Kokkos::HostSpace> fa("fa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> fb("fb", n_dst);
+    Kokkos::View<double *, Kokkos::HostSpace> aa("aa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> ab("ab", n_dst);
 
     fl(0) = 1.0;
     fr(0) = 0;
     fc(0) = 0;
-    for (std::size_t i = 0; i < n_src; ++i) { fa(i) = 1.0; aa(i) = 1.0; }
-    for (std::size_t j = 0; j < n_dst; ++j) { fb(j) = 1.0; ab(j) = 1.0; }
+    for (std::size_t i = 0; i < n_src; ++i) {
+        fa(i) = 1.0;
+        aa(i) = 1.0;
+    }
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        fb(j) = 1.0;
+        ab(j) = 1.0;
+    }
 
-    return axis::solver::InterpolationMatrix<Kokkos::HostSpace>(
-        std::move(fl), std::move(fr), std::move(fc),
-        std::move(fa), std::move(fb), std::move(aa), std::move(ab),
-        n_src, n_dst);
+    return axis::solver::InterpolationMatrix<Kokkos::HostSpace>(std::move(fl), std::move(fr), std::move(fc), std::move(fa), std::move(fb),
+                                                                std::move(aa), std::move(ab), n_src, n_dst);
 }
 
 // ─── Property 12: Batch apply equivalence ────────────────────────────────────
@@ -120,17 +121,16 @@ buildTrivialMatrix(std::size_t n_src, std::size_t n_dst) {
 
 RC_GTEST_PROP(PropBatchApply, BatchEqualsSequentialReference, ()) {
     auto data = generateRandomMatrix();
-    const auto n_src  = data.n_src;
-    const auto n_dst  = data.n_dst;
-    const auto nnz    = data.nnz;
+    const auto n_src = data.n_src;
+    const auto n_dst = data.n_dst;
+    const auto nnz = data.nnz;
     const auto n_vars = *rc::gen::inRange<std::size_t>(2, 6);
 
     // Generate random rank-2 source field [n_src, n_vars] in column-major order
     // layout_left: src(cell, var) => data[cell + var * n_src]
     std::vector<double> src_data(n_src * n_vars);
     for (std::size_t i = 0; i < n_src * n_vars; ++i) {
-        src_data[i] = *rc::gen::map(rc::gen::inRange(-10000, 10001),
-                                    [](int v) { return static_cast<double>(v) / 100.0; });
+        src_data[i] = *rc::gen::map(rc::gen::inRange(-10000, 10001), [](int v) { return static_cast<double>(v) / 100.0; });
     }
 
     // ── Compute reference: sequential apply per variable ─────────────────────
@@ -162,7 +162,7 @@ RC_GTEST_PROP(PropBatchApply, BatchEqualsSequentialReference, ()) {
     for (std::size_t v = 0; v < n_vars; ++v) {
         for (std::size_t j = 0; j < n_dst; ++j) {
             const double batch_val = dst_batch[j + v * n_dst];
-            const double ref_val   = dst_ref[j + v * n_dst];
+            const double ref_val = dst_ref[j + v * n_dst];
             const double err = std::abs(batch_val - ref_val);
             const double scale = std::max(std::abs(ref_val), 1.0);
             RC_ASSERT(err <= tol * scale + tol);
@@ -180,16 +180,15 @@ RC_GTEST_PROP(PropBatchApply, BatchEqualsSequentialReference, ()) {
 
 RC_GTEST_PROP(PropBatchApply, BatchCsrEqualsSequentialReference, ()) {
     auto data = generateRandomMatrix();
-    const auto n_src  = data.n_src;
-    const auto n_dst  = data.n_dst;
-    const auto nnz    = data.nnz;
+    const auto n_src = data.n_src;
+    const auto n_dst = data.n_dst;
+    const auto nnz = data.nnz;
     const auto n_vars = *rc::gen::inRange<std::size_t>(2, 6);
 
     // Generate random rank-2 source field
     std::vector<double> src_data(n_src * n_vars);
     for (std::size_t i = 0; i < n_src * n_vars; ++i) {
-        src_data[i] = *rc::gen::map(rc::gen::inRange(-10000, 10001),
-                                    [](int v) { return static_cast<double>(v) / 100.0; });
+        src_data[i] = *rc::gen::map(rc::gen::inRange(-10000, 10001), [](int v) { return static_cast<double>(v) / 100.0; });
     }
 
     // ── Compute reference: sequential apply per variable ─────────────────────
@@ -217,7 +216,7 @@ RC_GTEST_PROP(PropBatchApply, BatchCsrEqualsSequentialReference, ()) {
     for (std::size_t v = 0; v < n_vars; ++v) {
         for (std::size_t j = 0; j < n_dst; ++j) {
             const double batch_val = dst_batch[j + v * n_dst];
-            const double ref_val   = dst_ref[j + v * n_dst];
+            const double ref_val = dst_ref[j + v * n_dst];
             const double err = std::abs(batch_val - ref_val);
             const double scale = std::max(std::abs(ref_val), 1.0);
             RC_ASSERT(err <= tol * scale + tol);
@@ -240,9 +239,7 @@ RC_GTEST_PROP(PropBatchApply, MismatchedSrcExtentThrows, ()) {
     const auto n_vars = *rc::gen::inRange<std::size_t>(2, 5);
 
     // Wrong src extent: off by at least 1
-    const auto wrong_src = *rc::gen::suchThat(
-        rc::gen::inRange<std::size_t>(1, 30),
-        [n_src](std::size_t v) { return v != n_src; });
+    const auto wrong_src = *rc::gen::suchThat(rc::gen::inRange<std::size_t>(1, 30), [n_src](std::size_t v) { return v != n_src; });
 
     auto matrix = buildTrivialMatrix(n_src, n_dst);
 
@@ -255,7 +252,7 @@ RC_GTEST_PROP(PropBatchApply, MismatchedSrcExtentThrows, ()) {
     bool threw = false;
     try {
         axis::solver::batch_apply(matrix, src_view, dst_view);
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument &) {
         threw = true;
     }
 
@@ -270,9 +267,7 @@ RC_GTEST_PROP(PropBatchApply, MismatchedDstExtentThrows, ()) {
     const auto n_vars = *rc::gen::inRange<std::size_t>(2, 5);
 
     // Wrong dst extent: off by at least 1
-    const auto wrong_dst = *rc::gen::suchThat(
-        rc::gen::inRange<std::size_t>(1, 30),
-        [n_dst](std::size_t v) { return v != n_dst; });
+    const auto wrong_dst = *rc::gen::suchThat(rc::gen::inRange<std::size_t>(1, 30), [n_dst](std::size_t v) { return v != n_dst; });
 
     auto matrix = buildTrivialMatrix(n_src, n_dst);
 
@@ -285,7 +280,7 @@ RC_GTEST_PROP(PropBatchApply, MismatchedDstExtentThrows, ()) {
     bool threw = false;
     try {
         axis::solver::batch_apply(matrix, src_view, dst_view);
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument &) {
         threw = true;
     }
 
@@ -300,9 +295,7 @@ RC_GTEST_PROP(PropBatchApply, MismatchedVarExtentThrows, ()) {
     const auto n_vars_src = *rc::gen::inRange<std::size_t>(2, 6);
 
     // Wrong dst n_vars: off by at least 1
-    const auto n_vars_dst = *rc::gen::suchThat(
-        rc::gen::inRange<std::size_t>(1, 8),
-        [n_vars_src](std::size_t v) { return v != n_vars_src; });
+    const auto n_vars_dst = *rc::gen::suchThat(rc::gen::inRange<std::size_t>(1, 8), [n_vars_src](std::size_t v) { return v != n_vars_src; });
 
     auto matrix = buildTrivialMatrix(n_src, n_dst);
 
@@ -315,7 +308,7 @@ RC_GTEST_PROP(PropBatchApply, MismatchedVarExtentThrows, ()) {
     bool threw = false;
     try {
         axis::solver::batch_apply(matrix, src_view, dst_view);
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument &) {
         threw = true;
     }
 
@@ -325,7 +318,7 @@ RC_GTEST_PROP(PropBatchApply, MismatchedVarExtentThrows, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -338,7 +331,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

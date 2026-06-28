@@ -4,53 +4,43 @@
 
 #include "dagr/detail/event_loop.hpp"
 
-#include "logs/logs.hpp"
-
 #include <chrono>
 #include <cstdint>
 #include <deque>
 #include <stdexcept>
 #include <string>
 
+#include "logs/logs.hpp"
+
 namespace dagr::detail {
 
 namespace {
 
 /// Thread-local logger instance for Event_Loop diagnostics.
-logs::Logger& logger() {
+logs::Logger &logger() {
     static logs::Logger instance;
     return instance;
 }
 
 /// Check if a Task_Status is terminal (no further transitions possible).
 bool is_terminal(Task_Status s) noexcept {
-    return s == Task_Status::completed
-        || s == Task_Status::failed
-        || s == Task_Status::cancelled;
+    return s == Task_Status::completed || s == Task_Status::failed || s == Task_Status::cancelled;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─── Construction ────────────────────────────────────────────────────────────
 
-Event_Loop::Event_Loop(Config cfg, std::vector<TaskNode>& nodes, Rank_Pool& rank_pool)
-    : config_(cfg)
-    , nodes_(nodes)
-    , rank_pool_(rank_pool)
-    , last_progress_time_(std::chrono::steady_clock::now())
-{
+Event_Loop::Event_Loop(Config cfg, std::vector<TaskNode> &nodes, Rank_Pool &rank_pool)
+    : config_(cfg), nodes_(nodes), rank_pool_(rank_pool), last_progress_time_(std::chrono::steady_clock::now()) {
     // Req 6.8: Validate max_concurrency ∈ [1, 1024]
     if (cfg.max_concurrency < 1 || cfg.max_concurrency > 1024) {
-        throw std::invalid_argument(
-            "Event_Loop: max_concurrency must be in range [1, 1024], got "
-            + std::to_string(cfg.max_concurrency));
+        throw std::invalid_argument("Event_Loop: max_concurrency must be in range [1, 1024], got " + std::to_string(cfg.max_concurrency));
     }
 
     // Req 6.9: Validate deadlock_timeout_s ∈ [1, 3600]
     if (cfg.deadlock_timeout_s < 1 || cfg.deadlock_timeout_s > 3600) {
-        throw std::invalid_argument(
-            "Event_Loop: deadlock_timeout_s must be in range [1, 3600], got "
-            + std::to_string(cfg.deadlock_timeout_s));
+        throw std::invalid_argument("Event_Loop: deadlock_timeout_s must be in range [1, 3600], got " + std::to_string(cfg.deadlock_timeout_s));
     }
 
     // Pre-allocate rank tracking per node
@@ -88,7 +78,7 @@ bool Event_Loop::cycle() {
 // ─── Accessors ───────────────────────────────────────────────────────────────
 
 bool Event_Loop::all_complete() const noexcept {
-    for (const auto& node : nodes_) {
+    for (const auto &node : nodes_) {
         if (!is_terminal(node.status)) {
             return false;
         }
@@ -103,7 +93,7 @@ std::uint32_t Event_Loop::in_flight_count() const noexcept {
 // ─── Phase 1: Poll (Req 3.4, 3.6) ───────────────────────────────────────────
 
 void Event_Loop::poll_ready_nodes() {
-    for (auto& node : nodes_) {
+    for (auto &node : nodes_) {
         if (node.status == Task_Status::pending) {
             // Req 3.4, 3.6: If pending_deps reaches zero, mark as ready
             if (node.pending_deps.load(std::memory_order_acquire) == 0) {
@@ -126,7 +116,7 @@ void Event_Loop::dispatch_ready_nodes() {
         }
 
         const std::uint32_t node_id = ready_queue_.front();
-        auto& node = nodes_[node_id];
+        auto &node = nodes_[node_id];
 
         // Skip nodes that may have been cancelled between ready and dispatch
         if (node.status != Task_Status::ready) {
@@ -185,12 +175,12 @@ void Event_Loop::process_completions() {
     // Req 6.3: Process completion callbacks (non-blocking)
     auto completions = completion_cb_();
 
-    for (const auto& [node_id, success] : completions) {
+    for (const auto &[node_id, success] : completions) {
         if (node_id >= nodes_.size()) {
             continue;
         }
 
-        auto& node = nodes_[node_id];
+        auto &node = nodes_[node_id];
 
         // Only process running nodes
         if (node.status != Task_Status::running) {
@@ -228,7 +218,7 @@ void Event_Loop::process_completions() {
 void Event_Loop::propagate_failure(std::uint32_t failed_node_id) {
     logs::Scoped_Context ctx("failure");
 
-    auto& node = nodes_[failed_node_id];
+    auto &node = nodes_[failed_node_id];
 
     // Mark the failed node
     node.status = Task_Status::failed;
@@ -260,7 +250,7 @@ void Event_Loop::propagate_failure(std::uint32_t failed_node_id) {
             continue;
         }
 
-        auto& dep_node = nodes_[current_id];
+        auto &dep_node = nodes_[current_id];
 
         // Only cancel nodes that haven't already reached a terminal state
         // and are not currently running (running nodes complete on their own)
@@ -284,9 +274,8 @@ void Event_Loop::propagate_failure(std::uint32_t failed_node_id) {
     }
 
     // Req 10.3: Emit ERROR diagnostic
-    logger().log(logs::Severity_Level::ERROR,
-        "Event_Loop: task '" + node.name + "' (id=" + std::to_string(failed_node_id)
-        + ") failed; " + std::to_string(cancelled_count) + " dependent node(s) cancelled");
+    logger().log(logs::Severity_Level::ERROR, "Event_Loop: task '" + node.name + "' (id=" + std::to_string(failed_node_id) + ") failed; " +
+                                                  std::to_string(cancelled_count) + " dependent node(s) cancelled");
 
     record_progress();
 }
@@ -309,30 +298,26 @@ void Event_Loop::check_deadlock() {
     }
 
     auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-        now - last_progress_time_);
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_progress_time_);
 
     if (elapsed.count() >= static_cast<std::int64_t>(config_.deadlock_timeout_s)) {
         if (!deadlock_warned_) {
             // Count blocked nodes (pending but not ready)
             std::uint32_t blocked_count = 0;
-            for (const auto& node : nodes_) {
-                if (node.status == Task_Status::pending &&
-                    node.pending_deps.load(std::memory_order_acquire) > 0) {
+            for (const auto &node : nodes_) {
+                if (node.status == Task_Status::pending && node.pending_deps.load(std::memory_order_acquire) > 0) {
                     ++blocked_count;
                 }
             }
 
             // Req 10.5: Emit WARNING diagnostic
-            logger().log(logs::Severity_Level::WARNING,
-                "Event_Loop: potential deadlock detected — no progress for "
-                + std::to_string(elapsed.count()) + "s; in-flight="
-                + std::to_string(in_flight_) + ", blocked="
-                + std::to_string(blocked_count));
+            logger().log(logs::Severity_Level::WARNING, "Event_Loop: potential deadlock detected — no progress for " +
+                                                            std::to_string(elapsed.count()) + "s; in-flight=" + std::to_string(in_flight_) +
+                                                            ", blocked=" + std::to_string(blocked_count));
 
             deadlock_warned_ = true;
         }
     }
 }
 
-} // namespace dagr::detail
+}  // namespace dagr::detail

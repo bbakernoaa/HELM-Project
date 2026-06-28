@@ -22,7 +22,7 @@ namespace halo::detail {
 /// @return A tag value in [0, MPI_TAG_UB).
 inline int compute_tag(int sender, int receiver, int comm_size) noexcept {
     // Query MPI_TAG_UB from MPI_COMM_WORLD
-    int* tag_ub_ptr = nullptr;
+    int *tag_ub_ptr = nullptr;
     int flag = 0;
     MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &tag_ub_ptr, &flag);
 
@@ -34,6 +34,6 @@ inline int compute_tag(int sender, int receiver, int comm_size) noexcept {
     return static_cast<int>(product % tag_ub);
 }
 
-} // namespace halo::detail
+}  // namespace halo::detail
 
-#endif // HALO_DETAIL_COMPUTE_TAG_HPP
+#endif  // HALO_DETAIL_COMPUTE_TAG_HPP

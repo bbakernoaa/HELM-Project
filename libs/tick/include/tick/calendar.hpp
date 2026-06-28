@@ -3,8 +3,8 @@
 #include <concepts>
 #include <cstdint>
 
-#include "tick/time_point.hpp"
 #include "tick/date_time.hpp"
+#include "tick/time_point.hpp"
 
 namespace tick {
 
@@ -16,4 +16,4 @@ concept Calendar = requires(Time_Point tp, Date_Time dt) {
     { Cal::days_in_year(std::int32_t{}) } -> std::same_as<std::int32_t>;
 };
 
-} // namespace tick
+}  // namespace tick

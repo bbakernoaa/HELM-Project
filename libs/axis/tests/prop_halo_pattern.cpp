@@ -13,14 +13,8 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <set>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/halo_pattern.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
@@ -29,21 +23,23 @@
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <set>
+#include <vector>
 
 namespace {
 
 /// Build a simple ni x nj regular-grid UnstructuredMesh on HostSpace.
-axis::topology::UnstructuredMesh<Kokkos::HostSpace>
-build_regular_mesh(std::size_t ni, std::size_t nj,
-                   double lon_start, double lat_start,
-                   double dlon, double dlat) {
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, double lat_start,
+                                                                       double dlon, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("clon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("clat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("crlon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("crlat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("clon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("clat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("crlon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("crlat", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -61,9 +57,7 @@ build_regular_mesh(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
@@ -108,13 +102,13 @@ RC_GTEST_PROP(PropHaloPattern, CompletenessAndDistributedApplyEquivalence, ()) {
     auto dst_mesh = build_regular_mesh(dst_ni, dst_nj, 0.0, 0.0, dst_dlon, dst_dlat);
 
     // ── Assign global IDs (sequential 0..n_src-1) ──
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> src_global_ids("src_gids", n_src);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> src_global_ids("src_gids", n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
         src_global_ids(i) = static_cast<axis::index_t>(i);
     }
 
     const std::size_t n_dst = dst_ni * dst_nj;
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> dst_global_ids("dst_gids", n_dst);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> dst_global_ids("dst_gids", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
         dst_global_ids(j) = static_cast<axis::index_t>(j);
     }
@@ -142,22 +136,16 @@ RC_GTEST_PROP(PropHaloPattern, CompletenessAndDistributedApplyEquivalence, ()) {
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Const views for the distributed generate overload
-    Kokkos::View<const axis::index_t*, Kokkos::HostSpace> const_src_gids(
-        src_global_ids);
-    Kokkos::View<const axis::index_t*, Kokkos::HostSpace> const_dst_gids(
-        dst_global_ids);
+    Kokkos::View<const axis::index_t *, Kokkos::HostSpace> const_src_gids(src_global_ids);
+    Kokkos::View<const axis::index_t *, Kokkos::HostSpace> const_dst_gids(dst_global_ids);
 
     auto [dist_matrix, halo_pattern] =
-        axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-            src_mesh, dst_mesh, config,
-            const_src_gids, const_dst_gids, owner_of_src);
+        axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config, const_src_gids, const_dst_gids, owner_of_src);
 
     // ── Verify HaloPattern completeness ──
     // The needed_global_src_ids should be a subset of expected_off_rank,
     // and should contain exactly the off-rank IDs that appear in the matrix.
-    std::set<axis::index_t> actual_halo_ids(
-        halo_pattern.needed_global_src_ids.begin(),
-        halo_pattern.needed_global_src_ids.end());
+    std::set<axis::index_t> actual_halo_ids(halo_pattern.needed_global_src_ids.begin(), halo_pattern.needed_global_src_ids.end());
 
     // Every halo ID must be an off-rank source
     for (auto gid : actual_halo_ids) {
@@ -168,12 +156,10 @@ RC_GTEST_PROP(PropHaloPattern, CompletenessAndDistributedApplyEquivalence, ()) {
     RC_ASSERT(halo_pattern.num_remote() == halo_pattern.needed_global_src_ids.size());
 
     // Verify CSR structure: rank_offsets is valid
-    RC_ASSERT(halo_pattern.rank_offsets.size() ==
-              halo_pattern.source_ranks.size() + 1);
+    RC_ASSERT(halo_pattern.rank_offsets.size() == halo_pattern.source_ranks.size() + 1);
     if (!halo_pattern.source_ranks.empty()) {
         RC_ASSERT(halo_pattern.rank_offsets.front() == 0);
-        RC_ASSERT(static_cast<std::size_t>(halo_pattern.rank_offsets.back()) ==
-                  halo_pattern.needed_global_src_ids.size());
+        RC_ASSERT(static_cast<std::size_t>(halo_pattern.rank_offsets.back()) == halo_pattern.needed_global_src_ids.size());
     }
 
     // Verify gather_slot is a permutation of [0, num_remote)
@@ -189,18 +175,15 @@ RC_GTEST_PROP(PropHaloPattern, CompletenessAndDistributedApplyEquivalence, ()) {
     // Generate a random source field
     std::vector<double> full_src(n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
-        full_src[i] = *rc::gen::map(rc::gen::inRange(1, 1001),
-                                    [](int v) { return static_cast<double>(v) / 10.0; });
+        full_src[i] = *rc::gen::map(rc::gen::inRange(1, 1001), [](int v) { return static_cast<double>(v) / 10.0; });
     }
 
     // ── Single-rank apply: use the single-rank generate result ──
-    auto single_matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(
-        src_mesh, dst_mesh, config);
+    auto single_matrix = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
 
     std::vector<double> single_dst(single_matrix.n_dst(), 0.0);
     axis::field_view<const double, 1> full_src_view(full_src.data(), n_src);
-    axis::field_view<double, 1> single_dst_view(single_dst.data(),
-                                                 single_matrix.n_dst());
+    axis::field_view<double, 1> single_dst_view(single_dst.data(), single_matrix.n_dst());
     axis::solver::apply(single_matrix, full_src_view, single_dst_view);
 
     // ── Distributed apply: split local_src + gathered halo buffer ──
@@ -227,23 +210,18 @@ RC_GTEST_PROP(PropHaloPattern, CompletenessAndDistributedApplyEquivalence, ()) {
     // order, look up the source value
     std::vector<double> halo_buffer(num_remote, 0.0);
     for (std::size_t i = 0; i < num_remote; ++i) {
-        auto gid = static_cast<std::size_t>(
-            halo_pattern.needed_global_src_ids[i]);
+        auto gid = static_cast<std::size_t>(halo_pattern.needed_global_src_ids[i]);
         auto slot = static_cast<std::size_t>(halo_pattern.gather_slot[i]);
         halo_buffer[slot] = full_src[gid];
     }
 
     // Call distributed apply
     std::vector<double> dist_dst(dist_matrix.n_dst(), 0.0);
-    axis::field_view<const double, 1> local_src_view(
-        local_src_data.data(), n_local_src);
-    axis::field_view<const double, 1> halo_src_view(
-        halo_buffer.data(), num_remote);
-    axis::field_view<double, 1> dist_dst_view(
-        dist_dst.data(), dist_matrix.n_dst());
+    axis::field_view<const double, 1> local_src_view(local_src_data.data(), n_local_src);
+    axis::field_view<const double, 1> halo_src_view(halo_buffer.data(), num_remote);
+    axis::field_view<double, 1> dist_dst_view(dist_dst.data(), dist_matrix.n_dst());
 
-    axis::solver::apply(dist_matrix, halo_pattern,
-                        local_src_view, halo_src_view, dist_dst_view);
+    axis::solver::apply(dist_matrix, halo_pattern, local_src_view, halo_src_view, dist_dst_view);
 
     // ── Verify equivalence: distributed apply == single-rank apply ──
     RC_ASSERT(dist_dst.size() == single_dst.size());
@@ -258,7 +236,7 @@ RC_GTEST_PROP(PropHaloPattern, CompletenessAndDistributedApplyEquivalence, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -271,7 +249,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

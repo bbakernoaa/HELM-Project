@@ -10,19 +10,18 @@
 /// Task 19.1: Write concurrency unit tests
 /// Validates: Requirements 13.1, 11.1, 11.2, 11.8
 
-#include <logs/logger.hpp>
-#include <logs/scoped_context.hpp>
-#include <logs/detail/context_stack.hpp>
-
-#include "in_memory_sink.hpp"
-
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <atomic>
+#include <logs/detail/context_stack.hpp>
+#include <logs/logger.hpp>
+#include <logs/scoped_context.hpp>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "in_memory_sink.hpp"
 
 namespace {
 
@@ -32,9 +31,9 @@ namespace {
 // ─────────────────────────────────────────────────────────────────────────────
 
 TEST(ThreadSafety, RecordCountIntegrity) {
-    constexpr int NUM_THREADS       = 8;
+    constexpr int NUM_THREADS = 8;
     constexpr int RECORDS_PER_THREAD = 10'000;
-    constexpr int EXPECTED_TOTAL    = NUM_THREADS * RECORDS_PER_THREAD;
+    constexpr int EXPECTED_TOTAL = NUM_THREADS * RECORDS_PER_THREAD;
 
     logs::Logger logger;
     logs::testing::In_Memory_Sink mem_sink;
@@ -47,21 +46,19 @@ TEST(ThreadSafety, RecordCountIntegrity) {
     for (int t = 0; t < NUM_THREADS; ++t) {
         threads.emplace_back([&logger, t]() {
             for (int i = 0; i < RECORDS_PER_THREAD; ++i) {
-                const std::string msg =
-                    "T" + std::to_string(t) + "_R" + std::to_string(i);
+                const std::string msg = "T" + std::to_string(t) + "_R" + std::to_string(i);
                 logger.log(logs::Severity_Level::INFO, msg);
             }
         });
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
     // Verify total count matches exactly (no lost, no duplicated records).
     EXPECT_EQ(mem_sink.count(), static_cast<std::size_t>(EXPECTED_TOTAL))
-        << "Expected " << EXPECTED_TOTAL << " records, got " << mem_sink.count()
-        << ". Records may have been lost or duplicated.";
+        << "Expected " << EXPECTED_TOTAL << " records, got " << mem_sink.count() << ". Records may have been lost or duplicated.";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,7 +73,7 @@ TEST(ThreadSafety, RecordCountIntegrity) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 TEST(ThreadSafety, NoInterleavedOrCorruptedRecords) {
-    constexpr int NUM_THREADS       = 8;
+    constexpr int NUM_THREADS = 8;
     constexpr int RECORDS_PER_THREAD = 10'000;
 
     logs::Logger logger;
@@ -90,14 +87,13 @@ TEST(ThreadSafety, NoInterleavedOrCorruptedRecords) {
     for (int t = 0; t < NUM_THREADS; ++t) {
         threads.emplace_back([&logger, t]() {
             for (int i = 0; i < RECORDS_PER_THREAD; ++i) {
-                const std::string msg =
-                    "T" + std::to_string(t) + "_R" + std::to_string(i);
+                const std::string msg = "T" + std::to_string(t) + "_R" + std::to_string(i);
                 logger.log(logs::Severity_Level::INFO, msg);
             }
         });
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
@@ -105,7 +101,7 @@ TEST(ThreadSafety, NoInterleavedOrCorruptedRecords) {
 
     // Verify no entry is corrupted or interleaved.
     for (std::size_t idx = 0; idx < entries.size(); ++idx) {
-        const auto& entry = entries[idx];
+        const auto &entry = entries[idx];
 
         // Each entry must be non-empty.
         ASSERT_FALSE(entry.empty()) << "Entry " << idx << " is empty";
@@ -121,10 +117,8 @@ TEST(ThreadSafety, NoInterleavedOrCorruptedRecords) {
         }
 
         // Exactly one thread marker should be present per entry (no interleaving).
-        EXPECT_EQ(markers_found, 1)
-            << "Entry " << idx << " contains " << markers_found
-            << " thread markers (expected 1). Content: "
-            << entry.substr(0, 200);
+        EXPECT_EQ(markers_found, 1) << "Entry " << idx << " contains " << markers_found
+                                    << " thread markers (expected 1). Content: " << entry.substr(0, 200);
     }
 }
 
@@ -140,18 +134,14 @@ TEST(ThreadSafety, NoInterleavedOrCorruptedRecords) {
 TEST(ThreadSafety, ConcurrentThresholdSettingNoTornReads) {
     constexpr int NUM_WRITER_THREADS = 4;
     constexpr int NUM_READER_THREADS = 4;
-    constexpr int ITERATIONS         = 50'000;
+    constexpr int ITERATIONS = 50'000;
 
     logs::Logger logger;
 
     // All valid severity levels.
-    constexpr std::array<logs::Severity_Level, 5> valid_levels = {
-        logs::Severity_Level::DEBUG,
-        logs::Severity_Level::INFO,
-        logs::Severity_Level::WARNING,
-        logs::Severity_Level::ERROR,
-        logs::Severity_Level::FATAL
-    };
+    constexpr std::array<logs::Severity_Level, 5> valid_levels = {logs::Severity_Level::DEBUG, logs::Severity_Level::INFO,
+                                                                  logs::Severity_Level::WARNING, logs::Severity_Level::ERROR,
+                                                                  logs::Severity_Level::FATAL};
 
     std::atomic<bool> stop{false};
     std::atomic<int> torn_count{0};
@@ -162,8 +152,7 @@ TEST(ThreadSafety, ConcurrentThresholdSettingNoTornReads) {
     for (int w = 0; w < NUM_WRITER_THREADS; ++w) {
         writers.emplace_back([&logger, &valid_levels, &stop, w]() {
             for (int i = 0; i < ITERATIONS; ++i) {
-                const auto level = valid_levels[
-                    static_cast<std::size_t>((w * ITERATIONS + i) % 5)];
+                const auto level = valid_levels[static_cast<std::size_t>((w * ITERATIONS + i) % 5)];
                 logger.set_threshold(level);
             }
             // Signal completion after last writer finishes.
@@ -178,8 +167,7 @@ TEST(ThreadSafety, ConcurrentThresholdSettingNoTornReads) {
         readers.emplace_back([&logger, &valid_levels, &stop, &torn_count]() {
             while (!stop.load(std::memory_order_acquire)) {
                 const auto level = logger.threshold();
-                const auto it = std::find(valid_levels.begin(),
-                                          valid_levels.end(), level);
+                const auto it = std::find(valid_levels.begin(), valid_levels.end(), level);
                 if (it == valid_levels.end()) {
                     torn_count.fetch_add(1, std::memory_order_relaxed);
                 }
@@ -187,19 +175,18 @@ TEST(ThreadSafety, ConcurrentThresholdSettingNoTornReads) {
         });
     }
 
-    for (auto& w : writers) {
+    for (auto &w : writers) {
         w.join();
     }
     // Stop flag already set by last completing writer — ensure readers can exit.
     stop.store(true, std::memory_order_release);
-    for (auto& r : readers) {
+    for (auto &r : readers) {
         r.join();
     }
 
     // No torn reads: every threshold() call returned a valid Severity_Level.
-    EXPECT_EQ(torn_count.load(), 0)
-        << "Detected torn threshold reads. threshold() returned a value "
-           "not matching any valid Severity_Level.";
+    EXPECT_EQ(torn_count.load(), 0) << "Detected torn threshold reads. threshold() returned a value "
+                                       "not matching any valid Severity_Level.";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -213,11 +200,10 @@ TEST(ThreadSafety, ConcurrentThresholdSettingNoTornReads) {
 
 TEST(ThreadSafety, ScopedContextPerThreadIndependence) {
     constexpr int NUM_THREADS = 8;
-    constexpr int DEPTH       = 5;
+    constexpr int DEPTH = 5;
 
     // Each thread will store its observed context snapshots here.
-    std::vector<std::vector<std::vector<std::string>>> thread_snapshots(
-        NUM_THREADS);
+    std::vector<std::vector<std::vector<std::string>>> thread_snapshots(NUM_THREADS);
 
     std::vector<std::thread> threads;
     threads.reserve(NUM_THREADS);
@@ -229,10 +215,8 @@ TEST(ThreadSafety, ScopedContextPerThreadIndependence) {
             contexts.reserve(DEPTH);
 
             for (int d = 0; d < DEPTH; ++d) {
-                const std::string label =
-                    "thread_" + std::to_string(t) + "_depth_" + std::to_string(d);
-                contexts.push_back(
-                    std::make_unique<logs::Scoped_Context>(label));
+                const std::string label = "thread_" + std::to_string(t) + "_depth_" + std::to_string(d);
+                contexts.push_back(std::make_unique<logs::Scoped_Context>(label));
 
                 // Snapshot and record.
                 auto snapshot = logs::detail::snapshot_context();
@@ -250,7 +234,7 @@ TEST(ThreadSafety, ScopedContextPerThreadIndependence) {
         });
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
@@ -260,39 +244,30 @@ TEST(ThreadSafety, ScopedContextPerThreadIndependence) {
 
         // Check each snapshot taken during the push phase.
         for (int d = 0; d < DEPTH; ++d) {
-            const auto& snapshot = thread_snapshots[t][d];
+            const auto &snapshot = thread_snapshots[t][d];
 
             // Should have d+1 labels (one for each push so far).
-            EXPECT_EQ(snapshot.size(), static_cast<std::size_t>(d + 1))
-                << "Thread " << t << " at depth " << d
-                << " has unexpected label count";
+            EXPECT_EQ(snapshot.size(), static_cast<std::size_t>(d + 1)) << "Thread " << t << " at depth " << d << " has unexpected label count";
 
             // All labels in the snapshot must belong to this thread.
-            for (const auto& label : snapshot) {
-                EXPECT_NE(label.find(thread_prefix), std::string::npos)
-                    << "Thread " << t << " snapshot contains foreign label: "
-                    << label;
+            for (const auto &label : snapshot) {
+                EXPECT_NE(label.find(thread_prefix), std::string::npos) << "Thread " << t << " snapshot contains foreign label: " << label;
             }
 
             // No label from any other thread should appear.
             for (int other = 0; other < NUM_THREADS; ++other) {
                 if (other == t) continue;
-                const std::string other_prefix =
-                    "thread_" + std::to_string(other) + "_";
-                for (const auto& label : snapshot) {
-                    EXPECT_EQ(label.find(other_prefix), std::string::npos)
-                        << "Thread " << t << " has label from thread " << other
-                        << ": " << label;
+                const std::string other_prefix = "thread_" + std::to_string(other) + "_";
+                for (const auto &label : snapshot) {
+                    EXPECT_EQ(label.find(other_prefix), std::string::npos) << "Thread " << t << " has label from thread " << other << ": " << label;
                 }
             }
         }
 
         // Final snapshot (after all pops) should be empty.
-        const auto& final_snapshot = thread_snapshots[t].back();
-        EXPECT_TRUE(final_snapshot.empty())
-            << "Thread " << t << " context stack not empty after all pops";
+        const auto &final_snapshot = thread_snapshots[t].back();
+        EXPECT_TRUE(final_snapshot.empty()) << "Thread " << t << " context stack not empty after all pops";
     }
 }
 
-} // namespace
-
+}  // namespace

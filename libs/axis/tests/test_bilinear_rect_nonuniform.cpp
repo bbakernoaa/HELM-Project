@@ -8,14 +8,12 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/solver/regrid_config.hpp>
-
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
@@ -25,15 +23,13 @@ namespace axis::test {
 
 using MemSpace = Kokkos::HostSpace;
 
-static topology::UnstructuredMesh<MemSpace>
-make_nonuniform_rect_grid(const std::vector<double>& lons,
-                          const std::vector<double>& lats) {
+static topology::UnstructuredMesh<MemSpace> make_nonuniform_rect_grid(const std::vector<double> &lons, const std::vector<double> &lats) {
     const std::size_t ni = lons.size() - 1;
     const std::size_t nj = lats.size() - 1;
 
     // Cell centers: average of boundaries
-    Kokkos::View<double*, MemSpace> cx("cx", ni * nj);
-    Kokkos::View<double*, MemSpace> cy("cy", ni * nj);
+    Kokkos::View<double *, MemSpace> cx("cx", ni * nj);
+    Kokkos::View<double *, MemSpace> cy("cy", ni * nj);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = 0.5 * (lons[i] + lons[i + 1]);
@@ -41,15 +37,13 @@ make_nonuniform_rect_grid(const std::vector<double>& lons,
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), topology::CoordinateSystem::SphericalDeg);
 
     // Corner coordinates
     const std::size_t nc_lon = ni + 1;
     const std::size_t nc_lat = nj + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc_lon * nc_lat);
-    Kokkos::View<double*, MemSpace> cry("cry", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> crx("crx", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> cry("cry", nc_lon * nc_lat);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_lon) = lons[i];
@@ -62,8 +56,8 @@ make_nonuniform_rect_grid(const std::vector<double>& lons,
 
 TEST(BilinearRectNonUniform, KnownAnalyticWeights) {
     // Coordinate vectors with non-uniform spacings
-    std::vector<double> src_lons = {0.0, 10.0, 30.0, 40.0}; // sizes: [10, 20, 10]
-    std::vector<double> src_lats = {0.0, 10.0, 30.0};       // sizes: [10, 20]
+    std::vector<double> src_lons = {0.0, 10.0, 30.0, 40.0};  // sizes: [10, 20, 10]
+    std::vector<double> src_lats = {0.0, 10.0, 30.0};        // sizes: [10, 20]
 
     // Dst has 2x1 cells
     std::vector<double> dst_lons = {0.0, 20.0, 40.0};
@@ -96,4 +90,4 @@ TEST(BilinearRectNonUniform, KnownAnalyticWeights) {
     EXPECT_NEAR(sum, 1.0, 1e-12);
 }
 
-} // namespace axis::test
+}  // namespace axis::test

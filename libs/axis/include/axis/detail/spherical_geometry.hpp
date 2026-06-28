@@ -41,7 +41,7 @@ inline constexpr double pi = 3.14159265358979323846;
 
 /// @brief Computes a + b = s + t where s = fl(a+b) and t is the rounding error.
 /// @note Knuth's TwoSum algorithm — exact for IEEE-754 double precision.
-inline void two_sum(double a, double b, double& s, double& t) noexcept {
+inline void two_sum(double a, double b, double &s, double &t) noexcept {
     s = a + b;
     double v = s - a;
     t = (a - (s - v)) + (b - v);
@@ -49,7 +49,7 @@ inline void two_sum(double a, double b, double& s, double& t) noexcept {
 
 /// @brief Splits a double into high and low parts for exact multiplication.
 /// @note Uses Veltkamp's splitting with factor 2^27 + 1.
-inline void split(double a, double& hi, double& lo) noexcept {
+inline void split(double a, double &hi, double &lo) noexcept {
     constexpr double splitter = 134217729.0;  // 2^27 + 1
     double c = splitter * a;
     hi = c - (c - a);
@@ -58,7 +58,7 @@ inline void split(double a, double& hi, double& lo) noexcept {
 
 /// @brief Computes a * b = p + e where p = fl(a*b) and e is the rounding error.
 /// @note Dekker's TwoProduct algorithm.
-inline void two_product(double a, double b, double& p, double& e) noexcept {
+inline void two_product(double a, double b, double &p, double &e) noexcept {
     p = a * b;
     double a_hi, a_lo, b_hi, b_lo;
     split(a, a_hi, a_lo);
@@ -79,32 +79,28 @@ struct Vec3 {
 /// Convert (lon, lat) in radians to a unit-sphere Cartesian point.
 inline Vec3 lonlat_to_xyz(double lon_rad, double lat_rad) noexcept {
     double cos_lat = std::cos(lat_rad);
-    return {cos_lat * std::cos(lon_rad),
-            cos_lat * std::sin(lon_rad),
-            std::sin(lat_rad)};
+    return {cos_lat * std::cos(lon_rad), cos_lat * std::sin(lon_rad), std::sin(lat_rad)};
 }
 
 /// Convert a unit-sphere Cartesian point back to (lon, lat) in radians.
-inline void xyz_to_lonlat(const Vec3& p, double& lon_rad, double& lat_rad) noexcept {
+inline void xyz_to_lonlat(const Vec3 &p, double &lon_rad, double &lat_rad) noexcept {
     lat_rad = std::asin(std::max(-1.0, std::min(1.0, p.z)));
     lon_rad = std::atan2(p.y, p.x);
 }
 
-inline Vec3 cross(const Vec3& a, const Vec3& b) noexcept {
-    return {a.y * b.z - a.z * b.y,
-            a.z * b.x - a.x * b.z,
-            a.x * b.y - a.y * b.x};
+inline Vec3 cross(const Vec3 &a, const Vec3 &b) noexcept {
+    return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
 
-inline double dot(const Vec3& a, const Vec3& b) noexcept {
+inline double dot(const Vec3 &a, const Vec3 &b) noexcept {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-inline double norm(const Vec3& v) noexcept {
+inline double norm(const Vec3 &v) noexcept {
     return std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
-inline Vec3 normalize(const Vec3& v) noexcept {
+inline Vec3 normalize(const Vec3 &v) noexcept {
     double n = norm(v);
     if (n < 1e-300) return {0.0, 0.0, 0.0};
     double inv = 1.0 / n;
@@ -128,21 +124,18 @@ inline Vec3 normalize(const Vec3& v) noexcept {
 ///
 /// @param a, b, c  Unit-sphere Cartesian coordinates.
 /// @return Signed orientation value (not normalized to ±1).
-inline double robust_orient_sphere(const Vec3& a, const Vec3& b, const Vec3& c) noexcept {
+inline double robust_orient_sphere(const Vec3 &a, const Vec3 &b, const Vec3 &c) noexcept {
     // The orientation on the sphere is sign(det([a, b, c])) =
     // sign(a . (b × c)).  We compute this as det = a·(b×c).
     //
     // Fast path: compute in double precision.
-    double det = a.x * (b.y * c.z - b.z * c.y)
-               + a.y * (b.z * c.x - b.x * c.z)
-               + a.z * (b.x * c.y - b.y * c.x);
+    double det = a.x * (b.y * c.z - b.z * c.y) + a.y * (b.z * c.x - b.x * c.z) + a.z * (b.x * c.y - b.y * c.x);
 
     // Estimate the error bound (Shewchuk-style).
     // |det_err| <= epsilon * (sum of absolute products).
     constexpr double eps = 1.1e-15;  // ~5 * machine epsilon for double
-    double abs_sum = std::abs(a.x) * (std::abs(b.y * c.z) + std::abs(b.z * c.y))
-                   + std::abs(a.y) * (std::abs(b.z * c.x) + std::abs(b.x * c.z))
-                   + std::abs(a.z) * (std::abs(b.x * c.y) + std::abs(b.y * c.x));
+    double abs_sum = std::abs(a.x) * (std::abs(b.y * c.z) + std::abs(b.z * c.y)) + std::abs(a.y) * (std::abs(b.z * c.x) + std::abs(b.x * c.z)) +
+                     std::abs(a.z) * (std::abs(b.x * c.y) + std::abs(b.y * c.x));
     double err_bound = eps * abs_sum;
 
     if (std::abs(det) > err_bound) {
@@ -183,8 +176,7 @@ inline double robust_orient_sphere(const Vec3& a, const Vec3& b, const Vec3& c) 
     two_sum(sum_hi, d3_hi, total, t2);
 
     // Correction terms
-    double correction = t1 + t2 + d1_lo + d2_lo + d3_lo
-                      + a.x * cx_lo + a.y * cy_lo + a.z * cz_lo;
+    double correction = t1 + t2 + d1_lo + d2_lo + d3_lo + a.x * cx_lo + a.y * cy_lo + a.z * cz_lo;
 
     return total + correction;
 }
@@ -205,11 +197,7 @@ inline double robust_orient_sphere(const Vec3& a, const Vec3& b, const Vec3& c) 
 /// @param b1, b2  Endpoints of the second arc (unit vectors).
 /// @param[out] p  Intersection point (unit vector) if found.
 /// @return true if an intersection exists within both arcs.
-inline bool great_circle_arc_intersection(
-    const Vec3& a1, const Vec3& a2,
-    const Vec3& b1, const Vec3& b2,
-    Vec3& p) noexcept {
-
+inline bool great_circle_arc_intersection(const Vec3 &a1, const Vec3 &a2, const Vec3 &b1, const Vec3 &b2, Vec3 &p) noexcept {
     // Normal vectors of the two great-circle planes.
     Vec3 n1 = cross(a1, a2);
     Vec3 n2 = cross(b1, b2);
@@ -235,7 +223,7 @@ inline bool great_circle_arc_intersection(
     //   cross(A, P) . cross(A, B) >= 0  AND  cross(B, P) . cross(B, A) >= 0
     // which simplifies to checking that the orientation sign is consistent.
 
-    auto on_arc = [](const Vec3& start, const Vec3& end, const Vec3& pt) -> bool {
+    auto on_arc = [](const Vec3 &start, const Vec3 &end, const Vec3 &pt) -> bool {
         // P is between start and end on the shorter arc iff:
         // dot(cross(start, end), cross(start, pt)) >= 0 AND
         // dot(cross(end, start), cross(end, pt)) >= 0
@@ -275,11 +263,7 @@ inline bool great_circle_arc_intersection(
 /// @param lat_rad      Latitude of the constant-latitude line (radians).
 /// @param[out] pts     Up to 2 intersection points.
 /// @return Number of intersections found (0, 1, or 2).
-inline int great_circle_const_lat_intersection(
-    const Vec3& a1, const Vec3& a2,
-    double lat_rad,
-    std::array<Vec3, 2>& pts) noexcept {
-
+inline int great_circle_const_lat_intersection(const Vec3 &a1, const Vec3 &a2, double lat_rad, std::array<Vec3, 2> &pts) noexcept {
     // The arc great circle has normal n = cross(a1, a2) = (nx, ny, nz).
     // Points on this circle satisfy: n.x * x + n.y * y + n.z * z = 0.
     // Constant latitude: z = sin(lat) = s.
@@ -305,7 +289,7 @@ inline int great_circle_const_lat_intersection(
     // Let alpha = nx, beta = ny, gamma = -nz*s.
     // alpha*x + beta*y = gamma, x^2 + y^2 = c^2.
     double alpha = nx;
-    double beta  = ny;
+    double beta = ny;
     double gamma = -nz * s;
 
     double ab2 = alpha * alpha + beta * beta;
@@ -332,7 +316,7 @@ inline int great_circle_const_lat_intersection(
     Vec3 p1 = {x1, y1, s};
 
     // Check if p1 is on the arc.
-    auto on_shorter_arc = [](const Vec3& start, const Vec3& end, const Vec3& pt) -> bool {
+    auto on_shorter_arc = [](const Vec3 &start, const Vec3 &end, const Vec3 &pt) -> bool {
         // Sign of dot(cross(start, end), pt) must match for the "interior"
         Vec3 n_arc = cross(start, end);
         double n_len = norm(n_arc);
@@ -376,10 +360,7 @@ inline int great_circle_const_lat_intersection(
 /// @param subject  Vertices of the subject polygon (CCW).
 /// @param clip     Vertices of the clip polygon (CCW).
 /// @return Vertices of the clipped polygon (may be empty).
-inline std::vector<Vec3> spherical_clip_polygon(
-    const std::vector<Vec3>& subject,
-    const std::vector<Vec3>& clip) {
-
+inline std::vector<Vec3> spherical_clip_polygon(const std::vector<Vec3> &subject, const std::vector<Vec3> &clip) {
     if (subject.size() < 3 || clip.size() < 3) return {};
 
     std::vector<Vec3> output = subject;
@@ -392,14 +373,12 @@ inline std::vector<Vec3> spherical_clip_polygon(
         output.clear();
         output.reserve(input.size() + 2);
 
-        const Vec3& edge_start = clip[i];
-        const Vec3& edge_end   = clip[(i + 1) % clip_n];
+        const Vec3 &edge_start = clip[i];
+        const Vec3 &edge_end = clip[(i + 1) % clip_n];
 
-        auto inside = [&](const Vec3& p) -> bool {
-            return robust_orient_sphere(edge_start, edge_end, p) >= 0.0;
-        };
+        auto inside = [&](const Vec3 &p) -> bool { return robust_orient_sphere(edge_start, edge_end, p) >= 0.0; };
 
-        auto intersect_edge = [&](const Vec3& a, const Vec3& b) -> Vec3 {
+        auto intersect_edge = [&](const Vec3 &a, const Vec3 &b) -> Vec3 {
             // Find intersection of great-circle arc a->b with edge_start->edge_end.
             Vec3 p{};
             if (great_circle_arc_intersection(a, b, edge_start, edge_end, p)) {
@@ -412,8 +391,8 @@ inline std::vector<Vec3> spherical_clip_polygon(
 
         const std::size_t input_n = input.size();
         for (std::size_t j = 0; j < input_n; ++j) {
-            const Vec3& curr = input[j];
-            const Vec3& prev = input[(j + input_n - 1) % input_n];
+            const Vec3 &curr = input[j];
+            const Vec3 &prev = input[(j + input_n - 1) % input_n];
 
             bool curr_in = inside(curr);
             bool prev_in = inside(prev);
@@ -452,10 +431,7 @@ inline std::vector<Vec3> spherical_clip_polygon(
 /// @param is_const_lat  Optional: per-edge flag indicating if edge i->i+1 is a
 ///                      constant-latitude line (default: all great-circle arcs).
 /// @return Unsigned area in steradians (always non-negative).
-inline double spherical_polygon_area(
-    const std::vector<Vec3>& vertices,
-    const std::vector<bool>& is_const_lat = {}) {
-
+inline double spherical_polygon_area(const std::vector<Vec3> &vertices, const std::vector<bool> &is_const_lat = {}) {
     const std::size_t n = vertices.size();
     if (n < 3) return 0.0;
 
@@ -468,7 +444,7 @@ inline double spherical_polygon_area(
 
     // Compute centroid and project to sphere.
     Vec3 centroid{0.0, 0.0, 0.0};
-    for (const auto& v : vertices) {
+    for (const auto &v : vertices) {
         centroid.x += v.x;
         centroid.y += v.y;
         centroid.z += v.z;
@@ -484,9 +460,9 @@ inline double spherical_polygon_area(
 
     for (std::size_t i = 0; i < n; ++i) {
         std::size_t j = (i + 1) % n;
-        const Vec3& v0 = centroid;
-        const Vec3& v1 = vertices[i];
-        const Vec3& v2 = vertices[j];
+        const Vec3 &v0 = centroid;
+        const Vec3 &v1 = vertices[i];
+        const Vec3 &v2 = vertices[j];
 
         // Spherical triangle area via the formula:
         //   area = 2 * atan2(|det([v0, v1, v2])|, 1 + d01 + d02 + d12)
@@ -500,9 +476,7 @@ inline double spherical_polygon_area(
         double d12 = dot(v1, v2);
 
         // Signed volume (determinant)
-        double det = v0.x * (v1.y * v2.z - v1.z * v2.y)
-                   + v0.y * (v1.z * v2.x - v1.x * v2.z)
-                   + v0.z * (v1.x * v2.y - v1.y * v2.x);
+        double det = v0.x * (v1.y * v2.z - v1.z * v2.y) + v0.y * (v1.z * v2.x - v1.x * v2.z) + v0.z * (v1.x * v2.y - v1.y * v2.x);
 
         double denom = 1.0 + d01 + d02 + d12;
 
@@ -536,18 +510,17 @@ inline double spherical_polygon_area(
             if (!is_const_lat[i]) continue;
 
             std::size_t j = (i + 1) % n;
-            const Vec3& v1 = vertices[i];
-            const Vec3& v2 = vertices[j];
+            const Vec3 &v1 = vertices[i];
+            const Vec3 &v2 = vertices[j];
 
             // Both vertices should have the same z (latitude).
-            double lat = 0.5 * (std::asin(std::max(-1.0, std::min(1.0, v1.z)))
-                              + std::asin(std::max(-1.0, std::min(1.0, v2.z))));
+            double lat = 0.5 * (std::asin(std::max(-1.0, std::min(1.0, v1.z))) + std::asin(std::max(-1.0, std::min(1.0, v2.z))));
             double lon1 = std::atan2(v1.y, v1.x);
             double lon2 = std::atan2(v2.y, v2.x);
 
             // Longitude difference (handle wrapping).
             double dlon = lon2 - lon1;
-            if (dlon > pi)  dlon -= 2.0 * pi;
+            if (dlon > pi) dlon -= 2.0 * pi;
             if (dlon < -pi) dlon += 2.0 * pi;
 
             // Area under the constant-latitude edge (the "lune slice").
@@ -586,9 +559,7 @@ inline double spherical_polygon_area(
             // where lat_gc_midpoint is the latitude of the great-circle arc at
             // the midpoint longitude. For the gc from v1 to v2:
 
-            Vec3 gc_mid = normalize(Vec3{0.5 * (v1.x + v2.x),
-                                         0.5 * (v1.y + v2.y),
-                                         0.5 * (v1.z + v2.z)});
+            Vec3 gc_mid = normalize(Vec3{0.5 * (v1.x + v2.x), 0.5 * (v1.y + v2.y), 0.5 * (v1.z + v2.z)});
             double lat_gc_mid = std::asin(std::max(-1.0, std::min(1.0, gc_mid.z)));
 
             double delta = dlon * (std::sin(lat) - std::sin(lat_gc_mid));
@@ -609,10 +580,7 @@ inline double spherical_polygon_area(
 /// @param subject  Vertices of the subject polygon (CCW, unit sphere).
 /// @param clip     Vertices of the clip polygon (CCW, unit sphere).
 /// @return Overlap area in steradians (≥ 0).
-inline double spherical_polygon_overlap_area(
-    const std::vector<Vec3>& subject,
-    const std::vector<Vec3>& clip) {
-
+inline double spherical_polygon_overlap_area(const std::vector<Vec3> &subject, const std::vector<Vec3> &clip) {
     auto clipped = spherical_clip_polygon(subject, clip);
     if (clipped.size() < 3) return 0.0;
     return spherical_polygon_area(clipped);
@@ -627,10 +595,7 @@ inline double spherical_polygon_overlap_area(
 /// @param lons  Longitudes in degrees.
 /// @param lats  Latitudes in degrees.
 /// @return Unit-sphere Cartesian vertices.
-inline std::vector<Vec3> polygon_lonlat_deg_to_xyz(
-    const std::vector<double>& lons,
-    const std::vector<double>& lats) {
-
+inline std::vector<Vec3> polygon_lonlat_deg_to_xyz(const std::vector<double> &lons, const std::vector<double> &lats) {
     constexpr double deg2rad = pi / 180.0;
     std::vector<Vec3> result;
     result.reserve(lons.size());
@@ -642,10 +607,7 @@ inline std::vector<Vec3> polygon_lonlat_deg_to_xyz(
 
 /// @brief Converts a polygon specified in (lon_rad, lat_rad) pairs to unit-sphere
 ///        Cartesian vectors.
-inline std::vector<Vec3> polygon_lonlat_rad_to_xyz(
-    const std::vector<double>& lons,
-    const std::vector<double>& lats) {
-
+inline std::vector<Vec3> polygon_lonlat_rad_to_xyz(const std::vector<double> &lons, const std::vector<double> &lats) {
     std::vector<Vec3> result;
     result.reserve(lons.size());
     for (std::size_t i = 0; i < lons.size(); ++i) {

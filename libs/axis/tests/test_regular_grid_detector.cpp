@@ -5,19 +5,22 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
+#include <axis/detail/regular_grid_detector.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
-#include <axis/detail/regular_grid_detector.hpp>
+#include <axis/types.hpp>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -26,13 +29,10 @@ using MemSpace = Kokkos::HostSpace;
 
 // Helper: build a uniform regular lat-lon grid as an UnstructuredMesh.
 // Grid covers [lon0, lon0 + ni*dlon] x [lat0, lat0 + nj*dlat]
-static topology::UnstructuredMesh<MemSpace>
-make_regular_grid(std::size_t ni, std::size_t nj,
-                  double lon0, double dlon,
-                  double lat0, double dlat) {
+static topology::UnstructuredMesh<MemSpace> make_regular_grid(std::size_t ni, std::size_t nj, double lon0, double dlon, double lat0, double dlat) {
     // Center coordinates
-    Kokkos::View<double*, MemSpace> cx("cx", ni * nj);
-    Kokkos::View<double*, MemSpace> cy("cy", ni * nj);
+    Kokkos::View<double *, MemSpace> cx("cx", ni * nj);
+    Kokkos::View<double *, MemSpace> cy("cy", ni * nj);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon0 + (static_cast<double>(i) + 0.5) * dlon;
@@ -40,15 +40,13 @@ make_regular_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), topology::CoordinateSystem::SphericalDeg);
 
     // Set corners (uniform grid boundaries)
     const std::size_t nc_i = ni + 1;
     const std::size_t nc_j = nj + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc_i * nc_j);
-    Kokkos::View<double*, MemSpace> cry("cry", nc_i * nc_j);
+    Kokkos::View<double *, MemSpace> crx("crx", nc_i * nc_j);
+    Kokkos::View<double *, MemSpace> cry("cry", nc_i * nc_j);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_i) = lon0 + static_cast<double>(i) * dlon;
@@ -61,34 +59,31 @@ make_regular_grid(std::size_t ni, std::size_t nj,
 }
 
 // Helper: build a non-uniform grid (varying delta_lon)
-static topology::UnstructuredMesh<MemSpace>
-make_nonuniform_grid(std::size_t ni, std::size_t nj) {
+static topology::UnstructuredMesh<MemSpace> make_nonuniform_grid(std::size_t ni, std::size_t nj) {
     // Non-uniform longitude spacing: exponentially increasing
     std::vector<double> lon_bounds(ni + 1);
     lon_bounds[0] = 0.0;
     for (std::size_t i = 1; i <= ni; ++i) {
-        lon_bounds[i] = lon_bounds[i-1] + static_cast<double>(i) * 0.5;
+        lon_bounds[i] = lon_bounds[i - 1] + static_cast<double>(i) * 0.5;
     }
 
     double dlat = 1.0;
 
-    Kokkos::View<double*, MemSpace> cx("cx", ni * nj);
-    Kokkos::View<double*, MemSpace> cy("cy", ni * nj);
+    Kokkos::View<double *, MemSpace> cx("cx", ni * nj);
+    Kokkos::View<double *, MemSpace> cy("cy", ni * nj);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
-            cx(i + j * ni) = 0.5 * (lon_bounds[i] + lon_bounds[i+1]);
+            cx(i + j * ni) = 0.5 * (lon_bounds[i] + lon_bounds[i + 1]);
             cy(i + j * ni) = (static_cast<double>(j) + 0.5) * dlat;
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), topology::CoordinateSystem::SphericalDeg);
 
     const std::size_t nc_i = ni + 1;
     const std::size_t nc_j = nj + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc_i * nc_j);
-    Kokkos::View<double*, MemSpace> cry("cry", nc_i * nc_j);
+    Kokkos::View<double *, MemSpace> crx("crx", nc_i * nc_j);
+    Kokkos::View<double *, MemSpace> cry("cry", nc_i * nc_j);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_i) = lon_bounds[i];

@@ -15,21 +15,19 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/detail/spherical_cap_filter.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
 #include <cmath>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/spherical_cap_filter.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-
 namespace {
 
-using axis::detail::Vec3;
-using axis::detail::dot;
-using axis::detail::normalize;
 using axis::detail::cross;
+using axis::detail::dot;
 using axis::detail::length;
+using axis::detail::normalize;
+using axis::detail::Vec3;
 
 constexpr double pi = 3.14159265358979323846;
 constexpr double deg2rad = pi / 180.0;
@@ -46,64 +44,53 @@ Vec3 lonlat_deg_to_vec3(double lon_deg, double lat_deg) {
 
 /// Spherical linear interpolation (slerp) between two unit vectors on a
 /// great-circle arc. Parameter t in [0, 1].
-Vec3 slerp(const Vec3& a, const Vec3& b, double t) {
+Vec3 slerp(const Vec3 &a, const Vec3 &b, double t) {
     double d = dot(a, b);
     d = std::clamp(d, -1.0, 1.0);
     double omega = std::acos(d);
 
     // If vectors are nearly identical, linearly interpolate and normalize
     if (omega < 1e-12) {
-        return normalize(Vec3{
-            a.x * (1.0 - t) + b.x * t,
-            a.y * (1.0 - t) + b.y * t,
-            a.z * (1.0 - t) + b.z * t});
+        return normalize(Vec3{a.x * (1.0 - t) + b.x * t, a.y * (1.0 - t) + b.y * t, a.z * (1.0 - t) + b.z * t});
     }
 
     double sin_omega = std::sin(omega);
     double coeff_a = std::sin((1.0 - t) * omega) / sin_omega;
     double coeff_b = std::sin(t * omega) / sin_omega;
 
-    return normalize(Vec3{
-        a.x * coeff_a + b.x * coeff_b,
-        a.y * coeff_a + b.y * coeff_b,
-        a.z * coeff_a + b.z * coeff_b});
+    return normalize(Vec3{a.x * coeff_a + b.x * coeff_b, a.y * coeff_a + b.y * coeff_b, a.z * coeff_a + b.z * coeff_b});
 }
 
 /// Compute angular distance between two unit vectors (radians).
-double angular_distance(const Vec3& a, const Vec3& b) {
+double angular_distance(const Vec3 &a, const Vec3 &b) {
     double d = dot(a, b);
     d = std::clamp(d, -1.0, 1.0);
     return std::acos(d);
 }
 
 /// Build a single-cell UnstructuredMesh from vertex coordinates in degrees.
-axis::topology::UnstructuredMesh<Kokkos::HostSpace>
-build_single_cell_mesh(const std::vector<std::pair<double, double>>& vertices) {
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_single_cell_mesh(const std::vector<std::pair<double, double>> &vertices) {
     using MemSpace = Kokkos::HostSpace;
     const std::size_t n_nodes = vertices.size();
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemSpace>
-        node_coords("node_coords", n_nodes, 2);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> node_coords("node_coords", n_nodes, 2);
 
     for (std::size_t i = 0; i < n_nodes; ++i) {
         node_coords(i, 0) = vertices[i].first;   // lon
         node_coords(i, 1) = vertices[i].second;  // lat
     }
 
-    Kokkos::View<axis::index_t*, MemSpace> offsets("offsets", 2);
+    Kokkos::View<axis::index_t *, MemSpace> offsets("offsets", 2);
     offsets(0) = 0;
     offsets(1) = static_cast<axis::index_t>(n_nodes);
 
-    Kokkos::View<axis::index_t*, MemSpace> indices("indices", n_nodes);
+    Kokkos::View<axis::index_t *, MemSpace> indices("indices", n_nodes);
     for (std::size_t i = 0; i < n_nodes; ++i) {
         indices(i) = static_cast<axis::index_t>(i);
     }
 
-    return axis::topology::UnstructuredMesh<MemSpace>(
-        std::move(node_coords),
-        std::move(offsets),
-        std::move(indices),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    return axis::topology::UnstructuredMesh<MemSpace>(std::move(node_coords), std::move(offsets), std::move(indices),
+                                                      axis::topology::CoordinateSystem::SphericalDeg);
 }
 
 // ─── Property 5: Angular Radius Bound Soundness ─────────────────────────────
@@ -124,17 +111,14 @@ build_single_cell_mesh(const std::vector<std::pair<double, double>>& vertices) {
 RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundness, ()) {
     // Generate a random cell center at various locations:
     //   lon ∈ [-180, 180], lat ∈ [-85, 85] (avoid exact poles for cell shape)
-    double center_lon = *rc::gen::map(rc::gen::inRange(-1800, 1801),
-                                      [](int v) { return v * 0.1; });
-    double center_lat = *rc::gen::map(rc::gen::inRange(-850, 851),
-                                      [](int v) { return v * 0.1; });
+    double center_lon = *rc::gen::map(rc::gen::inRange(-1800, 1801), [](int v) { return v * 0.1; });
+    double center_lat = *rc::gen::map(rc::gen::inRange(-850, 851), [](int v) { return v * 0.1; });
 
     // Number of vertices: 3 to 8 (triangles to octagons)
     int n_verts = *rc::gen::inRange(3, 9);
 
     // Cell angular size: 0.5° to 30° half-extent
-    double half_extent = *rc::gen::map(rc::gen::inRange(5, 301),
-                                       [](int v) { return v * 0.1; });
+    double half_extent = *rc::gen::map(rc::gen::inRange(5, 301), [](int v) { return v * 0.1; });
 
     // Generate polygon vertices as points at angular distance `half_extent`
     // from center, equally spaced in azimuth around the center, with random
@@ -142,9 +126,7 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundness, ()) {
     Vec3 center_xyz = lonlat_deg_to_vec3(center_lon, center_lat);
 
     // Build a local coordinate frame (tangent plane at center)
-    Vec3 arbitrary = (std::abs(center_xyz.z) < 0.9)
-                         ? Vec3{0, 0, 1}
-                         : Vec3{1, 0, 0};
+    Vec3 arbitrary = (std::abs(center_xyz.z) < 0.9) ? Vec3{0, 0, 1} : Vec3{1, 0, 0};
     Vec3 u = normalize(cross(center_xyz, arbitrary));
     Vec3 v_dir = cross(center_xyz, u);
 
@@ -157,12 +139,10 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundness, ()) {
     double radius_rad = half_extent * deg2rad;
 
     for (int i = 0; i < n_verts; ++i) {
-        double azimuth = 2.0 * pi * static_cast<double>(i) /
-                         static_cast<double>(n_verts);
+        double azimuth = 2.0 * pi * static_cast<double>(i) / static_cast<double>(n_verts);
 
         // Random radial perturbation: 50% to 100% of half_extent
-        double frac = *rc::gen::map(rc::gen::inRange(50, 101),
-                                    [](int v) { return v * 0.01; });
+        double frac = *rc::gen::map(rc::gen::inRange(50, 101), [](int v) { return v * 0.01; });
         double r = radius_rad * frac;
 
         double cos_r = std::cos(r);
@@ -170,10 +150,9 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundness, ()) {
         double ca = std::cos(azimuth);
         double sa = std::sin(azimuth);
 
-        Vec3 pt = normalize(Vec3{
-            center_xyz.x * cos_r + u.x * sin_r * ca + v_dir.x * sin_r * sa,
-            center_xyz.y * cos_r + u.y * sin_r * ca + v_dir.y * sin_r * sa,
-            center_xyz.z * cos_r + u.z * sin_r * ca + v_dir.z * sin_r * sa});
+        Vec3 pt = normalize(Vec3{center_xyz.x * cos_r + u.x * sin_r * ca + v_dir.x * sin_r * sa,
+                                 center_xyz.y * cos_r + u.y * sin_r * ca + v_dir.y * sin_r * sa,
+                                 center_xyz.z * cos_r + u.z * sin_r * ca + v_dir.z * sin_r * sa});
 
         // Convert back to lon/lat degrees
         double lat = std::asin(std::clamp(pt.z, -1.0, 1.0)) / deg2rad;
@@ -216,8 +195,7 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundness, ()) {
         Vec3 v_end = lonlat_deg_to_vec3(vertices[j].first, vertices[j].second);
 
         for (int s = 1; s < n_samples_per_edge; ++s) {
-            double t = static_cast<double>(s) /
-                       static_cast<double>(n_samples_per_edge);
+            double t = static_cast<double>(s) / static_cast<double>(n_samples_per_edge);
 
             Vec3 boundary_pt = slerp(v_start, v_end, t);
             double dist = angular_distance(centroid, boundary_pt);
@@ -238,23 +216,18 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundness, ()) {
 RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundnessPolarCells, ()) {
     // Generate cells near the poles: lat ∈ [70, 89] or [-89, -70]
     bool north = *rc::gen::arbitrary<bool>();
-    double center_lat = north
-        ? *rc::gen::map(rc::gen::inRange(700, 890), [](int v) { return v * 0.1; })
-        : *rc::gen::map(rc::gen::inRange(-890, -700), [](int v) { return v * 0.1; });
-    double center_lon = *rc::gen::map(rc::gen::inRange(-1800, 1801),
-                                      [](int v) { return v * 0.1; });
+    double center_lat = north ? *rc::gen::map(rc::gen::inRange(700, 890), [](int v) { return v * 0.1; })
+                              : *rc::gen::map(rc::gen::inRange(-890, -700), [](int v) { return v * 0.1; });
+    double center_lon = *rc::gen::map(rc::gen::inRange(-1800, 1801), [](int v) { return v * 0.1; });
 
     // Smaller cells near poles: 1° to 15° half-extent
-    double half_extent = *rc::gen::map(rc::gen::inRange(10, 151),
-                                       [](int v) { return v * 0.1; });
+    double half_extent = *rc::gen::map(rc::gen::inRange(10, 151), [](int v) { return v * 0.1; });
 
     int n_verts = *rc::gen::inRange(3, 7);
 
     Vec3 center_xyz = lonlat_deg_to_vec3(center_lon, center_lat);
 
-    Vec3 arbitrary = (std::abs(center_xyz.z) < 0.9)
-                         ? Vec3{0, 0, 1}
-                         : Vec3{1, 0, 0};
+    Vec3 arbitrary = (std::abs(center_xyz.z) < 0.9) ? Vec3{0, 0, 1} : Vec3{1, 0, 0};
     Vec3 u = normalize(cross(center_xyz, arbitrary));
     Vec3 v_dir = cross(center_xyz, u);
 
@@ -262,11 +235,9 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundnessPolarCells, ())
     double radius_rad = half_extent * deg2rad;
 
     for (int i = 0; i < n_verts; ++i) {
-        double azimuth = 2.0 * pi * static_cast<double>(i) /
-                         static_cast<double>(n_verts);
+        double azimuth = 2.0 * pi * static_cast<double>(i) / static_cast<double>(n_verts);
 
-        double frac = *rc::gen::map(rc::gen::inRange(60, 101),
-                                    [](int v) { return v * 0.01; });
+        double frac = *rc::gen::map(rc::gen::inRange(60, 101), [](int v) { return v * 0.01; });
         double r = radius_rad * frac;
 
         double cos_r = std::cos(r);
@@ -274,10 +245,9 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundnessPolarCells, ())
         double ca = std::cos(azimuth);
         double sa = std::sin(azimuth);
 
-        Vec3 pt = normalize(Vec3{
-            center_xyz.x * cos_r + u.x * sin_r * ca + v_dir.x * sin_r * sa,
-            center_xyz.y * cos_r + u.y * sin_r * ca + v_dir.y * sin_r * sa,
-            center_xyz.z * cos_r + u.z * sin_r * ca + v_dir.z * sin_r * sa});
+        Vec3 pt = normalize(Vec3{center_xyz.x * cos_r + u.x * sin_r * ca + v_dir.x * sin_r * sa,
+                                 center_xyz.y * cos_r + u.y * sin_r * ca + v_dir.y * sin_r * sa,
+                                 center_xyz.z * cos_r + u.z * sin_r * ca + v_dir.z * sin_r * sa});
 
         double lat = std::asin(std::clamp(pt.z, -1.0, 1.0)) / deg2rad;
         double lon = std::atan2(pt.y, pt.x) / deg2rad;
@@ -319,7 +289,7 @@ RC_GTEST_PROP(PropSphericalCapFilter, AngularRadiusBoundSoundnessPolarCells, ())
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -332,7 +302,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

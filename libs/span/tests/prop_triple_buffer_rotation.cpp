@@ -11,14 +11,13 @@
 // **Validates: Requirements 5.6, 5.7, 5.10, 6.2, 6.3, 8.5**
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <span/triple_buffer.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <array>
 #include <cstddef>
+#include <span/triple_buffer.hpp>
 #include <vector>
 
 namespace {
@@ -28,21 +27,21 @@ constexpr std::size_t BUF_ELEMENTS = 16;
 
 // Helper struct tracking expected pointer positions through rotations
 struct TripleBufferModel {
-    double* write;
-    double* read;
-    double* io;
-    bool    locked;
+    double *write;
+    double *read;
+    double *io;
+    bool locked;
 
     // Apply a swap according to the spec rotation model
     bool swap() {
         if (locked) return false;
         // Rotation: Write→Read→IO→Write
-        double* old_write = write;
-        double* old_read  = read;
-        double* old_io    = io;
-        read  = old_write;  // old Write → new Read
-        io    = old_read;   // old Read  → new IO
-        write = old_io;     // old IO    → new Write
+        double *old_write = write;
+        double *old_read = read;
+        double *old_io = io;
+        read = old_write;  // old Write → new Read
+        io = old_read;     // old Read  → new IO
+        write = old_io;    // old IO    → new Write
         locked = true;
         return true;
     }
@@ -55,7 +54,7 @@ struct TripleBufferModel {
 // Operations for random sequence generation
 enum class Op : int { Swap, Release };
 
-} // namespace
+}  // namespace
 
 // ─── Single Rotation ─────────────────────────────────────────────────────────
 // Initialize with {A, B, C}, swap, verify new Write=C, Read=A, IO=B, locked=true
@@ -65,16 +64,16 @@ RC_GTEST_PROP(TripleBufferRotation, SingleRotation, ()) {
     std::vector<double> bufB(BUF_ELEMENTS, 2.0);
     std::vector<double> bufC(BUF_ELEMENTS, 3.0);
 
-    double* A = bufA.data();
-    double* B = bufB.data();
-    double* C = bufC.data();
+    double *A = bufA.data();
+    double *B = bufB.data();
+    double *C = bufC.data();
 
     span::TripleBuffer<double> tb(A, B, C, BUF_ELEMENTS);
 
     // Preconditions: initial state
     RC_ASSERT(tb.write_ptr() == A);
-    RC_ASSERT(tb.read_ptr()  == B);
-    RC_ASSERT(tb.io_ptr()    == C);
+    RC_ASSERT(tb.read_ptr() == B);
+    RC_ASSERT(tb.io_ptr() == C);
     RC_ASSERT(!tb.is_io_locked());
 
     // Perform swap
@@ -86,8 +85,8 @@ RC_GTEST_PROP(TripleBufferRotation, SingleRotation, ()) {
     // Old Read(B)  → new IO
     // Old IO(C)    → new Write
     RC_ASSERT(tb.write_ptr() == C);
-    RC_ASSERT(tb.read_ptr()  == A);
-    RC_ASSERT(tb.io_ptr()    == B);
+    RC_ASSERT(tb.read_ptr() == A);
+    RC_ASSERT(tb.io_ptr() == B);
     RC_ASSERT(tb.is_io_locked());
 
     // Verify no data was copied — original buffer contents unchanged
@@ -111,9 +110,9 @@ RC_GTEST_PROP(TripleBufferRotation, LockedSwapReturnsFalse, ()) {
     RC_ASSERT(tb.is_io_locked());
 
     // Capture pointer state after first swap
-    double* w_after = tb.write_ptr();
-    double* r_after = tb.read_ptr();
-    double* io_after = tb.io_ptr();
+    double *w_after = tb.write_ptr();
+    double *r_after = tb.read_ptr();
+    double *io_after = tb.io_ptr();
 
     // Second swap while locked returns false
     bool result = tb.swap_buffers_for_amio();
@@ -121,8 +120,8 @@ RC_GTEST_PROP(TripleBufferRotation, LockedSwapReturnsFalse, ()) {
 
     // All pointers unchanged
     RC_ASSERT(tb.write_ptr() == w_after);
-    RC_ASSERT(tb.read_ptr()  == r_after);
-    RC_ASSERT(tb.io_ptr()    == io_after);
+    RC_ASSERT(tb.read_ptr() == r_after);
+    RC_ASSERT(tb.io_ptr() == io_after);
 
     // Still locked
     RC_ASSERT(tb.is_io_locked());
@@ -136,9 +135,9 @@ RC_GTEST_PROP(TripleBufferRotation, ReleaseThenSwap, ()) {
     std::vector<double> bufB(BUF_ELEMENTS, 2.0);
     std::vector<double> bufC(BUF_ELEMENTS, 3.0);
 
-    double* A = bufA.data();
-    double* B = bufB.data();
-    double* C = bufC.data();
+    double *A = bufA.data();
+    double *B = bufB.data();
+    double *C = bufC.data();
 
     span::TripleBuffer<double> tb(A, B, C, BUF_ELEMENTS);
 
@@ -146,8 +145,8 @@ RC_GTEST_PROP(TripleBufferRotation, ReleaseThenSwap, ()) {
     RC_ASSERT(tb.swap_buffers_for_amio() == true);
     RC_ASSERT(tb.is_io_locked());
     RC_ASSERT(tb.write_ptr() == C);
-    RC_ASSERT(tb.read_ptr()  == A);
-    RC_ASSERT(tb.io_ptr()    == B);
+    RC_ASSERT(tb.read_ptr() == A);
+    RC_ASSERT(tb.io_ptr() == B);
 
     // Release
     tb.release_io();
@@ -155,15 +154,15 @@ RC_GTEST_PROP(TripleBufferRotation, ReleaseThenSwap, ()) {
 
     // Pointers unchanged after release (only lock flag changes)
     RC_ASSERT(tb.write_ptr() == C);
-    RC_ASSERT(tb.read_ptr()  == A);
-    RC_ASSERT(tb.io_ptr()    == B);
+    RC_ASSERT(tb.read_ptr() == A);
+    RC_ASSERT(tb.io_ptr() == B);
 
     // Second swap: Write=C,Read=A,IO=B → Write=B,Read=C,IO=A (locked)
     RC_ASSERT(tb.swap_buffers_for_amio() == true);
     RC_ASSERT(tb.is_io_locked());
     RC_ASSERT(tb.write_ptr() == B);
-    RC_ASSERT(tb.read_ptr()  == C);
-    RC_ASSERT(tb.io_ptr()    == A);
+    RC_ASSERT(tb.read_ptr() == C);
+    RC_ASSERT(tb.io_ptr() == A);
 }
 
 // ─── Random Operation Sequences ─────────────────────────────────────────────
@@ -175,9 +174,9 @@ RC_GTEST_PROP(TripleBufferRotation, RandomOperationSequences, ()) {
     std::vector<double> bufB(BUF_ELEMENTS, 2.0);
     std::vector<double> bufC(BUF_ELEMENTS, 3.0);
 
-    double* A = bufA.data();
-    double* B = bufB.data();
-    double* C = bufC.data();
+    double *A = bufA.data();
+    double *B = bufB.data();
+    double *C = bufC.data();
 
     span::TripleBuffer<double> tb(A, B, C, BUF_ELEMENTS);
 
@@ -186,16 +185,13 @@ RC_GTEST_PROP(TripleBufferRotation, RandomOperationSequences, ()) {
 
     // Generate random operation sequence (length 1..50)
     const auto len = *rc::gen::inRange<std::size_t>(1, 51);
-    const auto ops = *rc::gen::container<std::vector<Op>>(
-        len,
-        rc::gen::element(Op::Swap, Op::Release)
-    );
+    const auto ops = *rc::gen::container<std::vector<Op>>(len, rc::gen::element(Op::Swap, Op::Release));
 
-    for (const auto& op : ops) {
+    for (const auto &op : ops) {
         switch (op) {
             case Op::Swap: {
                 bool model_result = model.swap();
-                bool impl_result  = tb.swap_buffers_for_amio();
+                bool impl_result = tb.swap_buffers_for_amio();
                 RC_ASSERT(impl_result == model_result);
                 break;
             }
@@ -208,8 +204,8 @@ RC_GTEST_PROP(TripleBufferRotation, RandomOperationSequences, ()) {
 
         // After each operation, verify implementation matches model
         RC_ASSERT(tb.write_ptr() == model.write);
-        RC_ASSERT(tb.read_ptr()  == model.read);
-        RC_ASSERT(tb.io_ptr()    == model.io);
+        RC_ASSERT(tb.read_ptr() == model.read);
+        RC_ASSERT(tb.io_ptr() == model.io);
         RC_ASSERT(tb.is_io_locked() == model.locked);
     }
 

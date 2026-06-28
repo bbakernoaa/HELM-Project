@@ -17,20 +17,20 @@
 ///   Validates: Requirements 5.6, 9.5
 ///   Non-FATAL operations never invoke MPI_Abort or std::exit.
 
-#include <logs/logger.hpp>
-#include <logs/severity.hpp>
-#include "in_memory_sink.hpp"
-#include "mpi_interposition.hpp"
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <algorithm>
 #include <chrono>
+#include <logs/logger.hpp>
+#include <logs/severity.hpp>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "in_memory_sink.hpp"
+#include "mpi_interposition.hpp"
 
 namespace {
 
@@ -60,7 +60,8 @@ TEST(SynchronizedAbort, FatalFormatAndFlushPrecedeAbort_SingleSink) {
         },
         ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE),
         marker  // stderr must contain the marker BEFORE exit.
-    ) << "FATAL message must be formatted and written to stderr before abort";
+        )
+        << "FATAL message must be formatted and written to stderr before abort";
 }
 
 TEST(SynchronizedAbort, FatalFormatAndFlushPrecedeAbort_MultipleSinks) {
@@ -78,14 +79,11 @@ TEST(SynchronizedAbort, FatalFormatAndFlushPrecedeAbort_MultipleSinks) {
             logger.log(logs::Severity_Level::FATAL, marker);
             std::_Exit(1);
         },
-        ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE),
-        marker
-    ) << "FATAL message must be dispatched to all configured sinks before abort";
+        ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE), marker)
+        << "FATAL message must be dispatched to all configured sinks before abort";
 }
 
-RC_GTEST_PROP(SynchronizedAbort,
-              FatalFormatAndFlushPrecedeAbort_RandomMessage,
-              ()) {
+RC_GTEST_PROP(SynchronizedAbort, FatalFormatAndFlushPrecedeAbort_RandomMessage, ()) {
     // Property-based: for any non-empty message string, the FATAL path
     // guarantees the message is formatted and dispatched before exit.
     //
@@ -95,13 +93,8 @@ RC_GTEST_PROP(SynchronizedAbort,
     //
     // Note: Death tests cannot be nested inside RC_GTEST_PROP easily, so we
     // verify the logical preconditions that guarantee format-and-flush order.
-    const auto threshold = *rc::gen::element(
-        logs::Severity_Level::DEBUG,
-        logs::Severity_Level::INFO,
-        logs::Severity_Level::WARNING,
-        logs::Severity_Level::ERROR,
-        logs::Severity_Level::FATAL
-    );
+    const auto threshold = *rc::gen::element(logs::Severity_Level::DEBUG, logs::Severity_Level::INFO, logs::Severity_Level::WARNING,
+                                             logs::Severity_Level::ERROR, logs::Severity_Level::FATAL);
 
     // FATAL always passes the filter — prerequisite for dispatch before abort.
     RC_ASSERT(logs::Severity_Level::FATAL >= threshold);
@@ -125,10 +118,8 @@ RC_GTEST_PROP(SynchronizedAbort,
 
 TEST(SynchronizedAbort, AbortExitCodeIsFixedInRange) {
     // Compile-time verification: ABORT_EXIT_CODE is in [1, 255].
-    static_assert(logs::ABORT_EXIT_CODE >= 1,
-                  "ABORT_EXIT_CODE must be >= 1 (Requirement 5.3)");
-    static_assert(logs::ABORT_EXIT_CODE <= 255,
-                  "ABORT_EXIT_CODE must be <= 255 (Requirement 5.3)");
+    static_assert(logs::ABORT_EXIT_CODE >= 1, "ABORT_EXIT_CODE must be >= 1 (Requirement 5.3)");
+    static_assert(logs::ABORT_EXIT_CODE <= 255, "ABORT_EXIT_CODE must be <= 255 (Requirement 5.3)");
 
     // Runtime verification (redundant but explicit for test reporting).
     EXPECT_GE(logs::ABORT_EXIT_CODE, 1);
@@ -150,14 +141,11 @@ TEST(SynchronizedAbort, FatalExitsWithAbortExitCode) {
             logger.log(logs::Severity_Level::FATAL, "exit_code_test");
             std::_Exit(1);
         },
-        ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE),
-        "exit_code_test"
-    ) << "fatal() must terminate with ABORT_EXIT_CODE";
+        ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE), "exit_code_test")
+        << "fatal() must terminate with ABORT_EXIT_CODE";
 }
 
-RC_GTEST_PROP(SynchronizedAbort,
-              AbortExitCodeAlwaysInRange,
-              ()) {
+RC_GTEST_PROP(SynchronizedAbort, AbortExitCodeAlwaysInRange, ()) {
     // For any invocation context, ABORT_EXIT_CODE remains fixed in [1,255].
     // This is trivially true for a constexpr, but validates the requirement
     // property across RapidCheck iterations.
@@ -204,12 +192,11 @@ TEST(SynchronizedAbort, AbortLatchConcurrentAcquisition) {
         });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 
-    EXPECT_EQ(winners.load(), 1)
-        << "Exactly one thread must win the abort latch under contention";
+    EXPECT_EQ(winners.load(), 1) << "Exactly one thread must win the abort latch under contention";
 }
 
 TEST(SynchronizedAbort, ConcurrentFatalsExitOnce) {
@@ -232,14 +219,13 @@ TEST(SynchronizedAbort, ConcurrentFatalsExitOnce) {
             }
 
             // If we somehow get here (shouldn't), force exit.
-            for (auto& t : threads) {
+            for (auto &t : threads) {
                 if (t.joinable()) t.join();
             }
             std::_Exit(1);
         },
-        ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE),
-        "concurrent_fatal_"
-    ) << "Multiple concurrent FATALs must result in a single process exit";
+        ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE), "concurrent_fatal_")
+        << "Multiple concurrent FATALs must result in a single process exit";
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -259,12 +245,8 @@ TEST(SynchronizedAbort, NonFatalOperationsNeverTerminate) {
     logs::testing::In_Memory_Sink mem_sink;
     logger.add_sink(mem_sink.sink());
 
-    const std::vector<logs::Severity_Level> non_fatal_levels = {
-        logs::Severity_Level::DEBUG,
-        logs::Severity_Level::INFO,
-        logs::Severity_Level::WARNING,
-        logs::Severity_Level::ERROR
-    };
+    const std::vector<logs::Severity_Level> non_fatal_levels = {logs::Severity_Level::DEBUG, logs::Severity_Level::INFO,
+                                                                logs::Severity_Level::WARNING, logs::Severity_Level::ERROR};
 
     // Set threshold to DEBUG so all non-FATAL levels are accepted.
     logger.set_threshold(logs::Severity_Level::DEBUG);
@@ -276,13 +258,12 @@ TEST(SynchronizedAbort, NonFatalOperationsNeverTerminate) {
     // If we reach here, no termination occurred — property validated.
     // Additionally verify the messages were actually dispatched (not silently
     // dropped), confirming the logger is operational.
-    EXPECT_GE(mem_sink.count(), non_fatal_levels.size())
-        << "All non-FATAL records should be dispatched without triggering abort";
+    EXPECT_GE(mem_sink.count(), non_fatal_levels.size()) << "All non-FATAL records should be dispatched without triggering abort";
 }
 
 TEST(SynchronizedAbort, MpiAbortNeverInvokedForNonFatal) {
     // Use the MPI spy to verify MPI_Abort is never called for non-FATAL records.
-    auto& spy = logs::testing::MPI_Spy::instance();
+    auto &spy = logs::testing::MPI_Spy::instance();
     spy.reset();
     spy.set_rank(7);
     spy.set_initialized(true);
@@ -302,25 +283,17 @@ TEST(SynchronizedAbort, MpiAbortNeverInvokedForNonFatal) {
     }
 
     // Verify MPI_Abort was never recorded by the spy.
-    EXPECT_FALSE(spy.abort_called())
-        << "MPI_Abort must never be invoked for non-FATAL operations";
-    EXPECT_EQ(spy.call_count(logs::testing::MPI_Call_Type::ABORT), 0u)
-        << "Zero MPI_Abort calls expected for non-FATAL operations";
+    EXPECT_FALSE(spy.abort_called()) << "MPI_Abort must never be invoked for non-FATAL operations";
+    EXPECT_EQ(spy.call_count(logs::testing::MPI_Call_Type::ABORT), 0u) << "Zero MPI_Abort calls expected for non-FATAL operations";
 }
 
-RC_GTEST_PROP(SynchronizedAbort,
-              NonFatalNeverTriggersAbort,
-              ()) {
+RC_GTEST_PROP(SynchronizedAbort, NonFatalNeverTriggersAbort, ()) {
     // Property: for any severity < FATAL, emitting a record does not terminate.
-    const auto severity = *rc::gen::element(
-        logs::Severity_Level::DEBUG,
-        logs::Severity_Level::INFO,
-        logs::Severity_Level::WARNING,
-        logs::Severity_Level::ERROR
-    );
+    const auto severity =
+        *rc::gen::element(logs::Severity_Level::DEBUG, logs::Severity_Level::INFO, logs::Severity_Level::WARNING, logs::Severity_Level::ERROR);
     const auto message = *rc::gen::nonEmpty<std::string>();
 
-    auto& spy = logs::testing::MPI_Spy::instance();
+    auto &spy = logs::testing::MPI_Spy::instance();
     spy.reset();
 
     logs::Logger logger;
@@ -343,7 +316,7 @@ RC_GTEST_PROP(SynchronizedAbort,
 TEST(SynchronizedAbort, MixedNonFatalWorkloadNeverAborts) {
     // Comprehensive: interleave threshold changes, context operations,
     // and non-FATAL logs. None should trigger abort.
-    auto& spy = logs::testing::MPI_Spy::instance();
+    auto &spy = logs::testing::MPI_Spy::instance();
     spy.reset();
 
     logs::Logger logger;
@@ -385,7 +358,7 @@ TEST(SynchronizedAbort, MixedNonFatalWorkloadNeverAborts) {
 
 TEST(SynchronizedAbort, FatalAbortVerification_SpyBased) {
     // Reset MPI_Spy to clean state.
-    auto& spy = logs::testing::MPI_Spy::instance();
+    auto &spy = logs::testing::MPI_Spy::instance();
     spy.reset();
     spy.set_rank(42);
     spy.set_initialized(true);
@@ -425,21 +398,16 @@ TEST(SynchronizedAbort, FatalAbortVerification_SpyBased) {
     }
 
     // ─── Assertion 1: MPI_Abort was called exactly once ─────────────────
-    ASSERT_TRUE(spy.abort_called())
-        << "MPI_Abort must be called when a FATAL record is emitted";
-    EXPECT_EQ(spy.call_count(logs::testing::MPI_Call_Type::ABORT), 1u)
-        << "MPI_Abort must be invoked exactly once per process (Req 5.8)";
+    ASSERT_TRUE(spy.abort_called()) << "MPI_Abort must be called when a FATAL record is emitted";
+    EXPECT_EQ(spy.call_count(logs::testing::MPI_Call_Type::ABORT), 1u) << "MPI_Abort must be invoked exactly once per process (Req 5.8)";
 
     // ─── Assertion 2: Exit code is in [1,255] and equals ABORT_EXIT_CODE ─
     auto abort_calls = spy.calls_of_type(logs::testing::MPI_Call_Type::ABORT);
     ASSERT_EQ(abort_calls.size(), 1u);
-    const auto& abort_args = std::get<logs::testing::Abort_Args>(abort_calls[0].args);
-    EXPECT_GE(abort_args.errorcode, 1)
-        << "MPI_Abort exit code must be >= 1 (Req 5.3)";
-    EXPECT_LE(abort_args.errorcode, 255)
-        << "MPI_Abort exit code must be <= 255 (Req 5.3)";
-    EXPECT_EQ(abort_args.errorcode, logs::ABORT_EXIT_CODE)
-        << "MPI_Abort exit code should be ABORT_EXIT_CODE (70)";
+    const auto &abort_args = std::get<logs::testing::Abort_Args>(abort_calls[0].args);
+    EXPECT_GE(abort_args.errorcode, 1) << "MPI_Abort exit code must be >= 1 (Req 5.3)";
+    EXPECT_LE(abort_args.errorcode, 255) << "MPI_Abort exit code must be <= 255 (Req 5.3)";
+    EXPECT_EQ(abort_args.errorcode, logs::ABORT_EXIT_CODE) << "MPI_Abort exit code should be ABORT_EXIT_CODE (70)";
 
     // ─── Assertion 3: Sinks were written/flushed BEFORE MPI_Abort ────────
     // The MPI_Spy records MPI calls with monotonically increasing sequence
@@ -455,11 +423,10 @@ TEST(SynchronizedAbort, FatalAbortVerification_SpyBased) {
     // Verify that all non-ABORT MPI calls have lower sequence than the ABORT.
     const uint64_t abort_sequence = abort_calls[0].sequence;
     auto all_calls = spy.calls();
-    for (const auto& call : all_calls) {
+    for (const auto &call : all_calls) {
         if (call.type != logs::testing::MPI_Call_Type::ABORT) {
-            EXPECT_LT(call.sequence, abort_sequence)
-                << "All MPI calls (including those during sink flush) must "
-                   "precede MPI_Abort in sequence order";
+            EXPECT_LT(call.sequence, abort_sequence) << "All MPI calls (including those during sink flush) must "
+                                                        "precede MPI_Abort in sequence order";
         }
     }
 
@@ -468,18 +435,16 @@ TEST(SynchronizedAbort, FatalAbortVerification_SpyBased) {
     // we can verify that the sink HAS the record (proving it was written), and
     // the code path guarantees dispatch_to_sinks() and flush_all_sinks() are
     // called before MPI_Abort (structural ordering in logger.cpp).
-    EXPECT_GE(mem_sink.count(), 1u)
-        << "In_Memory_Sink must have been written before MPI_Abort";
+    EXPECT_GE(mem_sink.count(), 1u) << "In_Memory_Sink must have been written before MPI_Abort";
 
     // ─── Assertion 4: In_Memory_Sink received the formatted FATAL record ─
     auto entries = mem_sink.entries();
-    ASSERT_GE(entries.size(), 1u)
-        << "The In_Memory_Sink must receive the formatted FATAL record";
+    ASSERT_GE(entries.size(), 1u) << "The In_Memory_Sink must receive the formatted FATAL record";
 
     // Verify the sink contains the FATAL message text.
     bool found_fatal_message = false;
     bool found_fatal_severity = false;
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         if (entry.find(fatal_message) != std::string::npos) {
             found_fatal_message = true;
         }
@@ -487,10 +452,8 @@ TEST(SynchronizedAbort, FatalAbortVerification_SpyBased) {
             found_fatal_severity = true;
         }
     }
-    EXPECT_TRUE(found_fatal_message)
-        << "The formatted FATAL record must contain the original message text";
-    EXPECT_TRUE(found_fatal_severity)
-        << "The formatted FATAL record must contain the FATAL severity label";
+    EXPECT_TRUE(found_fatal_message) << "The formatted FATAL record must contain the original message text";
+    EXPECT_TRUE(found_fatal_severity) << "The formatted FATAL record must contain the FATAL severity label";
 
     // Detach the thread (it's stuck in the infinite spin loop).
     // The test process exit will clean it up.
@@ -509,7 +472,7 @@ TEST(SynchronizedAbort, FatalAbortVerification_SpyBased) {
 
 TEST(SynchronizedAbort, NonFatalNoAbort_ConfiguredCommunicator) {
     // 1. Configure MPI_Spy with known state.
-    auto& spy = logs::testing::MPI_Spy::instance();
+    auto &spy = logs::testing::MPI_Spy::instance();
     spy.reset();
     spy.set_rank(0);
     spy.set_initialized(true);
@@ -531,31 +494,23 @@ TEST(SynchronizedAbort, NonFatalNoAbort_ConfiguredCommunicator) {
     constexpr int RECORDS_PER_LEVEL = 150;
 
     for (int i = 0; i < RECORDS_PER_LEVEL; ++i) {
-        logger.log(logs::Severity_Level::DEBUG,
-                   "non_fatal_no_abort_debug_" + std::to_string(i));
-        logger.log(logs::Severity_Level::INFO,
-                   "non_fatal_no_abort_info_" + std::to_string(i));
-        logger.log(logs::Severity_Level::WARNING,
-                   "non_fatal_no_abort_warning_" + std::to_string(i));
-        logger.log(logs::Severity_Level::ERROR,
-                   "non_fatal_no_abort_error_" + std::to_string(i));
+        logger.log(logs::Severity_Level::DEBUG, "non_fatal_no_abort_debug_" + std::to_string(i));
+        logger.log(logs::Severity_Level::INFO, "non_fatal_no_abort_info_" + std::to_string(i));
+        logger.log(logs::Severity_Level::WARNING, "non_fatal_no_abort_warning_" + std::to_string(i));
+        logger.log(logs::Severity_Level::ERROR, "non_fatal_no_abort_error_" + std::to_string(i));
     }
 
     // 6. Verify: MPI_Spy::abort_called() is false.
-    EXPECT_FALSE(spy.abort_called())
-        << "MPI_Abort must never be invoked for non-FATAL records "
-           "(Requirement 13.10)";
+    EXPECT_FALSE(spy.abort_called()) << "MPI_Abort must never be invoked for non-FATAL records "
+                                        "(Requirement 13.10)";
 
     // 7. Verify: spy.call_count(MPI_Call_Type::ABORT) == 0.
-    EXPECT_EQ(spy.call_count(logs::testing::MPI_Call_Type::ABORT), 0u)
-        << "Zero MPI_Abort calls expected when only non-FATAL records are "
-           "emitted (Requirement 13.10)";
+    EXPECT_EQ(spy.call_count(logs::testing::MPI_Call_Type::ABORT), 0u) << "Zero MPI_Abort calls expected when only non-FATAL records are "
+                                                                          "emitted (Requirement 13.10)";
 
     // Verify records were actually dispatched (not silently dropped).
-    constexpr std::size_t EXPECTED_TOTAL =
-        static_cast<std::size_t>(RECORDS_PER_LEVEL) * 4u;
-    EXPECT_GE(mem_sink.count(), EXPECTED_TOTAL)
-        << "All non-FATAL records should be dispatched to the sink";
+    constexpr std::size_t EXPECTED_TOTAL = static_cast<std::size_t>(RECORDS_PER_LEVEL) * 4u;
+    EXPECT_GE(mem_sink.count(), EXPECTED_TOTAL) << "All non-FATAL records should be dispatched to the sink";
 }
 
 }  // namespace

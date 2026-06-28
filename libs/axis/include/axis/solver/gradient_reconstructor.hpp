@@ -16,7 +16,6 @@
 /// Templated on MemorySpace for device portability (HELM Law #2).
 
 #include <Kokkos_Core.hpp>
-
 #include <axis/types.hpp>
 
 namespace axis::solver {
@@ -31,7 +30,6 @@ namespace axis::solver {
 /// @tparam MemorySpace Kokkos memory space (HostSpace, CudaSpace, HIPSpace).
 template <class MemorySpace = Kokkos::HostSpace>
 struct GradientReconstructor {
-
     /// @brief Compute per-cell gradients via least-squares reconstruction.
     ///
     /// For each cell i with ≥ 3 face-adjacent neighbors, solves the 3×3 normal
@@ -50,15 +48,11 @@ struct GradientReconstructor {
     /// @param adj_indices  CSR column-index array [nnz_adjacency]
     /// @param grad         Output gradient vectors [n_cells, 3] (gx, gy, gz)
     /// @param use_limiter  If true, apply Barth-Jespersen monotonicity limiter
-    static void compute(
-        Kokkos::View<const double*, MemorySpace>    cell_values,
-        Kokkos::View<const double*[3], MemorySpace> centroids,
-        Kokkos::View<const index_t*, MemorySpace>   adj_offsets,
-        Kokkos::View<const index_t*, MemorySpace>   adj_indices,
-        Kokkos::View<double*[3], MemorySpace>       grad,
-        bool use_limiter = false);
+    static void compute(Kokkos::View<const double *, MemorySpace> cell_values, Kokkos::View<const double *[3], MemorySpace> centroids,
+                        Kokkos::View<const index_t *, MemorySpace> adj_offsets, Kokkos::View<const index_t *, MemorySpace> adj_indices,
+                        Kokkos::View<double *[3], MemorySpace> grad, bool use_limiter = false);
 };
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_GRADIENT_RECONSTRUCTOR_HPP
+#endif  // AXIS_SOLVER_GRADIENT_RECONSTRUCTOR_HPP

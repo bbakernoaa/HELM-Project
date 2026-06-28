@@ -28,8 +28,8 @@ namespace halo {
 /// existing C++ callers. The abort_with_diagnostics policy is required for the
 /// Fortran C-interop layer where C++ exceptions cannot propagate.
 enum class ErrorPolicy {
-    throw_on_error,          ///< Throw std::runtime_error (default, C++ callers).
-    abort_with_diagnostics   ///< Write diagnostics to stderr, then MPI_Abort.
+    throw_on_error,         ///< Throw std::runtime_error (default, C++ callers).
+    abort_with_diagnostics  ///< Write diagnostics to stderr, then MPI_Abort.
 };
 
 // Forward declaration — Environment stores and exposes the active policy.
@@ -46,9 +46,7 @@ namespace detail {
 /// @param mpi_error_code The MPI error code returned by the failing call.
 /// @param neighbor_rank  The rank of the neighbor involved in the failure.
 /// @param operation      Description of the failing operation (e.g., "MPI_Irecv").
-[[noreturn]] void handle_mpi_error(int mpi_error_code,
-                                   int neighbor_rank,
-                                   const char* operation);
+[[noreturn]] void handle_mpi_error(int mpi_error_code, int neighbor_rank, const char *operation);
 
 /// @brief Handle an MPI error with communicator context.
 ///
@@ -60,10 +58,7 @@ namespace detail {
 /// @param neighbor_rank  The rank of the neighbor involved in the failure.
 /// @param operation      Description of the failing operation (e.g., "MPI_Irecv").
 /// @param comm           The communicator on which the failure occurred.
-[[noreturn]] void handle_mpi_error(int mpi_error_code,
-                                   int neighbor_rank,
-                                   const char* operation,
-                                   MPI_Comm comm);
+[[noreturn]] void handle_mpi_error(int mpi_error_code, int neighbor_rank, const char *operation, MPI_Comm comm);
 
 /// @brief Handle an MPI error with communicator and plan neighbor context.
 ///
@@ -76,11 +71,7 @@ namespace detail {
 /// @param comm              The communicator on which the failure occurred.
 /// @param neighbor_summary  A string summarizing plan neighbors, e.g.,
 ///                          "send-to:[1,2,3] recv-from:[0,2,3]"
-[[noreturn]] void handle_mpi_error(int mpi_error_code,
-                                   int neighbor_rank,
-                                   const char* operation,
-                                   MPI_Comm comm,
-                                   const std::string& neighbor_summary);
+[[noreturn]] void handle_mpi_error(int mpi_error_code, int neighbor_rank, const char *operation, MPI_Comm comm, const std::string &neighbor_summary);
 
 /// @brief Format a plan neighbor summary string from send/recv rank lists.
 ///
@@ -92,10 +83,9 @@ namespace detail {
 /// @param recv_ranks  Array of recv-neighbor ranks.
 /// @param num_recv    Number of recv neighbors.
 /// @return Formatted neighbor summary string.
-std::string format_neighbor_summary(const int* send_ranks, std::size_t num_send,
-                                    const int* recv_ranks, std::size_t num_recv);
+std::string format_neighbor_summary(const int *send_ranks, std::size_t num_send, const int *recv_ranks, std::size_t num_recv);
 
-} // namespace detail
-} // namespace halo
+}  // namespace detail
+}  // namespace halo
 
-#endif // HALO_ERROR_POLICY_HPP
+#endif  // HALO_ERROR_POLICY_HPP

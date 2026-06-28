@@ -17,15 +17,15 @@
 /// LayoutRight affects only the pack/unpack kernel dispatch (which dimension
 /// is contiguous), not the logical slice boundaries stored here.
 
+#include <mpi.h>
+
+#include <Kokkos_Core.hpp>
 #include <array>
 #include <cstddef>
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <mpi.h>
-#include <Kokkos_Core.hpp>
 
 #include "halo/communicator.hpp"
 
@@ -75,10 +75,9 @@ struct Region {
 /// @tparam Rank Grid dimensionality (1, 2, 3, or 4).
 template <int Rank>
 class Structured_Halo_Plan {
-    static_assert(Rank >= 1 && Rank <= 4,
-                  "Structured_Halo_Plan supports ranks 1 through 4");
+    static_assert(Rank >= 1 && Rank <= 4, "Structured_Halo_Plan supports ranks 1 through 4");
 
-public:
+   public:
     /// Number of face neighbors for this rank.
     static constexpr int num_faces_value = 2 * Rank;
 
@@ -96,14 +95,9 @@ public:
     ///
     /// @throws std::invalid_argument if any extent < 2 * halo_width for that
     ///         dimension.
-    Structured_Halo_Plan(std::array<std::size_t, Rank> global_extents,
-                         std::array<int, 2 * Rank> neighbor_ranks,
-                         std::array<std::size_t, Rank> halo_widths,
-                         const Communicator& comm)
-        : extents_(global_extents),
-          neighbor_ranks_(neighbor_ranks),
-          halo_widths_(halo_widths),
-          comm_(&comm) {
+    Structured_Halo_Plan(std::array<std::size_t, Rank> global_extents, std::array<int, 2 * Rank> neighbor_ranks,
+                         std::array<std::size_t, Rank> halo_widths, const Communicator &comm)
+        : extents_(global_extents), neighbor_ranks_(neighbor_ranks), halo_widths_(halo_widths), comm_(&comm) {
         validate_extents();
         precompute_regions();
     }
@@ -122,7 +116,7 @@ public:
     ///
     /// @param face_idx Face index in [0, 2*Rank).
     /// @return Region describing the subview index ranges.
-    [[nodiscard]] const Region<Rank>& send_region(int face_idx) const {
+    [[nodiscard]] const Region<Rank> &send_region(int face_idx) const {
         check_face_idx(face_idx);
         return send_regions_[face_idx];
     }
@@ -134,7 +128,7 @@ public:
     ///
     /// @param face_idx Face index in [0, 2*Rank).
     /// @return Region describing the subview index ranges.
-    [[nodiscard]] const Region<Rank>& recv_region(int face_idx) const {
+    [[nodiscard]] const Region<Rank> &recv_region(int face_idx) const {
         check_face_idx(face_idx);
         return recv_regions_[face_idx];
     }
@@ -150,7 +144,7 @@ public:
 
     /// @brief Access the communicator.
     /// @return Const reference to the owning Communicator.
-    [[nodiscard]] const Communicator& communicator() const noexcept {
+    [[nodiscard]] const Communicator &communicator() const noexcept {
         return *comm_;
     }
 
@@ -169,17 +163,17 @@ public:
     }
 
     /// @brief Get all extents.
-    [[nodiscard]] const std::array<std::size_t, Rank>& extents() const noexcept {
+    [[nodiscard]] const std::array<std::size_t, Rank> &extents() const noexcept {
         return extents_;
     }
 
     /// @brief Get all halo widths.
-    [[nodiscard]] const std::array<std::size_t, Rank>& halo_widths() const noexcept {
+    [[nodiscard]] const std::array<std::size_t, Rank> &halo_widths() const noexcept {
         return halo_widths_;
     }
 
     /// @brief Get all neighbor ranks.
-    [[nodiscard]] const std::array<int, 2 * Rank>& neighbor_ranks_array() const noexcept {
+    [[nodiscard]] const std::array<int, 2 * Rank> &neighbor_ranks_array() const noexcept {
         return neighbor_ranks_;
     }
 
@@ -267,16 +261,12 @@ public:
         int indegree = static_cast<int>(neighbors.size());
         int outdegree = static_cast<int>(neighbors.size());
 
-        int rc = MPI_Dist_graph_create_adjacent(
-            comm_->handle(),
-            indegree, neighbors.data(), MPI_UNWEIGHTED,
-            outdegree, neighbors.data(), MPI_UNWEIGHTED,
-            MPI_INFO_NULL, /*reorder=*/0, &topo_comm_);
+        int rc = MPI_Dist_graph_create_adjacent(comm_->handle(), indegree, neighbors.data(), MPI_UNWEIGHTED, outdegree, neighbors.data(),
+                                                MPI_UNWEIGHTED, MPI_INFO_NULL, /*reorder=*/0, &topo_comm_);
 
         if (rc != MPI_SUCCESS) {
             topo_comm_ = MPI_COMM_NULL;
-            throw std::runtime_error(
-                "Structured_Halo_Plan: MPI_Dist_graph_create_adjacent failed");
+            throw std::runtime_error("Structured_Halo_Plan: MPI_Dist_graph_create_adjacent failed");
         }
 
         return topo_comm_;
@@ -294,14 +284,14 @@ public:
         }
     }
 
-public:
+   public:
     /// @brief Destructor frees the cached topology communicator if created.
     ~Structured_Halo_Plan() {
         free_topology_comm();
     }
 
     // Move support — transfer topology comm ownership
-    Structured_Halo_Plan(Structured_Halo_Plan&& other) noexcept
+    Structured_Halo_Plan(Structured_Halo_Plan &&other) noexcept
         : extents_(other.extents_),
           neighbor_ranks_(other.neighbor_ranks_),
           halo_widths_(other.halo_widths_),
@@ -313,7 +303,7 @@ public:
         other.comm_ = nullptr;
     }
 
-    Structured_Halo_Plan& operator=(Structured_Halo_Plan&& other) noexcept {
+    Structured_Halo_Plan &operator=(Structured_Halo_Plan &&other) noexcept {
         if (this != &other) {
             free_topology_comm();
             extents_ = other.extents_;
@@ -330,14 +320,14 @@ public:
     }
 
     // Copy is deleted — topology comm is not duplicated
-    Structured_Halo_Plan(const Structured_Halo_Plan&) = delete;
-    Structured_Halo_Plan& operator=(const Structured_Halo_Plan&) = delete;
+    Structured_Halo_Plan(const Structured_Halo_Plan &) = delete;
+    Structured_Halo_Plan &operator=(const Structured_Halo_Plan &) = delete;
 
-private:
+   private:
     std::array<std::size_t, Rank> extents_;
     std::array<int, 2 * Rank> neighbor_ranks_;
     std::array<std::size_t, Rank> halo_widths_;
-    const Communicator* comm_;
+    const Communicator *comm_;
 
     std::array<Region<Rank>, 2 * Rank> send_regions_;
     std::array<Region<Rank>, 2 * Rank> recv_regions_;
@@ -353,11 +343,8 @@ private:
     void validate_extents() const {
         for (int d = 0; d < Rank; ++d) {
             if (extents_[d] < 2 * halo_widths_[d]) {
-                throw std::invalid_argument(
-                    "Structured_Halo_Plan: extent[" + std::to_string(d) +
-                    "] = " + std::to_string(extents_[d]) +
-                    " is less than 2 * halo_width[" + std::to_string(d) +
-                    "] = " + std::to_string(2 * halo_widths_[d]));
+                throw std::invalid_argument("Structured_Halo_Plan: extent[" + std::to_string(d) + "] = " + std::to_string(extents_[d]) +
+                                            " is less than 2 * halo_width[" + std::to_string(d) + "] = " + std::to_string(2 * halo_widths_[d]));
             }
         }
     }
@@ -428,22 +415,19 @@ private:
     /// @brief Bounds-check a face index.
     void check_face_idx(int face_idx) const {
         if (face_idx < 0 || face_idx >= num_faces_value) {
-            throw std::out_of_range(
-                "Structured_Halo_Plan: face_idx " + std::to_string(face_idx) +
-                " out of range [0, " + std::to_string(num_faces_value) + ")");
+            throw std::out_of_range("Structured_Halo_Plan: face_idx " + std::to_string(face_idx) + " out of range [0, " +
+                                    std::to_string(num_faces_value) + ")");
         }
     }
 
     /// @brief Bounds-check a dimension index.
     void check_dim(int dim) const {
         if (dim < 0 || dim >= Rank) {
-            throw std::out_of_range(
-                "Structured_Halo_Plan: dim " + std::to_string(dim) +
-                " out of range [0, " + std::to_string(Rank) + ")");
+            throw std::out_of_range("Structured_Halo_Plan: dim " + std::to_string(dim) + " out of range [0, " + std::to_string(Rank) + ")");
         }
     }
 };
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_STRUCTURED_HALO_PLAN_HPP
+#endif  // HALO_STRUCTURED_HALO_PLAN_HPP

@@ -25,4 +25,4 @@
 #include "span/field_view.hpp"
 #include "span/triple_buffer.hpp"
 
-#endif // SPAN_SPAN_HPP
+#endif  // SPAN_SPAN_HPP

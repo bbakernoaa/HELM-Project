@@ -23,8 +23,8 @@
 
 #include "handle_registry.hpp"
 
-using conf::fortran::Handle_Registry;
 using conf::fortran::CONF_HANDLE_INVALID;
+using conf::fortran::Handle_Registry;
 
 namespace {
 
@@ -49,7 +49,7 @@ std::set<int> g_all_released_tokens;
 // **Validates: Requirements 31.1, 31.2, 31.3**
 
 RC_GTEST_PROP(HandleRegistryProperty5, UniquenessAndNonReuse, ()) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     // Number of register/release operations to perform this iteration.
     const int num_ops = *rc::gen::inRange(1, 101);
@@ -67,13 +67,12 @@ RC_GTEST_PROP(HandleRegistryProperty5, UniquenessAndNonReuse, ()) {
     for (int op = 0; op < num_ops; ++op) {
         // Choose register vs release. Release is only possible when something
         // is live; otherwise we must register.
-        const bool do_register =
-            live_tokens.empty() ? true : *rc::gen::arbitrary<bool>();
+        const bool do_register = live_tokens.empty() ? true : *rc::gen::arbitrary<bool>();
 
         if (do_register) {
             // Create a unique, address-stable dummy object to register.
             storage.push_back(std::make_unique<int>(op));
-            void* ptr = static_cast<void*>(storage.back().get());
+            void *ptr = static_cast<void *>(storage.back().get());
 
             const int token = reg.register_handle(ptr);
 
@@ -97,8 +96,7 @@ RC_GTEST_PROP(HandleRegistryProperty5, UniquenessAndNonReuse, ()) {
             live_tokens.push_back(token);
         } else {
             // Release a randomly chosen live token.
-            const int idx = *rc::gen::inRange(
-                0, static_cast<int>(live_tokens.size()));
+            const int idx = *rc::gen::inRange(0, static_cast<int>(live_tokens.size()));
             const int token = live_tokens[static_cast<std::size_t>(idx)];
 
             reg.release(token);
@@ -138,14 +136,14 @@ RC_GTEST_PROP(HandleRegistryProperty5, UniquenessAndNonReuse, ()) {
 // **Validates: Requirements 31.1, 31.2, 31.3**
 
 RC_GTEST_PROP(HandleRegistryProperty5, ReleasedTokensNeverReissued, ()) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     const int cycles = *rc::gen::inRange(1, 51);
 
     int prev_token = 0;
     int dummy = 0;
     for (int i = 0; i < cycles; ++i) {
-        const int token = reg.register_handle(static_cast<void*>(&dummy));
+        const int token = reg.register_handle(static_cast<void *>(&dummy));
 
         // (1) Token is always positive.
         RC_ASSERT(token > 0);
@@ -184,7 +182,7 @@ RC_GTEST_PROP(HandleRegistryProperty5, ReleasedTokensNeverReissued, ()) {
 // **Validates: Requirements 31.1, 31.2, 31.3**
 
 RC_GTEST_PROP(HandleRegistryProperty5, ZeroTokenNeverValid, ()) {
-    auto& reg = Handle_Registry::instance();
+    auto &reg = Handle_Registry::instance();
 
     // Register some handles to change registry state.
     const int num_regs = *rc::gen::inRange(0, 21);
@@ -192,7 +190,7 @@ RC_GTEST_PROP(HandleRegistryProperty5, ZeroTokenNeverValid, ()) {
     int dummy = 42;
 
     for (int i = 0; i < num_regs; ++i) {
-        const int token = reg.register_handle(static_cast<void*>(&dummy));
+        const int token = reg.register_handle(static_cast<void *>(&dummy));
         // (1) Issued token is never 0.
         RC_ASSERT(token != CONF_HANDLE_INVALID);
         RC_ASSERT(token > 0);

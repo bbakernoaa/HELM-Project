@@ -7,18 +7,17 @@
 ///
 /// **Validates: Requirements 2.1, 2.2, 2.5, 2.6**
 
-#include <logs/logger.hpp>
-#include "in_memory_sink.hpp"
-
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <mpi.h>
-
+#include <logs/logger.hpp>
 #include <regex>
 #include <string>
 #include <vector>
+
+#include "in_memory_sink.hpp"
 
 namespace {
 
@@ -26,28 +25,23 @@ namespace {
 
 /// Generate a random valid Severity_Level (excluding FATAL which triggers abort).
 rc::Gen<logs::Severity_Level> genNonFatalSeverity() {
-    return rc::gen::map(rc::gen::inRange(0, 4), [](int v) {
-        return static_cast<logs::Severity_Level>(v);
-    });
+    return rc::gen::map(rc::gen::inRange(0, 4), [](int v) { return static_cast<logs::Severity_Level>(v); });
 }
 
 /// Generate a random non-empty ASCII message (printable, no newlines).
 rc::Gen<std::string> genMessage() {
-    return rc::gen::map(
-        rc::gen::container<std::string>(
-            rc::gen::inRange(32, 127)),
-        [](std::string s) {
-            // Ensure non-empty
-            if (s.empty()) s = "x";
-            return s;
-        });
+    return rc::gen::map(rc::gen::container<std::string>(rc::gen::inRange(32, 127)), [](std::string s) {
+        // Ensure non-empty
+        if (s.empty()) s = "x";
+        return s;
+    });
 }
 
 // ─── Helper: Extract rank from formatted log line ────────────────────────────
 
 /// Extracts the numeric rank from the "[RANK:NNNN]" prefix.
 /// Returns -2 on parse failure (distinct from sentinel -1).
-int extract_rank(const std::string& line) {
+int extract_rank(const std::string &line) {
     // Format is: [RANK:0042] ...
     static const std::regex rank_re(R"(\[RANK:(\d{4,})\])");
     std::smatch match;
@@ -58,18 +52,17 @@ int extract_rank(const std::string& line) {
     if (line.find("[RANK:----]") != std::string::npos) {
         return -1;
     }
-    return -2; // parse failure
+    return -2;  // parse failure
 }
 
 // ─── Test Fixture ────────────────────────────────────────────────────────────
 
 class RankStampingTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         int initialized = 0;
         MPI_Initialized(&initialized);
-        ASSERT_TRUE(initialized)
-            << "MPI must be initialized before running these tests";
+        ASSERT_TRUE(initialized) << "MPI must be initialized before running these tests";
     }
 };
 
@@ -84,9 +77,7 @@ protected:
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Every emitted record must carry the same rank that the Logger reports.
-RC_GTEST_FIXTURE_PROP(RankStampingTest,
-                      AllRecordsCarryConfiguredRank,
-                      ()) {
+RC_GTEST_FIXTURE_PROP(RankStampingTest, AllRecordsCarryConfiguredRank, ()) {
     // Create and configure the Logger.
     logs::Logger logger;
     logger.configure_communicator(MPI_COMM_WORLD);
@@ -102,7 +93,7 @@ RC_GTEST_FIXTURE_PROP(RankStampingTest,
 
     // Generate a random severity and message, emit one record.
     const auto severity = *genNonFatalSeverity();
-    const auto message  = *genMessage();
+    const auto message = *genMessage();
 
     logger.log(severity, message);
 
@@ -115,9 +106,7 @@ RC_GTEST_FIXTURE_PROP(RankStampingTest,
 }
 
 /// Multiple records emitted at varying severities all carry the same rank.
-RC_GTEST_FIXTURE_PROP(RankStampingTest,
-                      MultipleRecordsAllCarrySameRank,
-                      ()) {
+RC_GTEST_FIXTURE_PROP(RankStampingTest, MultipleRecordsAllCarrySameRank, ()) {
     logs::Logger logger;
     logger.configure_communicator(MPI_COMM_WORLD);
     logger.set_threshold(logs::Severity_Level::DEBUG);
@@ -133,23 +122,21 @@ RC_GTEST_FIXTURE_PROP(RankStampingTest,
 
     for (int i = 0; i < count; ++i) {
         const auto severity = *genNonFatalSeverity();
-        const auto message  = *genMessage();
+        const auto message = *genMessage();
         logger.log(severity, message);
     }
 
     const auto entries = mem_sink.entries();
     RC_ASSERT(static_cast<int>(entries.size()) == count);
 
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         const int actual_rank = extract_rank(entry);
         RC_ASSERT(actual_rank == expected_rank);
     }
 }
 
 /// The rank accessor always returns the same value that records are stamped with.
-RC_GTEST_FIXTURE_PROP(RankStampingTest,
-                      RankAccessorConsistentWithStamp,
-                      ()) {
+RC_GTEST_FIXTURE_PROP(RankStampingTest, RankAccessorConsistentWithStamp, ()) {
     logs::Logger logger;
     logger.configure_communicator(MPI_COMM_WORLD);
     logger.set_threshold(logs::Severity_Level::DEBUG);
@@ -175,9 +162,7 @@ RC_GTEST_FIXTURE_PROP(RankStampingTest,
 /// determined at initialization time, not per-record).
 /// We verify this by emitting at the threshold boundary — if the record is
 /// accepted, it must carry the correct rank.
-RC_GTEST_FIXTURE_PROP(RankStampingTest,
-                      RankStampedBeforeFiltering,
-                      ()) {
+RC_GTEST_FIXTURE_PROP(RankStampingTest, RankStampedBeforeFiltering, ()) {
     logs::Logger logger;
     logger.configure_communicator(MPI_COMM_WORLD);
 
@@ -230,19 +215,18 @@ TEST_F(RankStampingTest, AllNonFatalSeveritiesCarryRank) {
     const auto entries = mem_sink.entries();
     ASSERT_EQ(entries.size(), 4u);
 
-    for (const auto& entry : entries) {
-        EXPECT_EQ(extract_rank(entry), expected_rank)
-            << "Entry: " << entry;
+    for (const auto &entry : entries) {
+        EXPECT_EQ(extract_rank(entry), expected_rank) << "Entry: " << entry;
     }
 }
 
-} // namespace
+}  // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // GTest + MPI lifecycle
 // ═══════════════════════════════════════════════════════════════════════════════
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     int provided = 0;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 

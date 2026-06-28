@@ -30,15 +30,14 @@
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <cstddef>
 #include <utility>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-#include <mpi.h>
 
 #include "halo/communicator.hpp"
 #include "handle_registry.hpp"
@@ -49,20 +48,14 @@
 // signatures here (matching the definitions exactly) to call across the boundary.
 
 extern "C" {
-int halo_init_c(int mpi_comm_int, int* comm_handle_out);
-int halo_comm_create_c(int parent_handle, int color, int key,
-                       int* child_handle_out);
-int halo_plan_create_c(int comm_handle,
-                       const int* send_ranks, const int* send_counts, int num_send,
-                       const int* recv_ranks, const int* recv_counts, int num_recv,
-                       int* plan_handle_out);
-int halo_exchange_blocking_c(int plan_handle, void* data,
-                             int num_elements, int element_size);
-int halo_exchange_async_c(int plan_handle, void* data,
-                          int num_elements, int element_size,
-                          int* handle_out);
+int halo_init_c(int mpi_comm_int, int *comm_handle_out);
+int halo_comm_create_c(int parent_handle, int color, int key, int *child_handle_out);
+int halo_plan_create_c(int comm_handle, const int *send_ranks, const int *send_counts, int num_send, const int *recv_ranks, const int *recv_counts,
+                       int num_recv, int *plan_handle_out);
+int halo_exchange_blocking_c(int plan_handle, void *data, int num_elements, int element_size);
+int halo_exchange_async_c(int plan_handle, void *data, int num_elements, int element_size, int *handle_out);
 int halo_wait_c(int handle);
-int halo_test_c(int handle, int* complete_out);
+int halo_test_c(int handle, int *complete_out);
 int halo_destroy_plan_c(int plan_handle);
 int halo_destroy_comm_c(int comm_handle);
 }
@@ -72,9 +65,9 @@ namespace {
 // --- Error code mirror -------------------------------------------------------
 // The Halo_Error enum lives in an anonymous namespace inside halo_c_interop.cpp
 // and is not exported, so we mirror the contract values here for assertions.
-constexpr int HALO_SUCCESS         = 0;
+constexpr int HALO_SUCCESS = 0;
 constexpr int HALO_ERR_INVALID_ARG = 1;
-constexpr int HALO_ERR_BAD_HANDLE  = 4;
+constexpr int HALO_ERR_BAD_HANDLE = 4;
 
 /// The mock MPI_Comm_size always returns 4, so valid ranks are [0, 4).
 constexpr int MOCK_COMM_SIZE = 4;
@@ -87,9 +80,8 @@ constexpr int MOCK_COMM_SIZE = 4;
 // there is no double-free. The single leak is harmless for a test process.
 int valid_comm_handle() {
     static int handle = [] {
-        auto* comm = new halo::Communicator(MPI_COMM_WORLD);
-        return halo::fortran::Handle_Registry::instance()
-            .register_handle(static_cast<void*>(comm));
+        auto *comm = new halo::Communicator(MPI_COMM_WORLD);
+        return halo::fortran::Handle_Registry::instance().register_handle(static_cast<void *>(comm));
     }();
     return handle;
 }
@@ -125,7 +117,7 @@ std::pair<std::vector<int>, std::vector<int>> gen_valid_neighbors() {
 // **Validates: Requirements 14.13**
 
 RC_GTEST_PROP(InteropProperty23, DestroyedPlanHandleReturnsBadHandle, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     const int comm = valid_comm_handle();
@@ -149,13 +141,8 @@ RC_GTEST_PROP(InteropProperty23, DestroyedPlanHandleReturnsBadHandle, ()) {
     int async_handle = -1;
 
     try {
-        create_code = halo_plan_create_c(
-            comm,
-            send_ranks.data(), send_counts.data(),
-            static_cast<int>(send_ranks.size()),
-            recv_ranks.data(), recv_counts.data(),
-            static_cast<int>(recv_ranks.size()),
-            &plan_handle);
+        create_code = halo_plan_create_c(comm, send_ranks.data(), send_counts.data(), static_cast<int>(send_ranks.size()), recv_ranks.data(),
+                                         recv_counts.data(), static_cast<int>(recv_ranks.size()), &plan_handle);
 
         // Destroy the live plan; this must succeed and invalidate the token.
         if (create_code == HALO_SUCCESS) {
@@ -163,12 +150,8 @@ RC_GTEST_PROP(InteropProperty23, DestroyedPlanHandleReturnsBadHandle, ()) {
 
             // Every reuse of the now-stale token must report a bad handle.
             code_redestroy = halo_destroy_plan_c(plan_handle);
-            code_exchange_blocking = halo_exchange_blocking_c(
-                plan_handle, buffer, MOCK_COMM_SIZE,
-                static_cast<int>(sizeof(double)));
-            code_exchange_async = halo_exchange_async_c(
-                plan_handle, buffer, MOCK_COMM_SIZE,
-                static_cast<int>(sizeof(double)), &async_handle);
+            code_exchange_blocking = halo_exchange_blocking_c(plan_handle, buffer, MOCK_COMM_SIZE, static_cast<int>(sizeof(double)));
+            code_exchange_async = halo_exchange_async_c(plan_handle, buffer, MOCK_COMM_SIZE, static_cast<int>(sizeof(double)), &async_handle);
         }
     } catch (...) {
         threw = true;
@@ -209,13 +192,11 @@ RC_GTEST_PROP(InteropProperty23, DestroyedPlanHandleReturnsBadHandle, ()) {
 // **Validates: Requirements 14.13**
 
 RC_GTEST_PROP(InteropProperty23, DestroyedCommHandleReturnsBadHandle, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Register a fresh, per-iteration Communicator handle to destroy.
-    int comm_handle = halo::fortran::Handle_Registry::instance()
-        .register_handle(static_cast<void*>(
-            new halo::Communicator(MPI_COMM_WORLD)));
+    int comm_handle = halo::fortran::Handle_Registry::instance().register_handle(static_cast<void *>(new halo::Communicator(MPI_COMM_WORLD)));
 
     // Random auxiliary arguments for halo_comm_create_c.
     int color = *rc::gen::inRange(0, 8);
@@ -242,15 +223,9 @@ RC_GTEST_PROP(InteropProperty23, DestroyedCommHandleReturnsBadHandle, ()) {
 
         // Every reuse of the now-stale token must report a bad handle.
         code_redestroy = halo_destroy_comm_c(comm_handle);
-        code_comm_create =
-            halo_comm_create_c(comm_handle, color, key, &child_handle);
-        code_plan_create = halo_plan_create_c(
-            comm_handle,
-            send_ranks.data(), send_counts.data(),
-            static_cast<int>(send_ranks.size()),
-            recv_ranks.data(), recv_counts.data(),
-            static_cast<int>(recv_ranks.size()),
-            &plan_handle);
+        code_comm_create = halo_comm_create_c(comm_handle, color, key, &child_handle);
+        code_plan_create = halo_plan_create_c(comm_handle, send_ranks.data(), send_counts.data(), static_cast<int>(send_ranks.size()),
+                                              recv_ranks.data(), recv_counts.data(), static_cast<int>(recv_ranks.size()), &plan_handle);
     } catch (...) {
         threw = true;
     }
@@ -277,7 +252,7 @@ RC_GTEST_PROP(InteropProperty23, DestroyedCommHandleReturnsBadHandle, ()) {
 // whole test binary so any code path that touches a Kokkos::View is safe.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -290,5 +265,4 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);

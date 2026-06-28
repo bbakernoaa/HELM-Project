@@ -24,16 +24,14 @@
 ///
 /// @tparam MemorySpace Kokkos memory space for internal computation and output.
 
-#include <utility>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/solver/halo_pattern.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <utility>
+#include <vector>
 
 namespace axis::solver {
 
@@ -42,7 +40,7 @@ namespace axis::solver {
 /// All methods are static — no instance state is needed. This mirrors the
 /// factory pattern used by MeshFactory in the topology namespace.
 class WeightGenerator {
-public:
+   public:
     WeightGenerator() = delete;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -60,10 +58,8 @@ public:
     /// @throws std::invalid_argument if src/dst CoordinateSystem values differ
     /// @throws std::runtime_error    if unmapped==Error and any dst cell is uncovered
     template <class MemorySpace = Kokkos::HostSpace>
-    static InterpolationMatrix<MemorySpace>
-    generate(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-             const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-             const RegridConfig& config);
+    static InterpolationMatrix<MemorySpace> generate(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                     const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Distributed generate (publishes HaloPattern for off-rank gather)
@@ -88,56 +84,45 @@ public:
     /// @throws std::invalid_argument if src/dst CoordinateSystem values differ
     /// @throws std::runtime_error    if unmapped==Error and any dst cell is uncovered
     template <class MemorySpace = Kokkos::HostSpace>
-    static std::pair<InterpolationMatrix<MemorySpace>, HaloPattern>
-    generate(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-             const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-             const RegridConfig& config,
-             Kokkos::View<const index_t*, MemorySpace> src_global_ids,
-             Kokkos::View<const index_t*, MemorySpace> dst_global_ids,
-             const std::vector<int>& owner_of_src);
+    static std::pair<InterpolationMatrix<MemorySpace>, HaloPattern> generate(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                             const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                             const RegridConfig &config,
+                                                                             Kokkos::View<const index_t *, MemorySpace> src_global_ids,
+                                                                             Kokkos::View<const index_t *, MemorySpace> dst_global_ids,
+                                                                             const std::vector<int> &owner_of_src);
 
-private:
+   private:
     // ─────────────────────────────────────────────────────────────────────────
     // Internal dispatch helpers
     // ─────────────────────────────────────────────────────────────────────────
 
     template <class MemorySpace>
-    static InterpolationMatrix<MemorySpace>
-    generate_bilinear(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-                      const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-                      const RegridConfig& config);
+    static InterpolationMatrix<MemorySpace> generate_bilinear(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                              const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
     template <class MemorySpace>
-    static InterpolationMatrix<MemorySpace>
-    generate_nearest(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-                     const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-                     const RegridConfig& config);
+    static InterpolationMatrix<MemorySpace> generate_nearest(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                             const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
     template <class MemorySpace>
-    static InterpolationMatrix<MemorySpace>
-    generate_bicubic(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-                     const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-                     const RegridConfig& config);
+    static InterpolationMatrix<MemorySpace> generate_bicubic(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                             const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
     template <class MemorySpace>
-    static InterpolationMatrix<MemorySpace>
-    generate_patch(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-                   const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-                   const RegridConfig& config);
+    static InterpolationMatrix<MemorySpace> generate_patch(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                           const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
     template <class MemorySpace>
-    static InterpolationMatrix<MemorySpace>
-    generate_conservative(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-                          const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-                          const RegridConfig& config);
+    static InterpolationMatrix<MemorySpace> generate_conservative(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                  const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                  const RegridConfig &config);
 
     template <class MemorySpace>
-    static InterpolationMatrix<MemorySpace>
-    generate_conservative_2nd_order(const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-                                    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-                                    const RegridConfig& config);
+    static InterpolationMatrix<MemorySpace> generate_conservative_2nd_order(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                            const RegridConfig &config);
 };
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_WEIGHT_GENERATOR_HPP
+#endif  // AXIS_SOLVER_WEIGHT_GENERATOR_HPP

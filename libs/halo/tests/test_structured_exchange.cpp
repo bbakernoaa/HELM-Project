@@ -24,7 +24,6 @@
 #include <mpi.h>
 
 #include <Kokkos_Core.hpp>
-
 #include <array>
 #include <cstddef>
 
@@ -61,7 +60,7 @@ inline double encode(int rank, std::size_t local_idx) {
 // d1 has no neighbors (-1).
 
 class StructuredExchange2DTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -77,7 +76,7 @@ protected:
 
     /// Initialize a 2D view: interior gets encoded values, halos get sentinel.
     template <typename ViewType>
-    void init_view_2d(ViewType& view) {
+    void init_view_2d(ViewType &view) {
         auto h_view = Kokkos::create_mirror_view(view);
         Kokkos::deep_copy(h_view, kSentinel);
         // Fill interior cells with encoded pattern
@@ -93,7 +92,7 @@ protected:
     /// Verify west/east halo zones contain correct neighbor data.
     /// Only verifies interior-j positions to avoid halo-on-halo corners.
     template <typename ViewType>
-    void verify_halos_2d(const ViewType& view) {
+    void verify_halos_2d(const ViewType &view) {
         auto h_view = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, view);
 
         int west = neighbors_[0];
@@ -108,8 +107,7 @@ protected:
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             std::size_t west_local_idx = (kInterior - 1) * kInterior + (j - kHalo);
             double expected = encode(west, west_local_idx);
-            EXPECT_DOUBLE_EQ(h_view(0, j), expected)
-                << "West halo mismatch at (0, " << j << ") on rank " << rank_;
+            EXPECT_DOUBLE_EQ(h_view(0, j), expected) << "West halo mismatch at (0, " << j << ") on rank " << rank_;
         }
 
         // East halo: recv region dim0=[kTotal-kHalo, kTotal)=[7,8), dim1=[0, kTotal)
@@ -121,18 +119,14 @@ protected:
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             std::size_t east_local_idx = 0 * kInterior + (j - kHalo);
             double expected = encode(east, east_local_idx);
-            EXPECT_DOUBLE_EQ(h_view(kTotal - 1, j), expected)
-                << "East halo mismatch at (" << kTotal - 1 << ", " << j
-                << ") on rank " << rank_;
+            EXPECT_DOUBLE_EQ(h_view(kTotal - 1, j), expected) << "East halo mismatch at (" << kTotal - 1 << ", " << j << ") on rank " << rank_;
         }
 
         // South/North halos should remain sentinel (no neighbors)
         for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
-            EXPECT_DOUBLE_EQ(h_view(i, 0), kSentinel)
-                << "South halo should be untouched at (" << i << ", 0) rank " << rank_;
+            EXPECT_DOUBLE_EQ(h_view(i, 0), kSentinel) << "South halo should be untouched at (" << i << ", 0) rank " << rank_;
             EXPECT_DOUBLE_EQ(h_view(i, kTotal - 1), kSentinel)
-                << "North halo should be untouched at (" << i << ", " << kTotal - 1
-                << ") rank " << rank_;
+                << "North halo should be untouched at (" << i << ", " << kTotal - 1 << ") rank " << rank_;
         }
     }
 
@@ -148,7 +142,7 @@ TEST_F(StructuredExchange2DTest, BlockingPeriodicRingExchange) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors_, halo_widths, *comm_);
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view("field_2d", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view("field_2d", kTotal, kTotal);
     init_view_2d(view);
 
     halo::exchange_structured_blocking(plan, view);
@@ -162,7 +156,7 @@ TEST_F(StructuredExchange2DTest, AsyncPeriodicRingExchange) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors_, halo_widths, *comm_);
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view("field_2d", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view("field_2d", kTotal, kTotal);
     init_view_2d(view);
 
     auto handle = halo::exchange_structured_async(plan, view);
@@ -174,7 +168,7 @@ TEST_F(StructuredExchange2DTest, AsyncPeriodicRingExchange) {
 // ─── 3D Periodic Ring Topology Test ─────────────────────────────────────────
 
 class StructuredExchange3DTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -183,22 +177,20 @@ protected:
 
         // Ring topology along dimension 0 (periodic)
         // dim1 and dim2 are NOT periodic (no neighbors on those faces)
-        int left  = (rank_ - 1 + size_) % size_;
+        int left = (rank_ - 1 + size_) % size_;
         int right = (rank_ + 1) % size_;
         // faces: low-d0, high-d0, low-d1, high-d1, low-d2, high-d2
         neighbors_ = {left, right, -1, -1, -1, -1};
     }
 
     /// Initialize a 3D view: interior encoded, halos sentinel.
-    void init_view_3d(Kokkos::View<double***, Kokkos::LayoutRight>& view) {
+    void init_view_3d(Kokkos::View<double ***, Kokkos::LayoutRight> &view) {
         auto h_view = Kokkos::create_mirror_view(view);
         Kokkos::deep_copy(h_view, kSentinel);
         for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
             for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
                 for (std::size_t k = kHalo; k < kHalo + kInterior; ++k) {
-                    std::size_t local_idx = (i - kHalo) * kInterior * kInterior
-                                          + (j - kHalo) * kInterior
-                                          + (k - kHalo);
+                    std::size_t local_idx = (i - kHalo) * kInterior * kInterior + (j - kHalo) * kInterior + (k - kHalo);
                     h_view(i, j, k) = encode(rank_, local_idx);
                 }
             }
@@ -208,10 +200,10 @@ protected:
 
     /// Verify halos on the d0 faces (ring dimension) are correct, and
     /// d1/d2 halos remain untouched (sentinel).
-    void verify_halos_3d(const Kokkos::View<double***, Kokkos::LayoutRight>& view) {
+    void verify_halos_3d(const Kokkos::View<double ***, Kokkos::LayoutRight> &view) {
         auto h_view = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, view);
 
-        int left  = neighbors_[0];
+        int left = neighbors_[0];
         int right = neighbors_[1];
 
         // Left halo (face 0, recv region: dim0 [0, kHalo)=[0,1))
@@ -222,13 +214,9 @@ protected:
         //   = encode(left, (kInterior-1)*kInterior^2 + (j-kHalo)*kInterior + (k-kHalo))
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             for (std::size_t k = kHalo; k < kHalo + kInterior; ++k) {
-                std::size_t left_local_idx =
-                    (kInterior - 1) * kInterior * kInterior
-                    + (j - kHalo) * kInterior + (k - kHalo);
+                std::size_t left_local_idx = (kInterior - 1) * kInterior * kInterior + (j - kHalo) * kInterior + (k - kHalo);
                 double expected = encode(left, left_local_idx);
-                EXPECT_DOUBLE_EQ(h_view(0, j, k), expected)
-                    << "Left halo mismatch at (0, " << j << ", " << k
-                    << ") on rank " << rank_;
+                EXPECT_DOUBLE_EQ(h_view(0, j, k), expected) << "Left halo mismatch at (0, " << j << ", " << k << ") on rank " << rank_;
             }
         }
 
@@ -239,13 +227,10 @@ protected:
         //   encode(right, 0*kInterior^2 + (j-kHalo)*kInterior + (k-kHalo))
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             for (std::size_t k = kHalo; k < kHalo + kInterior; ++k) {
-                std::size_t right_local_idx =
-                    0 * kInterior * kInterior
-                    + (j - kHalo) * kInterior + (k - kHalo);
+                std::size_t right_local_idx = 0 * kInterior * kInterior + (j - kHalo) * kInterior + (k - kHalo);
                 double expected = encode(right, right_local_idx);
                 EXPECT_DOUBLE_EQ(h_view(kTotal - 1, j, k), expected)
-                    << "Right halo mismatch at (" << kTotal - 1 << ", " << j
-                    << ", " << k << ") on rank " << rank_;
+                    << "Right halo mismatch at (" << kTotal - 1 << ", " << j << ", " << k << ") on rank " << rank_;
             }
         }
 
@@ -253,18 +238,14 @@ protected:
         // Check south halo: j=0, interior i and k
         for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
             for (std::size_t k = kHalo; k < kHalo + kInterior; ++k) {
-                EXPECT_DOUBLE_EQ(h_view(i, 0, k), kSentinel)
-                    << "South halo should be untouched at (" << i << ", 0, " << k
-                    << ") on rank " << rank_;
+                EXPECT_DOUBLE_EQ(h_view(i, 0, k), kSentinel) << "South halo should be untouched at (" << i << ", 0, " << k << ") on rank " << rank_;
             }
         }
 
         // Check bottom halo: k=0, interior i and j
         for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
             for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
-                EXPECT_DOUBLE_EQ(h_view(i, j, 0), kSentinel)
-                    << "Bottom halo should be untouched at (" << i << ", " << j
-                    << ", 0) on rank " << rank_;
+                EXPECT_DOUBLE_EQ(h_view(i, j, 0), kSentinel) << "Bottom halo should be untouched at (" << i << ", " << j << ", 0) on rank " << rank_;
             }
         }
     }
@@ -281,7 +262,7 @@ TEST_F(StructuredExchange3DTest, BlockingRingExchange) {
 
     halo::Structured_Halo_Plan<3> plan(extents, neighbors_, halo_widths, *comm_);
 
-    Kokkos::View<double***, Kokkos::LayoutRight> view("field_3d", kTotal, kTotal, kTotal);
+    Kokkos::View<double ***, Kokkos::LayoutRight> view("field_3d", kTotal, kTotal, kTotal);
     init_view_3d(view);
 
     halo::exchange_structured_blocking(plan, view);
@@ -295,7 +276,7 @@ TEST_F(StructuredExchange3DTest, AsyncRingExchange) {
 
     halo::Structured_Halo_Plan<3> plan(extents, neighbors_, halo_widths, *comm_);
 
-    Kokkos::View<double***, Kokkos::LayoutRight> view("field_3d", kTotal, kTotal, kTotal);
+    Kokkos::View<double ***, Kokkos::LayoutRight> view("field_3d", kTotal, kTotal, kTotal);
     init_view_3d(view);
 
     auto handle = halo::exchange_structured_async(plan, view);
@@ -307,7 +288,7 @@ TEST_F(StructuredExchange3DTest, AsyncRingExchange) {
 // ─── Non-Periodic Boundary Test ─────────────────────────────────────────────
 
 class StructuredExchangeNonPeriodicTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -323,7 +304,7 @@ protected:
 TEST_F(StructuredExchangeNonPeriodicTest, BoundaryHalosUntouched) {
     // Linear arrangement along d0: rank 0, 1, 2, 3
     // Non-periodic: rank 0 has no left neighbor, rank 3 has no right neighbor
-    int left  = (rank_ > 0) ? rank_ - 1 : -1;
+    int left = (rank_ > 0) ? rank_ - 1 : -1;
     int right = (rank_ < size_ - 1) ? rank_ + 1 : -1;
 
     // 2D grid, only exchange along d0
@@ -333,7 +314,7 @@ TEST_F(StructuredExchangeNonPeriodicTest, BoundaryHalosUntouched) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors, halo_widths, *comm_);
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view("field_np", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view("field_np", kTotal, kTotal);
 
     // Initialize interior
     auto h_view = Kokkos::create_mirror_view(view);
@@ -354,9 +335,7 @@ TEST_F(StructuredExchangeNonPeriodicTest, BoundaryHalosUntouched) {
     if (left == -1) {
         // West halo (i=0) should be untouched
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
-            EXPECT_DOUBLE_EQ(h_result(0, j), kSentinel)
-                << "West halo should be sentinel on rank " << rank_
-                << " at (0, " << j << ")";
+            EXPECT_DOUBLE_EQ(h_result(0, j), kSentinel) << "West halo should be sentinel on rank " << rank_ << " at (0, " << j << ")";
         }
     }
 
@@ -364,17 +343,14 @@ TEST_F(StructuredExchangeNonPeriodicTest, BoundaryHalosUntouched) {
         // East halo (i=kTotal-1) should be untouched
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             EXPECT_DOUBLE_EQ(h_result(kTotal - 1, j), kSentinel)
-                << "East halo should be sentinel on rank " << rank_
-                << " at (" << kTotal - 1 << ", " << j << ")";
+                << "East halo should be sentinel on rank " << rank_ << " at (" << kTotal - 1 << ", " << j << ")";
         }
     }
 
     // South/North halos (no neighbor) should always be sentinel
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
-        EXPECT_DOUBLE_EQ(h_result(i, 0), kSentinel)
-            << "South halo should be sentinel on rank " << rank_;
-        EXPECT_DOUBLE_EQ(h_result(i, kTotal - 1), kSentinel)
-            << "North halo should be sentinel on rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_result(i, 0), kSentinel) << "South halo should be sentinel on rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_result(i, kTotal - 1), kSentinel) << "North halo should be sentinel on rank " << rank_;
     }
 
     // Verify that halos on faces WITH neighbors have correct data
@@ -384,9 +360,7 @@ TEST_F(StructuredExchangeNonPeriodicTest, BoundaryHalosUntouched) {
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             std::size_t left_local_idx = (kInterior - 1) * kInterior + (j - kHalo);
             double expected = encode(left, left_local_idx);
-            EXPECT_DOUBLE_EQ(h_result(0, j), expected)
-                << "West halo data mismatch on rank " << rank_
-                << " at (0, " << j << ")";
+            EXPECT_DOUBLE_EQ(h_result(0, j), expected) << "West halo data mismatch on rank " << rank_ << " at (0, " << j << ")";
         }
     }
 
@@ -397,8 +371,7 @@ TEST_F(StructuredExchangeNonPeriodicTest, BoundaryHalosUntouched) {
             std::size_t right_local_idx = 0 * kInterior + (j - kHalo);
             double expected = encode(right, right_local_idx);
             EXPECT_DOUBLE_EQ(h_result(kTotal - 1, j), expected)
-                << "East halo data mismatch on rank " << rank_
-                << " at (" << kTotal - 1 << ", " << j << ")";
+                << "East halo data mismatch on rank " << rank_ << " at (" << kTotal - 1 << ", " << j << ")";
         }
     }
 }
@@ -406,7 +379,7 @@ TEST_F(StructuredExchangeNonPeriodicTest, BoundaryHalosUntouched) {
 // ─── LayoutLeft vs LayoutRight Test ─────────────────────────────────────────
 
 class StructuredExchangeLayoutTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -414,7 +387,7 @@ protected:
         ASSERT_EQ(size_, 4) << "This test requires exactly 4 MPI ranks";
 
         // Periodic ring along d0
-        int left  = (rank_ - 1 + size_) % size_;
+        int left = (rank_ - 1 + size_) % size_;
         int right = (rank_ + 1) % size_;
         neighbors_ = {left, right, -1, -1};
     }
@@ -431,7 +404,7 @@ TEST_F(StructuredExchangeLayoutTest, LayoutRightExchange) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors_, halo_widths, *comm_);
 
-    Kokkos::View<double**, Kokkos::LayoutRight> view("field_lr", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view("field_lr", kTotal, kTotal);
     auto h_view = Kokkos::create_mirror_view(view);
     Kokkos::deep_copy(h_view, kSentinel);
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
@@ -451,8 +424,7 @@ TEST_F(StructuredExchangeLayoutTest, LayoutRightExchange) {
     for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
         std::size_t left_local_idx = (kInterior - 1) * kInterior + (j - kHalo);
         double expected = encode(left, left_local_idx);
-        EXPECT_DOUBLE_EQ(h_result(0, j), expected)
-            << "LayoutRight: West halo mismatch at (0, " << j << ") rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_result(0, j), expected) << "LayoutRight: West halo mismatch at (0, " << j << ") rank " << rank_;
     }
 }
 
@@ -462,7 +434,7 @@ TEST_F(StructuredExchangeLayoutTest, LayoutLeftExchange) {
 
     halo::Structured_Halo_Plan<2> plan(extents, neighbors_, halo_widths, *comm_);
 
-    Kokkos::View<double**, Kokkos::LayoutLeft> view("field_ll", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutLeft> view("field_ll", kTotal, kTotal);
     auto h_view = Kokkos::create_mirror_view(view);
     Kokkos::deep_copy(h_view, kSentinel);
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
@@ -482,8 +454,7 @@ TEST_F(StructuredExchangeLayoutTest, LayoutLeftExchange) {
     for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
         std::size_t left_local_idx = (kInterior - 1) * kInterior + (j - kHalo);
         double expected = encode(left, left_local_idx);
-        EXPECT_DOUBLE_EQ(h_result(0, j), expected)
-            << "LayoutLeft: West halo mismatch at (0, " << j << ") rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_result(0, j), expected) << "LayoutLeft: West halo mismatch at (0, " << j << ") rank " << rank_;
     }
 }
 
@@ -495,7 +466,7 @@ TEST_F(StructuredExchangeLayoutTest, BothLayoutsProduceSameResults) {
     halo::Structured_Halo_Plan<2> plan(extents, neighbors_, halo_widths, *comm_);
 
     // LayoutRight
-    Kokkos::View<double**, Kokkos::LayoutRight> view_r("field_r", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutRight> view_r("field_r", kTotal, kTotal);
     auto h_r = Kokkos::create_mirror_view(view_r);
     Kokkos::deep_copy(h_r, kSentinel);
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
@@ -507,7 +478,7 @@ TEST_F(StructuredExchangeLayoutTest, BothLayoutsProduceSameResults) {
     halo::exchange_structured_blocking(plan, view_r);
 
     // LayoutLeft
-    Kokkos::View<double**, Kokkos::LayoutLeft> view_l("field_l", kTotal, kTotal);
+    Kokkos::View<double **, Kokkos::LayoutLeft> view_l("field_l", kTotal, kTotal);
     auto h_l = Kokkos::create_mirror_view(view_l);
     Kokkos::deep_copy(h_l, kSentinel);
     for (std::size_t i = kHalo; i < kHalo + kInterior; ++i) {
@@ -524,8 +495,7 @@ TEST_F(StructuredExchangeLayoutTest, BothLayoutsProduceSameResults) {
 
     for (std::size_t i = 0; i < kTotal; ++i) {
         for (std::size_t j = 0; j < kTotal; ++j) {
-            EXPECT_DOUBLE_EQ(result_r(i, j), result_l(i, j))
-                << "Layout mismatch at (" << i << ", " << j << ") rank " << rank_;
+            EXPECT_DOUBLE_EQ(result_r(i, j), result_l(i, j)) << "Layout mismatch at (" << i << ", " << j << ") rank " << rank_;
         }
     }
 }
@@ -533,7 +503,7 @@ TEST_F(StructuredExchangeLayoutTest, BothLayoutsProduceSameResults) {
 // ─── Strided Subview (4D field, one tracer) Test ────────────────────────────
 
 class StructuredExchangeStridedTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -541,7 +511,7 @@ protected:
         ASSERT_EQ(size_, 4) << "This test requires exactly 4 MPI ranks";
 
         // Periodic ring along d0
-        int left  = (rank_ - 1 + size_) % size_;
+        int left = (rank_ - 1 + size_) % size_;
         int right = (rank_ + 1) % size_;
         neighbors_ = {left, right, -1, -1};
     }
@@ -563,8 +533,7 @@ TEST_F(StructuredExchangeStridedTest, SingleTracerSubviewExchange) {
     constexpr std::size_t target_tracer = 1;
 
     // Full 4D field: (kTotal, kTotal, nz, ntracers) in LayoutRight
-    Kokkos::View<double****, Kokkos::LayoutRight> field_4d(
-        "field_4d", kTotal, kTotal, nz, ntracers);
+    Kokkos::View<double ****, Kokkos::LayoutRight> field_4d("field_4d", kTotal, kTotal, nz, ntracers);
 
     auto h_field = Kokkos::create_mirror_view(field_4d);
     Kokkos::deep_copy(h_field, kSentinel);
@@ -579,8 +548,7 @@ TEST_F(StructuredExchangeStridedTest, SingleTracerSubviewExchange) {
     Kokkos::deep_copy(field_4d, h_field);
 
     // Extract a 2D subview for the target tracer at a fixed z-level
-    auto tracer_slice = Kokkos::subview(field_4d, Kokkos::ALL, Kokkos::ALL,
-                                         target_z, target_tracer);
+    auto tracer_slice = Kokkos::subview(field_4d, Kokkos::ALL, Kokkos::ALL, target_z, target_tracer);
 
     // tracer_slice is a 2D strided subview (non-contiguous in general)
     // Create a plan for the 2D exchange
@@ -602,8 +570,7 @@ TEST_F(StructuredExchangeStridedTest, SingleTracerSubviewExchange) {
     for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
         std::size_t left_local_idx = (kInterior - 1) * kInterior + (j - kHalo);
         double expected = encode(left, left_local_idx);
-        EXPECT_DOUBLE_EQ(h_field(0, j, target_z, target_tracer), expected)
-            << "Strided: West halo mismatch at (0, " << j << ") rank " << rank_;
+        EXPECT_DOUBLE_EQ(h_field(0, j, target_z, target_tracer), expected) << "Strided: West halo mismatch at (0, " << j << ") rank " << rank_;
     }
 
     // Verify east halo of tracer slice
@@ -611,8 +578,7 @@ TEST_F(StructuredExchangeStridedTest, SingleTracerSubviewExchange) {
         std::size_t right_local_idx = 0 * kInterior + (j - kHalo);
         double expected = encode(right, right_local_idx);
         EXPECT_DOUBLE_EQ(h_field(kTotal - 1, j, target_z, target_tracer), expected)
-            << "Strided: East halo mismatch at (" << kTotal - 1 << ", " << j
-            << ") rank " << rank_;
+            << "Strided: East halo mismatch at (" << kTotal - 1 << ", " << j << ") rank " << rank_;
     }
 
     // Verify that OTHER tracer slices were NOT touched
@@ -620,8 +586,7 @@ TEST_F(StructuredExchangeStridedTest, SingleTracerSubviewExchange) {
         if (t == target_tracer) continue;
         for (std::size_t j = kHalo; j < kHalo + kInterior; ++j) {
             EXPECT_DOUBLE_EQ(h_field(0, j, target_z, t), kSentinel)
-                << "Other tracer " << t << " should be untouched at (0, " << j
-                << ") rank " << rank_;
+                << "Other tracer " << t << " should be untouched at (0, " << j << ") rank " << rank_;
         }
     }
 }
@@ -629,7 +594,7 @@ TEST_F(StructuredExchangeStridedTest, SingleTracerSubviewExchange) {
 // ─── Global MPI + Kokkos + HALO environment ─────────────────────────────────
 
 class HaloMpiEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         int provided = 0;
         MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &provided);
@@ -646,5 +611,4 @@ public:
 }  // namespace
 
 // Register the environment (gtest_main provides main()).
-static ::testing::Environment* const halo_mpi_env =
-    ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);
+static ::testing::Environment *const halo_mpi_env = ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);

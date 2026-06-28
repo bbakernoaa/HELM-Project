@@ -26,10 +26,9 @@
 /// All generation is deterministic: two calls with the same name produce
 /// bitwise-identical results (Requirement 6.5).
 
+#include <axis/topology/unstructured_mesh.hpp>
 #include <string>
 #include <vector>
-
-#include <axis/topology/unstructured_mesh.hpp>
 
 namespace axis::topology {
 
@@ -37,14 +36,14 @@ namespace axis::topology {
 /// @brief Registry of hardcoded mathematical generators for standard global weather
 ///        grids. Purely static interface — no instance state.
 class NamedGridRegistry {
-public:
+   public:
     /// @struct ParsedName
     /// @brief Parsed grid name containing family and grid number.
     ///
     /// For example, "O1280" parses into family 'O' and number 1280.
     struct ParsedName {
-        char family;   ///< Family prefix: 'O', 'F', or 'N' (standard weather grid families).
-        int  number;   ///< Grid number (a positive integer, typically representing the Gaussian number N).
+        char family;  ///< Family prefix: 'O', 'F', or 'N' (standard weather grid families).
+        int number;   ///< Grid number (a positive integer, typically representing the Gaussian number N).
     };
 
     /// @brief Parse and validate a named-grid string.
@@ -53,7 +52,7 @@ public:
     /// @return NamedGridRegistry::ParsedName A structure containing the parsed family character and grid number.
     /// @throw std::invalid_argument If the family prefix is unknown, the grid number is non-positive,
     ///                              or the string is otherwise malformed.
-    [[nodiscard]] static ParsedName parse(const std::string& name);
+    [[nodiscard]] static ParsedName parse(const std::string &name);
 
     /// @brief Check whether a name string corresponds to a registered grid generator.
     ///
@@ -62,7 +61,7 @@ public:
     ///
     /// @param name The std::string representing the grid name to check.
     /// @return bool True if a grid generator is registered for the specified name, false otherwise.
-    [[nodiscard]] static bool is_registered(const std::string& name) noexcept;
+    [[nodiscard]] static bool is_registered(const std::string &name) noexcept;
 
     /// @brief Generate the named grid as an UnstructuredMesh in the specified MemorySpace.
     ///
@@ -75,7 +74,7 @@ public:
     /// @return UnstructuredMesh<MemorySpace> The generated UnstructuredMesh consisting of quadrilateral cells.
     /// @throw std::invalid_argument If the grid name is unknown or malformed.
     template <class MemorySpace = Kokkos::HostSpace>
-    [[nodiscard]] static UnstructuredMesh<MemorySpace> generate(const std::string& name);
+    [[nodiscard]] static UnstructuredMesh<MemorySpace> generate(const std::string &name);
 
     /// @brief Enumerate all registered family prefixes.
     ///
@@ -83,6 +82,6 @@ public:
     [[nodiscard]] static std::vector<char> registered_families();
 };
 
-} // namespace axis::topology
+}  // namespace axis::topology
 
-#endif // AXIS_TOPOLOGY_NAMED_GRID_REGISTRY_HPP
+#endif  // AXIS_TOPOLOGY_NAMED_GRID_REGISTRY_HPP

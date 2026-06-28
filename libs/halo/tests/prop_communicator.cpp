@@ -12,11 +12,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <cstdint>
-#include <mpi.h>
 #include <stdexcept>
 
 #include "halo/communicator.hpp"
@@ -33,28 +33,23 @@ namespace {
 /// Generate a non-null, non-predefined MPI_Comm value suitable for testing.
 /// Returns a uintptr_t that can be cast to MPI_Comm.
 rc::Gen<std::uintptr_t> genNonNullCommValue() {
-    return rc::gen::suchThat(
-        rc::gen::map(rc::gen::inRange<std::intptr_t>(1, 100000),
-            [](std::intptr_t val) -> std::uintptr_t {
-                // Offset to avoid accidental collision with predefined comms
-                return static_cast<std::uintptr_t>(val * 16 + 0x100000);
-            }),
-        [](std::uintptr_t val) {
-            auto comm = reinterpret_cast<MPI_Comm>(val);
-            return comm != MPI_COMM_NULL &&
-                   comm != MPI_COMM_WORLD &&
-                   comm != MPI_COMM_SELF;
-        });
+    return rc::gen::suchThat(rc::gen::map(rc::gen::inRange<std::intptr_t>(1, 100000),
+                                          [](std::intptr_t val) -> std::uintptr_t {
+                                              // Offset to avoid accidental collision with predefined comms
+                                              return static_cast<std::uintptr_t>(val * 16 + 0x100000);
+                                          }),
+                             [](std::uintptr_t val) {
+                                 auto comm = reinterpret_cast<MPI_Comm>(val);
+                                 return comm != MPI_COMM_NULL && comm != MPI_COMM_WORLD && comm != MPI_COMM_SELF;
+                             });
 }
 
 /// Generate an arbitrary MPI_Comm value (including NULL and predefined).
 /// Returns a uintptr_t that can be cast to MPI_Comm.
 rc::Gen<std::uintptr_t> genArbitraryCommValue() {
-    return rc::gen::oneOf(
-        rc::gen::just(reinterpret_cast<std::uintptr_t>(MPI_COMM_NULL)),
-        rc::gen::just(reinterpret_cast<std::uintptr_t>(MPI_COMM_WORLD)),
-        rc::gen::just(reinterpret_cast<std::uintptr_t>(MPI_COMM_SELF)),
-        genNonNullCommValue());
+    return rc::gen::oneOf(rc::gen::just(reinterpret_cast<std::uintptr_t>(MPI_COMM_NULL)),
+                          rc::gen::just(reinterpret_cast<std::uintptr_t>(MPI_COMM_WORLD)),
+                          rc::gen::just(reinterpret_cast<std::uintptr_t>(MPI_COMM_SELF)), genNonNullCommValue());
 }
 
 /// Helper: cast uintptr_t to MPI_Comm
@@ -73,7 +68,7 @@ inline MPI_Comm toComm(std::uintptr_t val) {
 // **Validates: Requirements 1.1, 1.5**
 
 RC_GTEST_PROP(CommunicatorProperty1, ConstructionRoundTrip, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate an arbitrary MPI_Comm handle (NULL, predefined, or synthetic)
@@ -98,7 +93,7 @@ RC_GTEST_PROP(CommunicatorProperty1, ConstructionRoundTrip, ()) {
 // ─── Property 3a: Destructor calls MPI_Comm_free exactly once (normal exit) ──
 
 RC_GTEST_PROP(CommunicatorProperty3, DestructorCleanupNormalExit, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a non-predefined, non-null handle
@@ -111,15 +106,14 @@ RC_GTEST_PROP(CommunicatorProperty3, DestructorCleanupNormalExit, ()) {
     }
 
     // Verify MPI_Comm_free was called exactly once
-    auto comm_free_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Comm_free);
+    auto comm_free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Comm_free);
     RC_ASSERT(comm_free_count == 1u);
 }
 
 // ─── Property 3b: Destructor calls MPI_Comm_free during exception unwinding ──
 
 RC_GTEST_PROP(CommunicatorProperty3, DestructorCleanupExceptionUnwinding, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a non-predefined, non-null handle
@@ -129,26 +123,23 @@ RC_GTEST_PROP(CommunicatorProperty3, DestructorCleanupExceptionUnwinding, ()) {
     try {
         halo::Communicator communicator(comm_handle);
         throw std::runtime_error("test exception to trigger stack unwinding");
-    } catch (const std::runtime_error&) {
+    } catch (const std::runtime_error &) {
         // Exception caught — destructor should have already run
     }
 
     // Verify MPI_Comm_free was called exactly once during unwinding
-    auto comm_free_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Comm_free);
+    auto comm_free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Comm_free);
     RC_ASSERT(comm_free_count == 1u);
 }
 
 // ─── Property 3c: Predefined communicators must NOT be freed ─────────────────
 
 RC_GTEST_PROP(CommunicatorProperty3, DestructorSkipsPredefined, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Pick one of the predefined communicators randomly
-    auto predefined_val = *rc::gen::element(
-        reinterpret_cast<std::uintptr_t>(MPI_COMM_WORLD),
-        reinterpret_cast<std::uintptr_t>(MPI_COMM_SELF));
+    auto predefined_val = *rc::gen::element(reinterpret_cast<std::uintptr_t>(MPI_COMM_WORLD), reinterpret_cast<std::uintptr_t>(MPI_COMM_SELF));
     MPI_Comm predefined = toComm(predefined_val);
 
     {
@@ -156,15 +147,14 @@ RC_GTEST_PROP(CommunicatorProperty3, DestructorSkipsPredefined, ()) {
     }
 
     // Verify MPI_Comm_free was NOT called
-    auto comm_free_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Comm_free);
+    auto comm_free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Comm_free);
     RC_ASSERT(comm_free_count == 0u);
 }
 
 // ─── Property 3d: MPI_COMM_NULL must NOT be freed ────────────────────────────
 
 RC_GTEST_PROP(CommunicatorProperty3, DestructorSkipsNull, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     {
@@ -172,7 +162,6 @@ RC_GTEST_PROP(CommunicatorProperty3, DestructorSkipsNull, ()) {
     }
 
     // Verify MPI_Comm_free was NOT called
-    auto comm_free_count = spy.count_of(
-        halo::testing::MPI_Call_Record::Type::Comm_free);
+    auto comm_free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Comm_free);
     RC_ASSERT(comm_free_count == 0u);
 }

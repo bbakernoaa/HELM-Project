@@ -12,33 +12,29 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/topology/mesh_factory.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cstddef>
+#include <vector>
 
 namespace {
 
 /// Build a simple ni x nj regular-grid UnstructuredMesh on HostSpace via
 /// StructuredGrid::to_unstructured(). This gives us a mesh with known geometry
 /// and well-formed CSR connectivity suitable for the round-trip test.
-axis::topology::UnstructuredMesh<Kokkos::HostSpace>
-build_regular_mesh(std::size_t ni, std::size_t nj,
-                   double lon_start, double lat_start,
-                   double dlon, double dlat) {
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, double lat_start,
+                                                                       double dlon, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, Kokkos::HostSpace> center_lon("clon", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> center_lat("clat", n_centers);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lon("crlon", n_corners);
-    Kokkos::View<double*, Kokkos::HostSpace> corner_lat("crlat", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lon("clon", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> center_lat("clat", n_centers);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lon("crlon", n_corners);
+    Kokkos::View<double *, Kokkos::HostSpace> corner_lat("crlat", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -56,9 +52,7 @@ build_regular_mesh(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<Kokkos::HostSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
@@ -77,14 +71,10 @@ RC_GTEST_PROP(PropDescriptorRoundtrip, MeshEgressToFromDescriptorIsIdentity, ())
     const auto nj = *rc::gen::inRange<std::size_t>(2, 8);
 
     // Random starting coordinate and cell size
-    const double lon_start = *rc::gen::map(rc::gen::inRange(0, 180),
-                                           [](int v) { return static_cast<double>(v); });
-    const double lat_start = *rc::gen::map(rc::gen::inRange(-80, 60),
-                                           [](int v) { return static_cast<double>(v); });
-    const double dlon = *rc::gen::map(rc::gen::inRange(1, 10),
-                                      [](int v) { return static_cast<double>(v) * 0.5; });
-    const double dlat = *rc::gen::map(rc::gen::inRange(1, 10),
-                                      [](int v) { return static_cast<double>(v) * 0.5; });
+    const double lon_start = *rc::gen::map(rc::gen::inRange(0, 180), [](int v) { return static_cast<double>(v); });
+    const double lat_start = *rc::gen::map(rc::gen::inRange(-80, 60), [](int v) { return static_cast<double>(v); });
+    const double dlon = *rc::gen::map(rc::gen::inRange(1, 10), [](int v) { return static_cast<double>(v) * 0.5; });
+    const double dlat = *rc::gen::map(rc::gen::inRange(1, 10), [](int v) { return static_cast<double>(v) * 0.5; });
 
     // 1. Build the original mesh
     auto original = build_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat);
@@ -113,8 +103,7 @@ RC_GTEST_PROP(PropDescriptorRoundtrip, MeshEgressToFromDescriptorIsIdentity, ())
     descriptor.buffers.cell_mask = orig_cell_mask;
 
     // 4. Reconstruct the mesh via from_descriptor
-    auto reconstructed =
-        axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(descriptor);
+    auto reconstructed = axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(descriptor);
 
     // 5. Verify identical n_nodes and n_cells
     RC_ASSERT(reconstructed.n_nodes() == original.n_nodes());
@@ -151,7 +140,7 @@ RC_GTEST_PROP(PropDescriptorRoundtrip, MeshEgressToFromDescriptorIsIdentity, ())
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -164,7 +153,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

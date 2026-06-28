@@ -12,10 +12,7 @@
 namespace dagr::detail {
 
 Rank_Pool::Rank_Pool(std::set<int> ranks)
-    : rank_ids_(ranks.begin(), ranks.end())
-    , total_(static_cast<std::uint32_t>(ranks.size()))
-    , available_(static_cast<std::uint32_t>(ranks.size()))
-{
+    : rank_ids_(ranks.begin(), ranks.end()), total_(static_cast<std::uint32_t>(ranks.size())), available_(static_cast<std::uint32_t>(ranks.size())) {
     // Construct bitset with all slots marked available (true)
     bitset_.reserve(ranks.size());
     for (std::size_t i = 0; i < ranks.size(); ++i) {
@@ -41,8 +38,7 @@ std::set<int> Rank_Pool::try_allocate(std::uint32_t count) {
 
     for (std::size_t i = 0; i < pool_size && allocated.size() < count; ++i) {
         bool expected = true;
-        if (bitset_[i]->compare_exchange_strong(expected, false,
-                std::memory_order_acq_rel, std::memory_order_relaxed)) {
+        if (bitset_[i]->compare_exchange_strong(expected, false, std::memory_order_acq_rel, std::memory_order_relaxed)) {
             allocated.insert(rank_ids_[i]);
         }
     }
@@ -58,13 +54,12 @@ std::set<int> Rank_Pool::try_allocate(std::uint32_t count) {
     }
 
     // Decrement available count
-    available_.fetch_sub(static_cast<std::uint32_t>(allocated.size()),
-                         std::memory_order_release);
+    available_.fetch_sub(static_cast<std::uint32_t>(allocated.size()), std::memory_order_release);
 
     return allocated;
 }
 
-void Rank_Pool::release(const std::set<int>& ranks) {
+void Rank_Pool::release(const std::set<int> &ranks) {
     std::lock_guard<std::mutex> lock(structural_mutex_);
 
     const std::size_t pool_size = bitset_.size();
@@ -73,8 +68,7 @@ void Rank_Pool::release(const std::set<int>& ranks) {
     for (std::size_t i = 0; i < pool_size; ++i) {
         if (ranks.count(rank_ids_[i]) > 0) {
             bool expected = false;
-            if (bitset_[i]->compare_exchange_strong(expected, true,
-                    std::memory_order_acq_rel, std::memory_order_relaxed)) {
+            if (bitset_[i]->compare_exchange_strong(expected, true, std::memory_order_acq_rel, std::memory_order_relaxed)) {
                 ++released_count;
             }
         }
@@ -85,7 +79,7 @@ void Rank_Pool::release(const std::set<int>& ranks) {
     }
 }
 
-void Rank_Pool::add_ranks(const std::set<int>& ranks) {
+void Rank_Pool::add_ranks(const std::set<int> &ranks) {
     std::lock_guard<std::mutex> lock(structural_mutex_);
 
     for (int rank_id : ranks) {
@@ -107,7 +101,7 @@ void Rank_Pool::add_ranks(const std::set<int>& ranks) {
     }
 }
 
-std::set<int> Rank_Pool::remove_available(const std::set<int>& ranks) {
+std::set<int> Rank_Pool::remove_available(const std::set<int> &ranks) {
     std::lock_guard<std::mutex> lock(structural_mutex_);
 
     std::set<int> removed;
@@ -127,8 +121,7 @@ std::set<int> Rank_Pool::remove_available(const std::set<int>& ranks) {
 
     // Remove entries from vectors in reverse index order to maintain validity.
     // Use swap-with-last-and-pop to avoid move issues with unique_ptr vector.
-    std::sort(indices_to_remove.begin(), indices_to_remove.end(),
-              [](std::size_t a, std::size_t b) { return a > b; });
+    std::sort(indices_to_remove.begin(), indices_to_remove.end(), [](std::size_t a, std::size_t b) { return a > b; });
 
     for (std::size_t idx : indices_to_remove) {
         const std::size_t last = rank_ids_.size() - 1;
@@ -160,8 +153,7 @@ std::uint32_t Rank_Pool::available_ranks() const noexcept {
 }
 
 std::uint32_t Rank_Pool::allocated_ranks() const noexcept {
-    return total_.load(std::memory_order_acquire)
-         - available_.load(std::memory_order_acquire);
+    return total_.load(std::memory_order_acquire) - available_.load(std::memory_order_acquire);
 }
 
-} // namespace dagr::detail
+}  // namespace dagr::detail

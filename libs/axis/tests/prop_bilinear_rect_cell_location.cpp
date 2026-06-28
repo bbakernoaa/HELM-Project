@@ -12,18 +12,16 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/structured_grid.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/solver/regrid_config.hpp>
-#include <axis/types.hpp>
 
 namespace {
 
@@ -32,7 +30,7 @@ using MemSpace = Kokkos::HostSpace;
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -45,8 +43,7 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 // ─── Generators ──────────────────────────────────────────────────────────────
 
@@ -57,40 +54,31 @@ rc::Gen<std::size_t> genGridDim() {
 
 /// Generate a positive delta for grid spacing in (0.01, 10.0].
 rc::Gen<double> genPositiveDelta() {
-    return rc::gen::map(rc::gen::inRange(1, 1000), [](int x) {
-        return static_cast<double>(x) * 0.01;
-    });
+    return rc::gen::map(rc::gen::inRange(1, 1000), [](int x) { return static_cast<double>(x) * 0.01; });
 }
 
 /// Generate a grid origin coordinate in [-180, 180].
 rc::Gen<double> genOrigin() {
-    return rc::gen::map(rc::gen::inRange(-18000, 18001), [](int x) {
-        return static_cast<double>(x) * 0.01;
-    });
+    return rc::gen::map(rc::gen::inRange(-18000, 18001), [](int x) { return static_cast<double>(x) * 0.01; });
 }
 
 /// Generate a fractional position in (0, 1), avoiding exact boundaries.
 rc::Gen<double> genFrac() {
-    return rc::gen::map(rc::gen::inRange(1, 999), [](int x) {
-        return static_cast<double>(x) / 1000.0;
-    });
+    return rc::gen::map(rc::gen::inRange(1, 999), [](int x) { return static_cast<double>(x) / 1000.0; });
 }
 
 // ─── Helper: Build a regular-grid UnstructuredMesh ───────────────────────────
 
 /// Constructs a regular lat-lon grid as an UnstructuredMesh.
 /// Grid has ni×nj cells covering [lon0, lon0 + ni*dlon] × [lat0, lat0 + nj*dlat].
-axis::topology::UnstructuredMesh<MemSpace>
-make_regular_grid(std::size_t ni, std::size_t nj,
-                  double lon0, double dlon,
-                  double lat0, double dlat) {
+axis::topology::UnstructuredMesh<MemSpace> make_regular_grid(std::size_t ni, std::size_t nj, double lon0, double dlon, double lat0, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t nc_i = ni + 1;
     const std::size_t nc_j = nj + 1;
     const std::size_t n_corners = nc_i * nc_j;
 
-    Kokkos::View<double*, MemSpace> cx("cx", n_centers);
-    Kokkos::View<double*, MemSpace> cy("cy", n_centers);
+    Kokkos::View<double *, MemSpace> cx("cx", n_centers);
+    Kokkos::View<double *, MemSpace> cy("cy", n_centers);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon0 + (static_cast<double>(i) + 0.5) * dlon;
@@ -98,12 +86,10 @@ make_regular_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), axis::topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> crx("crx", n_corners);
-    Kokkos::View<double*, MemSpace> cry("cry", n_corners);
+    Kokkos::View<double *, MemSpace> crx("crx", n_corners);
+    Kokkos::View<double *, MemSpace> cry("cry", n_corners);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_i) = lon0 + static_cast<double>(i) * dlon;
@@ -116,25 +102,26 @@ make_regular_grid(std::size_t ni, std::size_t nj,
 }
 
 /// Build a single-cell destination mesh centered at (lon, lat).
-axis::topology::UnstructuredMesh<MemSpace>
-make_single_cell_dst(double lon, double lat) {
+axis::topology::UnstructuredMesh<MemSpace> make_single_cell_dst(double lon, double lat) {
     const double half_dx = 0.01;
 
-    Kokkos::View<double*, MemSpace> dst_cx("dst_cx", 1);
-    Kokkos::View<double*, MemSpace> dst_cy("dst_cy", 1);
+    Kokkos::View<double *, MemSpace> dst_cx("dst_cx", 1);
+    Kokkos::View<double *, MemSpace> dst_cy("dst_cy", 1);
     dst_cx(0) = lon;
     dst_cy(0) = lat;
 
-    axis::topology::StructuredGrid<MemSpace> dst_grid(
-        1, 1, std::move(dst_cx), std::move(dst_cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> dst_grid(1, 1, std::move(dst_cx), std::move(dst_cy), axis::topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> dst_crx("dst_crx", 4);
-    Kokkos::View<double*, MemSpace> dst_cry("dst_cry", 4);
-    dst_crx(0) = lon - half_dx; dst_cry(0) = lat - half_dx;
-    dst_crx(1) = lon + half_dx; dst_cry(1) = lat - half_dx;
-    dst_crx(2) = lon - half_dx; dst_cry(2) = lat + half_dx;
-    dst_crx(3) = lon + half_dx; dst_cry(3) = lat + half_dx;
+    Kokkos::View<double *, MemSpace> dst_crx("dst_crx", 4);
+    Kokkos::View<double *, MemSpace> dst_cry("dst_cry", 4);
+    dst_crx(0) = lon - half_dx;
+    dst_cry(0) = lat - half_dx;
+    dst_crx(1) = lon + half_dx;
+    dst_cry(1) = lat - half_dx;
+    dst_crx(2) = lon - half_dx;
+    dst_cry(2) = lat + half_dx;
+    dst_crx(3) = lon + half_dx;
+    dst_cry(3) = lat + half_dx;
     dst_grid.set_corners(std::move(dst_crx), std::move(dst_cry));
 
     return dst_grid.to_unstructured();
@@ -151,9 +138,7 @@ make_single_cell_dst(double lon, double lat) {
 //
 // **Validates: Requirements 2.1, 2.7**
 
-RC_GTEST_PROP(BilinearRectCellLocation,
-              ComputedCellIndexPlacesPointInCorrect2x2Block,
-              ()) {
+RC_GTEST_PROP(BilinearRectCellLocation, ComputedCellIndexPlacesPointInCorrect2x2Block, ()) {
     // Generate random grid dimensions
     const auto ni = *genGridDim();
     const auto nj = *genGridDim();
@@ -171,10 +156,8 @@ RC_GTEST_PROP(BilinearRectCellLocation,
     const double dst_lat = lat_min + frac_j * static_cast<double>(nj) * dlat;
 
     // Expected cell index via floor division (same as production code)
-    auto expected_i = static_cast<std::size_t>(
-        std::floor((dst_lon - lon_min) / dlon));
-    auto expected_j = static_cast<std::size_t>(
-        std::floor((dst_lat - lat_min) / dlat));
+    auto expected_i = static_cast<std::size_t>(std::floor((dst_lon - lon_min) / dlon));
+    auto expected_j = static_cast<std::size_t>(std::floor((dst_lat - lat_min) / dlat));
 
     // Clamp to valid range (matches production clamping logic)
     if (expected_i >= ni) expected_i = ni - 1;
@@ -198,9 +181,7 @@ RC_GTEST_PROP(BilinearRectCellLocation,
     RC_ASSERT(dst_lat <= cell_lat_max + eps);
 }
 
-RC_GTEST_PROP(BilinearRectCellLocation,
-              FlatLinearIndexWithinBounds,
-              ()) {
+RC_GTEST_PROP(BilinearRectCellLocation, FlatLinearIndexWithinBounds, ()) {
     // Generate random grid dimensions
     const auto ni = *genGridDim();
     const auto nj = *genGridDim();
@@ -217,16 +198,14 @@ RC_GTEST_PROP(BilinearRectCellLocation,
 
     // Verify the 2×2 block neighbors are also valid for interior cells
     if (i + 1 < ni && j + 1 < nj) {
-        RC_ASSERT((j) * ni + (i) < ni * nj);           // (i, j)
-        RC_ASSERT((j) * ni + (i + 1) < ni * nj);       // (i+1, j)
-        RC_ASSERT((j + 1) * ni + (i) < ni * nj);       // (i, j+1)
-        RC_ASSERT((j + 1) * ni + (i + 1) < ni * nj);   // (i+1, j+1)
+        RC_ASSERT((j)*ni + (i) < ni * nj);            // (i, j)
+        RC_ASSERT((j)*ni + (i + 1) < ni * nj);        // (i+1, j)
+        RC_ASSERT((j + 1) * ni + (i) < ni * nj);      // (i, j+1)
+        RC_ASSERT((j + 1) * ni + (i + 1) < ni * nj);  // (i+1, j+1)
     }
 }
 
-RC_GTEST_PROP(BilinearRectCellLocation,
-              InterpolationHitsCorrectSourceCells,
-              ()) {
+RC_GTEST_PROP(BilinearRectCellLocation, InterpolationHitsCorrectSourceCells, ()) {
     // Use smaller grids to keep test fast but still validate cell location
     const auto ni = *rc::gen::inRange<std::size_t>(4, 50);
     const auto nj = *rc::gen::inRange<std::size_t>(4, 50);
@@ -254,8 +233,7 @@ RC_GTEST_PROP(BilinearRectCellLocation,
     cfg.line_type = axis::solver::LineType::GreatCircle;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     // The matrix should have exactly 4 nonzero entries for one interior point
     RC_ASSERT(matrix.nnz() == 4);
@@ -288,11 +266,8 @@ RC_GTEST_PROP(BilinearRectCellLocation,
 
     // The four expected source cells for bilinear interpolation
     std::vector<std::size_t> expected_cells = {
-        static_cast<std::size_t>(cj) * ni + static_cast<std::size_t>(ci),
-        static_cast<std::size_t>(cj) * ni + static_cast<std::size_t>(ci1),
-        static_cast<std::size_t>(cj1) * ni + static_cast<std::size_t>(ci),
-        static_cast<std::size_t>(cj1) * ni + static_cast<std::size_t>(ci1)
-    };
+        static_cast<std::size_t>(cj) * ni + static_cast<std::size_t>(ci), static_cast<std::size_t>(cj) * ni + static_cast<std::size_t>(ci1),
+        static_cast<std::size_t>(cj1) * ni + static_cast<std::size_t>(ci), static_cast<std::size_t>(cj1) * ni + static_cast<std::size_t>(ci1)};
 
     // Each column index from the matrix should be one of the expected cells
     for (std::size_t k = 0; k < matrix.nnz(); ++k) {

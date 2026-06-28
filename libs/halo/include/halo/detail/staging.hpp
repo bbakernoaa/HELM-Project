@@ -13,7 +13,6 @@
 
 #include <Kokkos_Core.hpp>
 #include <cstddef>
-
 #include <halo/detail/memory_traits.hpp>
 
 namespace halo::detail {
@@ -34,20 +33,12 @@ namespace halo::detail {
 /// @pre offset + count <= view.extent(0)
 /// @post The returned host mirror contains a copy of view[offset..offset+count).
 template <typename ViewType>
-[[nodiscard]] auto stage_send(const ViewType& view,
-                              std::size_t offset,
-                              std::size_t count) -> host_mirror_t<ViewType>
-{
+[[nodiscard]] auto stage_send(const ViewType &view, std::size_t offset, std::size_t count) -> host_mirror_t<ViewType> {
     // Create a subview of the device data at [offset, offset+count)
-    auto device_subview = Kokkos::subview(
-        view,
-        Kokkos::make_pair(offset, offset + count));
+    auto device_subview = Kokkos::subview(view, Kokkos::make_pair(offset, offset + count));
 
     // Allocate a host mirror buffer for the subview
-    auto host_buffer = Kokkos::create_mirror_view(
-        Kokkos::WithoutInitializing,
-        Kokkos::HostSpace{},
-        device_subview);
+    auto host_buffer = Kokkos::create_mirror_view(Kokkos::WithoutInitializing, Kokkos::HostSpace{}, device_subview);
 
     // Deep-copy device data to host buffer
     Kokkos::deep_copy(host_buffer, device_subview);
@@ -72,25 +63,17 @@ template <typename ViewType>
 /// @pre host_buffer.extent(0) >= count
 /// @post device_view[offset..offset+count) contains the data from host_buffer.
 template <typename ViewType>
-void stage_recv(const host_mirror_t<ViewType>& host_buffer,
-                ViewType& device_view,
-                std::size_t offset,
-                std::size_t count)
-{
+void stage_recv(const host_mirror_t<ViewType> &host_buffer, ViewType &device_view, std::size_t offset, std::size_t count) {
     // Create a subview of the device view at [offset, offset+count)
-    auto device_subview = Kokkos::subview(
-        device_view,
-        Kokkos::make_pair(offset, offset + count));
+    auto device_subview = Kokkos::subview(device_view, Kokkos::make_pair(offset, offset + count));
 
     // Create a subview of the host buffer for the relevant range [0, count)
-    auto host_subview = Kokkos::subview(
-        host_buffer,
-        Kokkos::make_pair(std::size_t{0}, count));
+    auto host_subview = Kokkos::subview(host_buffer, Kokkos::make_pair(std::size_t{0}, count));
 
     // Deep-copy from host buffer back to device
     Kokkos::deep_copy(device_subview, host_subview);
 }
 
-} // namespace halo::detail
+}  // namespace halo::detail
 
-#endif // HALO_DETAIL_STAGING_HPP
+#endif  // HALO_DETAIL_STAGING_HPP

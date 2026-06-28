@@ -17,14 +17,9 @@
 
 #include <mpi.h>
 
+#include <Kokkos_Core.hpp>
 #include <cstddef>
 #include <functional>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
-#include <Kokkos_Core.hpp>
-
 #include <halo/communicator.hpp>
 #include <halo/detail/compute_tag.hpp>
 #include <halo/detail/gpu_aware_probe.hpp>
@@ -34,6 +29,9 @@
 #include <halo/environment.hpp>
 #include <halo/error_policy.hpp>
 #include <halo/halo_plan.hpp>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace halo {
 
@@ -51,7 +49,7 @@ namespace halo {
 /// buffers at construction. start() packs device→host before MPI_Startall,
 /// and wait() unpacks host→device after MPI_Waitall.
 class Persistent_Halo_Handle {
-public:
+   public:
     /// @brief Construct a persistent handle by binding a plan to a view.
     ///
     /// Calls MPI_Send_init for each send neighbor and MPI_Recv_init for each
@@ -67,7 +65,7 @@ public:
     ///
     /// @throws std::runtime_error if any MPI_Send_init or MPI_Recv_init fails.
     template <typename ViewType>
-    Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& view);
+    Persistent_Halo_Handle(const Halo_Plan &plan, ViewType &view);
 
     /// @brief Destructor. Calls MPI_Request_free on all persistent requests.
     ~Persistent_Halo_Handle();
@@ -76,16 +74,16 @@ public:
     Persistent_Halo_Handle() noexcept = default;
 
     /// @brief Move constructor. Transfers ownership; source becomes empty.
-    Persistent_Halo_Handle(Persistent_Halo_Handle&& other) noexcept;
+    Persistent_Halo_Handle(Persistent_Halo_Handle &&other) noexcept;
 
     /// @brief Move assignment. Frees current requests, transfers from other.
-    Persistent_Halo_Handle& operator=(Persistent_Halo_Handle&& other) noexcept;
+    Persistent_Halo_Handle &operator=(Persistent_Halo_Handle &&other) noexcept;
 
     /// @brief Copy construction is deleted (unique ownership of persistent requests).
-    Persistent_Halo_Handle(const Persistent_Halo_Handle&) = delete;
+    Persistent_Halo_Handle(const Persistent_Halo_Handle &) = delete;
 
     /// @brief Copy assignment is deleted (unique ownership of persistent requests).
-    Persistent_Halo_Handle& operator=(const Persistent_Halo_Handle&) = delete;
+    Persistent_Halo_Handle &operator=(const Persistent_Halo_Handle &) = delete;
 
     /// @brief Initiate all persistent communication operations.
     ///
@@ -115,7 +113,7 @@ public:
     /// @return true if default-constructed or moved-from.
     [[nodiscard]] bool empty() const noexcept;
 
-private:
+   private:
     /// @brief Persistent MPI request handles (recv requests first, then sends).
     std::vector<MPI_Request> requests_;
 
@@ -139,7 +137,7 @@ private:
 // ═══════════════════════════════════════════════════════════════════════════════
 
 template <typename ViewType>
-Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& view) {
+Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan &plan, ViewType &view) {
     // Early return for empty plans
     if (plan.num_send_neighbors() == 0 && plan.num_recv_neighbors() == 0) {
         return;
@@ -148,7 +146,7 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
     // Acquire serialization guard for thread safety during init
     detail::Serialized_MPI_Guard guard;
 
-    const auto& comm = plan.communicator();
+    const auto &comm = plan.communicator();
     const int my_rank = comm.rank();
     const int comm_size = comm.size();
     const MPI_Comm mpi_comm = comm.handle();
@@ -178,7 +176,7 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
         // ─── Staged path: allocate host buffers and bind persistent requests ─
 
         // Allocate persistent host send buffers
-        using host_view_t = Kokkos::View<value_type*, Kokkos::HostSpace>;
+        using host_view_t = Kokkos::View<value_type *, Kokkos::HostSpace>;
         auto send_buffers = std::make_shared<std::vector<host_view_t>>();
         send_buffers->reserve(num_send);
 
@@ -189,22 +187,13 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
         // MPI_Recv_init for each receive neighbor (into host buffers)
         std::size_t recv_offset = plan.total_send_elements();
         for (std::size_t i = 0; i < num_recv; ++i) {
-            const auto& neighbor = recv_info[i];
+            const auto &neighbor = recv_info[i];
             const int tag = detail::compute_tag(neighbor.rank, my_rank, comm_size);
 
-            auto host_buf = host_view_t(
-                Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_recv_buf"),
-                neighbor.count);
+            auto host_buf = host_view_t(Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_recv_buf"), neighbor.count);
             recv_buffers->push_back(host_buf);
 
-            int rc = MPI_Recv_init(
-                host_buf.data(),
-                static_cast<int>(neighbor.count),
-                mpi_dtype,
-                neighbor.rank,
-                tag,
-                mpi_comm,
-                &requests_[i]);
+            int rc = MPI_Recv_init(host_buf.data(), static_cast<int>(neighbor.count), mpi_dtype, neighbor.rank, tag, mpi_comm, &requests_[i]);
 
             if (rc != MPI_SUCCESS) {
                 detail::handle_mpi_error(rc, neighbor.rank, "MPI_Recv_init");
@@ -216,22 +205,14 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
         // MPI_Send_init for each send neighbor (from host buffers)
         std::size_t send_offset = 0;
         for (std::size_t i = 0; i < num_send; ++i) {
-            const auto& neighbor = send_info[i];
+            const auto &neighbor = send_info[i];
             const int tag = detail::compute_tag(my_rank, neighbor.rank, comm_size);
 
-            auto host_buf = host_view_t(
-                Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_send_buf"),
-                neighbor.count);
+            auto host_buf = host_view_t(Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_send_buf"), neighbor.count);
             send_buffers->push_back(host_buf);
 
-            int rc = MPI_Send_init(
-                host_buf.data(),
-                static_cast<int>(neighbor.count),
-                mpi_dtype,
-                neighbor.rank,
-                tag,
-                mpi_comm,
-                &requests_[num_recv + i]);
+            int rc =
+                MPI_Send_init(host_buf.data(), static_cast<int>(neighbor.count), mpi_dtype, neighbor.rank, tag, mpi_comm, &requests_[num_recv + i]);
 
             if (rc != MPI_SUCCESS) {
                 detail::handle_mpi_error(rc, neighbor.rank, "MPI_Send_init");
@@ -245,10 +226,8 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
         pack_fn_ = [send_buffers, &view, send_info, total_send_elems]() {
             std::size_t offset = 0;
             for (std::size_t i = 0; i < send_info.size(); ++i) {
-                const auto& neighbor = send_info[i];
-                auto device_subview = Kokkos::subview(
-                    view,
-                    Kokkos::make_pair(offset, offset + neighbor.count));
+                const auto &neighbor = send_info[i];
+                auto device_subview = Kokkos::subview(view, Kokkos::make_pair(offset, offset + neighbor.count));
                 Kokkos::deep_copy((*send_buffers)[i], device_subview);
                 offset += neighbor.count;
             }
@@ -258,10 +237,8 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
         unpack_fn_ = [recv_buffers, &view, recv_info, total_send_elems]() {
             std::size_t offset = total_send_elems;
             for (std::size_t i = 0; i < recv_info.size(); ++i) {
-                const auto& neighbor = recv_info[i];
-                auto device_subview = Kokkos::subview(
-                    view,
-                    Kokkos::make_pair(offset, offset + neighbor.count));
+                const auto &neighbor = recv_info[i];
+                auto device_subview = Kokkos::subview(view, Kokkos::make_pair(offset, offset + neighbor.count));
                 Kokkos::deep_copy(device_subview, (*recv_buffers)[i]);
                 offset += neighbor.count;
             }
@@ -272,17 +249,11 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
         // MPI_Recv_init for each receive neighbor (directly into view)
         std::size_t recv_offset = plan.total_send_elements();
         for (std::size_t i = 0; i < num_recv; ++i) {
-            const auto& neighbor = recv_info[i];
+            const auto &neighbor = recv_info[i];
             const int tag = detail::compute_tag(neighbor.rank, my_rank, comm_size);
 
-            int rc = MPI_Recv_init(
-                view.data() + recv_offset,
-                static_cast<int>(neighbor.count),
-                mpi_dtype,
-                neighbor.rank,
-                tag,
-                mpi_comm,
-                &requests_[i]);
+            int rc =
+                MPI_Recv_init(view.data() + recv_offset, static_cast<int>(neighbor.count), mpi_dtype, neighbor.rank, tag, mpi_comm, &requests_[i]);
 
             if (rc != MPI_SUCCESS) {
                 detail::handle_mpi_error(rc, neighbor.rank, "MPI_Recv_init");
@@ -294,17 +265,11 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan& plan, ViewType& 
         // MPI_Send_init for each send neighbor (directly from view)
         std::size_t send_offset = 0;
         for (std::size_t i = 0; i < num_send; ++i) {
-            const auto& neighbor = send_info[i];
+            const auto &neighbor = send_info[i];
             const int tag = detail::compute_tag(my_rank, neighbor.rank, comm_size);
 
-            int rc = MPI_Send_init(
-                view.data() + send_offset,
-                static_cast<int>(neighbor.count),
-                mpi_dtype,
-                neighbor.rank,
-                tag,
-                mpi_comm,
-                &requests_[num_recv + i]);
+            int rc = MPI_Send_init(view.data() + send_offset, static_cast<int>(neighbor.count), mpi_dtype, neighbor.rank, tag, mpi_comm,
+                                   &requests_[num_recv + i]);
 
             if (rc != MPI_SUCCESS) {
                 detail::handle_mpi_error(rc, neighbor.rank, "MPI_Send_init");
@@ -319,19 +284,18 @@ inline Persistent_Halo_Handle::~Persistent_Halo_Handle() {
     free_requests_();
 }
 
-inline Persistent_Halo_Handle::Persistent_Halo_Handle(Persistent_Halo_Handle&& other) noexcept
+inline Persistent_Halo_Handle::Persistent_Halo_Handle(Persistent_Halo_Handle &&other) noexcept
     : requests_(std::move(other.requests_)),
       num_recv_requests_(other.num_recv_requests_),
       pack_fn_(std::move(other.pack_fn_)),
-      unpack_fn_(std::move(other.unpack_fn_))
-{
+      unpack_fn_(std::move(other.unpack_fn_)) {
     other.requests_.clear();
     other.num_recv_requests_ = 0;
     other.pack_fn_ = nullptr;
     other.unpack_fn_ = nullptr;
 }
 
-inline Persistent_Halo_Handle& Persistent_Halo_Handle::operator=(Persistent_Halo_Handle&& other) noexcept {
+inline Persistent_Halo_Handle &Persistent_Halo_Handle::operator=(Persistent_Halo_Handle &&other) noexcept {
     if (this != &other) {
         free_requests_();
 
@@ -360,9 +324,7 @@ inline void Persistent_Halo_Handle::start() {
 
     detail::Serialized_MPI_Guard guard;
 
-    int rc = MPI_Startall(
-        static_cast<int>(requests_.size()),
-        requests_.data());
+    int rc = MPI_Startall(static_cast<int>(requests_.size()), requests_.data());
 
     if (rc != MPI_SUCCESS) {
         detail::handle_mpi_error(rc, -1, "MPI_Startall");
@@ -376,10 +338,7 @@ inline void Persistent_Halo_Handle::wait() {
 
     detail::Serialized_MPI_Guard guard;
 
-    int rc = MPI_Waitall(
-        static_cast<int>(requests_.size()),
-        requests_.data(),
-        MPI_STATUSES_IGNORE);
+    int rc = MPI_Waitall(static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE);
 
     if (rc != MPI_SUCCESS) {
         detail::handle_mpi_error(rc, -1, "MPI_Waitall");
@@ -399,11 +358,7 @@ inline bool Persistent_Halo_Handle::test() {
     detail::Serialized_MPI_Guard guard;
 
     int flag = 0;
-    int rc = MPI_Testall(
-        static_cast<int>(requests_.size()),
-        requests_.data(),
-        &flag,
-        MPI_STATUSES_IGNORE);
+    int rc = MPI_Testall(static_cast<int>(requests_.size()), requests_.data(), &flag, MPI_STATUSES_IGNORE);
 
     if (rc != MPI_SUCCESS) {
         detail::handle_mpi_error(rc, -1, "MPI_Testall");
@@ -425,7 +380,7 @@ inline bool Persistent_Halo_Handle::empty() const noexcept {
 }
 
 inline void Persistent_Halo_Handle::free_requests_() noexcept {
-    for (auto& req : requests_) {
+    for (auto &req : requests_) {
         if (req != MPI_REQUEST_NULL) {
             MPI_Request_free(&req);
         }
@@ -433,6 +388,6 @@ inline void Persistent_Halo_Handle::free_requests_() noexcept {
     requests_.clear();
 }
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_PERSISTENT_HALO_HANDLE_HPP
+#endif  // HALO_PERSISTENT_HALO_HANDLE_HPP

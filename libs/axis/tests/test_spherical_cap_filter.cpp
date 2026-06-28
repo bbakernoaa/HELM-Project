@@ -5,10 +5,9 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
+#include <axis/detail/spherical_cap_filter.hpp>
 #include <cmath>
 #include <vector>
-
-#include <axis/detail/spherical_cap_filter.hpp>
 
 namespace axis::test {
 
@@ -29,16 +28,14 @@ TEST(SphericalCapFilter, RejectsDistantCaps) {
     double radius_s = 0.1;  // ~5.7 degrees
     double radius_d = 0.1;
 
-    EXPECT_TRUE(axis::detail::spherical_cap_rejects(
-        centroid_s, radius_s, centroid_d, radius_d));
+    EXPECT_TRUE(axis::detail::spherical_cap_rejects(centroid_s, radius_s, centroid_d, radius_d));
 }
 
 TEST(SphericalCapFilter, AcceptsOverlappingCaps) {
     // Two caps centered at the same point should never be rejected
     axis::detail::Vec3 centroid{1.0, 0.0, 0.0};
 
-    EXPECT_FALSE(axis::detail::spherical_cap_rejects(
-        centroid, 0.1, centroid, 0.1));
+    EXPECT_FALSE(axis::detail::spherical_cap_rejects(centroid, 0.1, centroid, 0.1));
 }
 
 TEST(SphericalCapFilter, AcceptsNearCaps) {
@@ -53,8 +50,7 @@ TEST(SphericalCapFilter, AcceptsNearCaps) {
     double radius_s = 0.1;
     double radius_d = 0.1;
 
-    EXPECT_FALSE(axis::detail::spherical_cap_rejects(
-        centroid_s, radius_s, centroid_d, radius_d));
+    EXPECT_FALSE(axis::detail::spherical_cap_rejects(centroid_s, radius_s, centroid_d, radius_d));
 }
 
 TEST(SphericalCapFilter, RejectsBarelyDisjointCaps) {
@@ -69,16 +65,14 @@ TEST(SphericalCapFilter, RejectsBarelyDisjointCaps) {
     double radius_s = 0.25;
     double radius_d = 0.25;
 
-    EXPECT_TRUE(axis::detail::spherical_cap_rejects(
-        centroid_s, radius_s, centroid_d, radius_d));
+    EXPECT_TRUE(axis::detail::spherical_cap_rejects(centroid_s, radius_s, centroid_d, radius_d));
 }
 
 TEST(SphericalCapFilter, HandlesIdenticalCentroids) {
     // Same centroid → angular distance = 0, never rejected
     axis::detail::Vec3 centroid{0.0, 0.0, 1.0};  // north pole
 
-    EXPECT_FALSE(axis::detail::spherical_cap_rejects(
-        centroid, 0.001, centroid, 0.001));
+    EXPECT_FALSE(axis::detail::spherical_cap_rejects(centroid, 0.001, centroid, 0.001));
 }
 
 TEST(SphericalCapFilter, HandlesAntipodalCentroidsLargeRadii) {
@@ -88,8 +82,7 @@ TEST(SphericalCapFilter, HandlesAntipodalCentroidsLargeRadii) {
 
     // Angular distance = pi
     // Sum of radii = 2.0 + 2.0 = 4.0 > pi → should NOT reject
-    EXPECT_FALSE(axis::detail::spherical_cap_rejects(
-        centroid_s, 2.0, centroid_d, 2.0));
+    EXPECT_FALSE(axis::detail::spherical_cap_rejects(centroid_s, 2.0, centroid_d, 2.0));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -98,7 +91,7 @@ TEST(SphericalCapFilter, HandlesAntipodalCentroidsLargeRadii) {
 
 // Helper: build a simple mesh with known cell geometry
 class SphericalCapMeshTest : public ::testing::Test {
-protected:
+   protected:
     using MemSpace = Kokkos::HostSpace;
 
     // Build a simple mesh with one quadrilateral cell at the equator
@@ -108,33 +101,33 @@ protected:
         const std::size_t n_nodes = 4;
         const std::size_t n_cells = 1;
 
-        Kokkos::View<double**, Kokkos::LayoutLeft, MemSpace>
-            node_coords("node_coords", n_nodes, 2);
+        Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> node_coords("node_coords", n_nodes, 2);
 
         // Node 0: (-5, -5)
-        node_coords(0, 0) = -5.0;  node_coords(0, 1) = -5.0;
+        node_coords(0, 0) = -5.0;
+        node_coords(0, 1) = -5.0;
         // Node 1: ( 5, -5)
-        node_coords(1, 0) =  5.0;  node_coords(1, 1) = -5.0;
+        node_coords(1, 0) = 5.0;
+        node_coords(1, 1) = -5.0;
         // Node 2: ( 5,  5)
-        node_coords(2, 0) =  5.0;  node_coords(2, 1) =  5.0;
+        node_coords(2, 0) = 5.0;
+        node_coords(2, 1) = 5.0;
         // Node 3: (-5,  5)
-        node_coords(3, 0) = -5.0;  node_coords(3, 1) =  5.0;
+        node_coords(3, 0) = -5.0;
+        node_coords(3, 1) = 5.0;
 
-        Kokkos::View<axis::index_t*, MemSpace> offsets("offsets", n_cells + 1);
+        Kokkos::View<axis::index_t *, MemSpace> offsets("offsets", n_cells + 1);
         offsets(0) = 0;
         offsets(1) = 4;
 
-        Kokkos::View<axis::index_t*, MemSpace> indices("indices", 4);
+        Kokkos::View<axis::index_t *, MemSpace> indices("indices", 4);
         indices(0) = 0;
         indices(1) = 1;
         indices(2) = 2;
         indices(3) = 3;
 
-        mesh_ = axis::topology::UnstructuredMesh<MemSpace>(
-            std::move(node_coords),
-            std::move(offsets),
-            std::move(indices),
-            axis::topology::CoordinateSystem::SphericalDeg);
+        mesh_ = axis::topology::UnstructuredMesh<MemSpace>(std::move(node_coords), std::move(offsets), std::move(indices),
+                                                           axis::topology::CoordinateSystem::SphericalDeg);
     }
 
     axis::topology::UnstructuredMesh<MemSpace> mesh_;
@@ -152,9 +145,7 @@ TEST_F(SphericalCapMeshTest, CentroidIsNearCenter) {
     EXPECT_NEAR(centroid.z, 0.0, 0.01);
 
     // Should be unit length
-    double len = std::sqrt(centroid.x * centroid.x +
-                           centroid.y * centroid.y +
-                           centroid.z * centroid.z);
+    double len = std::sqrt(centroid.x * centroid.x + centroid.y * centroid.y + centroid.z * centroid.z);
     EXPECT_NEAR(len, 1.0, 1e-14);
 }
 
@@ -180,17 +171,13 @@ TEST_F(SphericalCapMeshTest, AngularRadiusBoundsAllVertices) {
         double lon = node_coords(node_idx, 0) * deg2rad;
         double lat = node_coords(node_idx, 1) * deg2rad;
         double cos_lat = std::cos(lat);
-        axis::detail::Vec3 vertex{
-            cos_lat * std::cos(lon),
-            cos_lat * std::sin(lon),
-            std::sin(lat)};
+        axis::detail::Vec3 vertex{cos_lat * std::cos(lon), cos_lat * std::sin(lon), std::sin(lat)};
 
         double d = axis::detail::dot(centroid, vertex);
         d = std::min(1.0, std::max(-1.0, d));
         double angle = std::acos(d);
 
-        EXPECT_LE(angle, radius + 1e-14)
-            << "Vertex " << v << " is outside the angular radius";
+        EXPECT_LE(angle, radius + 1e-14) << "Vertex " << v << " is outside the angular radius";
     }
 }
 
@@ -199,7 +186,7 @@ TEST_F(SphericalCapMeshTest, AngularRadiusBoundsAllVertices) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SphericalCapMultiCellTest : public ::testing::Test {
-protected:
+   protected:
     using MemSpace = Kokkos::HostSpace;
 
     void SetUp() override {
@@ -209,34 +196,38 @@ protected:
         const std::size_t n_nodes = 8;
         const std::size_t n_cells = 2;
 
-        Kokkos::View<double**, Kokkos::LayoutLeft, MemSpace>
-            node_coords("node_coords", n_nodes, 2);
+        Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> node_coords("node_coords", n_nodes, 2);
 
         // Cell 0 vertices: centered at (0°, 0°)
-        node_coords(0, 0) = -5.0;  node_coords(0, 1) = -5.0;
-        node_coords(1, 0) =  5.0;  node_coords(1, 1) = -5.0;
-        node_coords(2, 0) =  5.0;  node_coords(2, 1) =  5.0;
-        node_coords(3, 0) = -5.0;  node_coords(3, 1) =  5.0;
+        node_coords(0, 0) = -5.0;
+        node_coords(0, 1) = -5.0;
+        node_coords(1, 0) = 5.0;
+        node_coords(1, 1) = -5.0;
+        node_coords(2, 0) = 5.0;
+        node_coords(2, 1) = 5.0;
+        node_coords(3, 0) = -5.0;
+        node_coords(3, 1) = 5.0;
 
         // Cell 1 vertices: centered at (180°, 0°)
-        node_coords(4, 0) = 175.0; node_coords(4, 1) = -5.0;
-        node_coords(5, 0) = 185.0; node_coords(5, 1) = -5.0;
-        node_coords(6, 0) = 185.0; node_coords(6, 1) =  5.0;
-        node_coords(7, 0) = 175.0; node_coords(7, 1) =  5.0;
+        node_coords(4, 0) = 175.0;
+        node_coords(4, 1) = -5.0;
+        node_coords(5, 0) = 185.0;
+        node_coords(5, 1) = -5.0;
+        node_coords(6, 0) = 185.0;
+        node_coords(6, 1) = 5.0;
+        node_coords(7, 0) = 175.0;
+        node_coords(7, 1) = 5.0;
 
-        Kokkos::View<axis::index_t*, MemSpace> offsets("offsets", n_cells + 1);
+        Kokkos::View<axis::index_t *, MemSpace> offsets("offsets", n_cells + 1);
         offsets(0) = 0;
         offsets(1) = 4;
         offsets(2) = 8;
 
-        Kokkos::View<axis::index_t*, MemSpace> indices("indices", 8);
+        Kokkos::View<axis::index_t *, MemSpace> indices("indices", 8);
         for (int i = 0; i < 8; ++i) indices(i) = i;
 
-        mesh_ = axis::topology::UnstructuredMesh<MemSpace>(
-            std::move(node_coords),
-            std::move(offsets),
-            std::move(indices),
-            axis::topology::CoordinateSystem::SphericalDeg);
+        mesh_ = axis::topology::UnstructuredMesh<MemSpace>(std::move(node_coords), std::move(offsets), std::move(indices),
+                                                           axis::topology::CoordinateSystem::SphericalDeg);
     }
 
     axis::topology::UnstructuredMesh<MemSpace> mesh_;
@@ -246,18 +237,16 @@ TEST_F(SphericalCapMultiCellTest, DistantCellsAreRejected) {
     auto cap_data = axis::detail::precompute_cap_data<MemSpace>(mesh_);
 
     // Cell 0 at (0°, 0°) and Cell 1 at (180°, 0°) should be rejected
-    EXPECT_TRUE(axis::detail::spherical_cap_rejects(
-        cap_data.centroids(0), cap_data.angular_radii(0),
-        cap_data.centroids(1), cap_data.angular_radii(1)));
+    EXPECT_TRUE(
+        axis::detail::spherical_cap_rejects(cap_data.centroids(0), cap_data.angular_radii(0), cap_data.centroids(1), cap_data.angular_radii(1)));
 }
 
 TEST_F(SphericalCapMultiCellTest, SameCellIsNotRejected) {
     auto cap_data = axis::detail::precompute_cap_data<MemSpace>(mesh_);
 
     // A cell tested against itself should never be rejected
-    EXPECT_FALSE(axis::detail::spherical_cap_rejects(
-        cap_data.centroids(0), cap_data.angular_radii(0),
-        cap_data.centroids(0), cap_data.angular_radii(0)));
+    EXPECT_FALSE(
+        axis::detail::spherical_cap_rejects(cap_data.centroids(0), cap_data.angular_radii(0), cap_data.centroids(0), cap_data.angular_radii(0)));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,39 +262,46 @@ TEST(SphericalCapFilter, AdjacentCellsNotRejected) {
     const std::size_t n_nodes = 6;  // shared edge nodes
     const std::size_t n_cells = 2;
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemSpace>
-        node_coords("node_coords", n_nodes, 2);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> node_coords("node_coords", n_nodes, 2);
 
     // Cell 0: nodes 0,1,2,3
-    node_coords(0, 0) = -5.0; node_coords(0, 1) = -5.0;
-    node_coords(1, 0) =  5.0; node_coords(1, 1) = -5.0;
-    node_coords(2, 0) =  5.0; node_coords(2, 1) =  5.0;
-    node_coords(3, 0) = -5.0; node_coords(3, 1) =  5.0;
+    node_coords(0, 0) = -5.0;
+    node_coords(0, 1) = -5.0;
+    node_coords(1, 0) = 5.0;
+    node_coords(1, 1) = -5.0;
+    node_coords(2, 0) = 5.0;
+    node_coords(2, 1) = 5.0;
+    node_coords(3, 0) = -5.0;
+    node_coords(3, 1) = 5.0;
     // Cell 1: nodes 1,4,5,2 (shares nodes 1 and 2 with cell 0)
-    node_coords(4, 0) = 15.0; node_coords(4, 1) = -5.0;
-    node_coords(5, 0) = 15.0; node_coords(5, 1) =  5.0;
+    node_coords(4, 0) = 15.0;
+    node_coords(4, 1) = -5.0;
+    node_coords(5, 0) = 15.0;
+    node_coords(5, 1) = 5.0;
 
-    Kokkos::View<axis::index_t*, MemSpace> offsets("offsets", n_cells + 1);
+    Kokkos::View<axis::index_t *, MemSpace> offsets("offsets", n_cells + 1);
     offsets(0) = 0;
     offsets(1) = 4;
     offsets(2) = 8;
 
-    Kokkos::View<axis::index_t*, MemSpace> indices("indices", 8);
-    indices(0) = 0; indices(1) = 1; indices(2) = 2; indices(3) = 3;
-    indices(4) = 1; indices(5) = 4; indices(6) = 5; indices(7) = 2;
+    Kokkos::View<axis::index_t *, MemSpace> indices("indices", 8);
+    indices(0) = 0;
+    indices(1) = 1;
+    indices(2) = 2;
+    indices(3) = 3;
+    indices(4) = 1;
+    indices(5) = 4;
+    indices(6) = 5;
+    indices(7) = 2;
 
-    auto mesh = axis::topology::UnstructuredMesh<MemSpace>(
-        std::move(node_coords),
-        std::move(offsets),
-        std::move(indices),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    auto mesh = axis::topology::UnstructuredMesh<MemSpace>(std::move(node_coords), std::move(offsets), std::move(indices),
+                                                           axis::topology::CoordinateSystem::SphericalDeg);
 
     auto cap_data = axis::detail::precompute_cap_data<MemSpace>(mesh);
 
     // Adjacent cells should NOT be rejected (caps overlap)
-    EXPECT_FALSE(axis::detail::spherical_cap_rejects(
-        cap_data.centroids(0), cap_data.angular_radii(0),
-        cap_data.centroids(1), cap_data.angular_radii(1)));
+    EXPECT_FALSE(
+        axis::detail::spherical_cap_rejects(cap_data.centroids(0), cap_data.angular_radii(0), cap_data.centroids(1), cap_data.angular_radii(1)));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -317,25 +313,29 @@ TEST(SphericalCapFilter, AngularRadiusSoundnessLargeCell) {
 
     // A large cell spanning 60°×60° centered at (0°, 30°)
     const std::size_t n_nodes = 4;
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemSpace>
-        node_coords("node_coords", n_nodes, 2);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> node_coords("node_coords", n_nodes, 2);
 
-    node_coords(0, 0) = -30.0; node_coords(0, 1) =  0.0;
-    node_coords(1, 0) =  30.0; node_coords(1, 1) =  0.0;
-    node_coords(2, 0) =  30.0; node_coords(2, 1) = 60.0;
-    node_coords(3, 0) = -30.0; node_coords(3, 1) = 60.0;
+    node_coords(0, 0) = -30.0;
+    node_coords(0, 1) = 0.0;
+    node_coords(1, 0) = 30.0;
+    node_coords(1, 1) = 0.0;
+    node_coords(2, 0) = 30.0;
+    node_coords(2, 1) = 60.0;
+    node_coords(3, 0) = -30.0;
+    node_coords(3, 1) = 60.0;
 
-    Kokkos::View<axis::index_t*, MemSpace> offsets("offsets", 2);
-    offsets(0) = 0; offsets(1) = 4;
+    Kokkos::View<axis::index_t *, MemSpace> offsets("offsets", 2);
+    offsets(0) = 0;
+    offsets(1) = 4;
 
-    Kokkos::View<axis::index_t*, MemSpace> indices("indices", 4);
-    indices(0) = 0; indices(1) = 1; indices(2) = 2; indices(3) = 3;
+    Kokkos::View<axis::index_t *, MemSpace> indices("indices", 4);
+    indices(0) = 0;
+    indices(1) = 1;
+    indices(2) = 2;
+    indices(3) = 3;
 
-    auto mesh = axis::topology::UnstructuredMesh<MemSpace>(
-        std::move(node_coords),
-        std::move(offsets),
-        std::move(indices),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    auto mesh = axis::topology::UnstructuredMesh<MemSpace>(std::move(node_coords), std::move(offsets), std::move(indices),
+                                                           axis::topology::CoordinateSystem::SphericalDeg);
 
     auto cap_data = axis::detail::precompute_cap_data<MemSpace>(mesh);
 
@@ -343,31 +343,23 @@ TEST(SphericalCapFilter, AngularRadiusSoundnessLargeCell) {
     double radius = cap_data.angular_radii(0);
 
     // The centroid should be unit length
-    double len = std::sqrt(centroid.x * centroid.x +
-                           centroid.y * centroid.y +
-                           centroid.z * centroid.z);
+    double len = std::sqrt(centroid.x * centroid.x + centroid.y * centroid.y + centroid.z * centroid.z);
     EXPECT_NEAR(len, 1.0, 1e-14);
 
     // Verify that the angular radius bounds all 4 vertices
-    std::vector<std::pair<double, double>> corners = {
-        {-30.0, 0.0}, {30.0, 0.0}, {30.0, 60.0}, {-30.0, 60.0}};
+    std::vector<std::pair<double, double>> corners = {{-30.0, 0.0}, {30.0, 0.0}, {30.0, 60.0}, {-30.0, 60.0}};
 
-    for (const auto& [lon_deg, lat_deg] : corners) {
+    for (const auto &[lon_deg, lat_deg] : corners) {
         double lon = lon_deg * deg2rad;
         double lat = lat_deg * deg2rad;
         double cos_lat = std::cos(lat);
-        axis::detail::Vec3 vertex{
-            cos_lat * std::cos(lon),
-            cos_lat * std::sin(lon),
-            std::sin(lat)};
+        axis::detail::Vec3 vertex{cos_lat * std::cos(lon), cos_lat * std::sin(lon), std::sin(lat)};
 
         double d = axis::detail::dot(centroid, vertex);
         d = std::min(1.0, std::max(-1.0, d));
         double angle = std::acos(d);
 
-        EXPECT_LE(angle, radius + 1e-14)
-            << "Vertex at (" << lon_deg << "°, " << lat_deg
-            << "°) is outside the angular radius";
+        EXPECT_LE(angle, radius + 1e-14) << "Vertex at (" << lon_deg << "°, " << lat_deg << "°) is outside the angular radius";
     }
 }
 
@@ -380,27 +372,31 @@ TEST(SphericalCapFilter, WorksWithRadianCoordinates) {
 
     // Same as the basic test but with coordinates in radians
     const std::size_t n_nodes = 4;
-    Kokkos::View<double**, Kokkos::LayoutLeft, MemSpace>
-        node_coords("node_coords", n_nodes, 2);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> node_coords("node_coords", n_nodes, 2);
 
     // 10°×10° cell centered at (0, 0) in radians
     double half = 5.0 * deg2rad;
-    node_coords(0, 0) = -half; node_coords(0, 1) = -half;
-    node_coords(1, 0) =  half; node_coords(1, 1) = -half;
-    node_coords(2, 0) =  half; node_coords(2, 1) =  half;
-    node_coords(3, 0) = -half; node_coords(3, 1) =  half;
+    node_coords(0, 0) = -half;
+    node_coords(0, 1) = -half;
+    node_coords(1, 0) = half;
+    node_coords(1, 1) = -half;
+    node_coords(2, 0) = half;
+    node_coords(2, 1) = half;
+    node_coords(3, 0) = -half;
+    node_coords(3, 1) = half;
 
-    Kokkos::View<axis::index_t*, MemSpace> offsets("offsets", 2);
-    offsets(0) = 0; offsets(1) = 4;
+    Kokkos::View<axis::index_t *, MemSpace> offsets("offsets", 2);
+    offsets(0) = 0;
+    offsets(1) = 4;
 
-    Kokkos::View<axis::index_t*, MemSpace> indices("indices", 4);
-    indices(0) = 0; indices(1) = 1; indices(2) = 2; indices(3) = 3;
+    Kokkos::View<axis::index_t *, MemSpace> indices("indices", 4);
+    indices(0) = 0;
+    indices(1) = 1;
+    indices(2) = 2;
+    indices(3) = 3;
 
-    auto mesh = axis::topology::UnstructuredMesh<MemSpace>(
-        std::move(node_coords),
-        std::move(offsets),
-        std::move(indices),
-        axis::topology::CoordinateSystem::SphericalRad);
+    auto mesh = axis::topology::UnstructuredMesh<MemSpace>(std::move(node_coords), std::move(offsets), std::move(indices),
+                                                           axis::topology::CoordinateSystem::SphericalRad);
 
     auto cap_data = axis::detail::precompute_cap_data<MemSpace>(mesh);
 

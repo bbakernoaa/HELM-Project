@@ -4,15 +4,6 @@
 //               5.1, 5.5, 5.7, 5.10, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7,
 //               10.1, 10.2, 10.3, 10.4, 10.8, 10.9
 
-#include "dagr/dagr.hpp"
-#include "dagr/pipeline_config.hpp"
-#include "dagr/detail/event_loop.hpp"
-#include "dagr/detail/rank_pool.hpp"
-#include "dagr/detail/task_node.hpp"
-
-#include "halo/communicator.hpp"
-#include "logs/logs.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -26,6 +17,14 @@
 #include <utility>
 #include <vector>
 
+#include "dagr/dagr.hpp"
+#include "dagr/detail/event_loop.hpp"
+#include "dagr/detail/rank_pool.hpp"
+#include "dagr/detail/task_node.hpp"
+#include "dagr/pipeline_config.hpp"
+#include "halo/communicator.hpp"
+#include "logs/logs.hpp"
+
 namespace dagr {
 
 namespace {
@@ -33,13 +32,13 @@ namespace {
 /// Module-local logger for GraphOrchestrator diagnostics.
 /// In the full HELM build this would be the shared Logger; for now we
 /// instantiate a local one so the code compiles standalone.
-logs::Logger& logger() {
+logs::Logger &logger() {
     static logs::Logger instance;
     return instance;
 }
 
 /// Format a set of integers as a comma-separated bracket-enclosed string.
-std::string format_rank_set(const std::set<int>& ranks) {
+std::string format_rank_set(const std::set<int> &ranks) {
     std::string result = "{";
     bool first = true;
     for (int r : ranks) {
@@ -51,22 +50,22 @@ std::string format_rank_set(const std::set<int>& ranks) {
     return result;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─── pImpl Definition ────────────────────────────────────────────────────────
 
 struct GraphOrchestrator::Impl {
-    Pipeline_Config                 config;
-    halo::Communicator              world;
-    std::vector<detail::TaskNode>   nodes;
-    detail::Rank_Pool               rank_pool;
-    detail::Event_Loop              event_loop;
-    bool                            shut_down{false};
+    Pipeline_Config config;
+    halo::Communicator world;
+    std::vector<detail::TaskNode> nodes;
+    detail::Rank_Pool rank_pool;
+    detail::Event_Loop event_loop;
+    bool shut_down{false};
 
     /// Ranks that have been requested for deferred reclamation (Req 5.10).
     /// These are removed from the pool upon task completion when they become
     /// available again.
-    std::set<int>                   deferred_reclaim;
+    std::set<int> deferred_reclaim;
 
     // ─── RAII MPI Communicator Registry (Req 9.1, 9.2, 9.3, 9.4) ────────
     //
@@ -78,19 +77,18 @@ struct GraphOrchestrator::Impl {
     // No raw MPI communicator handles are stored anywhere in dagr source (Req 9.3).
     // All MPI operations are mediated through HALO (Req 9.6).
     std::vector<std::optional<halo::Communicator>> task_communicators;
-    std::vector<std::uint32_t>                     comm_creation_order;
+    std::vector<std::uint32_t> comm_creation_order;
 
     /// Construct Impl: validate the DAG, build nodes, initialize subsystems.
     /// Validation (dangling refs, acyclicity) is performed first via
     /// validated_node_count(), which throws on failure. The TaskNode vector
     /// is then constructed with the validated count (avoids moves of atomics).
-    Impl(Pipeline_Config cfg, halo::Communicator&& comm)
-        : config(std::move(cfg))
-        , world(std::move(comm))
-        , nodes(validated_node_count(config))
-        , rank_pool(build_rank_pool(world))
-        , event_loop(build_event_loop(config, nodes, rank_pool))
-    {
+    Impl(Pipeline_Config cfg, halo::Communicator &&comm)
+        : config(std::move(cfg)),
+          world(std::move(comm)),
+          nodes(validated_node_count(config)),
+          rank_pool(build_rank_pool(world)),
+          event_loop(build_event_loop(config, nodes, rank_pool)) {
         // Populate node fields in-place (vector already default-constructed to size).
         populate_nodes(config, nodes);
 
@@ -132,11 +130,9 @@ struct GraphOrchestrator::Impl {
         } catch (...) {
             // Req 9.5: Emit FATAL diagnostic and let exception propagate.
             // HALO's RAII has already cleaned up any partially-constructed communicator.
-            logger().log(logs::Severity_Level::FATAL,
-                "GraphOrchestrator: halo::Communicator::split failed for node "
-                + std::to_string(node_id) + " '"
-                + (node_id < nodes.size() ? nodes[node_id].name : "unknown")
-                + "'; exception propagating");
+            logger().log(logs::Severity_Level::FATAL, "GraphOrchestrator: halo::Communicator::split failed for node " + std::to_string(node_id) +
+                                                          " '" + (node_id < nodes.size() ? nodes[node_id].name : "unknown") +
+                                                          "'; exception propagating");
             throw;
         }
     }
@@ -153,9 +149,7 @@ struct GraphOrchestrator::Impl {
             task_communicators[node_id].reset();
 
             // Remove from creation order tracking
-            comm_creation_order.erase(
-                std::remove(comm_creation_order.begin(), comm_creation_order.end(), node_id),
-                comm_creation_order.end());
+            comm_creation_order.erase(std::remove(comm_creation_order.begin(), comm_creation_order.end(), node_id), comm_creation_order.end());
         }
     }
 
@@ -168,15 +162,13 @@ struct GraphOrchestrator::Impl {
             task_communicators[node_id].reset();
 
             // Remove from creation order tracking
-            comm_creation_order.erase(
-                std::remove(comm_creation_order.begin(), comm_creation_order.end(), node_id),
-                comm_creation_order.end());
+            comm_creation_order.erase(std::remove(comm_creation_order.begin(), comm_creation_order.end(), node_id), comm_creation_order.end());
         }
     }
 
     /// Validate the config's DAG (dangling refs + acyclicity) and return node count.
     /// Throws std::invalid_argument on validation failure.
-    static std::uint32_t validated_node_count(const Pipeline_Config& config) {
+    static std::uint32_t validated_node_count(const Pipeline_Config &config) {
         validate_dag(config);
         return static_cast<std::uint32_t>(config.task_names.size());
     }
@@ -185,20 +177,16 @@ struct GraphOrchestrator::Impl {
 
     /// Validate the DAG topology: dangling references and acyclicity (Req 1.7, 3.8).
     /// Throws std::invalid_argument on failure.
-    static void validate_dag(const Pipeline_Config& config) {
+    static void validate_dag(const Pipeline_Config &config) {
         const auto num_tasks = static_cast<std::uint32_t>(config.task_names.size());
 
         // Req 3.8: Validate no dangling task references in edges.
-        for (const auto& edge : config.edges) {
+        for (const auto &edge : config.edges) {
             if (edge.producer_id >= num_tasks) {
-                throw std::invalid_argument(
-                    "GraphOrchestrator: edge references unresolved task ID "
-                    + std::to_string(edge.producer_id));
+                throw std::invalid_argument("GraphOrchestrator: edge references unresolved task ID " + std::to_string(edge.producer_id));
             }
             if (edge.consumer_id >= num_tasks) {
-                throw std::invalid_argument(
-                    "GraphOrchestrator: edge references unresolved task ID "
-                    + std::to_string(edge.consumer_id));
+                throw std::invalid_argument("GraphOrchestrator: edge references unresolved task ID " + std::to_string(edge.consumer_id));
             }
         }
 
@@ -206,7 +194,7 @@ struct GraphOrchestrator::Impl {
         std::vector<std::vector<std::uint32_t>> downstream(num_tasks);
         std::vector<std::uint32_t> in_degree(num_tasks, 0);
 
-        for (const auto& edge : config.edges) {
+        for (const auto &edge : config.edges) {
             in_degree[edge.consumer_id] += 1;
             downstream[edge.producer_id].push_back(edge.consumer_id);
         }
@@ -248,40 +236,37 @@ struct GraphOrchestrator::Impl {
                 }
             }
 
-            logger().log(logs::Severity_Level::WARNING,
-                "GraphOrchestrator: cycle detected in DAG: " + cycle_path);
-            throw std::invalid_argument(
-                "GraphOrchestrator: cycle detected in task dependencies: " + cycle_path);
+            logger().log(logs::Severity_Level::WARNING, "GraphOrchestrator: cycle detected in DAG: " + cycle_path);
+            throw std::invalid_argument("GraphOrchestrator: cycle detected in task dependencies: " + cycle_path);
         }
     }
 
     /// Populate TaskNode fields in-place (Req 3.1, 3.2).
     /// The nodes vector must already be sized to config.task_names.size().
-    static void populate_nodes(const Pipeline_Config& config,
-                               std::vector<detail::TaskNode>& nodes) {
+    static void populate_nodes(const Pipeline_Config &config, std::vector<detail::TaskNode> &nodes) {
         const auto num_tasks = static_cast<std::uint32_t>(config.task_names.size());
 
         // Compute in-degrees and downstream adjacency.
         std::vector<std::uint32_t> in_degree(num_tasks, 0);
         std::vector<std::vector<std::uint32_t>> downstream(num_tasks);
 
-        for (const auto& edge : config.edges) {
+        for (const auto &edge : config.edges) {
             in_degree[edge.consumer_id] += 1;
             downstream[edge.producer_id].push_back(edge.consumer_id);
         }
 
         for (std::uint32_t i = 0; i < num_tasks; ++i) {
-            nodes[i].id             = i;
-            nodes[i].name           = config.task_names[i];
+            nodes[i].id = i;
+            nodes[i].name = config.task_names[i];
             nodes[i].pending_deps.store(in_degree[i], std::memory_order_relaxed);
-            nodes[i].status         = detail::Task_Status::pending;
+            nodes[i].status = detail::Task_Status::pending;
             nodes[i].required_ranks = 1;
-            nodes[i].dependents     = std::move(downstream[i]);
+            nodes[i].dependents = std::move(downstream[i]);
         }
     }
 
     /// Build a Rank_Pool from the world communicator size.
-    static detail::Rank_Pool build_rank_pool(const halo::Communicator& world) {
+    static detail::Rank_Pool build_rank_pool(const halo::Communicator &world) {
         const int world_size = world.size();
         std::set<int> initial_ranks;
         for (int r = 0; r < world_size; ++r) {
@@ -291,13 +276,9 @@ struct GraphOrchestrator::Impl {
     }
 
     /// Build an Event_Loop with config parameters.
-    static detail::Event_Loop build_event_loop(
-        const Pipeline_Config& config,
-        std::vector<detail::TaskNode>& nodes,
-        detail::Rank_Pool& rank_pool)
-    {
+    static detail::Event_Loop build_event_loop(const Pipeline_Config &config, std::vector<detail::TaskNode> &nodes, detail::Rank_Pool &rank_pool) {
         detail::Event_Loop::Config el_cfg;
-        el_cfg.max_concurrency    = config.max_concurrency;
+        el_cfg.max_concurrency = config.max_concurrency;
         el_cfg.deadlock_timeout_s = config.deadlock_timeout_s;
         return detail::Event_Loop(el_cfg, nodes, rank_pool);
     }
@@ -314,17 +295,15 @@ struct GraphOrchestrator::Impl {
 
         if (!removed.empty()) {
             logs::Scoped_Context ctx("reclaim");
-            logger().log(logs::Severity_Level::DEBUG,
-                "GraphOrchestrator: deferred reclamation completed for ranks "
-                + format_rank_set(removed)
-                + "; pool state: available=" + std::to_string(rank_pool.available_ranks())
-                + " total=" + std::to_string(rank_pool.total_ranks()));
+            logger().log(logs::Severity_Level::DEBUG, "GraphOrchestrator: deferred reclamation completed for ranks " + format_rank_set(removed) +
+                                                          "; pool state: available=" + std::to_string(rank_pool.available_ranks()) +
+                                                          " total=" + std::to_string(rank_pool.total_ranks()));
         }
     }
 
     /// Check if any node has failed status.
     [[nodiscard]] bool has_failed_node() const noexcept {
-        for (const auto& node : nodes) {
+        for (const auto &node : nodes) {
             if (node.status == detail::Task_Status::failed) {
                 return true;
             }
@@ -334,10 +313,9 @@ struct GraphOrchestrator::Impl {
 
     /// Get the error message for the first failed node.
     [[nodiscard]] std::string failed_node_message() const {
-        for (const auto& node : nodes) {
+        for (const auto &node : nodes) {
             if (node.status == detail::Task_Status::failed) {
-                return "TaskNode '" + node.name + "' (id="
-                    + std::to_string(node.id) + ") failed during execution";
+                return "TaskNode '" + node.name + "' (id=" + std::to_string(node.id) + ") failed during execution";
             }
         }
         return "unknown failure";
@@ -346,9 +324,8 @@ struct GraphOrchestrator::Impl {
 
 // ─── Constructor (Req 1.2) ───────────────────────────────────────────────────
 
-GraphOrchestrator::GraphOrchestrator(Pipeline_Config config, halo::Communicator&& world)
-    : impl_(std::make_unique<Impl>(std::move(config), std::move(world)))
-{}
+GraphOrchestrator::GraphOrchestrator(Pipeline_Config config, halo::Communicator &&world)
+    : impl_(std::make_unique<Impl>(std::move(config), std::move(world))) {}
 
 // ─── Destructor (Req 1.6) ────────────────────────────────────────────────────
 
@@ -356,8 +333,8 @@ GraphOrchestrator::~GraphOrchestrator() = default;
 
 // ─── Move Operations (Req 1.6) ───────────────────────────────────────────────
 
-GraphOrchestrator::GraphOrchestrator(GraphOrchestrator&&) noexcept = default;
-GraphOrchestrator& GraphOrchestrator::operator=(GraphOrchestrator&&) noexcept = default;
+GraphOrchestrator::GraphOrchestrator(GraphOrchestrator &&) noexcept = default;
+GraphOrchestrator &GraphOrchestrator::operator=(GraphOrchestrator &&) noexcept = default;
 
 // ─── run() (Req 1.3) ────────────────────────────────────────────────────────
 
@@ -367,34 +344,28 @@ void GraphOrchestrator::run() {
     logs::Scoped_Context ctx("run");
 
     // Set up dispatch callback: emit INFO on dispatch (Req 10.1, 10.8)
-    impl_->event_loop.set_dispatch_callback(
-        [this](std::uint32_t node_id, const std::set<int>& ranks) -> bool {
-            {
-                logs::Scoped_Context dispatch_ctx("dispatch");
-                const auto now = std::chrono::steady_clock::now();
-                const auto ts_ns = static_cast<std::uint64_t>(
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        now.time_since_epoch()).count());
+    impl_->event_loop.set_dispatch_callback([this](std::uint32_t node_id, const std::set<int> &ranks) -> bool {
+        {
+            logs::Scoped_Context dispatch_ctx("dispatch");
+            const auto now = std::chrono::steady_clock::now();
+            const auto ts_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
 
-                logger().log(logs::Severity_Level::INFO,
-                    "GraphOrchestrator: dispatching node " + std::to_string(node_id)
-                    + " '" + impl_->nodes[node_id].name + "'"
-                    + " on ranks " + format_rank_set(ranks)
-                    + " at ts=" + std::to_string(ts_ns) + "ns");
-            }
-            return true;
-        });
+            logger().log(logs::Severity_Level::INFO, "GraphOrchestrator: dispatching node " + std::to_string(node_id) + " '" +
+                                                         impl_->nodes[node_id].name + "'" + " on ranks " + format_rank_set(ranks) +
+                                                         " at ts=" + std::to_string(ts_ns) + "ns");
+        }
+        return true;
+    });
 
     // Set up completion callback: emit INFO on success, ERROR on failure (Req 10.2, 10.3, 10.8)
-    impl_->event_loop.set_completion_callback(
-        [this]() -> std::vector<std::pair<std::uint32_t, bool>> {
-            // The Event_Loop internally handles completions; this callback
-            // is invoked to poll for externally completed tasks.
-            // In the current architecture, the Event_Loop manages completion
-            // internally — we return empty here. The diagnostics are emitted
-            // by the event loop's own completion processing.
-            return {};
-        });
+    impl_->event_loop.set_completion_callback([this]() -> std::vector<std::pair<std::uint32_t, bool>> {
+        // The Event_Loop internally handles completions; this callback
+        // is invoked to poll for externally completed tasks.
+        // In the current architecture, the Event_Loop manages completion
+        // internally — we return empty here. The diagnostics are emitted
+        // by the event loop's own completion processing.
+        return {};
+    });
 
     // Enter the Event_Loop: process until all nodes reach terminal state.
     while (!impl_->event_loop.all_complete()) {
@@ -411,8 +382,7 @@ void GraphOrchestrator::run() {
         // Emit ERROR diagnostic for failure (Req 10.3)
         {
             logs::Scoped_Context failure_ctx("failure");
-            logger().log(logs::Severity_Level::ERROR,
-                "GraphOrchestrator: run() completed with failure: " + msg);
+            logger().log(logs::Severity_Level::ERROR, "GraphOrchestrator: run() completed with failure: " + msg);
         }
 
         throw std::runtime_error(msg);
@@ -443,8 +413,7 @@ void GraphOrchestrator::shutdown() {
 
     logs::Scoped_Context ctx("shutdown");
 
-    logger().log(logs::Severity_Level::INFO,
-        "GraphOrchestrator: shutdown initiated");
+    logger().log(logs::Severity_Level::INFO, "GraphOrchestrator: shutdown initiated");
 
     // Drain in-flight tasks subject to timeout (Req 5.7)
     const auto timeout = std::chrono::seconds(impl_->config.shutdown_timeout_s);
@@ -455,12 +424,9 @@ void GraphOrchestrator::shutdown() {
         if (elapsed >= timeout) {
             // Timeout expired with ranks still allocated (Req 5.7)
             logger().log(logs::Severity_Level::FATAL,
-                "GraphOrchestrator: shutdown timeout expired ("
-                + std::to_string(impl_->config.shutdown_timeout_s)
-                + "s) with " + std::to_string(impl_->event_loop.in_flight_count())
-                + " tasks still in-flight; "
-                + std::to_string(impl_->rank_pool.allocated_ranks())
-                + " ranks unreturned; proceeding with forced shutdown");
+                         "GraphOrchestrator: shutdown timeout expired (" + std::to_string(impl_->config.shutdown_timeout_s) + "s) with " +
+                             std::to_string(impl_->event_loop.in_flight_count()) + " tasks still in-flight; " +
+                             std::to_string(impl_->rank_pool.allocated_ranks()) + " ranks unreturned; proceeding with forced shutdown");
             break;
         }
 
@@ -475,9 +441,8 @@ void GraphOrchestrator::shutdown() {
     impl_->shut_down = true;
 
     logger().log(logs::Severity_Level::INFO,
-        "GraphOrchestrator: shutdown complete; pool state: available="
-        + std::to_string(impl_->rank_pool.available_ranks())
-        + " total=" + std::to_string(impl_->rank_pool.total_ranks()));
+                 "GraphOrchestrator: shutdown complete; pool state: available=" + std::to_string(impl_->rank_pool.available_ranks()) +
+                     " total=" + std::to_string(impl_->rank_pool.total_ranks()));
 }
 
 // ─── yield_ranks() (Req 5.1) ────────────────────────────────────────────────
@@ -491,10 +456,9 @@ void GraphOrchestrator::yield_ranks(std::set<int> rank_set) {
     impl_->rank_pool.add_ranks(rank_set);
 
     // Emit DEBUG diagnostic for rank operation (Req 10.4)
-    logger().log(logs::Severity_Level::DEBUG,
-        "GraphOrchestrator: yielded ranks " + format_rank_set(rank_set)
-        + "; pool state: available=" + std::to_string(impl_->rank_pool.available_ranks())
-        + " total=" + std::to_string(impl_->rank_pool.total_ranks()));
+    logger().log(logs::Severity_Level::DEBUG, "GraphOrchestrator: yielded ranks " + format_rank_set(rank_set) +
+                                                  "; pool state: available=" + std::to_string(impl_->rank_pool.available_ranks()) +
+                                                  " total=" + std::to_string(impl_->rank_pool.total_ranks()));
 }
 
 // ─── reclaim_ranks() (Req 5.10) ─────────────────────────────────────────────
@@ -526,16 +490,13 @@ void GraphOrchestrator::reclaim_ranks(std::set<int> rank_set) {
             }
         }
         if (!newly_deferred.empty()) {
-            deferred_msg = "; deferred ranks (allocated): "
-                + format_rank_set(newly_deferred);
+            deferred_msg = "; deferred ranks (allocated): " + format_rank_set(newly_deferred);
         }
     }
 
-    logger().log(logs::Severity_Level::DEBUG,
-        "GraphOrchestrator: reclaimed ranks " + format_rank_set(removed)
-        + deferred_msg
-        + "; pool state: available=" + std::to_string(impl_->rank_pool.available_ranks())
-        + " total=" + std::to_string(impl_->rank_pool.total_ranks()));
+    logger().log(logs::Severity_Level::DEBUG, "GraphOrchestrator: reclaimed ranks " + format_rank_set(removed) + deferred_msg +
+                                                  "; pool state: available=" + std::to_string(impl_->rank_pool.available_ranks()) +
+                                                  " total=" + std::to_string(impl_->rank_pool.total_ranks()));
 }
 
 // ─── Const Accessors (Req 5.9) ──────────────────────────────────────────────
@@ -560,4 +521,4 @@ bool GraphOrchestrator::is_shutdown() const noexcept {
     return impl_->shut_down;
 }
 
-} // namespace dagr
+}  // namespace dagr

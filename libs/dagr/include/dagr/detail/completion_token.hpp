@@ -14,4 +14,4 @@ struct Completion_Token {
     std::uint64_t dispatch_timestamp_ns;  ///< Monotonic clock at dispatch (nanoseconds)
 };
 
-} // namespace dagr::detail
+}  // namespace dagr::detail

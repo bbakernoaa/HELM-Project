@@ -13,14 +13,12 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/solver/regrid_config.hpp>
-
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
@@ -28,11 +26,15 @@
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -50,16 +52,14 @@ using MemSpace = Kokkos::HostSpace;
 //   lon = lon_min + i * delta_lon   for i in [0, ni]
 //   lat = lat_min + j * delta_lat   for j in [0, nj]
 // ─────────────────────────────────────────────────────────────────────────────
-static topology::UnstructuredMesh<MemSpace>
-make_regular_grid(std::size_t ni, std::size_t nj,
-                  double lon_min, double lon_max,
-                  double lat_min, double lat_max) {
+static topology::UnstructuredMesh<MemSpace> make_regular_grid(std::size_t ni, std::size_t nj, double lon_min, double lon_max, double lat_min,
+                                                              double lat_max) {
     const double delta_lon = (lon_max - lon_min) / static_cast<double>(ni);
     const double delta_lat = (lat_max - lat_min) / static_cast<double>(nj);
 
     // Cell centers
-    Kokkos::View<double*, MemSpace> cx("cx", ni * nj);
-    Kokkos::View<double*, MemSpace> cy("cy", ni * nj);
+    Kokkos::View<double *, MemSpace> cx("cx", ni * nj);
+    Kokkos::View<double *, MemSpace> cy("cy", ni * nj);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon_min + (static_cast<double>(i) + 0.5) * delta_lon;
@@ -67,15 +67,13 @@ make_regular_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), topology::CoordinateSystem::SphericalDeg);
 
     // Corner coordinates: (ni+1)×(nj+1) nodes
     const std::size_t nc_lon = ni + 1;
     const std::size_t nc_lat = nj + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc_lon * nc_lat);
-    Kokkos::View<double*, MemSpace> cry("cry", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> crx("crx", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> cry("cry", nc_lon * nc_lat);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_lon) = lon_min + static_cast<double>(i) * delta_lon;
@@ -91,12 +89,10 @@ make_regular_grid(std::size_t ni, std::size_t nj,
 // ─────────────────────────────────────────────────────────────────────────────
 struct WeightEntry {
     index_t col;
-    double  weight;
+    double weight;
 };
 
-static std::vector<WeightEntry>
-get_row_entries(const solver::InterpolationMatrix<MemSpace>& matrix,
-                index_t row_idx) {
+static std::vector<WeightEntry> get_row_entries(const solver::InterpolationMatrix<MemSpace> &matrix, index_t row_idx) {
     std::vector<WeightEntry> entries;
     const auto nnz = matrix.nnz();
     auto rows = matrix.factor_row();
@@ -155,9 +151,8 @@ TEST(BilinearRect, KnownAnalyticWeights4x2To2x1) {
     auto entries0 = get_row_entries(matrix, 0);
     ASSERT_EQ(entries0.size(), 4u);
     double sum0 = 0.0;
-    for (const auto& e : entries0) {
-        EXPECT_NEAR(e.weight, 0.25, 1e-12)
-            << "Dst cell 0: expected weight 0.25 at col " << e.col;
+    for (const auto &e : entries0) {
+        EXPECT_NEAR(e.weight, 0.25, 1e-12) << "Dst cell 0: expected weight 0.25 at col " << e.col;
         sum0 += e.weight;
     }
     EXPECT_NEAR(sum0, 1.0, 1e-15);
@@ -166,9 +161,8 @@ TEST(BilinearRect, KnownAnalyticWeights4x2To2x1) {
     auto entries1 = get_row_entries(matrix, 1);
     ASSERT_EQ(entries1.size(), 4u);
     double sum1 = 0.0;
-    for (const auto& e : entries1) {
-        EXPECT_NEAR(e.weight, 0.25, 1e-12)
-            << "Dst cell 1: expected weight 0.25 at col " << e.col;
+    for (const auto &e : entries1) {
+        EXPECT_NEAR(e.weight, 0.25, 1e-12) << "Dst cell 1: expected weight 0.25 at col " << e.col;
         sum1 += e.weight;
     }
     EXPECT_NEAR(sum1, 1.0, 1e-15);
@@ -198,21 +192,23 @@ TEST(BilinearRect, GlobalGridWraparoundAt359_5) {
     const double dst_lat_center = 0.0;
     const double half_dx = 0.5;
 
-    Kokkos::View<double*, MemSpace> dst_cx("dst_cx", 1);
-    Kokkos::View<double*, MemSpace> dst_cy("dst_cy", 1);
+    Kokkos::View<double *, MemSpace> dst_cx("dst_cx", 1);
+    Kokkos::View<double *, MemSpace> dst_cy("dst_cy", 1);
     dst_cx(0) = dst_lon_center;
     dst_cy(0) = dst_lat_center;
 
-    topology::StructuredGrid<MemSpace> dst_grid(
-        1, 1, std::move(dst_cx), std::move(dst_cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> dst_grid(1, 1, std::move(dst_cx), std::move(dst_cy), topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> dst_crx("dst_crx", 4);
-    Kokkos::View<double*, MemSpace> dst_cry("dst_cry", 4);
-    dst_crx(0) = dst_lon_center - half_dx; dst_cry(0) = dst_lat_center - half_dx;
-    dst_crx(1) = dst_lon_center + half_dx; dst_cry(1) = dst_lat_center - half_dx;
-    dst_crx(2) = dst_lon_center - half_dx; dst_cry(2) = dst_lat_center + half_dx;
-    dst_crx(3) = dst_lon_center + half_dx; dst_cry(3) = dst_lat_center + half_dx;
+    Kokkos::View<double *, MemSpace> dst_crx("dst_crx", 4);
+    Kokkos::View<double *, MemSpace> dst_cry("dst_cry", 4);
+    dst_crx(0) = dst_lon_center - half_dx;
+    dst_cry(0) = dst_lat_center - half_dx;
+    dst_crx(1) = dst_lon_center + half_dx;
+    dst_cry(1) = dst_lat_center - half_dx;
+    dst_crx(2) = dst_lon_center - half_dx;
+    dst_cry(2) = dst_lat_center + half_dx;
+    dst_crx(3) = dst_lon_center + half_dx;
+    dst_cry(3) = dst_lat_center + half_dx;
     dst_grid.set_corners(std::move(dst_crx), std::move(dst_cry));
 
     auto dst_mesh = dst_grid.to_unstructured();
@@ -239,7 +235,7 @@ TEST(BilinearRect, GlobalGridWraparoundAt359_5) {
     // Expected columns: 8*36+35=323, 8*36+0=288, 9*36+35=359, 9*36+0=324
     bool has_last_col = false;
     bool has_first_col = false;
-    for (const auto& e : entries) {
+    for (const auto &e : entries) {
         std::size_t col = static_cast<std::size_t>(e.col);
         std::size_t i_col = col % 36;
         if (i_col == 35) has_last_col = true;
@@ -250,7 +246,7 @@ TEST(BilinearRect, GlobalGridWraparoundAt359_5) {
 
     // Verify partition of unity
     double wsum = 0.0;
-    for (const auto& e : entries) wsum += e.weight;
+    for (const auto &e : entries) wsum += e.weight;
     EXPECT_NEAR(wsum, 1.0, 1e-15);
 }
 
@@ -274,21 +270,23 @@ TEST(BilinearRect, DestAtSourceCellCenter) {
     const double dst_lat = 15.0;
     const double half_dx = 0.5;
 
-    Kokkos::View<double*, MemSpace> dst_cx("dst_cx", 1);
-    Kokkos::View<double*, MemSpace> dst_cy("dst_cy", 1);
+    Kokkos::View<double *, MemSpace> dst_cx("dst_cx", 1);
+    Kokkos::View<double *, MemSpace> dst_cy("dst_cy", 1);
     dst_cx(0) = dst_lon;
     dst_cy(0) = dst_lat;
 
-    topology::StructuredGrid<MemSpace> dst_grid(
-        1, 1, std::move(dst_cx), std::move(dst_cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> dst_grid(1, 1, std::move(dst_cx), std::move(dst_cy), topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> dst_crx("dst_crx", 4);
-    Kokkos::View<double*, MemSpace> dst_cry("dst_cry", 4);
-    dst_crx(0) = dst_lon - half_dx; dst_cry(0) = dst_lat - half_dx;
-    dst_crx(1) = dst_lon + half_dx; dst_cry(1) = dst_lat - half_dx;
-    dst_crx(2) = dst_lon - half_dx; dst_cry(2) = dst_lat + half_dx;
-    dst_crx(3) = dst_lon + half_dx; dst_cry(3) = dst_lat + half_dx;
+    Kokkos::View<double *, MemSpace> dst_crx("dst_crx", 4);
+    Kokkos::View<double *, MemSpace> dst_cry("dst_cry", 4);
+    dst_crx(0) = dst_lon - half_dx;
+    dst_cry(0) = dst_lat - half_dx;
+    dst_crx(1) = dst_lon + half_dx;
+    dst_cry(1) = dst_lat - half_dx;
+    dst_crx(2) = dst_lon - half_dx;
+    dst_cry(2) = dst_lat + half_dx;
+    dst_crx(3) = dst_lon + half_dx;
+    dst_cry(3) = dst_lat + half_dx;
     dst_grid.set_corners(std::move(dst_crx), std::move(dst_cry));
 
     auto dst_mesh = dst_grid.to_unstructured();
@@ -308,13 +306,11 @@ TEST(BilinearRect, DestAtSourceCellCenter) {
     // Source cell (1,1) has flat index = 1 + 1*4 = 5
     const index_t target_col = 5;
 
-    for (const auto& e : entries) {
+    for (const auto &e : entries) {
         if (e.col == target_col) {
-            EXPECT_NEAR(e.weight, 1.0, 1e-12)
-                << "Cell center weight should be 1.0";
+            EXPECT_NEAR(e.weight, 1.0, 1e-12) << "Cell center weight should be 1.0";
         } else {
-            EXPECT_NEAR(e.weight, 0.0, 1e-12)
-                << "Non-center cell weight should be 0.0 at col " << e.col;
+            EXPECT_NEAR(e.weight, 0.0, 1e-12) << "Non-center cell weight should be 0.0 at col " << e.col;
         }
     }
 }
@@ -340,21 +336,23 @@ TEST(BilinearRect, DestAtGridCornerAllWeightsEqual) {
     const double dst_lat = 20.0;
     const double half_dx = 0.5;
 
-    Kokkos::View<double*, MemSpace> dst_cx("dst_cx", 1);
-    Kokkos::View<double*, MemSpace> dst_cy("dst_cy", 1);
+    Kokkos::View<double *, MemSpace> dst_cx("dst_cx", 1);
+    Kokkos::View<double *, MemSpace> dst_cy("dst_cy", 1);
     dst_cx(0) = dst_lon;
     dst_cy(0) = dst_lat;
 
-    topology::StructuredGrid<MemSpace> dst_grid(
-        1, 1, std::move(dst_cx), std::move(dst_cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> dst_grid(1, 1, std::move(dst_cx), std::move(dst_cy), topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> dst_crx("dst_crx", 4);
-    Kokkos::View<double*, MemSpace> dst_cry("dst_cry", 4);
-    dst_crx(0) = dst_lon - half_dx; dst_cry(0) = dst_lat - half_dx;
-    dst_crx(1) = dst_lon + half_dx; dst_cry(1) = dst_lat - half_dx;
-    dst_crx(2) = dst_lon - half_dx; dst_cry(2) = dst_lat + half_dx;
-    dst_crx(3) = dst_lon + half_dx; dst_cry(3) = dst_lat + half_dx;
+    Kokkos::View<double *, MemSpace> dst_crx("dst_crx", 4);
+    Kokkos::View<double *, MemSpace> dst_cry("dst_cry", 4);
+    dst_crx(0) = dst_lon - half_dx;
+    dst_cry(0) = dst_lat - half_dx;
+    dst_crx(1) = dst_lon + half_dx;
+    dst_cry(1) = dst_lat - half_dx;
+    dst_crx(2) = dst_lon - half_dx;
+    dst_cry(2) = dst_lat + half_dx;
+    dst_crx(3) = dst_lon + half_dx;
+    dst_cry(3) = dst_lat + half_dx;
     dst_grid.set_corners(std::move(dst_crx), std::move(dst_cry));
 
     auto dst_mesh = dst_grid.to_unstructured();
@@ -372,10 +370,8 @@ TEST(BilinearRect, DestAtGridCornerAllWeightsEqual) {
     ASSERT_EQ(entries.size(), 4u);
 
     double wsum = 0.0;
-    for (const auto& e : entries) {
-        EXPECT_NEAR(e.weight, 0.25, 1e-12)
-            << "All four weights at grid corner should be 0.25, got "
-            << e.weight << " at col " << e.col;
+    for (const auto &e : entries) {
+        EXPECT_NEAR(e.weight, 0.25, 1e-12) << "All four weights at grid corner should be 0.25, got " << e.weight << " at col " << e.col;
         wsum += e.weight;
     }
     EXPECT_NEAR(wsum, 1.0, 1e-15);
@@ -398,8 +394,8 @@ TEST(BilinearRect, NonRegularGridUsesBVHFallback) {
     std::vector<double> lon_bounds = {0.0, 5.0, 20.0, 30.0, 40.0};
     std::vector<double> lat_bounds = {0.0, 5.0, 20.0, 30.0, 40.0};
 
-    Kokkos::View<double*, MemSpace> cx("cx", ni * nj);
-    Kokkos::View<double*, MemSpace> cy("cy", ni * nj);
+    Kokkos::View<double *, MemSpace> cx("cx", ni * nj);
+    Kokkos::View<double *, MemSpace> cy("cy", ni * nj);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = (lon_bounds[i] + lon_bounds[i + 1]) * 0.5;
@@ -407,15 +403,13 @@ TEST(BilinearRect, NonRegularGridUsesBVHFallback) {
         }
     }
 
-    topology::StructuredGrid<MemSpace> src_grid(
-        ni, nj, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> src_grid(ni, nj, std::move(cx), std::move(cy), topology::CoordinateSystem::SphericalDeg);
 
     // Set corners for the non-uniform grid
     const std::size_t nc_lon = ni + 1;
     const std::size_t nc_lat = nj + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc_lon * nc_lat);
-    Kokkos::View<double*, MemSpace> cry("cry", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> crx("crx", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> cry("cry", nc_lon * nc_lat);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_lon) = lon_bounds[i];
@@ -445,13 +439,12 @@ TEST(BilinearRect, NonRegularGridUsesBVHFallback) {
         auto entries = get_row_entries(matrix, r);
         ASSERT_GT(entries.size(), 0u) << "Dst cell " << r << " has no entries";
         double wsum = 0.0;
-        for (const auto& e : entries) {
+        for (const auto &e : entries) {
             EXPECT_GE(e.weight, 0.0);
             EXPECT_LE(e.weight, 1.0);
             wsum += e.weight;
         }
-        EXPECT_NEAR(wsum, 1.0, 1e-10)
-            << "BVH fallback should still satisfy partition of unity at row " << r;
+        EXPECT_NEAR(wsum, 1.0, 1e-10) << "BVH fallback should still satisfy partition of unity at row " << r;
     }
 }
 
@@ -471,21 +464,23 @@ TEST(BilinearRect, UnmappedErrorPolicyThrowsWithCellIndex) {
     const double dst_lat = 5.0;
     const double half_dx = 1.0;
 
-    Kokkos::View<double*, MemSpace> dst_cx("dst_cx", 1);
-    Kokkos::View<double*, MemSpace> dst_cy("dst_cy", 1);
+    Kokkos::View<double *, MemSpace> dst_cx("dst_cx", 1);
+    Kokkos::View<double *, MemSpace> dst_cy("dst_cy", 1);
     dst_cx(0) = dst_lon;
     dst_cy(0) = dst_lat;
 
-    topology::StructuredGrid<MemSpace> dst_grid(
-        1, 1, std::move(dst_cx), std::move(dst_cy),
-        topology::CoordinateSystem::SphericalDeg);
+    topology::StructuredGrid<MemSpace> dst_grid(1, 1, std::move(dst_cx), std::move(dst_cy), topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> dst_crx("dst_crx", 4);
-    Kokkos::View<double*, MemSpace> dst_cry("dst_cry", 4);
-    dst_crx(0) = dst_lon - half_dx; dst_cry(0) = dst_lat - half_dx;
-    dst_crx(1) = dst_lon + half_dx; dst_cry(1) = dst_lat - half_dx;
-    dst_crx(2) = dst_lon - half_dx; dst_cry(2) = dst_lat + half_dx;
-    dst_crx(3) = dst_lon + half_dx; dst_cry(3) = dst_lat + half_dx;
+    Kokkos::View<double *, MemSpace> dst_crx("dst_crx", 4);
+    Kokkos::View<double *, MemSpace> dst_cry("dst_cry", 4);
+    dst_crx(0) = dst_lon - half_dx;
+    dst_cry(0) = dst_lat - half_dx;
+    dst_crx(1) = dst_lon + half_dx;
+    dst_cry(1) = dst_lat - half_dx;
+    dst_crx(2) = dst_lon - half_dx;
+    dst_cry(2) = dst_lat + half_dx;
+    dst_crx(3) = dst_lon + half_dx;
+    dst_cry(3) = dst_lat + half_dx;
     dst_grid.set_corners(std::move(dst_crx), std::move(dst_cry));
 
     auto dst_mesh = dst_grid.to_unstructured();
@@ -499,10 +494,9 @@ TEST(BilinearRect, UnmappedErrorPolicyThrowsWithCellIndex) {
     try {
         solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
         FAIL() << "Expected std::runtime_error for unmapped out-of-bounds point";
-    } catch (const std::runtime_error& e) {
+    } catch (const std::runtime_error &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("0"), std::string::npos)
-            << "Error message should contain the cell index '0', got: " << msg;
+        EXPECT_NE(msg.find("0"), std::string::npos) << "Error message should contain the cell index '0', got: " << msg;
     }
 }
 
@@ -534,16 +528,14 @@ TEST(BilinearRect, UnmappedIgnorePolicyProducesZeroRow) {
 
     // Cell 0 (center at lon=5, outside source lon_min=10) should have no entries
     auto entries0 = get_row_entries(matrix, 0);
-    EXPECT_EQ(entries0.size(), 0u)
-        << "Out-of-bounds destination cell should have zero entries with Ignore policy";
+    EXPECT_EQ(entries0.size(), 0u) << "Out-of-bounds destination cell should have zero entries with Ignore policy";
 
     // Cell 1 (center at lon=15, inside) should have entries with valid weights
     auto entries1 = get_row_entries(matrix, 1);
-    EXPECT_GT(entries1.size(), 0u)
-        << "In-bounds destination cell should have weight entries";
+    EXPECT_GT(entries1.size(), 0u) << "In-bounds destination cell should have weight entries";
 
     double wsum = 0.0;
-    for (const auto& e : entries1) {
+    for (const auto &e : entries1) {
         EXPECT_GE(e.weight, 0.0);
         EXPECT_LE(e.weight, 1.0);
         wsum += e.weight;

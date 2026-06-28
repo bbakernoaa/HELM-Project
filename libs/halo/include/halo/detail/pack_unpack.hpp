@@ -35,8 +35,7 @@ namespace halo::detail {
 /// @param view The view to check.
 /// @return true if the view's memory is contiguous.
 template <typename ViewType>
-KOKKOS_INLINE_FUNCTION
-bool is_contiguous(const ViewType& view) {
+KOKKOS_INLINE_FUNCTION bool is_contiguous(const ViewType &view) {
     // A view is contiguous when its memory span equals its logical element count.
     // This is true for directly constructed LayoutLeft/LayoutRight views, and
     // false for subviews that skip elements (e.g., a column from a row-major 2D view).
@@ -56,8 +55,7 @@ bool is_contiguous(const ViewType& view) {
 /// @param dst  The destination 1D buffer (size >= src.size()).
 /// @param exec The execution space instance to launch the kernel on.
 template <typename SrcView, typename DstView>
-void pack_contiguous(const SrcView& src, const DstView& dst,
-                     typename SrcView::execution_space exec = {}) {
+void pack_contiguous(const SrcView &src, const DstView &dst, typename SrcView::execution_space exec = {}) {
     static_assert(DstView::rank == 1, "Destination buffer must be rank-1");
 
     using exec_space = typename SrcView::execution_space;
@@ -65,11 +63,7 @@ void pack_contiguous(const SrcView& src, const DstView& dst,
     const size_type n = src.size();
 
     Kokkos::parallel_for(
-        "halo_pack_contiguous",
-        Kokkos::RangePolicy<exec_space>(exec, 0, n),
-        KOKKOS_LAMBDA(const size_type i) {
-            dst(i) = src.data()[i];
-        });
+        "halo_pack_contiguous", Kokkos::RangePolicy<exec_space>(exec, 0, n), KOKKOS_LAMBDA(const size_type i) { dst(i) = src.data()[i]; });
 
     exec.fence("halo::detail::pack_contiguous");
 }
@@ -87,8 +81,7 @@ void pack_contiguous(const SrcView& src, const DstView& dst,
 /// @param dst  The destination subview (must be contiguous in memory).
 /// @param exec The execution space instance to launch the kernel on.
 template <typename SrcView, typename DstView>
-void unpack_contiguous(const SrcView& src, const DstView& dst,
-                       typename DstView::execution_space exec = {}) {
+void unpack_contiguous(const SrcView &src, const DstView &dst, typename DstView::execution_space exec = {}) {
     static_assert(SrcView::rank == 1, "Source buffer must be rank-1");
 
     using exec_space = typename DstView::execution_space;
@@ -96,11 +89,7 @@ void unpack_contiguous(const SrcView& src, const DstView& dst,
     const size_type n = dst.size();
 
     Kokkos::parallel_for(
-        "halo_unpack_contiguous",
-        Kokkos::RangePolicy<exec_space>(exec, 0, n),
-        KOKKOS_LAMBDA(const size_type i) {
-            dst.data()[i] = src(i);
-        });
+        "halo_unpack_contiguous", Kokkos::RangePolicy<exec_space>(exec, 0, n), KOKKOS_LAMBDA(const size_type i) { dst.data()[i] = src(i); });
 
     exec.fence("halo::detail::unpack_contiguous");
 }
@@ -109,8 +98,7 @@ void unpack_contiguous(const SrcView& src, const DstView& dst,
 
 /// @brief Pack a strided rank-1 subview into a flat buffer.
 template <typename SrcView, typename DstView>
-void pack_strided_rank1(const SrcView& src, const DstView& dst,
-                        typename SrcView::execution_space exec = {}) {
+void pack_strided_rank1(const SrcView &src, const DstView &dst, typename SrcView::execution_space exec = {}) {
     static_assert(SrcView::rank == 1, "Source must be rank-1");
     static_assert(DstView::rank == 1, "Destination buffer must be rank-1");
 
@@ -119,19 +107,14 @@ void pack_strided_rank1(const SrcView& src, const DstView& dst,
     const size_type n0 = src.extent(0);
 
     Kokkos::parallel_for(
-        "halo_pack_strided_r1",
-        Kokkos::RangePolicy<exec_space>(exec, 0, n0),
-        KOKKOS_LAMBDA(const size_type i0) {
-            dst(i0) = src(i0);
-        });
+        "halo_pack_strided_r1", Kokkos::RangePolicy<exec_space>(exec, 0, n0), KOKKOS_LAMBDA(const size_type i0) { dst(i0) = src(i0); });
 
     exec.fence("halo::detail::pack_strided_rank1");
 }
 
 /// @brief Pack a strided rank-2 subview into a flat buffer using MDRangePolicy.
 template <typename SrcView, typename DstView>
-void pack_strided_rank2(const SrcView& src, const DstView& dst,
-                        typename SrcView::execution_space exec = {}) {
+void pack_strided_rank2(const SrcView &src, const DstView &dst, typename SrcView::execution_space exec = {}) {
     static_assert(SrcView::rank == 2, "Source must be rank-2");
     static_assert(DstView::rank == 1, "Destination buffer must be rank-1");
 
@@ -141,8 +124,7 @@ void pack_strided_rank2(const SrcView& src, const DstView& dst,
     const size_type n1 = src.extent(1);
 
     Kokkos::parallel_for(
-        "halo_pack_strided_r2",
-        Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<2>>(exec, {0, 0}, {n0, n1}),
+        "halo_pack_strided_r2", Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<2>>(exec, {0, 0}, {n0, n1}),
         KOKKOS_LAMBDA(const size_type i0, const size_type i1) {
             // Linearize using LayoutRight convention (row-major) for the buffer:
             // buffer_idx = i0 * n1 + i1
@@ -154,8 +136,7 @@ void pack_strided_rank2(const SrcView& src, const DstView& dst,
 
 /// @brief Pack a strided rank-3 subview into a flat buffer using MDRangePolicy.
 template <typename SrcView, typename DstView>
-void pack_strided_rank3(const SrcView& src, const DstView& dst,
-                        typename SrcView::execution_space exec = {}) {
+void pack_strided_rank3(const SrcView &src, const DstView &dst, typename SrcView::execution_space exec = {}) {
     static_assert(SrcView::rank == 3, "Source must be rank-3");
     static_assert(DstView::rank == 1, "Destination buffer must be rank-1");
 
@@ -166,19 +147,15 @@ void pack_strided_rank3(const SrcView& src, const DstView& dst,
     const size_type n2 = src.extent(2);
 
     Kokkos::parallel_for(
-        "halo_pack_strided_r3",
-        Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<3>>(exec, {0, 0, 0}, {n0, n1, n2}),
-        KOKKOS_LAMBDA(const size_type i0, const size_type i1, const size_type i2) {
-            dst((i0 * n1 + i1) * n2 + i2) = src(i0, i1, i2);
-        });
+        "halo_pack_strided_r3", Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<3>>(exec, {0, 0, 0}, {n0, n1, n2}),
+        KOKKOS_LAMBDA(const size_type i0, const size_type i1, const size_type i2) { dst((i0 * n1 + i1) * n2 + i2) = src(i0, i1, i2); });
 
     exec.fence("halo::detail::pack_strided_rank3");
 }
 
 /// @brief Pack a strided rank-4 subview into a flat buffer using MDRangePolicy.
 template <typename SrcView, typename DstView>
-void pack_strided_rank4(const SrcView& src, const DstView& dst,
-                        typename SrcView::execution_space exec = {}) {
+void pack_strided_rank4(const SrcView &src, const DstView &dst, typename SrcView::execution_space exec = {}) {
     static_assert(SrcView::rank == 4, "Source must be rank-4");
     static_assert(DstView::rank == 1, "Destination buffer must be rank-1");
 
@@ -195,9 +172,7 @@ void pack_strided_rank4(const SrcView& src, const DstView& dst,
     const size_type total = n0 * n1 * n2 * n3;
 
     Kokkos::parallel_for(
-        "halo_pack_strided_r4",
-        Kokkos::RangePolicy<exec_space>(exec, 0, total),
-        KOKKOS_LAMBDA(const size_type idx) {
+        "halo_pack_strided_r4", Kokkos::RangePolicy<exec_space>(exec, 0, total), KOKKOS_LAMBDA(const size_type idx) {
             const size_type i3 = idx % n3;
             const size_type rem = idx / n3;
             const size_type i2 = rem % n2;
@@ -214,8 +189,7 @@ void pack_strided_rank4(const SrcView& src, const DstView& dst,
 
 /// @brief Unpack a flat buffer into a strided rank-1 subview.
 template <typename SrcView, typename DstView>
-void unpack_strided_rank1(const SrcView& src, const DstView& dst,
-                          typename DstView::execution_space exec = {}) {
+void unpack_strided_rank1(const SrcView &src, const DstView &dst, typename DstView::execution_space exec = {}) {
     static_assert(SrcView::rank == 1, "Source buffer must be rank-1");
     static_assert(DstView::rank == 1, "Destination must be rank-1");
 
@@ -224,19 +198,14 @@ void unpack_strided_rank1(const SrcView& src, const DstView& dst,
     const size_type n0 = dst.extent(0);
 
     Kokkos::parallel_for(
-        "halo_unpack_strided_r1",
-        Kokkos::RangePolicy<exec_space>(exec, 0, n0),
-        KOKKOS_LAMBDA(const size_type i0) {
-            dst(i0) = src(i0);
-        });
+        "halo_unpack_strided_r1", Kokkos::RangePolicy<exec_space>(exec, 0, n0), KOKKOS_LAMBDA(const size_type i0) { dst(i0) = src(i0); });
 
     exec.fence("halo::detail::unpack_strided_rank1");
 }
 
 /// @brief Unpack a flat buffer into a strided rank-2 subview using MDRangePolicy.
 template <typename SrcView, typename DstView>
-void unpack_strided_rank2(const SrcView& src, const DstView& dst,
-                          typename DstView::execution_space exec = {}) {
+void unpack_strided_rank2(const SrcView &src, const DstView &dst, typename DstView::execution_space exec = {}) {
     static_assert(SrcView::rank == 1, "Source buffer must be rank-1");
     static_assert(DstView::rank == 2, "Destination must be rank-2");
 
@@ -246,19 +215,15 @@ void unpack_strided_rank2(const SrcView& src, const DstView& dst,
     const size_type n1 = dst.extent(1);
 
     Kokkos::parallel_for(
-        "halo_unpack_strided_r2",
-        Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<2>>(exec, {0, 0}, {n0, n1}),
-        KOKKOS_LAMBDA(const size_type i0, const size_type i1) {
-            dst(i0, i1) = src(i0 * n1 + i1);
-        });
+        "halo_unpack_strided_r2", Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<2>>(exec, {0, 0}, {n0, n1}),
+        KOKKOS_LAMBDA(const size_type i0, const size_type i1) { dst(i0, i1) = src(i0 * n1 + i1); });
 
     exec.fence("halo::detail::unpack_strided_rank2");
 }
 
 /// @brief Unpack a flat buffer into a strided rank-3 subview using MDRangePolicy.
 template <typename SrcView, typename DstView>
-void unpack_strided_rank3(const SrcView& src, const DstView& dst,
-                          typename DstView::execution_space exec = {}) {
+void unpack_strided_rank3(const SrcView &src, const DstView &dst, typename DstView::execution_space exec = {}) {
     static_assert(SrcView::rank == 1, "Source buffer must be rank-1");
     static_assert(DstView::rank == 3, "Destination must be rank-3");
 
@@ -269,19 +234,15 @@ void unpack_strided_rank3(const SrcView& src, const DstView& dst,
     const size_type n2 = dst.extent(2);
 
     Kokkos::parallel_for(
-        "halo_unpack_strided_r3",
-        Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<3>>(exec, {0, 0, 0}, {n0, n1, n2}),
-        KOKKOS_LAMBDA(const size_type i0, const size_type i1, const size_type i2) {
-            dst(i0, i1, i2) = src((i0 * n1 + i1) * n2 + i2);
-        });
+        "halo_unpack_strided_r3", Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<3>>(exec, {0, 0, 0}, {n0, n1, n2}),
+        KOKKOS_LAMBDA(const size_type i0, const size_type i1, const size_type i2) { dst(i0, i1, i2) = src((i0 * n1 + i1) * n2 + i2); });
 
     exec.fence("halo::detail::unpack_strided_rank3");
 }
 
 /// @brief Unpack a flat buffer into a strided rank-4 subview using MDRangePolicy.
 template <typename SrcView, typename DstView>
-void unpack_strided_rank4(const SrcView& src, const DstView& dst,
-                          typename DstView::execution_space exec = {}) {
+void unpack_strided_rank4(const SrcView &src, const DstView &dst, typename DstView::execution_space exec = {}) {
     static_assert(SrcView::rank == 1, "Source buffer must be rank-1");
     static_assert(DstView::rank == 4, "Destination must be rank-4");
 
@@ -295,9 +256,7 @@ void unpack_strided_rank4(const SrcView& src, const DstView& dst,
     const size_type total = n0 * n1 * n2 * n3;
 
     Kokkos::parallel_for(
-        "halo_unpack_strided_r4",
-        Kokkos::RangePolicy<exec_space>(exec, 0, total),
-        KOKKOS_LAMBDA(const size_type idx) {
+        "halo_unpack_strided_r4", Kokkos::RangePolicy<exec_space>(exec, 0, total), KOKKOS_LAMBDA(const size_type idx) {
             const size_type i3 = idx % n3;
             const size_type rem = idx / n3;
             const size_type i2 = rem % n2;
@@ -326,11 +285,9 @@ void unpack_strided_rank4(const SrcView& src, const DstView& dst,
 /// @param dst  The destination 1D buffer (size >= src.size()).
 /// @param exec The execution space instance to launch the kernel on.
 template <typename SrcView, typename DstView>
-void pack(const SrcView& src, const DstView& dst,
-          typename SrcView::execution_space exec = {}) {
+void pack(const SrcView &src, const DstView &dst, typename SrcView::execution_space exec = {}) {
     static_assert(DstView::rank == 1, "Destination buffer must be rank-1");
-    static_assert(SrcView::rank >= 1 && SrcView::rank <= 4,
-                  "pack() supports source views of rank 1 through 4");
+    static_assert(SrcView::rank >= 1 && SrcView::rank <= 4, "pack() supports source views of rank 1 through 4");
 
     // Runtime contiguity check: use the fast linearized path when possible
     if (is_contiguous(src)) {
@@ -364,11 +321,9 @@ void pack(const SrcView& src, const DstView& dst,
 /// @param dst  The destination subview to unpack into.
 /// @param exec The execution space instance to launch the kernel on.
 template <typename SrcView, typename DstView>
-void unpack(const SrcView& src, const DstView& dst,
-            typename DstView::execution_space exec = {}) {
+void unpack(const SrcView &src, const DstView &dst, typename DstView::execution_space exec = {}) {
     static_assert(SrcView::rank == 1, "Source buffer must be rank-1");
-    static_assert(DstView::rank >= 1 && DstView::rank <= 4,
-                  "unpack() supports destination views of rank 1 through 4");
+    static_assert(DstView::rank >= 1 && DstView::rank <= 4, "unpack() supports destination views of rank 1 through 4");
 
     // Runtime contiguity check: use the fast linearized path when possible
     if (is_contiguous(dst)) {
@@ -387,6 +342,6 @@ void unpack(const SrcView& src, const DstView& dst,
     }
 }
 
-} // namespace halo::detail
+}  // namespace halo::detail
 
-#endif // HALO_DETAIL_PACK_UNPACK_HPP
+#endif  // HALO_DETAIL_PACK_UNPACK_HPP

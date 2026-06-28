@@ -20,30 +20,30 @@
 #include <axis/types.hpp>
 
 // ─── Ingest / Egress Contract ────────────────────────────────────────────────
-#include <axis/ingest/grid_descriptor.hpp>
 #include <axis/ingest/egress.hpp>
+#include <axis/ingest/grid_descriptor.hpp>
 
 // ─── Topology ────────────────────────────────────────────────────────────────
 #include <axis/topology/enums.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/gmsh_writer.hpp>
 #include <axis/topology/mesh_factory.hpp>
 #include <axis/topology/named_grid_registry.hpp>
-#include <axis/topology/rule_generator.hpp>
 #include <axis/topology/projection_builder.hpp>
-#include <axis/topology/gmsh_writer.hpp>
+#include <axis/topology/rule_generator.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
 
 // ─── Solver ──────────────────────────────────────────────────────────────────
-#include <axis/solver/regrid_config.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
 #include <axis/solver/apply.hpp>
-#include <axis/solver/halo_pattern.hpp>
 #include <axis/solver/conservation.hpp>
+#include <axis/solver/halo_pattern.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
 
 // ─── Detail (internal utilities, exposed for advanced use) ───────────────────
-#include <axis/detail/memory_traits.hpp>
 #include <axis/detail/mdspan_interop.hpp>
+#include <axis/detail/memory_traits.hpp>
 #include <axis/detail/raii_handles.hpp>
 
-#endif // AXIS_AXIS_HPP
+#endif  // AXIS_AXIS_HPP

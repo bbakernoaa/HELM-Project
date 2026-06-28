@@ -7,10 +7,10 @@
 // Requirements: 11.7
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include "mpi_interposition.hpp"
-
 #include <gtest/gtest.h>
 #include <mpi.h>
+
+#include "mpi_interposition.hpp"
 
 using halo::testing::MPI_Call_Record;
 using halo::testing::MPI_Spy;
@@ -18,7 +18,7 @@ using halo::testing::MPI_Spy;
 // ─── Test Fixture ────────────────────────────────────────────────────────────
 
 class MPI_Spy_Test : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         MPI_Spy::instance().reset();
     }
@@ -34,30 +34,30 @@ TEST_F(MPI_Spy_Test, RecordsMPICommFree) {
     MPI_Comm comm = MPI_COMM_NULL;
     MPI_Comm_free(&comm);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Comm_free);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(&comm));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(&comm));
 }
 
 TEST_F(MPI_Spy_Test, RecordsMPIRequestFree) {
     MPI_Request req = MPI_REQUEST_NULL;
     MPI_Request_free(&req);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Request_free);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(&req));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(&req));
 }
 
 TEST_F(MPI_Spy_Test, RecordsMPICancel) {
     MPI_Request req = MPI_REQUEST_NULL;
     MPI_Cancel(&req);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Cancel);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(&req));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(&req));
 }
 
 TEST_F(MPI_Spy_Test, RecordsMPIWait) {
@@ -65,10 +65,10 @@ TEST_F(MPI_Spy_Test, RecordsMPIWait) {
     MPI_Status status;
     MPI_Wait(&req, &status);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Wait);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(&req));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(&req));
 }
 
 TEST_F(MPI_Spy_Test, RecordsMPITest) {
@@ -77,10 +77,10 @@ TEST_F(MPI_Spy_Test, RecordsMPITest) {
     MPI_Status status;
     MPI_Test(&req, &flag, &status);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Test);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(&req));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(&req));
     // Mock always completes immediately
     EXPECT_EQ(flag, 1);
 }
@@ -89,17 +89,17 @@ TEST_F(MPI_Spy_Test, RecordsMPIWinFree) {
     MPI_Win win = MPI_WIN_NULL;
     MPI_Win_free(&win);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Win_free);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(&win));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(&win));
 }
 
 TEST_F(MPI_Spy_Test, RecordsMPIWinFence) {
     MPI_Win win = MPI_WIN_NULL;
     MPI_Win_fence(0, win);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Win_fence);
     EXPECT_EQ(calls[0].arg, 0);
@@ -109,7 +109,7 @@ TEST_F(MPI_Spy_Test, RecordsMPIWinFenceWithAssertion) {
     MPI_Win win = MPI_WIN_NULL;
     MPI_Win_fence(MPI_MODE_NOSTORE, win);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Win_fence);
     EXPECT_EQ(calls[0].arg, MPI_MODE_NOSTORE);
@@ -120,10 +120,10 @@ TEST_F(MPI_Spy_Test, RecordsMPIIrecv) {
     MPI_Request req;
     MPI_Irecv(buf, 64, MPI_CHAR, 2, 42, MPI_COMM_WORLD, &req);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Irecv);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(buf));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(buf));
     EXPECT_EQ(calls[0].arg, 2);  // source rank recorded as arg
     // Sentinel request should be non-null
     EXPECT_NE(req, MPI_REQUEST_NULL);
@@ -134,10 +134,10 @@ TEST_F(MPI_Spy_Test, RecordsMPIIsend) {
     MPI_Request req;
     MPI_Isend(buf, 64, MPI_CHAR, 3, 99, MPI_COMM_WORLD, &req);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Isend);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(buf));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(buf));
     EXPECT_EQ(calls[0].arg, 3);  // dest rank recorded as arg
     // Sentinel request should be non-null
     EXPECT_NE(req, MPI_REQUEST_NULL);
@@ -147,10 +147,10 @@ TEST_F(MPI_Spy_Test, RecordsMPIWaitall) {
     MPI_Request reqs[3] = {MPI_REQUEST_NULL, MPI_REQUEST_NULL, MPI_REQUEST_NULL};
     MPI_Waitall(3, reqs, MPI_STATUSES_IGNORE);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Waitall);
-    EXPECT_EQ(calls[0].handle, static_cast<void*>(reqs));
+    EXPECT_EQ(calls[0].handle, static_cast<void *>(reqs));
     EXPECT_EQ(calls[0].arg, 3);  // count recorded as arg
 }
 
@@ -291,7 +291,7 @@ TEST_F(MPI_Spy_Test, RecordsMultipleCallsInOrder) {
     MPI_Win_fence(0, win);
     MPI_Win_free(&win);
 
-    auto const& calls = MPI_Spy::instance().calls();
+    auto const &calls = MPI_Spy::instance().calls();
     ASSERT_EQ(calls.size(), 4u);
     EXPECT_EQ(calls[0].type, MPI_Call_Record::Type::Comm_free);
     EXPECT_EQ(calls[1].type, MPI_Call_Record::Type::Cancel);

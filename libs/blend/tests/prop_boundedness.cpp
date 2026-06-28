@@ -13,17 +13,16 @@
 #include <rapidcheck/gtest.h>
 
 #include <Kokkos_Core.hpp>
+#include <algorithm>
 #include <blend/helm_math_blend.hpp>
+#include <vector>
 
 #include "generators.hpp"
-
-#include <algorithm>
-#include <vector>
 
 // ── Kokkos lifecycle management ───────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         Kokkos::initialize();
     }
@@ -32,20 +31,20 @@ public:
     }
 };
 
-static ::testing::Environment* const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static ::testing::Environment *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 // ── Property: output bounded by element-wise min/max of inputs ───────────────
 
 RC_GTEST_PROP(BlendBoundedness, OutputBoundedByInputsForUnitAlpha, ()) {
-    const std::size_t n       = *blend::gen::array_length();
-    const auto        left_v  = *blend::gen::field_data(n);
-    const auto        right_v = *blend::gen::field_data(n);
-    const double      alpha   = *blend::gen::alpha_unit();
+    const std::size_t n = *blend::gen::array_length();
+    const auto left_v = *blend::gen::field_data(n);
+    const auto right_v = *blend::gen::field_data(n);
+    const double alpha = *blend::gen::alpha_unit();
 
     std::vector<double> target(n, 0.0);
 
-    span::FieldView v_left(const_cast<double*>(left_v.data()), n);
-    span::FieldView v_right(const_cast<double*>(right_v.data()), n);
+    span::FieldView v_left(const_cast<double *>(left_v.data()), n);
+    span::FieldView v_right(const_cast<double *>(right_v.data()), n);
     span::FieldView v_target(target.data(), n);
 
     blend::LinearBlendKernel::apply(v_left, v_right, v_target, alpha);

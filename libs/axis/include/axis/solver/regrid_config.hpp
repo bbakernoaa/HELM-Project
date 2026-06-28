@@ -37,8 +37,8 @@ enum class InterpolationMethod : std::uint8_t {
 /// Controls how partially-covered destination cells are normalized.
 /// Matches ESMF normalization semantics.
 enum class NormType : std::uint8_t {
-    DstArea,   ///< Unnormalized: dst_raw = frac_b * dst_true (default)
-    FracArea   ///< Fraction baked in: apply yields true value directly
+    DstArea,  ///< Unnormalized: dst_raw = frac_b * dst_true (default)
+    FracArea  ///< Fraction baked in: apply yields true value directly
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,8 +47,8 @@ enum class NormType : std::uint8_t {
 
 /// Determines how lines between grid points are computed for overlap detection.
 enum class LineType : std::uint8_t {
-    Cartesian,    ///< Straight lines in projected (Cartesian) space
-    GreatCircle   ///< Geodesic arcs on the sphere
+    Cartesian,   ///< Straight lines in projected (Cartesian) space
+    GreatCircle  ///< Geodesic arcs on the sphere
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,8 +57,8 @@ enum class LineType : std::uint8_t {
 
 /// Controls what happens when a destination cell has no source overlap.
 enum class UnmappedAction : std::uint8_t {
-    Error,   ///< Throw std::runtime_error identifying the unmapped index
-    Ignore   ///< Leave destination value at zero; no entry in the matrix
+    Error,  ///< Throw std::runtime_error identifying the unmapped index
+    Ignore  ///< Leave destination value at zero; no entry in the matrix
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,16 +78,16 @@ enum class ExtrapolationAction : std::uint8_t {
 /// Configuration struct capturing all runtime options for weight generation.
 /// Passed by value to WeightGenerator::generate.
 struct RegridConfig {
-    InterpolationMethod method      = InterpolationMethod::Bilinear;
-    NormType            norm_type   = NormType::DstArea;
-    LineType            line_type   = LineType::GreatCircle;
-    UnmappedAction      unmapped    = UnmappedAction::Ignore;
-    bool                use_limiter = false;  ///< Enable Barth-Jespersen monotonicity limiter (Conservative2ndOrder only)
-    
+    InterpolationMethod method = InterpolationMethod::Bilinear;
+    NormType norm_type = NormType::DstArea;
+    LineType line_type = LineType::GreatCircle;
+    UnmappedAction unmapped = UnmappedAction::Ignore;
+    bool use_limiter = false;  ///< Enable Barth-Jespersen monotonicity limiter (Conservative2ndOrder only)
+
     /// @brief Extrapolation method when a destination cell has zero wet source overlaps.
     ExtrapolationAction extrap_method = ExtrapolationAction::NearestWet;
 };
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_REGRID_CONFIG_HPP
+#endif  // AXIS_SOLVER_REGRID_CONFIG_HPP

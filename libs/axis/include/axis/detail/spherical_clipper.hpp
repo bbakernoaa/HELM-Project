@@ -37,34 +37,32 @@ struct Vec3 {
 
 /// @brief Dot product of two vectors.
 KOKKOS_INLINE_FUNCTION
-double dot(const Vec3& a, const Vec3& b) noexcept {
+double dot(const Vec3 &a, const Vec3 &b) noexcept {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
 /// @brief Cross product of two vectors.
 KOKKOS_INLINE_FUNCTION
-Vec3 cross(const Vec3& a, const Vec3& b) noexcept {
-    return {a.y * b.z - a.z * b.y,
-            a.z * b.x - a.x * b.z,
-            a.x * b.y - a.y * b.x};
+Vec3 cross(const Vec3 &a, const Vec3 &b) noexcept {
+    return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
 
 /// @brief Squared length of a vector.
 KOKKOS_INLINE_FUNCTION
-double length_sq(const Vec3& v) noexcept {
+double length_sq(const Vec3 &v) noexcept {
     return v.x * v.x + v.y * v.y + v.z * v.z;
 }
 
 /// @brief Length of a vector.
 KOKKOS_INLINE_FUNCTION
-double length(const Vec3& v) noexcept {
+double length(const Vec3 &v) noexcept {
     return Kokkos::sqrt(length_sq(v));
 }
 
 /// @brief Normalize a vector to unit length. Returns zero vector if input is
 ///        near-zero.
 KOKKOS_INLINE_FUNCTION
-Vec3 normalize(const Vec3& v) noexcept {
+Vec3 normalize(const Vec3 &v) noexcept {
     double len = length(v);
     if (len < 1.0e-300) return {0.0, 0.0, 0.0};
     double inv = 1.0 / len;
@@ -73,19 +71,19 @@ Vec3 normalize(const Vec3& v) noexcept {
 
 /// @brief Negate a vector.
 KOKKOS_INLINE_FUNCTION
-Vec3 negate(const Vec3& v) noexcept {
+Vec3 negate(const Vec3 &v) noexcept {
     return {-v.x, -v.y, -v.z};
 }
 
 /// @brief Add two vectors.
 KOKKOS_INLINE_FUNCTION
-Vec3 add(const Vec3& a, const Vec3& b) noexcept {
+Vec3 add(const Vec3 &a, const Vec3 &b) noexcept {
     return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
 /// @brief Scale a vector by a scalar.
 KOKKOS_INLINE_FUNCTION
-Vec3 scale(const Vec3& v, double s) noexcept {
+Vec3 scale(const Vec3 &v, double s) noexcept {
     return {v.x * s, v.y * s, v.z * s};
 }
 
@@ -102,7 +100,7 @@ Vec3 scale(const Vec3& v, double s) noexcept {
 template <int MaxVerts = 32>
 struct SphericalPolygon {
     Vec3 verts[MaxVerts];  ///< Unit sphere vertices (x, y, z)
-    int  n{0};             ///< Current vertex count
+    int n{0};              ///< Current vertex count
 
     /// @brief Compute the spherical area via spherical excess (Girard's theorem).
     ///
@@ -115,11 +113,11 @@ struct SphericalPolygon {
         if (n < 3) return 0.0;
 
         double total = 0.0;
-        const Vec3& a = verts[0];
+        const Vec3 &a = verts[0];
 
         for (int i = 1; i < n - 1; ++i) {
-            const Vec3& b = verts[i];
-            const Vec3& c = verts[i + 1];
+            const Vec3 &b = verts[i];
+            const Vec3 &c = verts[i + 1];
 
             // Spherical excess of triangle (a, b, c) via Van Oosterom-Strackee:
             //   tan(E/2) = |a·(b×c)| / (1 + a·b + a·c + b·c)
@@ -139,10 +137,12 @@ struct SphericalPolygon {
     }
 
     /// @brief Check if the polygon is empty (fewer than 3 vertices).
-    KOKKOS_FUNCTION bool empty() const noexcept { return n < 3; }
+    KOKKOS_FUNCTION bool empty() const noexcept {
+        return n < 3;
+    }
 
     /// @brief Add a vertex to the polygon (clamps at MaxVerts).
-    KOKKOS_FUNCTION void push(const Vec3& v) noexcept {
+    KOKKOS_FUNCTION void push(const Vec3 &v) noexcept {
         if (n < MaxVerts) {
             verts[n] = v;
             ++n;
@@ -150,7 +150,9 @@ struct SphericalPolygon {
     }
 
     /// @brief Clear all vertices.
-    KOKKOS_FUNCTION void clear() noexcept { n = 0; }
+    KOKKOS_FUNCTION void clear() noexcept {
+        n = 0;
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -170,7 +172,6 @@ struct SphericalPolygon {
 ///   - Coincident/near-coincident edges (skip clipping against that edge)
 ///   - Result with < 3 vertices: returns empty polygon
 struct SphericalClipper {
-
     /// @brief Clip the subject polygon against the clip polygon.
     ///
     /// @tparam M Maximum vertex capacity of the polygons.
@@ -178,9 +179,7 @@ struct SphericalClipper {
     /// @param clip_poly The polygon defining the clipping boundary.
     /// @return The intersection polygon (may be empty).
     template <int M>
-    KOKKOS_FUNCTION
-    static SphericalPolygon<M> clip(const SphericalPolygon<M>& subject,
-                                    const SphericalPolygon<M>& clip_poly) noexcept {
+    KOKKOS_FUNCTION static SphericalPolygon<M> clip(const SphericalPolygon<M> &subject, const SphericalPolygon<M> &clip_poly) noexcept {
         if (subject.empty() || clip_poly.empty()) {
             return SphericalPolygon<M>{};
         }
@@ -197,8 +196,8 @@ struct SphericalClipper {
 
         // For each edge of clip_poly, clip the current polygon.
         for (int ci = 0; ci < clip_poly.n; ++ci) {
-            const Vec3& edge_a = clip_poly.verts[ci];
-            const Vec3& edge_b = clip_poly.verts[(ci + 1) % clip_poly.n];
+            const Vec3 &edge_a = clip_poly.verts[ci];
+            const Vec3 &edge_b = clip_poly.verts[(ci + 1) % clip_poly.n];
 
             // Compute the great-circle normal for this clip edge.
             // Points "inside" satisfy dot(normal, point) >= 0.
@@ -238,14 +237,12 @@ struct SphericalClipper {
     /// @param b Second polygon.
     /// @return Overlap area in steradians (>= 0).
     template <int M>
-    KOKKOS_FUNCTION
-    static double overlap_area(const SphericalPolygon<M>& a,
-                               const SphericalPolygon<M>& b) noexcept {
+    KOKKOS_FUNCTION static double overlap_area(const SphericalPolygon<M> &a, const SphericalPolygon<M> &b) noexcept {
         SphericalPolygon<M> result = clip(a, b);
         return result.area();
     }
 
-private:
+   private:
     /// @brief Determine if a point is "inside" a half-sphere defined by a
     ///        great-circle normal.
     ///
@@ -253,7 +250,7 @@ private:
     /// Vertices exactly on the boundary (dot ≈ 0) are treated as inside
     /// (inclusive boundary) for robustness.
     KOKKOS_FUNCTION
-    static double signed_distance(const Vec3& normal, const Vec3& point) noexcept {
+    static double signed_distance(const Vec3 &normal, const Vec3 &point) noexcept {
         return dot(normal, point);
     }
 
@@ -266,8 +263,7 @@ private:
     /// Formula: I = normalize(cross(cross(edge_a, edge_b), cross(v1, v2)))
     /// choosing the sign that lies between v1 and v2.
     KOKKOS_FUNCTION
-    static Vec3 compute_intersection(const Vec3& v1, const Vec3& v2,
-                                     const Vec3& edge_a, const Vec3& edge_b) noexcept {
+    static Vec3 compute_intersection(const Vec3 &v1, const Vec3 &v2, const Vec3 &edge_a, const Vec3 &edge_b) noexcept {
         // Normal of the clip edge great circle
         Vec3 n1 = cross(edge_a, edge_b);
         // Normal of the arc great circle
@@ -303,12 +299,8 @@ private:
     /// This is the core Sutherland-Hodgman step: for each edge of the input
     /// polygon, output vertices based on inside/outside classification.
     template <int M>
-    KOKKOS_FUNCTION
-    static void clip_against_edge(const SphericalPolygon<M>& input,
-                                  const Vec3& normal,
-                                  const Vec3& edge_a,
-                                  const Vec3& edge_b,
-                                  SphericalPolygon<M>& output) noexcept {
+    KOKKOS_FUNCTION static void clip_against_edge(const SphericalPolygon<M> &input, const Vec3 &normal, const Vec3 &edge_a, const Vec3 &edge_b,
+                                                  SphericalPolygon<M> &output) noexcept {
         if (input.n < 1) return;
 
         // Tolerance for treating a point as "on the boundary" (inclusive).
@@ -316,8 +308,8 @@ private:
 
         for (int i = 0; i < input.n; ++i) {
             int prev_idx = (i + input.n - 1) % input.n;
-            const Vec3& curr = input.verts[i];
-            const Vec3& prev = input.verts[prev_idx];
+            const Vec3 &curr = input.verts[i];
+            const Vec3 &prev = input.verts[prev_idx];
 
             double d_curr = signed_distance(normal, curr);
             double d_prev = signed_distance(normal, prev);

@@ -15,12 +15,10 @@
 ///
 /// Template parameter: Kokkos MemorySpace (HELM Law #2: explicit placement).
 
+#include <Kokkos_Core.hpp>
 #include <axis/topology/enums.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
-
-#include <Kokkos_Core.hpp>
-
 #include <cstddef>
 
 namespace axis::topology {
@@ -37,7 +35,7 @@ namespace axis::topology {
 /// @tparam MemorySpace The Kokkos memory space used for internal array storage (e.g., Kokkos::HostSpace, Kokkos::CudaSpace, Kokkos::HIPSpace).
 template <class MemorySpace = Kokkos::HostSpace>
 class StructuredGrid {
-public:
+   public:
     /// @brief Type alias for the memory space template parameter.
     using memory_space = MemorySpace;
 
@@ -51,24 +49,28 @@ public:
     /// @param center_lon A rank-1 Kokkos::View of size [ni*nj] containing cell center longitudes in column-major order.
     /// @param center_lat A rank-1 Kokkos::View of size [ni*nj] containing cell center latitudes in column-major order.
     /// @param coord_sys The CoordinateSystem enum value specifying the coordinate system (e.g., SphericalDeg, Cartesian).
-    StructuredGrid(std::size_t ni, std::size_t nj,
-                   Kokkos::View<double*, MemorySpace> center_lon,
-                   Kokkos::View<double*, MemorySpace> center_lat,
+    StructuredGrid(std::size_t ni, std::size_t nj, Kokkos::View<double *, MemorySpace> center_lon, Kokkos::View<double *, MemorySpace> center_lat,
                    CoordinateSystem coord_sys);
 
     // ── Dimension queries ────────────────────────────────────────────────────
 
     /// @brief Gets the number of cells in the i-direction (fastest-varying dimension).
     /// @return The number of cells in the i-direction as a std::size_t.
-    [[nodiscard]] std::size_t ni() const noexcept { return ni_; }
+    [[nodiscard]] std::size_t ni() const noexcept {
+        return ni_;
+    }
 
     /// @brief Gets the number of cells in the j-direction.
     /// @return The number of cells in the j-direction as a std::size_t.
-    [[nodiscard]] std::size_t nj() const noexcept { return nj_; }
+    [[nodiscard]] std::size_t nj() const noexcept {
+        return nj_;
+    }
 
     /// @brief Gets the coordinate system of the grid's coordinates.
     /// @return The CoordinateSystem enum value representing the grid's coordinate system.
-    [[nodiscard]] CoordinateSystem coord_system() const noexcept { return coord_sys_; }
+    [[nodiscard]] CoordinateSystem coord_system() const noexcept {
+        return coord_sys_;
+    }
 
     // ── Coordinate accessors (1-D flat arrays) ───────────────────────────────
 
@@ -104,8 +106,7 @@ public:
     ///
     /// @param corner_lon A rank-1 Kokkos::View of size [(ni+1)*(nj+1)] containing corner longitudes.
     /// @param corner_lat A rank-1 Kokkos::View of size [(ni+1)*(nj+1)] containing corner latitudes.
-    void set_corners(Kokkos::View<double*, MemorySpace> corner_lon,
-                     Kokkos::View<double*, MemorySpace> corner_lat);
+    void set_corners(Kokkos::View<double *, MemorySpace> corner_lon, Kokkos::View<double *, MemorySpace> corner_lat);
 
     // ── Conversion ───────────────────────────────────────────────────────────
 
@@ -122,13 +123,13 @@ public:
     /// @return A complete UnstructuredMesh<MemorySpace> instance representing the same grid.
     [[nodiscard]] UnstructuredMesh<MemorySpace> to_unstructured() const;
 
-private:
+   private:
     std::size_t ni_{0};
     std::size_t nj_{0};
-    Kokkos::View<double*, MemorySpace> center_lon_;
-    Kokkos::View<double*, MemorySpace> center_lat_;
-    Kokkos::View<double*, MemorySpace> corner_lon_;
-    Kokkos::View<double*, MemorySpace> corner_lat_;
+    Kokkos::View<double *, MemorySpace> center_lon_;
+    Kokkos::View<double *, MemorySpace> center_lat_;
+    Kokkos::View<double *, MemorySpace> corner_lon_;
+    Kokkos::View<double *, MemorySpace> corner_lat_;
     CoordinateSystem coord_sys_{CoordinateSystem::SphericalDeg};
 
     /// Internal: synthesize corner coordinates from centers when corners not
@@ -136,6 +137,6 @@ private:
     void synthesize_corners() const;
 };
 
-} // namespace axis::topology
+}  // namespace axis::topology
 
-#endif // AXIS_TOPOLOGY_STRUCTURED_GRID_HPP
+#endif  // AXIS_TOPOLOGY_STRUCTURED_GRID_HPP

@@ -12,6 +12,7 @@
 /// use of the returned handle.
 
 #include <mpi.h>
+
 #include <stdexcept>
 
 namespace halo {
@@ -28,7 +29,7 @@ namespace halo {
 /// communicators (WORLD, SELF) are NOT modified to avoid side effects on the
 /// application's global error handling strategy.
 class Communicator {
-public:
+   public:
     /// @brief Construct from a raw MPI_Comm handle. Takes exclusive ownership.
     /// @param comm The MPI communicator handle to own.
     explicit Communicator(MPI_Comm comm) noexcept;
@@ -38,16 +39,16 @@ public:
     ~Communicator();
 
     /// @brief Move constructor. Transfers ownership; source becomes MPI_COMM_NULL.
-    Communicator(Communicator&& other) noexcept;
+    Communicator(Communicator &&other) noexcept;
 
     /// @brief Move assignment. Transfers ownership; source becomes MPI_COMM_NULL.
-    Communicator& operator=(Communicator&& other) noexcept;
+    Communicator &operator=(Communicator &&other) noexcept;
 
     /// @brief Copy construction is deleted (unique ownership).
-    Communicator(const Communicator&) = delete;
+    Communicator(const Communicator &) = delete;
 
     /// @brief Copy assignment is deleted (unique ownership).
-    Communicator& operator=(const Communicator&) = delete;
+    Communicator &operator=(const Communicator &) = delete;
 
     /// @brief Access the raw MPI_Comm handle without transferring ownership.
     /// @return The owned MPI_Comm value.
@@ -77,13 +78,13 @@ public:
     /// @throws std::runtime_error if MPI_Comm_dup fails.
     [[nodiscard]] Communicator duplicate() const;
 
-private:
+   private:
     MPI_Comm comm_{MPI_COMM_NULL};
 
     /// @brief Check if the held communicator is predefined (WORLD or SELF).
     [[nodiscard]] bool is_predefined() const noexcept;
 };
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_COMMUNICATOR_HPP
+#endif  // HALO_COMMUNICATOR_HPP

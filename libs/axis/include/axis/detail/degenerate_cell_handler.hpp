@@ -19,16 +19,14 @@
 /// std::vector. Warnings are emitted via a caller-supplied callback, not through
 /// LOGS (preserving Tier 1 isolation).
 
+#include <Kokkos_Core.hpp>
+#include <axis/detail/spherical_clipper.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
-#include <axis/detail/spherical_clipper.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
 
 namespace axis::detail {
 
@@ -42,9 +40,9 @@ namespace axis::detail {
 /// multiple degenerate properties; the handler reports the first/most-severe
 /// condition found.
 enum class DegenerateType : uint8_t {
-    None            = 0,  ///< Cell is valid (no degenerate condition)
-    ZeroArea        = 1,  ///< Cell area below minimum threshold
-    CollapsedEdge   = 2,  ///< Two or more coincident vertices (edge length ≈ 0)
+    None = 0,             ///< Cell is valid (no degenerate condition)
+    ZeroArea = 1,         ///< Cell area below minimum threshold
+    CollapsedEdge = 2,    ///< Two or more coincident vertices (edge length ≈ 0)
     SelfIntersecting = 3  ///< Cell boundary crosses itself
 };
 
@@ -65,9 +63,7 @@ struct DegenerateCellReport {
 
     /// @brief Fraction of degenerate cells relative to total.
     [[nodiscard]] double degenerate_fraction() const noexcept {
-        return total_cells > 0
-            ? static_cast<double>(degenerate_count) / static_cast<double>(total_cells)
-            : 0.0;
+        return total_cells > 0 ? static_cast<double>(degenerate_count) / static_cast<double>(total_cells) : 0.0;
     }
 };
 
@@ -117,12 +113,8 @@ struct DegenerateCellHandler {
     /// @param edge_threshold Minimum edge length (default 1e-15).
     /// @return The degenerate type, or None if the cell is valid.
     template <int MaxVerts>
-    KOKKOS_FUNCTION
-    static DegenerateType classify(
-        const SphericalPolygon<MaxVerts>& cell,
-        double area_threshold = DEFAULT_AREA_THRESHOLD,
-        double edge_threshold = DEFAULT_EDGE_THRESHOLD) noexcept {
-
+    KOKKOS_FUNCTION static DegenerateType classify(const SphericalPolygon<MaxVerts> &cell, double area_threshold = DEFAULT_AREA_THRESHOLD,
+                                                   double edge_threshold = DEFAULT_EDGE_THRESHOLD) noexcept {
         // A polygon with fewer than 3 vertices is trivially degenerate.
         if (cell.n < 3) {
             return DegenerateType::ZeroArea;
@@ -168,12 +160,9 @@ struct DegenerateCellHandler {
     /// @param warning_cb Optional callback invoked when >1% degenerate.
     /// @return A DegenerateCellReport with excluded indices and types.
     template <class MemorySpace>
-    static DegenerateCellReport scan(
-        const topology::UnstructuredMesh<MemorySpace>& mesh,
-        double area_threshold = DEFAULT_AREA_THRESHOLD,
-        double edge_threshold = DEFAULT_EDGE_THRESHOLD,
-        std::function<void(std::size_t degenerate, std::size_t total)> warning_cb = nullptr) {
-
+    static DegenerateCellReport scan(const topology::UnstructuredMesh<MemorySpace> &mesh, double area_threshold = DEFAULT_AREA_THRESHOLD,
+                                     double edge_threshold = DEFAULT_EDGE_THRESHOLD,
+                                     std::function<void(std::size_t degenerate, std::size_t total)> warning_cb = nullptr) {
         DegenerateCellReport report;
         report.total_cells = mesh.n_cells();
         report.degenerate_count = 0;
@@ -183,9 +172,9 @@ struct DegenerateCellHandler {
         }
 
         // Access mesh data — mirror to host if necessary.
-        auto coords_view  = mesh.node_coords();     // [n_nodes, ndim]
-        auto offsets_view  = mesh.conn_offsets();    // [n_cells + 1]
-        auto indices_view  = mesh.conn_indices();    // [nnz]
+        auto coords_view = mesh.node_coords();    // [n_nodes, ndim]
+        auto offsets_view = mesh.conn_offsets();  // [n_cells + 1]
+        auto indices_view = mesh.conn_indices();  // [nnz]
 
         const std::size_t n_cells = report.total_cells;
         const std::size_t ndim = coords_view.extent(1);
@@ -193,7 +182,7 @@ struct DegenerateCellHandler {
         for (std::size_t ci = 0; ci < n_cells; ++ci) {
             // Build a SphericalPolygon from the mesh cell connectivity.
             index_t start = offsets_view[ci];
-            index_t end   = offsets_view[ci + 1];
+            index_t end = offsets_view[ci + 1];
             int n_verts = static_cast<int>(end - start);
 
             // Use MaxVerts = 32 (matches the default throughout AXIS).
@@ -244,7 +233,7 @@ struct DegenerateCellHandler {
         return report;
     }
 
-private:
+   private:
     // ─────────────────────────────────────────────────────────────────────────
     // Internal detection helpers — all KOKKOS_FUNCTION for device portability
     // ─────────────────────────────────────────────────────────────────────────
@@ -260,18 +249,12 @@ private:
     /// @param threshold Minimum edge length.
     /// @return true if any edge is collapsed.
     template <int MaxVerts>
-    KOKKOS_FUNCTION
-    static bool has_collapsed_edge(const SphericalPolygon<MaxVerts>& cell,
-                                   double threshold) noexcept {
+    KOKKOS_FUNCTION static bool has_collapsed_edge(const SphericalPolygon<MaxVerts> &cell, double threshold) noexcept {
         double thresh_sq = threshold * threshold;
 
         for (int i = 0; i < cell.n; ++i) {
             int j = (i + 1) % cell.n;
-            Vec3 diff{
-                cell.verts[j].x - cell.verts[i].x,
-                cell.verts[j].y - cell.verts[i].y,
-                cell.verts[j].z - cell.verts[i].z
-            };
+            Vec3 diff{cell.verts[j].x - cell.verts[i].x, cell.verts[j].y - cell.verts[i].y, cell.verts[j].z - cell.verts[i].z};
             if (length_sq(diff) < thresh_sq) {
                 return true;
             }
@@ -290,8 +273,7 @@ private:
     /// @param cell The polygon to check.
     /// @return true if any non-adjacent edge pair intersects.
     template <int MaxVerts>
-    KOKKOS_FUNCTION
-    static bool is_self_intersecting(const SphericalPolygon<MaxVerts>& cell) noexcept {
+    KOKKOS_FUNCTION static bool is_self_intersecting(const SphericalPolygon<MaxVerts> &cell) noexcept {
         if (cell.n < 4) {
             // Triangles cannot self-intersect.
             return false;
@@ -307,8 +289,7 @@ private:
                 if (j_next == i) continue;
 
                 // Check if edge (i, i_next) and edge (j, j_next) intersect.
-                if (edges_intersect(cell.verts[i], cell.verts[i_next],
-                                    cell.verts[j], cell.verts[j_next])) {
+                if (edges_intersect(cell.verts[i], cell.verts[i_next], cell.verts[j], cell.verts[j_next])) {
                     return true;
                 }
             }
@@ -330,8 +311,7 @@ private:
     /// @param d End of second arc.
     /// @return true if the arcs properly cross.
     KOKKOS_FUNCTION
-    static bool edges_intersect(const Vec3& a, const Vec3& b,
-                                const Vec3& c, const Vec3& d) noexcept {
+    static bool edges_intersect(const Vec3 &a, const Vec3 &b, const Vec3 &c, const Vec3 &d) noexcept {
         // Normal of the great circle containing arc (a, b).
         Vec3 n_ab = cross(a, b);
 

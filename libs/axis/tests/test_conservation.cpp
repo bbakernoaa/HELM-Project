@@ -4,24 +4,27 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
-#include <axis/topology/structured_grid.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 
 namespace {
 // Kokkos initialization via GTest global environment
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -30,14 +33,13 @@ using MemSpace = Kokkos::HostSpace;
 
 // Helper: build a simple NxN structured grid covering [0, size] x [0, size]
 // with uniform cells, then convert to UnstructuredMesh.
-static topology::UnstructuredMesh<MemSpace>
-make_uniform_mesh(std::size_t n, double size) {
+static topology::UnstructuredMesh<MemSpace> make_uniform_mesh(std::size_t n, double size) {
     const std::size_t n_cells = n;
     const double dx = size / static_cast<double>(n);
 
     // Center coordinates for an n x n grid
-    Kokkos::View<double*, MemSpace> cx("cx", n * n);
-    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    Kokkos::View<double *, MemSpace> cx("cx", n * n);
+    Kokkos::View<double *, MemSpace> cy("cy", n * n);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             cx(i + j * n) = (static_cast<double>(i) + 0.5) * dx;
@@ -45,14 +47,12 @@ make_uniform_mesh(std::size_t n, double size) {
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        n, n, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::Cartesian3D);
+    topology::StructuredGrid<MemSpace> grid(n, n, std::move(cx), std::move(cy), topology::CoordinateSystem::Cartesian3D);
 
     // Set corners for conservative regridding
     const std::size_t nc = n + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
-    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    Kokkos::View<double *, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double *, MemSpace> cry("cry", nc * nc);
     for (std::size_t j = 0; j <= n; ++j) {
         for (std::size_t i = 0; i <= n; ++i) {
             crx(i + j * nc) = static_cast<double>(i) * dx;
@@ -90,11 +90,8 @@ TEST(Conservation, IdenticalMeshesPreserveIntegral) {
     solver::apply<MemSpace>(matrix, src_view, dst_view);
 
     // Check conservation: source_integral ≈ destination_integral
-    auto report = solver::check_conservation<MemSpace>(
-        src_view,
-        field_view<const double, 1>(dst_data.data(), n_dst),
-        matrix,
-        solver::NormType::DstArea);
+    auto report =
+        solver::check_conservation<MemSpace>(src_view, field_view<const double, 1>(dst_data.data(), n_dst), matrix, solver::NormType::DstArea);
 
     EXPECT_NEAR(report.src_integral, report.dst_integral, 1e-12 * std::abs(report.src_integral));
     EXPECT_LT(report.relative_error, 1e-12);
@@ -126,11 +123,8 @@ TEST(Conservation, VaryingFieldPreservesIntegral) {
 
     solver::apply<MemSpace>(matrix, src_view, dst_view);
 
-    auto report = solver::check_conservation<MemSpace>(
-        src_view,
-        field_view<const double, 1>(dst_data.data(), n_dst),
-        matrix,
-        solver::NormType::DstArea);
+    auto report =
+        solver::check_conservation<MemSpace>(src_view, field_view<const double, 1>(dst_data.data(), n_dst), matrix, solver::NormType::DstArea);
 
     EXPECT_NEAR(report.src_integral, report.dst_integral, 1e-12 * std::abs(report.src_integral));
 }

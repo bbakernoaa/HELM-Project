@@ -1,9 +1,9 @@
 #include "halo/environment.hpp"
 
 #include <mpi.h>
-#include <stdexcept>
 
 #include <halo/detail/gpu_aware_probe.hpp>
+#include <stdexcept>
 
 namespace halo {
 
@@ -54,4 +54,4 @@ ErrorPolicy Environment::error_policy() noexcept {
     return error_policy_.load(std::memory_order_acquire);
 }
 
-} // namespace halo
+}  // namespace halo

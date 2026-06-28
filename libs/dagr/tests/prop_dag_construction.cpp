@@ -13,16 +13,16 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <dagr/pipeline_config.hpp>
-#include <dagr/detail/task_node.hpp>
-#include "generators.hpp"
-
 #include <algorithm>
 #include <cstdint>
+#include <dagr/detail/task_node.hpp>
+#include <dagr/pipeline_config.hpp>
 #include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "generators.hpp"
 
 namespace {
 
@@ -31,20 +31,16 @@ namespace {
 /// without needing a halo::Communicator.
 ///
 /// Throws std::invalid_argument on dangling references or cycles (Req 3.8, 1.7).
-std::vector<dagr::detail::TaskNode> construct_dag(const dagr::Pipeline_Config& config) {
+std::vector<dagr::detail::TaskNode> construct_dag(const dagr::Pipeline_Config &config) {
     const auto num_tasks = static_cast<std::uint32_t>(config.task_names.size());
 
     // Req 3.8: Validate no dangling task references in edges.
-    for (const auto& edge : config.edges) {
+    for (const auto &edge : config.edges) {
         if (edge.producer_id >= num_tasks) {
-            throw std::invalid_argument(
-                "GraphOrchestrator: edge references unresolved task ID "
-                + std::to_string(edge.producer_id));
+            throw std::invalid_argument("GraphOrchestrator: edge references unresolved task ID " + std::to_string(edge.producer_id));
         }
         if (edge.consumer_id >= num_tasks) {
-            throw std::invalid_argument(
-                "GraphOrchestrator: edge references unresolved task ID "
-                + std::to_string(edge.consumer_id));
+            throw std::invalid_argument("GraphOrchestrator: edge references unresolved task ID " + std::to_string(edge.consumer_id));
         }
     }
 
@@ -53,7 +49,7 @@ std::vector<dagr::detail::TaskNode> construct_dag(const dagr::Pipeline_Config& c
     std::vector<std::uint32_t> in_degree(num_tasks, 0);
     std::vector<std::vector<std::uint32_t>> downstream(num_tasks);
 
-    for (const auto& edge : config.edges) {
+    for (const auto &edge : config.edges) {
         in_degree[edge.consumer_id] += 1;
         downstream[edge.producer_id].push_back(edge.consumer_id);
     }
@@ -71,12 +67,9 @@ std::vector<dagr::detail::TaskNode> construct_dag(const dagr::Pipeline_Config& c
 }
 
 /// Compute the expected in-degree for each node from edges.
-std::vector<std::uint32_t> compute_in_degrees(
-    std::uint32_t node_count,
-    const std::vector<dagr::Dependency_Edge>& edges)
-{
+std::vector<std::uint32_t> compute_in_degrees(std::uint32_t node_count, const std::vector<dagr::Dependency_Edge> &edges) {
     std::vector<std::uint32_t> in_degree(node_count, 0);
-    for (const auto& edge : edges) {
+    for (const auto &edge : edges) {
         if (edge.consumer_id < node_count) {
             in_degree[edge.consumer_id] += 1;
         }
@@ -85,12 +78,9 @@ std::vector<std::uint32_t> compute_in_degrees(
 }
 
 /// Compute the expected dependents (downstream adjacency) for each node.
-std::vector<std::set<std::uint32_t>> compute_dependents(
-    std::uint32_t node_count,
-    const std::vector<dagr::Dependency_Edge>& edges)
-{
+std::vector<std::set<std::uint32_t>> compute_dependents(std::uint32_t node_count, const std::vector<dagr::Dependency_Edge> &edges) {
     std::vector<std::set<std::uint32_t>> dependents(node_count);
-    for (const auto& edge : edges) {
+    for (const auto &edge : edges) {
         if (edge.producer_id < node_count && edge.consumer_id < node_count) {
             dependents[edge.producer_id].insert(edge.consumer_id);
         }
@@ -98,7 +88,7 @@ std::vector<std::set<std::uint32_t>> compute_dependents(
     return dependents;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─── Property 9a: Exactly one TaskNode per declared task ─────────────────────
 // ─── Property 9b: pending_deps equals in-degree ──────────────────────────────
@@ -132,16 +122,14 @@ RC_GTEST_PROP(DAGConstruction, ValidDAGProducesCorrectNodes, ()) {
     // Property 9b: Each TaskNode's initial pending_deps equals its in-degree
     auto expected_in_degrees = compute_in_degrees(node_count, dag.edges);
     for (std::uint32_t i = 0; i < node_count; ++i) {
-        RC_ASSERT(nodes[i].pending_deps.load(std::memory_order_relaxed) ==
-                  expected_in_degrees[i]);
+        RC_ASSERT(nodes[i].pending_deps.load(std::memory_order_relaxed) == expected_in_degrees[i]);
     }
 
     // Verify dependents (downstream adjacency) lists are correctly populated
     auto expected_dependents = compute_dependents(node_count, dag.edges);
     for (std::uint32_t i = 0; i < node_count; ++i) {
         // Convert the node's dependents vector to a set for order-independent comparison
-        std::set<std::uint32_t> actual_dependents(
-            nodes[i].dependents.begin(), nodes[i].dependents.end());
+        std::set<std::uint32_t> actual_dependents(nodes[i].dependents.begin(), nodes[i].dependents.end());
         RC_ASSERT(actual_dependents == expected_dependents[i]);
     }
 }
@@ -185,7 +173,7 @@ RC_GTEST_PROP(DAGConstruction, DanglingReferenceThrowsInvalidArgument, ()) {
     bool threw_invalid_argument = false;
     try {
         construct_dag(config);
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         threw_invalid_argument = true;
         // Verify the error message mentions the unresolved task ID
         std::string msg = e.what();

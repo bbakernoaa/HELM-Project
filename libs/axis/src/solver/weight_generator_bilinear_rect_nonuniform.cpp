@@ -5,30 +5,24 @@
 /// @file src/solver/weight_generator_bilinear_rect_nonuniform.cpp
 /// @brief Non-uniform rectilinear grid bilinear interpolation fast-path.
 
+#include <Kokkos_Core.hpp>
+#include <axis/detail/regular_grid_detector.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/regular_grid_detector.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/regrid_config.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/types.hpp>
-
 namespace axis::solver {
 
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_bilinear_rect_nonuniform(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RectilinearGridInfo& src_rect_info) {
-
+InterpolationMatrix<MemorySpace> generate_bilinear_rect_nonuniform(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                   const RegridConfig &config, const detail::RectilinearGridInfo &src_rect_info) {
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
 
@@ -50,11 +44,11 @@ generate_bilinear_rect_nonuniform(
     }
 
     // Retrieve destination centroids
-    const auto& offsets = dst_mesh.conn_offsets_view();
-    const auto& indices = dst_mesh.conn_indices_view();
-    const auto& coords  = dst_mesh.node_coords_view();
+    const auto &offsets = dst_mesh.conn_offsets_view();
+    const auto &indices = dst_mesh.conn_indices_view();
+    const auto &coords = dst_mesh.node_coords_view();
 
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
     weights_vec.reserve(n_dst * 4);
@@ -63,7 +57,7 @@ generate_bilinear_rect_nonuniform(
 
     for (std::size_t c = 0; c < n_dst; ++c) {
         auto start = static_cast<std::size_t>(offsets(c));
-        auto end   = static_cast<std::size_t>(offsets(c + 1));
+        auto end = static_cast<std::size_t>(offsets(c + 1));
         std::size_t n_verts = end - start;
 
         double lon_sum = 0.0;
@@ -87,11 +81,11 @@ generate_bilinear_rect_nonuniform(
         // Clamp i and j to ensure stencil indices [i, i+1] and [j, j+1] are perfectly safe & within bounds
         if (i < 0) i = 0;
         if (i >= static_cast<int>(ni) - 1) i = static_cast<int>(ni) - 2;
-        if (i < 0) i = 0; // Safety for ni == 1
+        if (i < 0) i = 0;  // Safety for ni == 1
 
         if (j < 0) j = 0;
         if (j >= static_cast<int>(nj) - 1) j = static_cast<int>(nj) - 2;
-        if (j < 0) j = 0; // Safety for nj == 1
+        if (j < 0) j = 0;  // Safety for nj == 1
 
         double x0 = unique_center_lons[i];
         double x1 = unique_center_lons[i + 1];
@@ -108,18 +102,10 @@ generate_bilinear_rect_nonuniform(
         int j1 = j + 1;
 
         std::size_t src_idx[4] = {
-            static_cast<std::size_t>(j)  * ni + static_cast<std::size_t>(i),
-            static_cast<std::size_t>(j)  * ni + static_cast<std::size_t>(i1),
-            static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i),
-            static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i1)
-        };
+            static_cast<std::size_t>(j) * ni + static_cast<std::size_t>(i), static_cast<std::size_t>(j) * ni + static_cast<std::size_t>(i1),
+            static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i), static_cast<std::size_t>(j1) * ni + static_cast<std::size_t>(i1)};
 
-        double wts[4] = {
-            (1.0 - tx) * (1.0 - ty),
-            tx * (1.0 - ty),
-            (1.0 - tx) * ty,
-            tx * ty
-        };
+        double wts[4] = {(1.0 - tx) * (1.0 - ty), tx * (1.0 - ty), (1.0 - tx) * ty, tx * ty};
 
         for (int k = 0; k < 4; ++k) {
             weights_vec.push_back(wts[k]);
@@ -130,24 +116,24 @@ generate_bilinear_rect_nonuniform(
 
     // Mirror to Target MemorySpace and build InterpolationMatrix
     const std::size_t nnz = weights_vec.size();
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         h_factor_list(k) = weights_vec[k];
-        h_factor_row(k)  = rows_vec[k];
-        h_factor_col(k)  = cols_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
     }
     for (std::size_t i = 0; i < n_src; ++i) h_frac_a(i) = 1.0;
     for (std::size_t j = 0; j < n_dst; ++j) h_frac_b(j) = 1.0;
@@ -158,18 +144,12 @@ generate_bilinear_rect_nonuniform(
     Kokkos::deep_copy(frac_a, h_frac_a);
     Kokkos::deep_copy(frac_b, h_frac_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
-template InterpolationMatrix<Kokkos::HostSpace>
-generate_bilinear_rect_nonuniform<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&,
-    const detail::RectilinearGridInfo&);
+template InterpolationMatrix<Kokkos::HostSpace> generate_bilinear_rect_nonuniform<Kokkos::HostSpace>(
+    const topology::UnstructuredMesh<Kokkos::HostSpace> &, const topology::UnstructuredMesh<Kokkos::HostSpace> &, const RegridConfig &,
+    const detail::RectilinearGridInfo &);
 
-} // namespace axis::solver
+}  // namespace axis::solver

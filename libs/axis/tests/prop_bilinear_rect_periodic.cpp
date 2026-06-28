@@ -14,19 +14,17 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/structured_grid.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/solver/regrid_config.hpp>
-#include <axis/types.hpp>
 
 namespace {
 
@@ -35,7 +33,7 @@ using MemSpace = Kokkos::HostSpace;
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -48,8 +46,7 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 // ─── Generators ──────────────────────────────────────────────────────────────
 
@@ -65,27 +62,23 @@ rc::Gen<std::size_t> genNj() {
 
 /// Generate a starting longitude in [-180, 180) for the periodic grid.
 rc::Gen<double> genLonMin() {
-    return rc::gen::map(rc::gen::inRange(-18000, 18000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-18000, 18000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a starting latitude in [-90, 60] (leaves room for nj cells).
 rc::Gen<double> genLatMin() {
-    return rc::gen::map(rc::gen::inRange(-9000, 6000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-9000, 6000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a latitude extent in [10, 180] degrees (total lat range).
 rc::Gen<double> genLatExtent() {
-    return rc::gen::map(rc::gen::inRange(1000, 18000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(1000, 18000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a random destination longitude in [-540, 900] — wide range to
 /// exercise normalization across multiple 360° wraps.
 rc::Gen<double> genDstLon() {
-    return rc::gen::map(rc::gen::inRange(-54000, 90001),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-54000, 90001), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a random destination latitude within a given [lat_min, lat_max].
@@ -93,31 +86,27 @@ rc::Gen<double> genDstLat(double lat_min, double lat_max) {
     int imin = static_cast<int>(std::floor(lat_min * 100.0));
     int imax = static_cast<int>(std::ceil(lat_max * 100.0));
     if (imax <= imin) imax = imin + 1;
-    return rc::gen::map(rc::gen::inRange(imin, imax),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(imin, imax), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a wraparound offset multiplier k in [-3, 3] (excluding 0).
 rc::Gen<int> genNonZeroK() {
-    return rc::gen::suchThat(rc::gen::inRange(-3, 4),
-                             [](int k) { return k != 0; });
+    return rc::gen::suchThat(rc::gen::inRange(-3, 4), [](int k) { return k != 0; });
 }
 
 // ─── Helper: Build a periodic regular-grid UnstructuredMesh ──────────────────
 
 /// Constructs a periodic (360° longitude) regular lat-lon grid.
 /// Grid covers [lon_min, lon_min + 360°] × [lat_min, lat_min + lat_extent].
-axis::topology::UnstructuredMesh<MemSpace>
-make_periodic_grid(std::size_t ni, std::size_t nj,
-                   double lon_min, double lat_min, double lat_extent) {
+axis::topology::UnstructuredMesh<MemSpace> make_periodic_grid(std::size_t ni, std::size_t nj, double lon_min, double lat_min, double lat_extent) {
     const double lon_max = lon_min + 360.0;
     const double lat_max = lat_min + lat_extent;
     const double delta_lon = 360.0 / static_cast<double>(ni);
     const double delta_lat = lat_extent / static_cast<double>(nj);
 
     const std::size_t n_centers = ni * nj;
-    Kokkos::View<double*, MemSpace> cx("cx", n_centers);
-    Kokkos::View<double*, MemSpace> cy("cy", n_centers);
+    Kokkos::View<double *, MemSpace> cx("cx", n_centers);
+    Kokkos::View<double *, MemSpace> cy("cy", n_centers);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon_min + (static_cast<double>(i) + 0.5) * delta_lon;
@@ -125,14 +114,12 @@ make_periodic_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), axis::topology::CoordinateSystem::SphericalDeg);
 
     const std::size_t nc_i = ni + 1;
     const std::size_t nc_j = nj + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc_i * nc_j);
-    Kokkos::View<double*, MemSpace> cry("cry", nc_i * nc_j);
+    Kokkos::View<double *, MemSpace> crx("crx", nc_i * nc_j);
+    Kokkos::View<double *, MemSpace> cry("cry", nc_i * nc_j);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_i) = lon_min + static_cast<double>(i) * delta_lon;
@@ -148,26 +135,27 @@ make_periodic_grid(std::size_t ni, std::size_t nj,
 
 /// Creates a 1×1 destination mesh with its center at (lon, lat).
 /// Uses a small cell extent (±0.1°) around the center.
-axis::topology::UnstructuredMesh<MemSpace>
-make_single_cell_dst(double lon, double lat) {
+axis::topology::UnstructuredMesh<MemSpace> make_single_cell_dst(double lon, double lat) {
     constexpr double half_dx = 0.1;
 
-    Kokkos::View<double*, MemSpace> cx("dst_cx", 1);
-    Kokkos::View<double*, MemSpace> cy("dst_cy", 1);
+    Kokkos::View<double *, MemSpace> cx("dst_cx", 1);
+    Kokkos::View<double *, MemSpace> cy("dst_cy", 1);
     cx(0) = lon;
     cy(0) = lat;
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        1, 1, std::move(cx), std::move(cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(1, 1, std::move(cx), std::move(cy), axis::topology::CoordinateSystem::SphericalDeg);
 
     // Corners: 2×2 nodes around the center
-    Kokkos::View<double*, MemSpace> crx("dst_crx", 4);
-    Kokkos::View<double*, MemSpace> cry("dst_cry", 4);
-    crx(0) = lon - half_dx; cry(0) = lat - half_dx;
-    crx(1) = lon + half_dx; cry(1) = lat - half_dx;
-    crx(2) = lon - half_dx; cry(2) = lat + half_dx;
-    crx(3) = lon + half_dx; cry(3) = lat + half_dx;
+    Kokkos::View<double *, MemSpace> crx("dst_crx", 4);
+    Kokkos::View<double *, MemSpace> cry("dst_cry", 4);
+    crx(0) = lon - half_dx;
+    cry(0) = lat - half_dx;
+    crx(1) = lon + half_dx;
+    cry(1) = lat - half_dx;
+    crx(2) = lon - half_dx;
+    cry(2) = lat + half_dx;
+    crx(3) = lon + half_dx;
+    cry(3) = lat + half_dx;
     grid.set_corners(std::move(crx), std::move(cry));
 
     return grid.to_unstructured();
@@ -180,9 +168,7 @@ struct WeightEntry {
     double weight;
 };
 
-std::vector<WeightEntry>
-get_row_entries(const axis::solver::InterpolationMatrix<MemSpace>& matrix,
-                axis::index_t row_idx) {
+std::vector<WeightEntry> get_row_entries(const axis::solver::InterpolationMatrix<MemSpace> &matrix, axis::index_t row_idx) {
     std::vector<WeightEntry> entries;
     const auto nnz = matrix.nnz();
     auto rows = matrix.factor_row();
@@ -194,10 +180,7 @@ get_row_entries(const axis::solver::InterpolationMatrix<MemSpace>& matrix,
         }
     }
     // Sort by column index for stable comparison
-    std::sort(entries.begin(), entries.end(),
-              [](const WeightEntry& a, const WeightEntry& b) {
-                  return a.col < b.col;
-              });
+    std::sort(entries.begin(), entries.end(), [](const WeightEntry &a, const WeightEntry &b) { return a.col < b.col; });
     return entries;
 }
 
@@ -242,12 +225,10 @@ RC_GTEST_PROP(PropBilinearRectPeriodic, ShiftedLongitudeProducesSameWeights, ())
     cfg.unmapped = axis::solver::UnmappedAction::Error;
 
     // Run interpolation for canonical longitude — must not throw
-    auto matrix_canonical =
-        axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_canonical, cfg);
+    auto matrix_canonical = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_canonical, cfg);
 
     // Run interpolation for shifted longitude — must not throw
-    auto matrix_shifted =
-        axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_shifted, cfg);
+    auto matrix_shifted = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_shifted, cfg);
 
     // Extract weight entries for the single destination cell (row 0)
     auto entries_canonical = get_row_entries(matrix_canonical, 0);
@@ -298,8 +279,7 @@ RC_GTEST_PROP(PropBilinearRectPeriodic, NoUnmappedForAnyLongitude, ()) {
     cfg.unmapped = axis::solver::UnmappedAction::Error;
 
     // Must not throw — periodic grids should never have unmapped longitude
-    auto matrix =
-        axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     // Must produce valid weight entries (non-empty)
     auto entries = get_row_entries(matrix, 0);
@@ -307,7 +287,7 @@ RC_GTEST_PROP(PropBilinearRectPeriodic, NoUnmappedForAnyLongitude, ()) {
 
     // Verify partition of unity
     double wsum = 0.0;
-    for (const auto& e : entries) {
+    for (const auto &e : entries) {
         RC_ASSERT(e.weight >= 0.0);
         RC_ASSERT(e.weight <= 1.0);
         wsum += e.weight;

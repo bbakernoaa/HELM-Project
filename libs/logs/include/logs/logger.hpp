@@ -8,19 +8,19 @@
 ///               6.1, 6.2, 6.3, 6.6, 6.7, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6,
 ///               9.7, 11.1, 11.2
 
-#include "logs/detail/consolidation.hpp"
-#include "logs/detail/mpi_environment.hpp"
-#include "logs/log_record.hpp"
-#include "logs/severity.hpp"
-#include "logs/sink.hpp"
-#include "logs/stack_trace.hpp"
+#include <mpi.h>
 
 #include <atomic>
 #include <mutex>
 #include <span>
 #include <vector>
 
-#include <mpi.h>
+#include "logs/detail/consolidation.hpp"
+#include "logs/detail/mpi_environment.hpp"
+#include "logs/log_record.hpp"
+#include "logs/severity.hpp"
+#include "logs/sink.hpp"
+#include "logs/stack_trace.hpp"
 
 namespace logs {
 
@@ -29,26 +29,25 @@ namespace detail {
 /// Ensures MPI_Abort is invoked at most once per process, even under
 /// concurrent or subsequent FATAL submissions (Requirements 5.8, 11.6).
 class Abort_Latch {
-public:
+   public:
     /// Returns true exactly once (to the first caller). All later callers
     /// receive false and must not invoke MPI_Abort.
     [[nodiscard]] bool try_acquire() noexcept {
         bool expected = false;
-        return latched_.compare_exchange_strong(expected, true,
-                                                std::memory_order_acq_rel);
+        return latched_.compare_exchange_strong(expected, true, std::memory_order_acq_rel);
     }
 
-private:
+   private:
     std::atomic<bool> latched_{false};
 };
 
-} // namespace detail
+}  // namespace detail
 
 /// Options for a log submission.
 struct Submit_Options {
     std::optional<Source_Location> location{};
-    std::span<const Stack_Frame>   frames{};
-    bool                           include_stack_trace{false};
+    std::span<const Stack_Frame> frames{};
+    bool include_stack_trace{false};
 };
 
 /// Central thread-safe logging entry point.
@@ -57,15 +56,15 @@ struct Submit_Options {
 /// are absorbed, and at most one ERROR diagnostic is attempted on failure
 /// (non-recursive via diagnostic_mutex_).
 class Logger {
-public:
+   public:
     /// Construct an unconfigured Logger. Before a communicator is configured,
     /// the stored rank is the sentinel -1 and the thread level defaults to
     /// MPI_THREAD_SINGLE.
     Logger() noexcept;
     ~Logger();
 
-    Logger(const Logger&)            = delete;
-    Logger& operator=(const Logger&) = delete;
+    Logger(const Logger &) = delete;
+    Logger &operator=(const Logger &) = delete;
 
     // ---- Configuration (programmatic only; never read from any file) ----
 
@@ -95,12 +94,10 @@ public:
     /// Submit a record. Applies severity filtering, rank stamping, context
     /// snapshot, formatting, and dispatch. FATAL is never suppressed and
     /// triggers the Synchronized_Abort path.
-    void log(Severity_Level severity, std::string_view message,
-             const Submit_Options& opts = {}) noexcept;
+    void log(Severity_Level severity, std::string_view message, const Submit_Options &opts = {}) noexcept;
 
     /// Convenience: emit a FATAL record and initiate Synchronized_Abort.
-    [[noreturn]] void fatal(std::string_view message,
-                            const Submit_Options& opts = {}) noexcept;
+    [[noreturn]] void fatal(std::string_view message, const Submit_Options &opts = {}) noexcept;
 
     // ---- Consolidation ----
 
@@ -108,10 +105,10 @@ public:
     /// wiring to Consolidation_Engine (task 14.2).
     void consolidate() noexcept;
 
-private:
+   private:
     /// Format a Log_Record into the standard output format:
     /// [RANK:0042] [INFO] [ctx1 > ctx2] message text\n
-    [[nodiscard]] std::string format_record(const Log_Record& record) const;
+    [[nodiscard]] std::string format_record(const Log_Record &record) const;
 
     /// Dispatch a formatted record to all configured sinks (or stderr if none).
     void dispatch_to_sinks(std::string_view formatted) noexcept;
@@ -123,24 +120,24 @@ private:
     /// Non-recursive: if diagnostic emission itself fails, silently discard.
     void emit_diagnostic(std::string_view context) noexcept;
 
-    detail::Mpi_Environment     mpi_;
+    detail::Mpi_Environment mpi_;
     detail::Consolidation_Engine engine_;
     std::atomic<Severity_Level> threshold_{Severity_Level::INFO};
 
-    std::mutex        sinks_mutex_;
+    std::mutex sinks_mutex_;
     std::vector<Sink> sinks_;
 
-    std::mutex              buffer_mutex_;
+    std::mutex buffer_mutex_;
     std::vector<Log_Record> consolidation_buffer_;
 
     detail::Abort_Latch abort_latch_;
-    std::mutex          diagnostic_mutex_;
+    std::mutex diagnostic_mutex_;
 };
 
 /// Fixed non-zero abort exit code, in the inclusive range 1..255
 /// (Requirement 5.3). EX_SOFTWARE-style fixed code.
 inline constexpr int ABORT_EXIT_CODE = 70;
 
-} // namespace logs
+}  // namespace logs
 
-#endif // LOGS_LOGGER_HPP
+#endif  // LOGS_LOGGER_HPP

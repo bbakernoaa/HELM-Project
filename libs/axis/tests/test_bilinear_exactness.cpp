@@ -4,22 +4,25 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
+#include <axis/solver/apply.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/solver/apply.hpp>
-#include <axis/solver/regrid_config.hpp>
+#include <axis/types.hpp>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -27,24 +30,21 @@ namespace axis::test {
 using MemSpace = Kokkos::HostSpace;
 
 // Build a uniform NxN grid in Cartesian space covering [0, size]^2
-static topology::UnstructuredMesh<MemSpace>
-make_bilinear_mesh(std::size_t n, double size) {
+static topology::UnstructuredMesh<MemSpace> make_bilinear_mesh(std::size_t n, double size) {
     const double dx = size / static_cast<double>(n);
-    Kokkos::View<double*, MemSpace> cx("cx", n * n);
-    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    Kokkos::View<double *, MemSpace> cx("cx", n * n);
+    Kokkos::View<double *, MemSpace> cy("cy", n * n);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             cx(i + j * n) = (static_cast<double>(i) + 0.5) * dx;
             cy(i + j * n) = (static_cast<double>(j) + 0.5) * dx;
         }
     }
-    topology::StructuredGrid<MemSpace> grid(
-        n, n, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::Cartesian3D);
+    topology::StructuredGrid<MemSpace> grid(n, n, std::move(cx), std::move(cy), topology::CoordinateSystem::Cartesian3D);
 
     const std::size_t nc = n + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
-    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    Kokkos::View<double *, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double *, MemSpace> cry("cry", nc * nc);
     for (std::size_t j = 0; j <= n; ++j) {
         for (std::size_t i = 0; i <= n; ++i) {
             crx(i + j * nc) = static_cast<double>(i) * dx;
@@ -96,8 +96,7 @@ TEST(BilinearExactness, AffineFieldReproduction) {
             double x = (static_cast<double>(i) + 0.5) * dx;
             double y = (static_cast<double>(j) + 0.5) * dx;
             double expected = x + y;
-            EXPECT_NEAR(dst_data[i + j * n], expected, 1e-10)
-                << "Bilinear exactness failed at cell (" << i << "," << j << ")";
+            EXPECT_NEAR(dst_data[i + j * n], expected, 1e-10) << "Bilinear exactness failed at cell (" << i << "," << j << ")";
         }
     }
 }
@@ -142,8 +141,7 @@ TEST(BilinearExactness, GeneralAffineCoefficients) {
             double x = (static_cast<double>(i) + 0.5) * dx;
             double y = (static_cast<double>(j) + 0.5) * dx;
             double expected = a * x + b * y + c_coeff;
-            EXPECT_NEAR(dst_data[i + j * n], expected, 1e-10)
-                << "General affine failed at cell (" << i << "," << j << ")";
+            EXPECT_NEAR(dst_data[i + j * n], expected, 1e-10) << "General affine failed at cell (" << i << "," << j << ")";
         }
     }
 }

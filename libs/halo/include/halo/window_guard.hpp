@@ -26,7 +26,7 @@ namespace halo {
 /// destruction, closes any active epoch via MPI_Win_fence(0) and then frees
 /// the window via MPI_Win_free. Move-only semantics enforce unique ownership.
 class Window_Guard {
-public:
+   public:
     /// @brief Construct from a raw MPI_Win handle. Takes exclusive ownership.
     /// @param win The MPI window handle to own.
     explicit Window_Guard(MPI_Win win) noexcept;
@@ -37,16 +37,16 @@ public:
     ~Window_Guard() noexcept;
 
     /// @brief Move constructor. Transfers ownership; source becomes MPI_WIN_NULL.
-    Window_Guard(Window_Guard&& other) noexcept;
+    Window_Guard(Window_Guard &&other) noexcept;
 
     /// @brief Move assignment. Transfers ownership; source becomes MPI_WIN_NULL.
-    Window_Guard& operator=(Window_Guard&& other) noexcept;
+    Window_Guard &operator=(Window_Guard &&other) noexcept;
 
     /// @brief Copy construction is deleted (unique ownership).
-    Window_Guard(const Window_Guard&) = delete;
+    Window_Guard(const Window_Guard &) = delete;
 
     /// @brief Copy assignment is deleted (unique ownership).
-    Window_Guard& operator=(const Window_Guard&) = delete;
+    Window_Guard &operator=(const Window_Guard &) = delete;
 
     /// @brief Access the raw MPI_Win handle without transferring ownership.
     /// @return The owned MPI_Win value.
@@ -61,11 +61,11 @@ public:
     /// will be called before MPI_Win_free to properly close the epoch.
     void set_epoch_active(bool active) noexcept;
 
-private:
+   private:
     MPI_Win win_{MPI_WIN_NULL};
     bool epoch_active_{false};
 };
 
-} // namespace halo
+}  // namespace halo
 
-#endif // HALO_WINDOW_GUARD_HPP
+#endif  // HALO_WINDOW_GUARD_HPP

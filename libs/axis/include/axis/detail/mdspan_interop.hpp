@@ -17,11 +17,9 @@
 /// Both adapters are noexcept — they perform no allocation, no device
 /// synchronization, and no validation beyond what the type system enforces.
 
-#include <axis/types.hpp>
-
 #include <Kokkos_Core.hpp>
-
 #include <array>
+#include <axis/types.hpp>
 #include <cstddef>
 #include <type_traits>
 #include <utility>
@@ -52,14 +50,13 @@ struct view_builder;
 template <class T, class MemorySpace>
 struct view_builder<T, MemorySpace, 1> {
     /// @brief Type alias for the unmanaged rank-1 LayoutLeft Kokkos::View.
-    using view_type = Kokkos::View<T*, Kokkos::LayoutLeft,
-                                   MemorySpace, Kokkos::MemoryUnmanaged>;
+    using view_type = Kokkos::View<T *, Kokkos::LayoutLeft, MemorySpace, Kokkos::MemoryUnmanaged>;
 
     /// @brief Constructs a rank-1 unmanaged LayoutLeft Kokkos::View wrapping a raw pointer.
     /// @param ptr The raw data pointer.
     /// @param ext Array representing the dimension extents (size 1).
     /// @return An unmanaged rank-1 Kokkos::View.
-    static view_type build(T* ptr, const std::array<std::size_t, 1>& ext) noexcept {
+    static view_type build(T *ptr, const std::array<std::size_t, 1> &ext) noexcept {
         return view_type(ptr, ext[0]);
     }
 };
@@ -70,14 +67,13 @@ struct view_builder<T, MemorySpace, 1> {
 template <class T, class MemorySpace>
 struct view_builder<T, MemorySpace, 2> {
     /// @brief Type alias for the unmanaged rank-2 LayoutLeft Kokkos::View.
-    using view_type = Kokkos::View<T**, Kokkos::LayoutLeft,
-                                   MemorySpace, Kokkos::MemoryUnmanaged>;
+    using view_type = Kokkos::View<T **, Kokkos::LayoutLeft, MemorySpace, Kokkos::MemoryUnmanaged>;
 
     /// @brief Constructs a rank-2 unmanaged LayoutLeft Kokkos::View wrapping a raw pointer.
     /// @param ptr The raw data pointer.
     /// @param ext Array representing the dimension extents (size 2).
     /// @return An unmanaged rank-2 Kokkos::View.
-    static view_type build(T* ptr, const std::array<std::size_t, 2>& ext) noexcept {
+    static view_type build(T *ptr, const std::array<std::size_t, 2> &ext) noexcept {
         return view_type(ptr, ext[0], ext[1]);
     }
 };
@@ -88,14 +84,13 @@ struct view_builder<T, MemorySpace, 2> {
 template <class T, class MemorySpace>
 struct view_builder<T, MemorySpace, 3> {
     /// @brief Type alias for the unmanaged rank-3 LayoutLeft Kokkos::View.
-    using view_type = Kokkos::View<T***, Kokkos::LayoutLeft,
-                                   MemorySpace, Kokkos::MemoryUnmanaged>;
+    using view_type = Kokkos::View<T ***, Kokkos::LayoutLeft, MemorySpace, Kokkos::MemoryUnmanaged>;
 
     /// @brief Constructs a rank-3 unmanaged LayoutLeft Kokkos::View wrapping a raw pointer.
     /// @param ptr The raw data pointer.
     /// @param ext Array representing the dimension extents (size 3).
     /// @return An unmanaged rank-3 Kokkos::View.
-    static view_type build(T* ptr, const std::array<std::size_t, 3>& ext) noexcept {
+    static view_type build(T *ptr, const std::array<std::size_t, 3> &ext) noexcept {
         return view_type(ptr, ext[0], ext[1], ext[2]);
     }
 };
@@ -106,19 +101,18 @@ struct view_builder<T, MemorySpace, 3> {
 template <class T, class MemorySpace>
 struct view_builder<T, MemorySpace, 4> {
     /// @brief Type alias for the unmanaged rank-4 LayoutLeft Kokkos::View.
-    using view_type = Kokkos::View<T****, Kokkos::LayoutLeft,
-                                   MemorySpace, Kokkos::MemoryUnmanaged>;
+    using view_type = Kokkos::View<T ****, Kokkos::LayoutLeft, MemorySpace, Kokkos::MemoryUnmanaged>;
 
     /// @brief Constructs a rank-4 unmanaged LayoutLeft Kokkos::View wrapping a raw pointer.
     /// @param ptr The raw data pointer.
     /// @param ext Array representing the dimension extents (size 4).
     /// @return An unmanaged rank-4 Kokkos::View.
-    static view_type build(T* ptr, const std::array<std::size_t, 4>& ext) noexcept {
+    static view_type build(T *ptr, const std::array<std::size_t, 4> &ext) noexcept {
         return view_type(ptr, ext[0], ext[1], ext[2], ext[3]);
     }
 };
 
-} // namespace impl
+}  // namespace impl
 
 /// @brief Convert a layout_left field_view to an unmanaged Kokkos::View in the given MemorySpace.
 ///
@@ -143,9 +137,7 @@ struct view_builder<T, MemorySpace, 4> {
 ///       auto view = to_view<double, Kokkos::HostSpace, 1>(fv);
 ///       @endcode
 template <class T, class MemorySpace, std::size_t Rank>
-[[nodiscard]] auto to_view(field_view<T, Rank> m) noexcept
-    -> typename impl::view_builder<T, MemorySpace, Rank>::view_type
-{
+[[nodiscard]] auto to_view(field_view<T, Rank> m) noexcept -> typename impl::view_builder<T, MemorySpace, Rank>::view_type {
     std::array<std::size_t, Rank> ext{};
     for (std::size_t i = 0; i < Rank; ++i) {
         ext[i] = m.extent(i);
@@ -166,9 +158,7 @@ template <class T, class MemorySpace, std::size_t Rank>
 /// @param  tag        An instance of MemorySpace used solely for type tagging.
 /// @return            An unmanaged Kokkos::View with LayoutLeft over the same memory.
 template <class MemorySpace, class T, std::size_t Rank>
-[[nodiscard]] auto to_view(field_view<T, Rank> m, MemorySpace /*tag*/) noexcept
-    -> typename impl::view_builder<T, MemorySpace, Rank>::view_type
-{
+[[nodiscard]] auto to_view(field_view<T, Rank> m, MemorySpace /*tag*/) noexcept -> typename impl::view_builder<T, MemorySpace, Rank>::view_type {
     return to_view<T, MemorySpace, Rank>(m);
 }
 
@@ -187,15 +177,13 @@ namespace impl {
 /// @param  seq       Index sequence for parameter pack expansion.
 /// @return           A field_view wrapping the same memory.
 template <class ViewType, std::size_t... Is>
-[[nodiscard]] auto make_mdspan(ViewType v, std::index_sequence<Is...>) noexcept
-    -> field_view<typename ViewType::value_type, sizeof...(Is)>
-{
+[[nodiscard]] auto make_mdspan(ViewType v, std::index_sequence<Is...>) noexcept -> field_view<typename ViewType::value_type, sizeof...(Is)> {
     using T = typename ViewType::value_type;
     constexpr std::size_t Rank = sizeof...(Is);
     return field_view<T, Rank>{v.data(), v.extent(Is)...};
 }
 
-} // namespace impl
+}  // namespace impl
 
 /// @brief Convert an unmanaged LayoutLeft Kokkos::View to a layout_left field_view.
 ///
@@ -207,16 +195,12 @@ template <class ViewType, std::size_t... Is>
 ///
 /// @note Static assertion: The View must use LayoutLeft (matching layout_left).
 template <class ViewType>
-[[nodiscard]] auto to_mdspan(ViewType v) noexcept
-    -> field_view<typename ViewType::value_type, ViewType::rank>
-{
-    static_assert(
-        std::is_same_v<typename ViewType::array_layout, Kokkos::LayoutLeft>,
-        "to_mdspan requires a LayoutLeft Kokkos::View");
+[[nodiscard]] auto to_mdspan(ViewType v) noexcept -> field_view<typename ViewType::value_type, ViewType::rank> {
+    static_assert(std::is_same_v<typename ViewType::array_layout, Kokkos::LayoutLeft>, "to_mdspan requires a LayoutLeft Kokkos::View");
 
     return impl::make_mdspan(v, std::make_index_sequence<ViewType::rank>{});
 }
 
-} // namespace axis::detail
+}  // namespace axis::detail
 
-#endif // AXIS_DETAIL_MDSPAN_INTEROP_HPP
+#endif  // AXIS_DETAIL_MDSPAN_INTEROP_HPP

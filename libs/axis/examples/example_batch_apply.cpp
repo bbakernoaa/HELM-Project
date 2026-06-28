@@ -7,13 +7,13 @@
 /// 3. Applies weights to all variables in a single kernel launch
 /// 4. Verifies results match individual apply calls
 
-#include <axis/axis.hpp>
 #include <Kokkos_Core.hpp>
+#include <axis/axis.hpp>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     Kokkos::ScopeGuard kokkos(argc, argv);
 
     constexpr int N_VARS = 5;  // T, u, v, q, ps
@@ -34,16 +34,13 @@ int main(int argc, char* argv[]) {
     auto n_src = src_mesh.n_cells();
     auto n_dst = dst_mesh.n_cells();
 
-    std::printf("Matrix: %zu src, %zu dst, %zu nnz, %d vars\n",
-                static_cast<std::size_t>(n_src),
-                static_cast<std::size_t>(n_dst),
-                static_cast<std::size_t>(matrix.nnz()),
-                N_VARS);
+    std::printf("Matrix: %zu src, %zu dst, %zu nnz, %d vars\n", static_cast<std::size_t>(n_src), static_cast<std::size_t>(n_dst),
+                static_cast<std::size_t>(matrix.nnz()), N_VARS);
 
     // =========================================================================
     // Step 2: Create multi-variable source field [n_src, N_VARS]
     // =========================================================================
-    Kokkos::View<double**> src_fields("src_fields", n_src, N_VARS);
+    Kokkos::View<double **> src_fields("src_fields", n_src, N_VARS);
     Kokkos::parallel_for(
         "init_src", n_src, KOKKOS_LAMBDA(int i) {
             for (int v = 0; v < N_VARS; ++v) {
@@ -54,7 +51,7 @@ int main(int argc, char* argv[]) {
     // =========================================================================
     // Step 3: Batch apply — single kernel for all variables
     // =========================================================================
-    Kokkos::View<double**> dst_batch("dst_batch", n_dst, N_VARS);
+    Kokkos::View<double **> dst_batch("dst_batch", n_dst, N_VARS);
     axis::solver::batch_apply(matrix, src_fields, dst_batch);
 
     // =========================================================================
@@ -64,14 +61,14 @@ int main(int argc, char* argv[]) {
 
     for (int v = 0; v < N_VARS; ++v) {
         auto src_v = Kokkos::subview(src_fields, Kokkos::ALL, v);
-        Kokkos::View<double*> dst_single("dst_single", n_dst);
+        Kokkos::View<double *> dst_single("dst_single", n_dst);
         axis::solver::apply(matrix, src_v, dst_single);
 
         double var_error = 0.0;
         auto dst_batch_v = Kokkos::subview(dst_batch, Kokkos::ALL, v);
         Kokkos::parallel_reduce(
             "check_var", n_dst,
-            KOKKOS_LAMBDA(int i, double& err) {
+            KOKKOS_LAMBDA(int i, double &err) {
                 double e = Kokkos::abs(dst_batch_v(i) - dst_single(i));
                 if (e > err) err = e;
             },
@@ -87,7 +84,6 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    std::printf("SUCCESS: Batch apply matches individual apply for %d variables.\n",
-                N_VARS);
+    std::printf("SUCCESS: Batch apply matches individual apply for %d variables.\n", N_VARS);
     return EXIT_SUCCESS;
 }

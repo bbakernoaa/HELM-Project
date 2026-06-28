@@ -23,13 +23,11 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
+#include <axis/ingest/grid_descriptor.hpp>
+#include <axis/topology/mesh_factory.hpp>
 #include <cstddef>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-
-#include <axis/topology/mesh_factory.hpp>
-#include <axis/ingest/grid_descriptor.hpp>
 
 namespace {
 
@@ -45,8 +43,7 @@ rc::Gen<std::size_t> genDim() {
 /// size. Uses integer scaling to avoid floating-point generation overhead.
 rc::Gen<std::vector<double>> genCoordVector(std::size_t n) {
     return rc::gen::container<std::vector<double>>(
-        n, rc::gen::map(rc::gen::inRange(-18000, 18001),
-                        [](int v) { return static_cast<double>(v) / 100.0; }));
+        n, rc::gen::map(rc::gen::inRange(-18000, 18001), [](int v) { return static_cast<double>(v) / 100.0; }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,11 +53,8 @@ rc::Gen<std::vector<double>> genCoordVector(std::size_t n) {
 // (AMIO vs Python) writing identical field values into separate memory.
 // ─────────────────────────────────────────────────────────────────────────────
 
-axis::ingest::GridDescriptor make_cf_descriptor(
-    std::size_t ni, std::size_t nj,
-    const std::vector<double>& center_x,
-    const std::vector<double>& center_y) {
-
+axis::ingest::GridDescriptor make_cf_descriptor(std::size_t ni, std::size_t nj, const std::vector<double> &center_x,
+                                                const std::vector<double> &center_y) {
     axis::ingest::GridDescriptor desc{};
     desc.kind = axis::ingest::ConventionKind::CF;
     desc.coord_system = axis::ingest::CoordinateSystem::SphericalDeg;
@@ -68,10 +62,8 @@ axis::ingest::GridDescriptor make_cf_descriptor(
     // BufferViews wrapping the given vectors as non-owning mdspan views.
     desc.buffers.ni = ni;
     desc.buffers.nj = nj;
-    desc.buffers.center_x = axis::field_view<const double, 1>{
-        center_x.data(), center_x.size()};
-    desc.buffers.center_y = axis::field_view<const double, 1>{
-        center_y.data(), center_y.size()};
+    desc.buffers.center_x = axis::field_view<const double, 1>{center_x.data(), center_x.size()};
+    desc.buffers.center_y = axis::field_view<const double, 1>{center_y.data(), center_y.size()};
 
     return desc;
 }
@@ -193,11 +185,11 @@ RC_GTEST_PROP(PropProducerEquivalence, IdenticalNodeCoordinates, ()) {
     RC_ASSERT(coords_a.extent(1) == coords_b.extent(1));
 
     const std::size_t n_nodes = coords_a.extent(0);
-    const std::size_t ndim    = coords_a.extent(1);
+    const std::size_t ndim = coords_a.extent(1);
 
     // layout_left: element (row, col) at offset row + n_nodes * col
-    const double* ptr_a = coords_a.data_handle();
-    const double* ptr_b = coords_b.data_handle();
+    const double *ptr_a = coords_a.data_handle();
+    const double *ptr_b = coords_b.data_handle();
 
     for (std::size_t d = 0; d < ndim; ++d) {
         for (std::size_t n = 0; n < n_nodes; ++n) {
@@ -226,8 +218,8 @@ RC_GTEST_PROP(PropProducerEquivalence, UgridProducerEquivalence, ()) {
     // col 0 = x coords (indices 0..n_nodes-1), col 1 = y coords (n_nodes..2*n_nodes-1)
     std::vector<double> node_coords_data(n_nodes * ndim);
     for (std::size_t i = 0; i < n_nodes; ++i) {
-        node_coords_data[i]             = node_x[i];  // col 0
-        node_coords_data[i + n_nodes]   = node_y[i];  // col 1
+        node_coords_data[i] = node_x[i];            // col 0
+        node_coords_data[i + n_nodes] = node_y[i];  // col 1
     }
 
     // Build valid CSR connectivity (each cell is a triangle: 3 node indices).
@@ -241,8 +233,7 @@ RC_GTEST_PROP(PropProducerEquivalence, UgridProducerEquivalence, ()) {
     // Random node indices in [0, n_nodes)
     std::vector<axis::index_t> indices_data(nnz);
     for (std::size_t k = 0; k < nnz; ++k) {
-        indices_data[k] = *rc::gen::inRange<axis::index_t>(
-            0, static_cast<axis::index_t>(n_nodes));
+        indices_data[k] = *rc::gen::inRange<axis::index_t>(0, static_cast<axis::index_t>(n_nodes));
     }
 
     // ── Build Descriptor A (AMIO-style): separate buffer copies ──────────────
@@ -253,12 +244,9 @@ RC_GTEST_PROP(PropProducerEquivalence, UgridProducerEquivalence, ()) {
     axis::ingest::GridDescriptor desc_a{};
     desc_a.kind = axis::ingest::ConventionKind::UGRID;
     desc_a.coord_system = axis::ingest::CoordinateSystem::SphericalDeg;
-    desc_a.buffers.node_coords = axis::field_view<const double, 2>{
-        a_coords.data(), n_nodes, ndim};
-    desc_a.buffers.conn_offsets = axis::field_view<const axis::index_t, 1>{
-        a_offsets.data(), a_offsets.size()};
-    desc_a.buffers.conn_indices = axis::field_view<const axis::index_t, 1>{
-        a_indices.data(), a_indices.size()};
+    desc_a.buffers.node_coords = axis::field_view<const double, 2>{a_coords.data(), n_nodes, ndim};
+    desc_a.buffers.conn_offsets = axis::field_view<const axis::index_t, 1>{a_offsets.data(), a_offsets.size()};
+    desc_a.buffers.conn_indices = axis::field_view<const axis::index_t, 1>{a_indices.data(), a_indices.size()};
 
     // ── Build Descriptor B (Python-style): separate buffer copies of same data
     std::vector<double> b_coords(node_coords_data.begin(), node_coords_data.end());
@@ -268,12 +256,9 @@ RC_GTEST_PROP(PropProducerEquivalence, UgridProducerEquivalence, ()) {
     axis::ingest::GridDescriptor desc_b{};
     desc_b.kind = axis::ingest::ConventionKind::UGRID;
     desc_b.coord_system = axis::ingest::CoordinateSystem::SphericalDeg;
-    desc_b.buffers.node_coords = axis::field_view<const double, 2>{
-        b_coords.data(), n_nodes, ndim};
-    desc_b.buffers.conn_offsets = axis::field_view<const axis::index_t, 1>{
-        b_offsets.data(), b_offsets.size()};
-    desc_b.buffers.conn_indices = axis::field_view<const axis::index_t, 1>{
-        b_indices.data(), b_indices.size()};
+    desc_b.buffers.node_coords = axis::field_view<const double, 2>{b_coords.data(), n_nodes, ndim};
+    desc_b.buffers.conn_offsets = axis::field_view<const axis::index_t, 1>{b_offsets.data(), b_offsets.size()};
+    desc_b.buffers.conn_indices = axis::field_view<const axis::index_t, 1>{b_indices.data(), b_indices.size()};
 
     // Sanity: buffers are at different addresses.
     RC_ASSERT(a_coords.data() != b_coords.data());
@@ -307,8 +292,8 @@ RC_GTEST_PROP(PropProducerEquivalence, UgridProducerEquivalence, ()) {
     RC_ASSERT(nc_a.extent(0) == nc_b.extent(0));
     RC_ASSERT(nc_a.extent(1) == nc_b.extent(1));
 
-    const double* pa = nc_a.data_handle();
-    const double* pb = nc_b.data_handle();
+    const double *pa = nc_a.data_handle();
+    const double *pb = nc_b.data_handle();
     const std::size_t total = nc_a.extent(0) * nc_a.extent(1);
     for (std::size_t i = 0; i < total; ++i) {
         RC_ASSERT(pa[i] == pb[i]);
@@ -320,7 +305,7 @@ RC_GTEST_PROP(PropProducerEquivalence, UgridProducerEquivalence, ()) {
 // conversion kernel and Kokkos::deep_copy).
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -333,7 +318,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

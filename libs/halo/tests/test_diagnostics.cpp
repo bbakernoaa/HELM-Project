@@ -14,7 +14,6 @@
 #include <mpi.h>
 
 #include <Kokkos_Core.hpp>
-
 #include <atomic>
 #include <chrono>
 #include <mutex>
@@ -32,7 +31,7 @@ namespace {
 /// Number of elements exchanged per neighbor.
 constexpr std::size_t kCount = 8;
 
-using HostView = Kokkos::View<double*, Kokkos::HostSpace>;
+using HostView = Kokkos::View<double *, Kokkos::HostSpace>;
 
 /// Build a periodic ring neighbor list for `rank` in a comm of `size`.
 std::vector<int> ring_neighbors(int rank, int size) {
@@ -46,7 +45,7 @@ std::vector<int> ring_neighbors(int rank, int size) {
 }
 
 /// Construct symmetric neighbor info for ring topology.
-std::vector<halo::Neighbor_Info> make_neighbor_info(const std::vector<int>& ranks) {
+std::vector<halo::Neighbor_Info> make_neighbor_info(const std::vector<int> &ranks) {
     std::vector<halo::Neighbor_Info> info;
     info.reserve(ranks.size());
     for (int r : ranks) {
@@ -76,7 +75,7 @@ HostView make_initialized_field(int rank, std::size_t num_neighbors) {
 // ─── Test fixture ───────────────────────────────────────────────────────────
 
 class DiagnosticsTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -105,11 +104,10 @@ TEST_F(DiagnosticsTest, CallbackReceivesEventsWithCorrectFields) {
     std::vector<halo::Exchange_Event> events;
     std::mutex events_mutex;
 
-    halo::Diagnostics::set_callback(
-        [&events, &events_mutex](const halo::Exchange_Event& ev) {
-            std::lock_guard<std::mutex> lock(events_mutex);
-            events.push_back(ev);
-        });
+    halo::Diagnostics::set_callback([&events, &events_mutex](const halo::Exchange_Event &ev) {
+        std::lock_guard<std::mutex> lock(events_mutex);
+        events.push_back(ev);
+    });
 
     ASSERT_TRUE(halo::Diagnostics::is_active());
 
@@ -123,9 +121,9 @@ TEST_F(DiagnosticsTest, CallbackReceivesEventsWithCorrectFields) {
     ASSERT_GE(events.size(), 2u);
 
     // Find begin and end events.
-    const halo::Exchange_Event* begin_ev = nullptr;
-    const halo::Exchange_Event* end_ev = nullptr;
-    for (const auto& ev : events) {
+    const halo::Exchange_Event *begin_ev = nullptr;
+    const halo::Exchange_Event *end_ev = nullptr;
+    for (const auto &ev : events) {
         if (ev.phase == halo::Exchange_Event::Phase::begin) begin_ev = &ev;
         if (ev.phase == halo::Exchange_Event::Phase::end) end_ev = &ev;
     }
@@ -152,8 +150,7 @@ TEST_F(DiagnosticsTest, CallbackReceivesEventsWithCorrectFields) {
     EXPECT_FALSE(end_ev->is_async);
 
     // Verify neighbor_count is correct.
-    const int expected_neighbors = static_cast<int>(
-        neighbors_.size() + neighbors_.size());  // send + recv neighbors
+    const int expected_neighbors = static_cast<int>(neighbors_.size() + neighbors_.size());  // send + recv neighbors
     EXPECT_EQ(begin_ev->neighbor_count, expected_neighbors);
     EXPECT_EQ(end_ev->neighbor_count, expected_neighbors);
 }
@@ -192,9 +189,7 @@ TEST_F(DiagnosticsTest, ThreadSafetyOfSetCallbackAndEmit) {
     std::thread toggler([&stop, &callback_count]() {
         while (!stop.load(std::memory_order_relaxed)) {
             halo::Diagnostics::set_callback(
-                [&callback_count](const halo::Exchange_Event& /*ev*/) {
-                    callback_count.fetch_add(1, std::memory_order_relaxed);
-                });
+                [&callback_count](const halo::Exchange_Event & /*ev*/) { callback_count.fetch_add(1, std::memory_order_relaxed); });
             std::this_thread::yield();
             halo::Diagnostics::clear_callback();
             std::this_thread::yield();
@@ -203,11 +198,7 @@ TEST_F(DiagnosticsTest, ThreadSafetyOfSetCallbackAndEmit) {
 
     // Launch a thread that continuously emits events.
     std::thread emitter([&stop]() {
-        halo::Exchange_Event ev{
-            halo::Exchange_Event::Phase::begin,
-            0, 2, 1024,
-            std::chrono::nanoseconds{0},
-            false};
+        halo::Exchange_Event ev{halo::Exchange_Event::Phase::begin, 0, 2, 1024, std::chrono::nanoseconds{0}, false};
         while (!stop.load(std::memory_order_relaxed)) {
             halo::Diagnostics::emit(ev);
             std::this_thread::yield();
@@ -234,10 +225,7 @@ TEST_F(DiagnosticsTest, ClearCallbackStopsEventDelivery) {
     std::atomic<int> event_count{0};
 
     // Register, then immediately clear.
-    halo::Diagnostics::set_callback(
-        [&event_count](const halo::Exchange_Event& /*ev*/) {
-            event_count.fetch_add(1, std::memory_order_relaxed);
-        });
+    halo::Diagnostics::set_callback([&event_count](const halo::Exchange_Event & /*ev*/) { event_count.fetch_add(1, std::memory_order_relaxed); });
     ASSERT_TRUE(halo::Diagnostics::is_active());
 
     halo::Diagnostics::clear_callback();
@@ -250,8 +238,7 @@ TEST_F(DiagnosticsTest, ClearCallbackStopsEventDelivery) {
 
     halo::exchange_blocking(plan, field);
 
-    EXPECT_EQ(event_count.load(), 0)
-        << "events received after clear_callback()";
+    EXPECT_EQ(event_count.load(), 0) << "events received after clear_callback()";
 }
 
 // ─── Test 5: Async exchange emits events with is_async=true ─────────────────
@@ -262,11 +249,10 @@ TEST_F(DiagnosticsTest, AsyncExchangeEmitsEventsWithIsAsyncTrue) {
     std::vector<halo::Exchange_Event> events;
     std::mutex events_mutex;
 
-    halo::Diagnostics::set_callback(
-        [&events, &events_mutex](const halo::Exchange_Event& ev) {
-            std::lock_guard<std::mutex> lock(events_mutex);
-            events.push_back(ev);
-        });
+    halo::Diagnostics::set_callback([&events, &events_mutex](const halo::Exchange_Event &ev) {
+        std::lock_guard<std::mutex> lock(events_mutex);
+        events.push_back(ev);
+    });
 
     const auto info = make_neighbor_info(neighbors_);
     halo::Halo_Plan plan(*comm_, info, info);
@@ -276,8 +262,8 @@ TEST_F(DiagnosticsTest, AsyncExchangeEmitsEventsWithIsAsyncTrue) {
     handle.wait();
 
     // Find the begin event and verify is_async == true.
-    const halo::Exchange_Event* begin_ev = nullptr;
-    for (const auto& ev : events) {
+    const halo::Exchange_Event *begin_ev = nullptr;
+    for (const auto &ev : events) {
         if (ev.phase == halo::Exchange_Event::Phase::begin) {
             begin_ev = &ev;
             break;
@@ -289,7 +275,7 @@ TEST_F(DiagnosticsTest, AsyncExchangeEmitsEventsWithIsAsyncTrue) {
 
 // ─── Global MPI + Kokkos + HALO environment ─────────────────────────────────
 class HaloMpiEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         int provided = 0;
         MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &provided);
@@ -307,5 +293,4 @@ public:
 }  // namespace
 
 // Register the environment (gtest_main provides main()).
-static ::testing::Environment* const halo_mpi_env =
-    ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);
+static ::testing::Environment *const halo_mpi_env = ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);

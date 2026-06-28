@@ -20,11 +20,10 @@
 #include <rapidcheck/gtest.h>
 
 #include <algorithm>
+#include <axis/topology/named_grid_registry.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <axis/topology/named_grid_registry.hpp>
 
 namespace {
 
@@ -45,12 +44,8 @@ rc::Gen<int> genPositiveNumber() {
 
 /// Generate a valid grid name string (e.g. "O1280", "F128", "N320").
 rc::Gen<std::string> genValidName() {
-    return rc::gen::apply(
-        [](char family, int number) {
-            return std::string(1, family) + std::to_string(number);
-        },
-        genValidFamily(),
-        genPositiveNumber());
+    return rc::gen::apply([](char family, int number) { return std::string(1, family) + std::to_string(number); }, genValidFamily(),
+                          genPositiveNumber());
 }
 
 /// Generate an invalid family prefix character: NOT one of 'O', 'F', 'N',
@@ -58,9 +53,8 @@ rc::Gen<std::string> genValidName() {
 /// after toupper will be invalid. We pick from characters that are definitely
 /// not valid families.
 rc::Gen<char> genInvalidFamily() {
-    return rc::gen::suchThat(
-        rc::gen::inRange<char>('A', '['),  // 'A'..'Z'
-        [](char c) { return c != 'O' && c != 'F' && c != 'N'; });
+    return rc::gen::suchThat(rc::gen::inRange<char>('A', '['),  // 'A'..'Z'
+                             [](char c) { return c != 'O' && c != 'F' && c != 'N'; });
 }
 
 /// Generate a non-positive number (0 or negative).
@@ -78,10 +72,9 @@ rc::Gen<std::string> genNonNumericSuffix() {
         result.reserve(static_cast<std::size_t>(len));
         for (int i = 0; i < len; ++i) {
             // All branches produce non-digit characters (a-z, A-Z, '.')
-            char c = *rc::gen::oneOf(
-                rc::gen::inRange<char>('a', '{'),   // 'a'..'z'
-                rc::gen::inRange<char>('A', '['),   // 'A'..'Z'
-                rc::gen::just<char>('.'));
+            char c = *rc::gen::oneOf(rc::gen::inRange<char>('a', '{'),  // 'a'..'z'
+                                     rc::gen::inRange<char>('A', '['),  // 'A'..'Z'
+                                     rc::gen::just<char>('.'));
             result.push_back(c);
         }
         return result;

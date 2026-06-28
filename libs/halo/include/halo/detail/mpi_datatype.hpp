@@ -9,6 +9,7 @@
 /// handles, and structured exchange templates.
 
 #include <mpi.h>
+
 #include <type_traits>
 
 namespace halo::detail {
@@ -42,6 +43,6 @@ inline MPI_Datatype mpi_datatype_for() noexcept {
     }
 }
 
-} // namespace halo::detail
+}  // namespace halo::detail
 
-#endif // HALO_DETAIL_MPI_DATATYPE_HPP
+#endif  // HALO_DETAIL_MPI_DATATYPE_HPP

@@ -17,7 +17,6 @@
 #define LOGS_TESTS_IN_MEMORY_SINK_HPP
 
 #include <logs/sink.hpp>
-
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -29,7 +28,7 @@ namespace logs::testing {
 /// as a separate entry in a thread-safe vector. This allows us to track
 /// individual write calls rather than just accumulating text.
 class Recording_Streambuf : public std::streambuf {
-public:
+   public:
     Recording_Streambuf() = default;
 
     /// Get a thread-safe copy of all recorded entries.
@@ -50,9 +49,9 @@ public:
         entries_.clear();
     }
 
-protected:
+   protected:
     /// Called by the stream when characters are written via sputn/xsputn.
-    std::streamsize xsputn(const char* s, std::streamsize n) override {
+    std::streamsize xsputn(const char *s, std::streamsize n) override {
         std::lock_guard<std::mutex> lock(mutex_);
         entries_.emplace_back(s, static_cast<std::size_t>(n));
         return n;
@@ -68,9 +67,11 @@ protected:
     }
 
     /// Sync (flush) is a no-op for in-memory recording.
-    int sync() override { return 0; }
+    int sync() override {
+        return 0;
+    }
 
-private:
+   private:
     mutable std::mutex mutex_;
     std::vector<std::string> entries_;
 };
@@ -83,12 +84,13 @@ private:
 /// write concurrently (as in concurrency tests) while assertions can safely
 /// read entries from another thread.
 class In_Memory_Sink {
-public:
-    In_Memory_Sink()
-        : stream_(&buf_), sink_(stream_) {}
+   public:
+    In_Memory_Sink() : stream_(&buf_), sink_(stream_) {}
 
     /// Get the logs::Sink suitable for registration with Logger::add_sink().
-    [[nodiscard]] logs::Sink& sink() noexcept { return sink_; }
+    [[nodiscard]] logs::Sink &sink() noexcept {
+        return sink_;
+    }
 
     /// Get a thread-safe copy of all recorded written strings.
     /// Each entry corresponds to one write() call on the Sink.
@@ -107,12 +109,12 @@ public:
     }
 
     // Non-copyable, non-movable (owns stream resources).
-    In_Memory_Sink(const In_Memory_Sink&) = delete;
-    In_Memory_Sink& operator=(const In_Memory_Sink&) = delete;
-    In_Memory_Sink(In_Memory_Sink&&) = delete;
-    In_Memory_Sink& operator=(In_Memory_Sink&&) = delete;
+    In_Memory_Sink(const In_Memory_Sink &) = delete;
+    In_Memory_Sink &operator=(const In_Memory_Sink &) = delete;
+    In_Memory_Sink(In_Memory_Sink &&) = delete;
+    In_Memory_Sink &operator=(In_Memory_Sink &&) = delete;
 
-private:
+   private:
     Recording_Streambuf buf_;
     std::ostream stream_;
     logs::Sink sink_;

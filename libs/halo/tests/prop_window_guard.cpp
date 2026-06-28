@@ -16,13 +16,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <cstdint>
 #include <type_traits>
-
-#include <mpi.h>
 
 #include "halo/window_guard.hpp"
 #include "mpi_interposition.hpp"
@@ -50,7 +49,7 @@ inline MPI_Win synthetic_win(std::uintptr_t value = 0x10000) {
 // **Validates: Requirements 3.7**
 
 RC_GTEST_PROP(WindowGuardProperty6, FenceCalledBeforeFreeWhenEpochActive, ()) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
     spy.reset();
 
     // Generate a random non-null MPI_Win handle value.
@@ -72,7 +71,7 @@ RC_GTEST_PROP(WindowGuardProperty6, FenceCalledBeforeFreeWhenEpochActive, ()) {
 
 // Additional case: epoch_active == false -> no fence, just free.
 RC_GTEST_PROP(WindowGuardProperty6, NoFenceWhenEpochInactive, ()) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
     spy.reset();
 
     auto raw = *rc::gen::inRange<std::uintptr_t>(0x1000, 0xFFFFFF);
@@ -91,7 +90,7 @@ RC_GTEST_PROP(WindowGuardProperty6, NoFenceWhenEpochInactive, ()) {
 
 // Additional case: MPI_WIN_NULL -> destructor is a no-op, no MPI calls at all.
 RC_GTEST_PROP(WindowGuardProperty6, NullWindowIsNoOp, ()) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
     spy.reset();
 
     {
@@ -113,11 +112,10 @@ RC_GTEST_PROP(WindowGuardProperty6, NullWindowIsNoOp, ()) {
 // **Validates: Requirements 3.8**
 
 // Compile-time check: the destructor must be declared noexcept.
-static_assert(std::is_nothrow_destructible_v<halo::Window_Guard>,
-              "Window_Guard destructor must be noexcept");
+static_assert(std::is_nothrow_destructible_v<halo::Window_Guard>, "Window_Guard destructor must be noexcept");
 
 RC_GTEST_PROP(WindowGuardProperty7, DestructorSwallowsFenceError, ()) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
     spy.reset();
 
     // Inject an error on the NEXT MPI call (which will be Win_fence inside the
@@ -136,14 +134,14 @@ RC_GTEST_PROP(WindowGuardProperty7, DestructorSwallowsFenceError, ()) {
     // continue to free. Either way, it must NOT throw. At minimum the fence
     // was attempted.
     bool fence_attempted = false;
-    for (auto const& c : calls) {
+    for (auto const &c : calls) {
         if (c.type == MPI_Call_Record::Type::Win_fence) fence_attempted = true;
     }
     RC_ASSERT(fence_attempted);
 }
 
 RC_GTEST_PROP(WindowGuardProperty7, DestructorSwallowsFreeError, ()) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
     spy.reset();
 
     // No epoch active, so the destructor goes straight to Win_free. Inject an
@@ -157,7 +155,7 @@ RC_GTEST_PROP(WindowGuardProperty7, DestructorSwallowsFreeError, ()) {
 
     auto calls = spy.calls_copy();
     bool free_attempted = false;
-    for (auto const& c : calls) {
+    for (auto const &c : calls) {
         if (c.type == MPI_Call_Record::Type::Win_free) free_attempted = true;
     }
     RC_ASSERT(free_attempted);

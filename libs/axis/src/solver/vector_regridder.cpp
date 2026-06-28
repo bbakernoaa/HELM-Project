@@ -10,14 +10,9 @@
 namespace axis::solver {
 
 template <typename MemorySpace>
-std::pair<InterpolationMatrix<MemorySpace>, InterpolationMatrix<MemorySpace>>
-VectorWeightGenerator<MemorySpace>::generate(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const GridRotation<MemorySpace>&               src_rotation,
-    const GridRotation<MemorySpace>&               dst_rotation,
-    const RegridConfig&                            config) {
-
+std::pair<InterpolationMatrix<MemorySpace>, InterpolationMatrix<MemorySpace>> VectorWeightGenerator<MemorySpace>::generate(
+    const topology::UnstructuredMesh<MemorySpace> &src_mesh, const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+    const GridRotation<MemorySpace> &src_rotation, const GridRotation<MemorySpace> &dst_rotation, const RegridConfig &config) {
     // 1. Generate the standard scalar spatial interpolation weight matrix
     auto W_scalar = WeightGenerator::generate<MemorySpace>(src_mesh, dst_mesh, config);
 
@@ -26,9 +21,9 @@ VectorWeightGenerator<MemorySpace>::generate(
     const std::size_t nnz_scalar = W_scalar.nnz();
 
     // 2. We extract the scalar sparse matrix underlying Views directly
-    const auto& rows = W_scalar.factor_row_view();
-    const auto& cols = W_scalar.factor_col_view();
-    const auto& vals = W_scalar.factor_list_view();
+    const auto &rows = W_scalar.factor_row_view();
+    const auto &cols = W_scalar.factor_col_view();
+    const auto &vals = W_scalar.factor_list_view();
 
     // Host mirrors for mapping and trigonometric calculations
     auto h_rows = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), rows);
@@ -53,8 +48,8 @@ VectorWeightGenerator<MemorySpace>::generate(
     v_vals.reserve(nnz_vector);
 
     for (std::size_t k = 0; k < nnz_scalar; ++k) {
-        index_t j = h_rows(k); // dst cell index
-        index_t i = h_cols(k); // src cell index
+        index_t j = h_rows(k);  // dst cell index
+        index_t i = h_cols(k);  // src cell index
         double w = h_vals(k);
 
         double a_src = h_src_alpha(i);
@@ -72,7 +67,7 @@ VectorWeightGenerator<MemorySpace>::generate(
 
         // u_dst_j += w * sin(a_dst - a_src) * v_src_i
         u_rows.push_back(j);
-        u_cols.push_back(i + n_src); // Stacked v component index
+        u_cols.push_back(i + n_src);  // Stacked v component index
         u_vals.push_back(w * sin_d);
 
         // --- Coupled Weights for W_v ---
@@ -83,18 +78,18 @@ VectorWeightGenerator<MemorySpace>::generate(
 
         // v_dst_j += w * cos(a_dst - a_src) * v_src_i
         v_rows.push_back(j);
-        v_cols.push_back(i + n_src); // Stacked v component index
+        v_cols.push_back(i + n_src);  // Stacked v component index
         v_vals.push_back(w * cos_d);
     }
 
     // 3. Build the final host-space coupled vector matrices
-    Kokkos::View<index_t*, Kokkos::HostSpace> host_u_rows("u_rows", nnz_vector);
-    Kokkos::View<index_t*, Kokkos::HostSpace> host_u_cols("u_cols", nnz_vector);
-    Kokkos::View<double*, Kokkos::HostSpace>  host_u_vals("u_vals", nnz_vector);
+    Kokkos::View<index_t *, Kokkos::HostSpace> host_u_rows("u_rows", nnz_vector);
+    Kokkos::View<index_t *, Kokkos::HostSpace> host_u_cols("u_cols", nnz_vector);
+    Kokkos::View<double *, Kokkos::HostSpace> host_u_vals("u_vals", nnz_vector);
 
-    Kokkos::View<index_t*, Kokkos::HostSpace> host_v_rows("v_rows", nnz_vector);
-    Kokkos::View<index_t*, Kokkos::HostSpace> host_v_cols("v_cols", nnz_vector);
-    Kokkos::View<double*, Kokkos::HostSpace>  host_v_vals("v_vals", nnz_vector);
+    Kokkos::View<index_t *, Kokkos::HostSpace> host_v_rows("v_rows", nnz_vector);
+    Kokkos::View<index_t *, Kokkos::HostSpace> host_v_cols("v_cols", nnz_vector);
+    Kokkos::View<double *, Kokkos::HostSpace> host_v_vals("v_vals", nnz_vector);
 
     for (std::size_t k = 0; k < nnz_vector; ++k) {
         host_u_rows(k) = u_rows[k];
@@ -116,8 +111,8 @@ VectorWeightGenerator<MemorySpace>::generate(
     auto dev_v_vals = Kokkos::create_mirror_view_and_copy(MemorySpace(), host_v_vals);
 
     // Create stacked fraction and area views matching double n_src
-    Kokkos::View<double*, MemorySpace> dev_frac_a("frac_a", n_src * 2);
-    Kokkos::View<double*, MemorySpace> dev_area_a("area_a", n_src * 2);
+    Kokkos::View<double *, MemorySpace> dev_frac_a("frac_a", n_src * 2);
+    Kokkos::View<double *, MemorySpace> dev_area_a("area_a", n_src * 2);
 
     // Copy the original fractions and areas to the first half, and repeat for the second (stacked) half
     auto h_frac_a = W_scalar.frac_a();
@@ -125,31 +120,23 @@ VectorWeightGenerator<MemorySpace>::generate(
     auto dev_orig_frac_a = W_scalar.frac_a_view();
     auto dev_orig_area_a = W_scalar.area_a_view();
 
-    Kokkos::parallel_for("CopyFractions", n_src,
-        KOKKOS_LAMBDA(const std::size_t i) {
+    Kokkos::parallel_for(
+        "CopyFractions", n_src, KOKKOS_LAMBDA(const std::size_t i) {
             dev_frac_a(i) = dev_orig_frac_a(i);
             dev_frac_a(i + n_src) = dev_orig_frac_a(i);
             dev_area_a(i) = dev_orig_area_a(i);
             dev_area_a(i + n_src) = dev_orig_area_a(i);
         });
 
-    InterpolationMatrix<MemorySpace> W_u(
-        dev_u_vals, dev_u_rows, dev_u_cols,
-        dev_frac_a, W_scalar.frac_b_view(),
-        dev_area_a, W_scalar.area_b_view(),
-        n_src * 2, n_dst
-    );
+    InterpolationMatrix<MemorySpace> W_u(dev_u_vals, dev_u_rows, dev_u_cols, dev_frac_a, W_scalar.frac_b_view(), dev_area_a, W_scalar.area_b_view(),
+                                         n_src * 2, n_dst);
 
-    InterpolationMatrix<MemorySpace> W_v(
-        dev_v_vals, dev_v_rows, dev_v_cols,
-        dev_frac_a, W_scalar.frac_b_view(),
-        dev_area_a, W_scalar.area_b_view(),
-        n_src * 2, n_dst
-    );
+    InterpolationMatrix<MemorySpace> W_v(dev_v_vals, dev_v_rows, dev_v_cols, dev_frac_a, W_scalar.frac_b_view(), dev_area_a, W_scalar.area_b_view(),
+                                         n_src * 2, n_dst);
 
     return {std::move(W_u), std::move(W_v)};
 }
 
 template class VectorWeightGenerator<Kokkos::HostSpace>;
 
-} // namespace axis::solver
+}  // namespace axis::solver

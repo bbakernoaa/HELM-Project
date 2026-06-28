@@ -6,9 +6,9 @@
 //   - Conf_Error inherits from std::runtime_error
 // ──────────────────────────────────────────────────────────────────────────────
 
-#include <conf/error.hpp>
-
 #include <gtest/gtest.h>
+
+#include <conf/error.hpp>
 #include <stdexcept>
 #include <string>
 
@@ -61,25 +61,24 @@ TEST(ConfError, CodeReturnsEachEnumerator) {
     // Verify code() round-trips correctly for every enumerator
     struct Case {
         conf::Error_Code code;
-        const char* msg;
+        const char *msg;
     };
 
     const Case cases[] = {
-        {conf::Error_Code::Success,          "ok"},
-        {conf::Error_Code::Invalid_Arg,      "bad arg"},
-        {conf::Error_Code::File_Not_Found,   "no such file"},
-        {conf::Error_Code::Parse_Error,      "malformed yaml"},
-        {conf::Error_Code::Key_Not_Found,    "missing key"},
-        {conf::Error_Code::Type_Mismatch,    "wrong type"},
-        {conf::Error_Code::Bad_Handle,       "stale handle"},
+        {conf::Error_Code::Success, "ok"},
+        {conf::Error_Code::Invalid_Arg, "bad arg"},
+        {conf::Error_Code::File_Not_Found, "no such file"},
+        {conf::Error_Code::Parse_Error, "malformed yaml"},
+        {conf::Error_Code::Key_Not_Found, "missing key"},
+        {conf::Error_Code::Type_Mismatch, "wrong type"},
+        {conf::Error_Code::Bad_Handle, "stale handle"},
         {conf::Error_Code::Buffer_Too_Small, "buffer overflow"},
-        {conf::Error_Code::Unknown,          "unknown failure"},
+        {conf::Error_Code::Unknown, "unknown failure"},
     };
 
-    for (const auto& c : cases) {
+    for (const auto &c : cases) {
         const conf::Conf_Error err(c.code, c.msg);
-        EXPECT_EQ(err.code(), c.code)
-            << "Failed for message: " << c.msg;
+        EXPECT_EQ(err.code(), c.code) << "Failed for message: " << c.msg;
     }
 }
 
@@ -93,8 +92,7 @@ TEST(ConfError, WhatContainsMessage) {
     const std::string msg = "configuration file not found: /tmp/missing.yaml";
     const conf::Conf_Error err(conf::Error_Code::File_Not_Found, msg);
     const std::string what_str(err.what());
-    EXPECT_NE(what_str.find(msg), std::string::npos)
-        << "what() should contain the diagnostic message";
+    EXPECT_NE(what_str.find(msg), std::string::npos) << "what() should contain the diagnostic message";
 }
 
 // ─── Requirement 11.3 (inheritance): Conf_Error inherits from std::runtime_error
@@ -106,7 +104,7 @@ TEST(ConfError, InheritsFromRuntimeError) {
     bool caught_as_runtime_error = false;
     try {
         throw err;
-    } catch (const std::runtime_error& e) {
+    } catch (const std::runtime_error &e) {
         caught_as_runtime_error = true;
         // The what() message should still be accessible via the base class
         const std::string what_str(e.what());
@@ -123,7 +121,7 @@ TEST(ConfError, CatchableAsStdException) {
     bool caught_as_exception = false;
     try {
         throw err;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         caught_as_exception = true;
         EXPECT_NE(std::string(e.what()).size(), 0u);
     }

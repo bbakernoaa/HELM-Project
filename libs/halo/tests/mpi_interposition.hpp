@@ -27,26 +27,14 @@ namespace halo::testing {
 /// Records a single intercepted MPI call with its type, handle, and arguments.
 struct MPI_Call_Record {
     /// Enumeration of all intercepted MPI function types.
-    enum class Type {
-        Comm_free,
-        Request_free,
-        Cancel,
-        Wait,
-        Test,
-        Win_free,
-        Win_fence,
-        Irecv,
-        Isend,
-        Waitall
-    };
+    enum class Type { Comm_free, Request_free, Cancel, Wait, Test, Win_free, Win_fence, Irecv, Isend, Waitall };
 
     Type type;
-    void* handle;  ///< The primary handle argument (cast from MPI handle pointer)
+    void *handle;  ///< The primary handle argument (cast from MPI handle pointer)
     int arg;       ///< Additional argument (e.g., assertion for fence, count for Waitall)
 
     /// Convenience constructor.
-    MPI_Call_Record(Type t, void* h, int a = 0) noexcept
-        : type{t}, handle{h}, arg{a} {}
+    MPI_Call_Record(Type t, void *h, int a = 0) noexcept : type{t}, handle{h}, arg{a} {}
 };
 
 // ─── MPI Spy Singleton ──────────────────────────────────────────────────────
@@ -54,9 +42,9 @@ struct MPI_Call_Record {
 /// Thread-safe singleton that records all intercepted MPI calls and supports
 /// error injection for testing error-handling paths.
 class MPI_Spy {
-public:
+   public:
     /// Access the singleton instance.
-    static MPI_Spy& instance() {
+    static MPI_Spy &instance() {
         static MPI_Spy spy;
         return spy;
     }
@@ -69,7 +57,7 @@ public:
     }
 
     /// Get the list of all recorded MPI calls (thread-safe copy).
-    [[nodiscard]] std::vector<MPI_Call_Record> const& calls() const {
+    [[nodiscard]] std::vector<MPI_Call_Record> const &calls() const {
         // Note: caller must ensure no concurrent modifications during read,
         // or use calls_copy() for a safe snapshot.
         return calls_;
@@ -114,7 +102,7 @@ public:
     }
 
     /// Record a call. Returns the error code to use (injected or MPI_SUCCESS).
-    int record(MPI_Call_Record::Type type, void* handle, int arg = 0) {
+    int record(MPI_Call_Record::Type type, void *handle, int arg = 0) {
         std::lock_guard<std::mutex> lock(mutex_);
         calls_.emplace_back(type, handle, arg);
 
@@ -142,19 +130,19 @@ public:
     [[nodiscard]] std::size_t count_of(MPI_Call_Record::Type type) const {
         std::lock_guard<std::mutex> lock(mutex_);
         std::size_t count = 0;
-        for (auto const& rec : calls_) {
+        for (auto const &rec : calls_) {
             if (rec.type == type) ++count;
         }
         return count;
     }
 
     // Non-copyable, non-movable singleton
-    MPI_Spy(MPI_Spy const&) = delete;
-    MPI_Spy& operator=(MPI_Spy const&) = delete;
-    MPI_Spy(MPI_Spy&&) = delete;
-    MPI_Spy& operator=(MPI_Spy&&) = delete;
+    MPI_Spy(MPI_Spy const &) = delete;
+    MPI_Spy &operator=(MPI_Spy const &) = delete;
+    MPI_Spy(MPI_Spy &&) = delete;
+    MPI_Spy &operator=(MPI_Spy &&) = delete;
 
-private:
+   private:
     MPI_Spy() = default;
 
     mutable std::mutex mutex_;

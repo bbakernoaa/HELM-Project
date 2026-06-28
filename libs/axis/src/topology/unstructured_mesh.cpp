@@ -15,9 +15,8 @@
 /// - Cartesian3D: planar polygon area via cross-product summation (the
 ///   shoelace formula generalized to 3D-embedded polygons).
 
-#include <axis/topology/unstructured_mesh.hpp>
-
 #include <Kokkos_Core.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
 #include <cmath>
 
 namespace axis::topology {
@@ -37,7 +36,7 @@ constexpr double DEG_TO_RAD = PI / 180.0;
 
 /// Convert (lon, lat) in radians to unit-sphere Cartesian (x, y, z).
 KOKKOS_INLINE_FUNCTION
-void lonlat_to_xyz(double lon, double lat, double& x, double& y, double& z) {
+void lonlat_to_xyz(double lon, double lat, double &x, double &y, double &z) {
     const double cos_lat = Kokkos::cos(lat);
     x = cos_lat * Kokkos::cos(lon);
     y = cos_lat * Kokkos::sin(lon);
@@ -46,9 +45,7 @@ void lonlat_to_xyz(double lon, double lat, double& x, double& y, double& z) {
 
 /// Cross product of two 3-D vectors: c = a × b.
 KOKKOS_INLINE_FUNCTION
-void cross3(double ax, double ay, double az,
-            double bx, double by, double bz,
-            double& cx, double& cy, double& cz) {
+void cross3(double ax, double ay, double az, double bx, double by, double bz, double &cx, double &cy, double &cz) {
     cx = ay * bz - az * by;
     cy = az * bx - ax * bz;
     cz = ax * by - ay * bx;
@@ -56,8 +53,7 @@ void cross3(double ax, double ay, double az,
 
 /// Dot product of two 3-D vectors.
 KOKKOS_INLINE_FUNCTION
-double dot3(double ax, double ay, double az,
-            double bx, double by, double bz) {
+double dot3(double ax, double ay, double az, double bx, double by, double bz) {
     return ax * bx + ay * by + az * bz;
 }
 
@@ -74,11 +70,7 @@ double mag3(double x, double y, double z) {
 /// This is derived from the tangent half-angle identity and avoids
 /// catastrophic cancellation for small triangles.
 KOKKOS_INLINE_FUNCTION
-double spherical_excess_triangle(
-    double ax, double ay, double az,
-    double bx, double by, double bz,
-    double cx, double cy, double cz)
-{
+double spherical_excess_triangle(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz) {
     // b × c
     double bcx, bcy, bcz;
     cross3(bx, by, bz, cx, cy, cz, bcx, bcy, bcz);
@@ -101,7 +93,7 @@ double spherical_excess_triangle(
     return 2.0 * Kokkos::atan2(num, den);
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // compute_areas() — Kokkos parallel kernel
@@ -113,24 +105,21 @@ void UnstructuredMesh<MemorySpace>::compute_areas() {
     if (nc == 0) return;
 
     // Allocate (or reallocate) the areas View
-    cell_areas_ = Kokkos::View<double*, MemorySpace>(
-        "UnstructuredMesh::cell_areas", nc);
+    cell_areas_ = Kokkos::View<double *, MemorySpace>("UnstructuredMesh::cell_areas", nc);
 
     // Capture views by value for the Kokkos lambda
-    auto coords  = node_coords_;
+    auto coords = node_coords_;
     auto offsets = conn_offsets_;
     auto indices = conn_indices_;
-    auto areas   = cell_areas_;
+    auto areas = cell_areas_;
     const auto csys = coord_sys_;
 
     using exec_space = typename MemorySpace::execution_space;
 
     Kokkos::parallel_for(
-        "UnstructuredMesh::compute_areas",
-        Kokkos::RangePolicy<exec_space>(0, static_cast<int>(nc)),
-        KOKKOS_LAMBDA(const int cell) {
+        "UnstructuredMesh::compute_areas", Kokkos::RangePolicy<exec_space>(0, static_cast<int>(nc)), KOKKOS_LAMBDA(const int cell) {
             const index_t start = offsets(cell);
-            const index_t end   = offsets(cell + 1);
+            const index_t end = offsets(cell + 1);
             const int nv = static_cast<int>(end - start);
 
             if (nv < 3) {
@@ -182,8 +171,7 @@ void UnstructuredMesh<MemorySpace>::compute_areas() {
                 //
                 // Coordinates are assumed to be (lon, lat) in ndim=2 columns.
                 // ─────────────────────────────────────────────────────────────
-                const double scale = (csys == CoordinateSystem::SphericalDeg)
-                                         ? DEG_TO_RAD : 1.0;
+                const double scale = (csys == CoordinateSystem::SphericalDeg) ? DEG_TO_RAD : 1.0;
 
                 // Convert vertex 0 to Cartesian on unit sphere
                 const index_t idx0 = indices(start);
@@ -208,8 +196,7 @@ void UnstructuredMesh<MemorySpace>::compute_areas() {
                     double x2, y2, z2;
                     lonlat_to_xyz(lon2, lat2, x2, y2, z2);
 
-                    total_excess += spherical_excess_triangle(
-                        x0, y0, z0, x1, y1, z1, x2, y2, z2);
+                    total_excess += spherical_excess_triangle(x0, y0, z0, x1, y1, z1, x2, y2, z2);
                 }
 
                 areas(cell) = total_excess;  // steradians on the unit sphere
@@ -234,4 +221,4 @@ template class UnstructuredMesh<Kokkos::CudaSpace>;
 template class UnstructuredMesh<Kokkos::HIPSpace>;
 #endif
 
-} // namespace axis::topology
+}  // namespace axis::topology

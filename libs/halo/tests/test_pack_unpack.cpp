@@ -10,15 +10,15 @@
 // Requirements: 2.1, 2.2, 2.3, 2.5
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <halo/detail/pack_unpack.hpp>
+#include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-#include <gtest/gtest.h>
+#include <halo/detail/pack_unpack.hpp>
 
 // ─── Test Fixture ────────────────────────────────────────────────────────────
 
 class PackUnpackTest : public ::testing::Test {
-protected:
+   protected:
     // Kokkos is initialized/finalized in main() via ScopeGuard.
 };
 
@@ -28,14 +28,12 @@ TEST_F(PackUnpackTest, PackContiguous1DView) {
     constexpr int N = 10;
 
     // Source: contiguous 1D view filled with known pattern
-    Kokkos::View<double*> src("src", N);
-    Kokkos::parallel_for("fill_src", N, KOKKOS_LAMBDA(int i) {
-        src(i) = static_cast<double>(i * 3 + 7);
-    });
+    Kokkos::View<double *> src("src", N);
+    Kokkos::parallel_for("fill_src", N, KOKKOS_LAMBDA(int i) { src(i) = static_cast<double>(i * 3 + 7); });
     Kokkos::fence();
 
     // Destination buffer
-    Kokkos::View<double*> buffer("buffer", N);
+    Kokkos::View<double *> buffer("buffer", N);
 
     // Pack
     halo::detail::pack(src, buffer);
@@ -43,8 +41,7 @@ TEST_F(PackUnpackTest, PackContiguous1DView) {
     // Verify on host
     auto buffer_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, buffer);
     for (int i = 0; i < N; ++i) {
-        EXPECT_DOUBLE_EQ(buffer_h(i), static_cast<double>(i * 3 + 7))
-            << "Mismatch at index " << i;
+        EXPECT_DOUBLE_EQ(buffer_h(i), static_cast<double>(i * 3 + 7)) << "Mismatch at index " << i;
     }
 }
 
@@ -54,14 +51,12 @@ TEST_F(PackUnpackTest, UnpackToContiguous1DView) {
     constexpr int N = 8;
 
     // Source buffer filled with known values
-    Kokkos::View<double*> buffer("buffer", N);
-    Kokkos::parallel_for("fill_buffer", N, KOKKOS_LAMBDA(int i) {
-        buffer(i) = static_cast<double>(i * 5 + 1);
-    });
+    Kokkos::View<double *> buffer("buffer", N);
+    Kokkos::parallel_for("fill_buffer", N, KOKKOS_LAMBDA(int i) { buffer(i) = static_cast<double>(i * 5 + 1); });
     Kokkos::fence();
 
     // Destination: contiguous 1D view, initially zero
-    Kokkos::View<double*> dst("dst", N);
+    Kokkos::View<double *> dst("dst", N);
 
     // Unpack
     halo::detail::unpack(buffer, dst);
@@ -69,8 +64,7 @@ TEST_F(PackUnpackTest, UnpackToContiguous1DView) {
     // Verify on host
     auto dst_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst);
     for (int i = 0; i < N; ++i) {
-        EXPECT_DOUBLE_EQ(dst_h(i), static_cast<double>(i * 5 + 1))
-            << "Mismatch at index " << i;
+        EXPECT_DOUBLE_EQ(dst_h(i), static_cast<double>(i * 5 + 1)) << "Mismatch at index " << i;
     }
 }
 
@@ -80,26 +74,23 @@ TEST_F(PackUnpackTest, PackUnpackRoundtripContiguous1D) {
     constexpr int N = 16;
 
     // Source view
-    Kokkos::View<double*> src("src", N);
-    Kokkos::parallel_for("fill_src", N, KOKKOS_LAMBDA(int i) {
-        src(i) = static_cast<double>(i * i);
-    });
+    Kokkos::View<double *> src("src", N);
+    Kokkos::parallel_for("fill_src", N, KOKKOS_LAMBDA(int i) { src(i) = static_cast<double>(i * i); });
     Kokkos::fence();
 
     // Pack into buffer
-    Kokkos::View<double*> buffer("buffer", N);
+    Kokkos::View<double *> buffer("buffer", N);
     halo::detail::pack(src, buffer);
 
     // Unpack into new destination
-    Kokkos::View<double*> dst("dst", N);
+    Kokkos::View<double *> dst("dst", N);
     halo::detail::unpack(buffer, dst);
 
     // Verify roundtrip preserves data
     auto src_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src);
     auto dst_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst);
     for (int i = 0; i < N; ++i) {
-        EXPECT_DOUBLE_EQ(dst_h(i), src_h(i))
-            << "Roundtrip mismatch at index " << i;
+        EXPECT_DOUBLE_EQ(dst_h(i), src_h(i)) << "Roundtrip mismatch at index " << i;
     }
 }
 
@@ -109,14 +100,12 @@ TEST_F(PackUnpackTest, PackStrided2DSubview) {
     // Create a 4x6 LayoutRight (row-major) 2D view
     constexpr int nrows = 4;
     constexpr int ncols = 6;
-    Kokkos::View<double**, Kokkos::LayoutRight> full("full", nrows, ncols);
+    Kokkos::View<double **, Kokkos::LayoutRight> full("full", nrows, ncols);
 
     // Fill with a known pattern: value = row*100 + col
-    Kokkos::parallel_for("fill_full",
-        Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
-        KOKKOS_LAMBDA(int r, int c) {
-            full(r, c) = static_cast<double>(r * 100 + c);
-        });
+    Kokkos::parallel_for(
+        "fill_full", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
+        KOKKOS_LAMBDA(int r, int c) { full(r, c) = static_cast<double>(r * 100 + c); });
     Kokkos::fence();
 
     // Take a column subview: column 2 (this is strided/non-contiguous in row-major)
@@ -127,14 +116,13 @@ TEST_F(PackUnpackTest, PackStrided2DSubview) {
     EXPECT_FALSE(halo::detail::is_contiguous(col_subview));
 
     // Pack the strided subview
-    Kokkos::View<double*> buffer("buffer", nrows);
+    Kokkos::View<double *> buffer("buffer", nrows);
     halo::detail::pack(col_subview, buffer);
 
     // Verify buffer contents
     auto buffer_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, buffer);
     for (int r = 0; r < nrows; ++r) {
-        EXPECT_DOUBLE_EQ(buffer_h(r), static_cast<double>(r * 100 + 2))
-            << "Mismatch at row " << r;
+        EXPECT_DOUBLE_EQ(buffer_h(r), static_cast<double>(r * 100 + 2)) << "Mismatch at row " << r;
     }
 }
 
@@ -143,14 +131,12 @@ TEST_F(PackUnpackTest, PackStrided2DSubview) {
 TEST_F(PackUnpackTest, UnpackToStrided2DSubview) {
     constexpr int nrows = 5;
     constexpr int ncols = 4;
-    Kokkos::View<double**, Kokkos::LayoutRight> full("full", nrows, ncols);
+    Kokkos::View<double **, Kokkos::LayoutRight> full("full", nrows, ncols);
     Kokkos::deep_copy(full, 0.0);
 
     // Buffer with known data
-    Kokkos::View<double*> buffer("buffer", nrows);
-    Kokkos::parallel_for("fill_buffer", nrows, KOKKOS_LAMBDA(int i) {
-        buffer(i) = static_cast<double>(i * 10 + 3);
-    });
+    Kokkos::View<double *> buffer("buffer", nrows);
+    Kokkos::parallel_for("fill_buffer", nrows, KOKKOS_LAMBDA(int i) { buffer(i) = static_cast<double>(i * 10 + 3); });
     Kokkos::fence();
 
     // Take column 1 subview (strided)
@@ -163,8 +149,7 @@ TEST_F(PackUnpackTest, UnpackToStrided2DSubview) {
     // Verify: only column 1 should have data, rest should be 0
     auto full_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, full);
     for (int r = 0; r < nrows; ++r) {
-        EXPECT_DOUBLE_EQ(full_h(r, 1), static_cast<double>(r * 10 + 3))
-            << "Column 1 mismatch at row " << r;
+        EXPECT_DOUBLE_EQ(full_h(r, 1), static_cast<double>(r * 10 + 3)) << "Column 1 mismatch at row " << r;
         // Other columns should remain zero
         EXPECT_DOUBLE_EQ(full_h(r, 0), 0.0) << "Column 0 should be untouched at row " << r;
         EXPECT_DOUBLE_EQ(full_h(r, 2), 0.0) << "Column 2 should be untouched at row " << r;
@@ -179,23 +164,21 @@ TEST_F(PackUnpackTest, PackUnpackRoundtripStridedSubview) {
     constexpr int ncols = 8;
 
     // Source 2D view (LayoutRight)
-    Kokkos::View<double**, Kokkos::LayoutRight> src_full("src_full", nrows, ncols);
-    Kokkos::parallel_for("fill_src",
-        Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
-        KOKKOS_LAMBDA(int r, int c) {
-            src_full(r, c) = static_cast<double>(r * 10 + c);
-        });
+    Kokkos::View<double **, Kokkos::LayoutRight> src_full("src_full", nrows, ncols);
+    Kokkos::parallel_for(
+        "fill_src", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
+        KOKKOS_LAMBDA(int r, int c) { src_full(r, c) = static_cast<double>(r * 10 + c); });
     Kokkos::fence();
 
     // Take column 5 subview from source
     auto src_col = Kokkos::subview(src_full, Kokkos::ALL, 5);
 
     // Pack
-    Kokkos::View<double*> buffer("buffer", nrows);
+    Kokkos::View<double *> buffer("buffer", nrows);
     halo::detail::pack(src_col, buffer);
 
     // Destination 2D view — unpack into column 3
-    Kokkos::View<double**, Kokkos::LayoutRight> dst_full("dst_full", nrows, ncols);
+    Kokkos::View<double **, Kokkos::LayoutRight> dst_full("dst_full", nrows, ncols);
     Kokkos::deep_copy(dst_full, 0.0);
     auto dst_col = Kokkos::subview(dst_full, Kokkos::ALL, 3);
 
@@ -206,8 +189,7 @@ TEST_F(PackUnpackTest, PackUnpackRoundtripStridedSubview) {
     auto src_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src_full);
     auto dst_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst_full);
     for (int r = 0; r < nrows; ++r) {
-        EXPECT_DOUBLE_EQ(dst_h(r, 3), src_h(r, 5))
-            << "Roundtrip mismatch at row " << r;
+        EXPECT_DOUBLE_EQ(dst_h(r, 3), src_h(r, 5)) << "Roundtrip mismatch at row " << r;
     }
 }
 
@@ -218,19 +200,17 @@ TEST_F(PackUnpackTest, PackLayoutLeft2DView) {
     constexpr int ncols = 3;
 
     // LayoutLeft (column-major) 2D view
-    Kokkos::View<double**, Kokkos::LayoutLeft> src("src_ll", nrows, ncols);
-    Kokkos::parallel_for("fill_src_ll",
-        Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
-        KOKKOS_LAMBDA(int r, int c) {
-            src(r, c) = static_cast<double>(r + c * 100);
-        });
+    Kokkos::View<double **, Kokkos::LayoutLeft> src("src_ll", nrows, ncols);
+    Kokkos::parallel_for(
+        "fill_src_ll", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
+        KOKKOS_LAMBDA(int r, int c) { src(r, c) = static_cast<double>(r + c * 100); });
     Kokkos::fence();
 
     // A full LayoutLeft 2D view IS contiguous (span == size)
     EXPECT_TRUE(halo::detail::is_contiguous(src));
 
     // Pack (will take contiguous path)
-    Kokkos::View<double*> buffer("buffer", nrows * ncols);
+    Kokkos::View<double *> buffer("buffer", nrows * ncols);
     halo::detail::pack(src, buffer);
 
     // Verify: contiguous pack uses data() pointer directly (LayoutLeft order)
@@ -238,8 +218,7 @@ TEST_F(PackUnpackTest, PackLayoutLeft2DView) {
     auto src_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src);
 
     for (int i = 0; i < nrows * ncols; ++i) {
-        EXPECT_DOUBLE_EQ(buffer_h(i), src_h.data()[i])
-            << "Mismatch at linearized index " << i;
+        EXPECT_DOUBLE_EQ(buffer_h(i), src_h.data()[i]) << "Mismatch at linearized index " << i;
     }
 }
 
@@ -248,14 +227,12 @@ TEST_F(PackUnpackTest, UnpackLayoutLeft2DView) {
     constexpr int ncols = 3;
 
     // Fill buffer with sequential values
-    Kokkos::View<double*> buffer("buffer", nrows * ncols);
-    Kokkos::parallel_for("fill_buffer", nrows * ncols, KOKKOS_LAMBDA(int i) {
-        buffer(i) = static_cast<double>(i + 1);
-    });
+    Kokkos::View<double *> buffer("buffer", nrows * ncols);
+    Kokkos::parallel_for("fill_buffer", nrows * ncols, KOKKOS_LAMBDA(int i) { buffer(i) = static_cast<double>(i + 1); });
     Kokkos::fence();
 
     // Unpack into LayoutLeft 2D view
-    Kokkos::View<double**, Kokkos::LayoutLeft> dst("dst_ll", nrows, ncols);
+    Kokkos::View<double **, Kokkos::LayoutLeft> dst("dst_ll", nrows, ncols);
     halo::detail::unpack(buffer, dst);
 
     // Verify: contiguous unpack writes via data() pointer (LayoutLeft order)
@@ -263,8 +240,7 @@ TEST_F(PackUnpackTest, UnpackLayoutLeft2DView) {
     auto dst_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst);
 
     for (int i = 0; i < nrows * ncols; ++i) {
-        EXPECT_DOUBLE_EQ(dst_h.data()[i], buffer_h(i))
-            << "Mismatch at linearized index " << i;
+        EXPECT_DOUBLE_EQ(dst_h.data()[i], buffer_h(i)) << "Mismatch at linearized index " << i;
     }
 }
 
@@ -275,19 +251,17 @@ TEST_F(PackUnpackTest, PackLayoutRight2DView) {
     constexpr int ncols = 7;
 
     // LayoutRight (row-major) 2D view
-    Kokkos::View<double**, Kokkos::LayoutRight> src("src_lr", nrows, ncols);
-    Kokkos::parallel_for("fill_src_lr",
-        Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
-        KOKKOS_LAMBDA(int r, int c) {
-            src(r, c) = static_cast<double>(r * 10 + c);
-        });
+    Kokkos::View<double **, Kokkos::LayoutRight> src("src_lr", nrows, ncols);
+    Kokkos::parallel_for(
+        "fill_src_lr", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
+        KOKKOS_LAMBDA(int r, int c) { src(r, c) = static_cast<double>(r * 10 + c); });
     Kokkos::fence();
 
     // A full LayoutRight 2D view IS contiguous
     EXPECT_TRUE(halo::detail::is_contiguous(src));
 
     // Pack (contiguous path)
-    Kokkos::View<double*> buffer("buffer", nrows * ncols);
+    Kokkos::View<double *> buffer("buffer", nrows * ncols);
     halo::detail::pack(src, buffer);
 
     // Verify: data matches linearized memory order
@@ -295,8 +269,7 @@ TEST_F(PackUnpackTest, PackLayoutRight2DView) {
     auto src_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src);
 
     for (int i = 0; i < nrows * ncols; ++i) {
-        EXPECT_DOUBLE_EQ(buffer_h(i), src_h.data()[i])
-            << "Mismatch at linearized index " << i;
+        EXPECT_DOUBLE_EQ(buffer_h(i), src_h.data()[i]) << "Mismatch at linearized index " << i;
     }
 }
 
@@ -305,14 +278,12 @@ TEST_F(PackUnpackTest, UnpackLayoutRight2DView) {
     constexpr int ncols = 5;
 
     // Fill buffer
-    Kokkos::View<double*> buffer("buffer", nrows * ncols);
-    Kokkos::parallel_for("fill_buffer", nrows * ncols, KOKKOS_LAMBDA(int i) {
-        buffer(i) = static_cast<double>(i * 2 + 1);
-    });
+    Kokkos::View<double *> buffer("buffer", nrows * ncols);
+    Kokkos::parallel_for("fill_buffer", nrows * ncols, KOKKOS_LAMBDA(int i) { buffer(i) = static_cast<double>(i * 2 + 1); });
     Kokkos::fence();
 
     // Unpack into LayoutRight 2D view
-    Kokkos::View<double**, Kokkos::LayoutRight> dst("dst_lr", nrows, ncols);
+    Kokkos::View<double **, Kokkos::LayoutRight> dst("dst_lr", nrows, ncols);
     halo::detail::unpack(buffer, dst);
 
     // Verify
@@ -320,8 +291,7 @@ TEST_F(PackUnpackTest, UnpackLayoutRight2DView) {
     auto dst_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst);
 
     for (int i = 0; i < nrows * ncols; ++i) {
-        EXPECT_DOUBLE_EQ(dst_h.data()[i], buffer_h(i))
-            << "Mismatch at linearized index " << i;
+        EXPECT_DOUBLE_EQ(dst_h.data()[i], buffer_h(i)) << "Mismatch at linearized index " << i;
     }
 }
 
@@ -332,12 +302,10 @@ TEST_F(PackUnpackTest, PackStridedSubviewLayoutLeft) {
     constexpr int ncols = 4;
 
     // LayoutLeft: columns are contiguous, rows are strided
-    Kokkos::View<double**, Kokkos::LayoutLeft> full("full_ll", nrows, ncols);
-    Kokkos::parallel_for("fill_ll",
-        Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
-        KOKKOS_LAMBDA(int r, int c) {
-            full(r, c) = static_cast<double>(r * 10 + c);
-        });
+    Kokkos::View<double **, Kokkos::LayoutLeft> full("full_ll", nrows, ncols);
+    Kokkos::parallel_for(
+        "fill_ll", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
+        KOKKOS_LAMBDA(int r, int c) { full(r, c) = static_cast<double>(r * 10 + c); });
     Kokkos::fence();
 
     // In LayoutLeft, a row subview (fixing first index) IS strided
@@ -347,14 +315,13 @@ TEST_F(PackUnpackTest, PackStridedSubviewLayoutLeft) {
     EXPECT_FALSE(halo::detail::is_contiguous(row_subview));
 
     // Pack the strided row
-    Kokkos::View<double*> buffer("buffer", ncols);
+    Kokkos::View<double *> buffer("buffer", ncols);
     halo::detail::pack(row_subview, buffer);
 
     // Verify buffer contents
     auto buffer_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, buffer);
     for (int c = 0; c < ncols; ++c) {
-        EXPECT_DOUBLE_EQ(buffer_h(c), static_cast<double>(2 * 10 + c))
-            << "Mismatch at col " << c;
+        EXPECT_DOUBLE_EQ(buffer_h(c), static_cast<double>(2 * 10 + c)) << "Mismatch at col " << c;
     }
 }
 
@@ -364,18 +331,14 @@ TEST_F(PackUnpackTest, PackStridedRank2Subview) {
     // Create a 6x8 view (LayoutRight), take a 3x4 interior subview
     constexpr int nrows = 6;
     constexpr int ncols = 8;
-    Kokkos::View<double**, Kokkos::LayoutRight> full("full_lr", nrows, ncols);
-    Kokkos::parallel_for("fill_full",
-        Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
-        KOKKOS_LAMBDA(int r, int c) {
-            full(r, c) = static_cast<double>(r * 100 + c);
-        });
+    Kokkos::View<double **, Kokkos::LayoutRight> full("full_lr", nrows, ncols);
+    Kokkos::parallel_for(
+        "fill_full", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nrows, ncols}),
+        KOKKOS_LAMBDA(int r, int c) { full(r, c) = static_cast<double>(r * 100 + c); });
     Kokkos::fence();
 
     // Take a rank-2 subview: rows [1,4), cols [2,6) → 3x4 subview
-    auto sub = Kokkos::subview(full,
-        Kokkos::make_pair(1, 4),
-        Kokkos::make_pair(2, 6));
+    auto sub = Kokkos::subview(full, Kokkos::make_pair(1, 4), Kokkos::make_pair(2, 6));
 
     // This rank-2 subview is non-contiguous (row stride != ncols_sub)
     EXPECT_FALSE(halo::detail::is_contiguous(sub));
@@ -383,7 +346,7 @@ TEST_F(PackUnpackTest, PackStridedRank2Subview) {
     // Pack using MDRangePolicy (rank-2 strided path)
     constexpr int sub_rows = 3;
     constexpr int sub_cols = 4;
-    Kokkos::View<double*> buffer("buffer", sub_rows * sub_cols);
+    Kokkos::View<double *> buffer("buffer", sub_rows * sub_cols);
     halo::detail::pack(sub, buffer);
 
     // Verify: buffer linearized in row-major order of the subview
@@ -407,20 +370,16 @@ TEST_F(PackUnpackTest, UnpackStridedRank2Subview) {
     constexpr int sub_cols = 4;
 
     // Fill buffer with known data
-    Kokkos::View<double*> buffer("buffer", sub_rows * sub_cols);
-    Kokkos::parallel_for("fill_buffer", sub_rows * sub_cols, KOKKOS_LAMBDA(int i) {
-        buffer(i) = static_cast<double>(i + 100);
-    });
+    Kokkos::View<double *> buffer("buffer", sub_rows * sub_cols);
+    Kokkos::parallel_for("fill_buffer", sub_rows * sub_cols, KOKKOS_LAMBDA(int i) { buffer(i) = static_cast<double>(i + 100); });
     Kokkos::fence();
 
     // Destination: 6x8 view initialized to zero
-    Kokkos::View<double**, Kokkos::LayoutRight> full("full_lr", nrows, ncols);
+    Kokkos::View<double **, Kokkos::LayoutRight> full("full_lr", nrows, ncols);
     Kokkos::deep_copy(full, 0.0);
 
     // Take a rank-2 subview: rows [1,4), cols [2,6) → 3x4 subview
-    auto sub = Kokkos::subview(full,
-        Kokkos::make_pair(1, 4),
-        Kokkos::make_pair(2, 6));
+    auto sub = Kokkos::subview(full, Kokkos::make_pair(1, 4), Kokkos::make_pair(2, 6));
 
     EXPECT_FALSE(halo::detail::is_contiguous(sub));
 
@@ -432,8 +391,7 @@ TEST_F(PackUnpackTest, UnpackStridedRank2Subview) {
     int idx = 0;
     for (int r = 1; r < 4; ++r) {
         for (int c = 2; c < 6; ++c) {
-            EXPECT_DOUBLE_EQ(full_h(r, c), static_cast<double>(idx + 100))
-                << "Mismatch at (" << r << "," << c << ")";
+            EXPECT_DOUBLE_EQ(full_h(r, c), static_cast<double>(idx + 100)) << "Mismatch at (" << r << "," << c << ")";
             ++idx;
         }
     }
@@ -442,8 +400,7 @@ TEST_F(PackUnpackTest, UnpackStridedRank2Subview) {
     for (int r = 0; r < nrows; ++r) {
         for (int c = 0; c < ncols; ++c) {
             if (r >= 1 && r < 4 && c >= 2 && c < 6) continue;
-            EXPECT_DOUBLE_EQ(full_h(r, c), 0.0)
-                << "Non-subview element (" << r << "," << c << ") should be zero";
+            EXPECT_DOUBLE_EQ(full_h(r, c), 0.0) << "Non-subview element (" << r << "," << c << ") should be zero";
         }
     }
 }
@@ -458,15 +415,14 @@ TEST_F(PackUnpackTest, ExplicitExecutionSpaceInstance) {
     using exec_space = Kokkos::DefaultExecutionSpace;
     exec_space exec_instance{};
 
-    Kokkos::View<double*> src("src", N);
-    Kokkos::parallel_for("fill", Kokkos::RangePolicy<exec_space>(exec_instance, 0, N),
-        KOKKOS_LAMBDA(int i) { src(i) = static_cast<double>(i); });
+    Kokkos::View<double *> src("src", N);
+    Kokkos::parallel_for("fill", Kokkos::RangePolicy<exec_space>(exec_instance, 0, N), KOKKOS_LAMBDA(int i) { src(i) = static_cast<double>(i); });
     exec_instance.fence("fill_fence");
 
-    Kokkos::View<double*> buffer("buffer", N);
+    Kokkos::View<double *> buffer("buffer", N);
     halo::detail::pack(src, buffer, exec_instance);
 
-    Kokkos::View<double*> dst("dst", N);
+    Kokkos::View<double *> dst("dst", N);
     halo::detail::unpack(buffer, dst, exec_instance);
 
     auto dst_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst);
@@ -481,7 +437,7 @@ TEST_F(PackUnpackTest, HostExecutionSpaceForHostViews) {
     constexpr int N = 7;
 
     using host_space = Kokkos::DefaultHostExecutionSpace;
-    using host_view = Kokkos::View<double*, Kokkos::HostSpace>;
+    using host_view = Kokkos::View<double *, Kokkos::HostSpace>;
 
     host_view src("src_host", N);
     host_view buffer("buffer_host", N);
@@ -498,8 +454,7 @@ TEST_F(PackUnpackTest, HostExecutionSpaceForHostViews) {
 
     // Verify
     for (int i = 0; i < N; ++i) {
-        EXPECT_DOUBLE_EQ(dst(i), src(i))
-            << "Host-space roundtrip mismatch at index " << i;
+        EXPECT_DOUBLE_EQ(dst(i), src(i)) << "Host-space roundtrip mismatch at index " << i;
     }
 }
 
@@ -507,11 +462,11 @@ TEST_F(PackUnpackTest, HostExecutionSpaceForHostViews) {
 
 TEST_F(PackUnpackTest, IsContiguousDetectsCorrectly) {
     // A directly-allocated 1D view is always contiguous
-    Kokkos::View<double*> v1d("v1d", 10);
+    Kokkos::View<double *> v1d("v1d", 10);
     EXPECT_TRUE(halo::detail::is_contiguous(v1d));
 
     // A directly-allocated 2D view is contiguous
-    Kokkos::View<double**, Kokkos::LayoutRight> v2d("v2d", 4, 5);
+    Kokkos::View<double **, Kokkos::LayoutRight> v2d("v2d", 4, 5);
     EXPECT_TRUE(halo::detail::is_contiguous(v2d));
 
     // A column subview from LayoutRight is non-contiguous
@@ -525,7 +480,7 @@ TEST_F(PackUnpackTest, IsContiguousDetectsCorrectly) {
 
 // ─── Custom main() for Kokkos initialization ────────────────────────────────
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     Kokkos::ScopeGuard kokkos_scope(argc, argv);
     return RUN_ALL_TESTS();

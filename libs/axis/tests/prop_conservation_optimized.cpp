@@ -23,13 +23,7 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <cmath>
-#include <cstddef>
-#include <cstdint>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
@@ -39,6 +33,10 @@
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 
 namespace {
 
@@ -49,17 +47,15 @@ using MemSpace = Kokkos::HostSpace;
 // [lat_start, lat_start + nj*dlat]. This triggers the regular-grid fast-path
 // detection in WeightGenerator when both src and dst are built this way.
 
-axis::topology::UnstructuredMesh<MemSpace>
-build_regular_mesh(std::size_t ni, std::size_t nj,
-                   double lon_start, double lat_start,
-                   double dlon, double dlat) {
+axis::topology::UnstructuredMesh<MemSpace> build_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, double lat_start, double dlon,
+                                                              double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);
 
-    Kokkos::View<double*, MemSpace> center_lon("clon", n_centers);
-    Kokkos::View<double*, MemSpace> center_lat("clat", n_centers);
-    Kokkos::View<double*, MemSpace> corner_lon("crlon", n_corners);
-    Kokkos::View<double*, MemSpace> corner_lat("crlat", n_corners);
+    Kokkos::View<double *, MemSpace> center_lon("clon", n_centers);
+    Kokkos::View<double *, MemSpace> center_lat("clat", n_centers);
+    Kokkos::View<double *, MemSpace> corner_lon("crlon", n_corners);
+    Kokkos::View<double *, MemSpace> corner_lat("crlat", n_corners);
 
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
@@ -77,9 +73,7 @@ build_regular_mesh(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, center_lon, center_lat,
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, center_lon, center_lat, axis::topology::CoordinateSystem::SphericalDeg);
     grid.set_corners(corner_lon, corner_lat);
 
     return grid.to_unstructured();
@@ -115,8 +109,7 @@ RC_GTEST_PROP(PropConservationOpt, ConservationRegularGrid, ()) {
     config.line_type = axis::solver::LineType::Cartesian;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, config);
 
     // Generate a random source field
     const auto n_src = matrix.n_src();
@@ -127,8 +120,7 @@ RC_GTEST_PROP(PropConservationOpt, ConservationRegularGrid, ()) {
 
     std::vector<double> src_data(n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
-        src_data[i] = *rc::gen::map(rc::gen::inRange(1, 1001),
-                                    [](int v) { return static_cast<double>(v) / 10.0; });
+        src_data[i] = *rc::gen::map(rc::gen::inRange(1, 1001), [](int v) { return static_cast<double>(v) / 10.0; });
     }
     std::vector<double> dst_data(n_dst, 0.0);
 
@@ -137,11 +129,8 @@ RC_GTEST_PROP(PropConservationOpt, ConservationRegularGrid, ()) {
 
     axis::solver::apply(matrix, src_view, dst_view);
 
-    auto report = axis::solver::check_conservation<MemSpace>(
-        src_view,
-        axis::field_view<const double, 1>(dst_data.data(), n_dst),
-        matrix,
-        axis::solver::NormType::DstArea);
+    auto report = axis::solver::check_conservation<MemSpace>(src_view, axis::field_view<const double, 1>(dst_data.data(), n_dst), matrix,
+                                                             axis::solver::NormType::DstArea);
 
     RC_ASSERT(report.relative_error < 1e-12);
 }
@@ -175,8 +164,7 @@ RC_GTEST_PROP(PropConservationOpt, ConservationCartesianPath, ()) {
     config.line_type = axis::solver::LineType::Cartesian;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, config);
 
     const auto n_src = matrix.n_src();
     const auto n_dst = matrix.n_dst();
@@ -185,8 +173,7 @@ RC_GTEST_PROP(PropConservationOpt, ConservationCartesianPath, ()) {
     RC_PRE(matrix.nnz() > 0);
 
     // Use a constant field for strongest conservation guarantee
-    double c = *rc::gen::map(rc::gen::inRange(1, 500),
-                             [](int v) { return static_cast<double>(v) / 5.0; });
+    double c = *rc::gen::map(rc::gen::inRange(1, 500), [](int v) { return static_cast<double>(v) / 5.0; });
 
     std::vector<double> src_data(n_src, c);
     std::vector<double> dst_data(n_dst, 0.0);
@@ -196,11 +183,8 @@ RC_GTEST_PROP(PropConservationOpt, ConservationCartesianPath, ()) {
 
     axis::solver::apply(matrix, src_view, dst_view);
 
-    auto report = axis::solver::check_conservation<MemSpace>(
-        src_view,
-        axis::field_view<const double, 1>(dst_data.data(), n_dst),
-        matrix,
-        axis::solver::NormType::DstArea);
+    auto report = axis::solver::check_conservation<MemSpace>(src_view, axis::field_view<const double, 1>(dst_data.data(), n_dst), matrix,
+                                                             axis::solver::NormType::DstArea);
 
     RC_ASSERT(report.relative_error < 1e-12);
 }
@@ -219,8 +203,8 @@ RC_GTEST_PROP(PropConservationOpt, RegularGridConservation, ()) {
     const std::vector<std::string> src_grids = {"F4", "F8", "F16"};
     const std::vector<std::string> dst_grids = {"F4", "F4", "F8"};
 
-    const auto& src_name = src_grids[grid_idx];
-    const auto& dst_name = dst_grids[grid_idx];
+    const auto &src_name = src_grids[grid_idx];
+    const auto &dst_name = dst_grids[grid_idx];
 
     auto src_mesh = axis::topology::NamedGridRegistry::generate<MemSpace>(src_name);
     auto dst_mesh = axis::topology::NamedGridRegistry::generate<MemSpace>(dst_name);
@@ -232,8 +216,7 @@ RC_GTEST_PROP(PropConservationOpt, RegularGridConservation, ()) {
     cfg.line_type = axis::solver::LineType::Cartesian;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     const auto n_src = matrix.n_src();
     const auto n_dst = matrix.n_dst();
@@ -256,11 +239,8 @@ RC_GTEST_PROP(PropConservationOpt, RegularGridConservation, ()) {
 
     axis::solver::apply<MemSpace>(matrix, src_view, dst_view);
 
-    auto report = axis::solver::check_conservation<MemSpace>(
-        src_view,
-        axis::field_view<const double, 1>(dst_data.data(), n_dst),
-        matrix,
-        axis::solver::NormType::DstArea);
+    auto report = axis::solver::check_conservation<MemSpace>(src_view, axis::field_view<const double, 1>(dst_data.data(), n_dst), matrix,
+                                                             axis::solver::NormType::DstArea);
 
     // Conservation: |src_integral - dst_integral| / |src_integral| < 1e-12
     if (std::abs(report.src_integral) > 1e-20) {
@@ -282,8 +262,8 @@ RC_GTEST_PROP(PropConservationOpt, OctahedralGridConservation, ()) {
     const std::vector<std::string> src_grids = {"O2", "O4", "O8"};
     const std::vector<std::string> dst_grids = {"O2", "O2", "O4"};
 
-    const auto& src_name = src_grids[grid_idx];
-    const auto& dst_name = dst_grids[grid_idx];
+    const auto &src_name = src_grids[grid_idx];
+    const auto &dst_name = dst_grids[grid_idx];
 
     auto src_mesh = axis::topology::NamedGridRegistry::generate<MemSpace>(src_name);
     auto dst_mesh = axis::topology::NamedGridRegistry::generate<MemSpace>(dst_name);
@@ -295,8 +275,7 @@ RC_GTEST_PROP(PropConservationOpt, OctahedralGridConservation, ()) {
     cfg.line_type = axis::solver::LineType::Cartesian;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     const auto n_src = matrix.n_src();
     const auto n_dst = matrix.n_dst();
@@ -319,11 +298,8 @@ RC_GTEST_PROP(PropConservationOpt, OctahedralGridConservation, ()) {
 
     axis::solver::apply<MemSpace>(matrix, src_view, dst_view);
 
-    auto report = axis::solver::check_conservation<MemSpace>(
-        src_view,
-        axis::field_view<const double, 1>(dst_data.data(), n_dst),
-        matrix,
-        axis::solver::NormType::DstArea);
+    auto report = axis::solver::check_conservation<MemSpace>(src_view, axis::field_view<const double, 1>(dst_data.data(), n_dst), matrix,
+                                                             axis::solver::NormType::DstArea);
 
     // Conservation: relative error < 1e-12
     if (std::abs(report.src_integral) > 1e-20) {
@@ -344,11 +320,26 @@ RC_GTEST_PROP(PropConservationOpt, MixedGridConservation, ()) {
 
     std::string src_name, dst_name;
     switch (case_idx) {
-        case 0: src_name = "F4";  dst_name = "O2"; break;
-        case 1: src_name = "F8";  dst_name = "O4"; break;
-        case 2: src_name = "O2";  dst_name = "F4"; break;
-        case 3: src_name = "O4";  dst_name = "F8"; break;
-        default: src_name = "F4"; dst_name = "O2"; break;
+        case 0:
+            src_name = "F4";
+            dst_name = "O2";
+            break;
+        case 1:
+            src_name = "F8";
+            dst_name = "O4";
+            break;
+        case 2:
+            src_name = "O2";
+            dst_name = "F4";
+            break;
+        case 3:
+            src_name = "O4";
+            dst_name = "F8";
+            break;
+        default:
+            src_name = "F4";
+            dst_name = "O2";
+            break;
     }
 
     auto src_mesh = axis::topology::NamedGridRegistry::generate<MemSpace>(src_name);
@@ -361,8 +352,7 @@ RC_GTEST_PROP(PropConservationOpt, MixedGridConservation, ()) {
     cfg.line_type = axis::solver::LineType::Cartesian;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     const auto n_src = matrix.n_src();
     const auto n_dst = matrix.n_dst();
@@ -385,11 +375,8 @@ RC_GTEST_PROP(PropConservationOpt, MixedGridConservation, ()) {
 
     axis::solver::apply<MemSpace>(matrix, src_view, dst_view);
 
-    auto report = axis::solver::check_conservation<MemSpace>(
-        src_view,
-        axis::field_view<const double, 1>(dst_data.data(), n_dst),
-        matrix,
-        axis::solver::NormType::DstArea);
+    auto report = axis::solver::check_conservation<MemSpace>(src_view, axis::field_view<const double, 1>(dst_data.data(), n_dst), matrix,
+                                                             axis::solver::NormType::DstArea);
 
     // Conservation: relative error < 1e-12
     if (std::abs(report.src_integral) > 1e-20) {
@@ -424,8 +411,7 @@ RC_GTEST_PROP(PropConservationOpt, NonNegativeWeightsRegularGrid, ()) {
     config.line_type = axis::solver::LineType::Cartesian;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, config);
 
     // Access COO data and verify all weights are non-negative
     auto weights = matrix.factor_list();
@@ -465,8 +451,7 @@ RC_GTEST_PROP(PropConservationOpt, NonNegativeWeightsOffsetGrids, ()) {
     config.line_type = axis::solver::LineType::Cartesian;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, config);
 
     // Verify all weights are non-negative
     auto weights = matrix.factor_list();
@@ -504,8 +489,7 @@ RC_GTEST_PROP(PropConservationOpt, ValidIndexBoundsRegularGrid, ()) {
     config.line_type = axis::solver::LineType::Cartesian;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, config);
 
     const std::size_t nnz = matrix.nnz();
     const std::size_t n_src = matrix.n_src();
@@ -549,8 +533,7 @@ RC_GTEST_PROP(PropConservationOpt, ValidIndexBoundsOffsetGrids, ()) {
     config.line_type = axis::solver::LineType::Cartesian;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, config);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, config);
 
     const std::size_t nnz = matrix.nnz();
     const std::size_t n_src = matrix.n_src();
@@ -570,7 +553,7 @@ RC_GTEST_PROP(PropConservationOpt, ValidIndexBoundsOffsetGrids, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -583,7 +566,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

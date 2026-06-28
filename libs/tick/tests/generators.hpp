@@ -8,16 +8,17 @@
 /// Requirements: 11.10, 11.11, 11.12
 
 #include <rapidcheck.h>
+
+#include <cstdint>
+#include <tick/cal360_calendar.hpp>
 #include <tick/date_time.hpp>
 #include <tick/duration.hpp>
-#include <tick/time_point.hpp>
-#include <tick/time_window.hpp>
 #include <tick/gregorian_calendar.hpp>
 #include <tick/noleap_calendar.hpp>
-#include <tick/cal360_calendar.hpp>
 #include <tick/out_of_bounds_policy.hpp>
+#include <tick/time_point.hpp>
+#include <tick/time_window.hpp>
 #include <vector>
-#include <cstdint>
 
 namespace tick::gen {
 
@@ -63,7 +64,7 @@ inline auto cal360_date_time() {
     return rc::gen::exec([] {
         auto year = *rc::gen::inRange<std::int32_t>(1734, 2319);
         auto month = *rc::gen::inRange<std::int32_t>(1, 13);
-        auto day = *rc::gen::inRange<std::int32_t>(1, 31); // always 1-30
+        auto day = *rc::gen::inRange<std::int32_t>(1, 31);  // always 1-30
         auto hour = *rc::gen::inRange<std::int32_t>(0, 24);
         auto minute = *rc::gen::inRange<std::int32_t>(0, 60);
         auto second = *rc::gen::inRange<std::int32_t>(0, 60);
@@ -78,18 +79,14 @@ inline auto cal360_date_time() {
 /// Range: ±4×10^18 ns (roughly ±half of int64_t max), leaving room for
 /// addition/subtraction of two such values without exceeding int64_t bounds.
 inline auto safe_duration() {
-    return rc::gen::map(
-        rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL,
-                                        4'000'000'000'000'000'000LL),
-        [](std::int64_t ns) { return Duration{ns}; });
+    return rc::gen::map(rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL, 4'000'000'000'000'000'000LL),
+                        [](std::int64_t ns) { return Duration{ns}; });
 }
 
 /// Generator for positive Duration values up to one day (86,400,000,000,000 ns).
 /// Useful for synchronization tests (GCD/LCM) where all timesteps must be positive.
 inline auto positive_duration_up_to_one_day() {
-    return rc::gen::map(
-        rc::gen::inRange<std::int64_t>(1, 86'400'000'000'000LL),
-        [](std::int64_t ns) { return Duration{ns}; });
+    return rc::gen::map(rc::gen::inRange<std::int64_t>(1, 86'400'000'000'000LL), [](std::int64_t ns) { return Duration{ns}; });
 }
 
 // ─── Collection Generators ───────────────────────────────────────────────────
@@ -119,10 +116,8 @@ inline auto aliasing_coverage() {
         auto offset_years = *rc::gen::inRange<std::int32_t>(2, 31);
         auto end_year = start_year + offset_years;
 
-        auto start_tp = Gregorian_Calendar::to_time_point(
-            Date_Time{start_year, 1, 1, 0, 0, 0, 0});
-        auto end_tp = Gregorian_Calendar::to_time_point(
-            Date_Time{end_year, 1, 1, 0, 0, 0, 0});
+        auto start_tp = Gregorian_Calendar::to_time_point(Date_Time{start_year, 1, 1, 0, 0, 0, 0});
+        auto end_tp = Gregorian_Calendar::to_time_point(Date_Time{end_year, 1, 1, 0, 0, 0, 0});
 
         return Time_Window{start_tp, end_tp};
     });
@@ -137,12 +132,12 @@ inline auto snapshot_interval_for(Time_Window cov) {
 
         // Candidate intervals in nanoseconds
         constexpr std::int64_t candidates[] = {
-            86'400'000'000'000LL * 1,    // 1 day
-            86'400'000'000'000LL * 5,    // 5 days
-            86'400'000'000'000LL * 10,   // 10 days
-            86'400'000'000'000LL * 30,   // 30 days
-            86'400'000'000'000LL * 90,   // 90 days
-            86'400'000'000'000LL * 365   // 365 days
+            86'400'000'000'000LL * 1,   // 1 day
+            86'400'000'000'000LL * 5,   // 5 days
+            86'400'000'000'000LL * 10,  // 10 days
+            86'400'000'000'000LL * 30,  // 30 days
+            86'400'000'000'000LL * 90,  // 90 days
+            86'400'000'000'000LL * 365  // 365 days
         };
 
         std::vector<std::int64_t> valid;
@@ -174,7 +169,7 @@ inline auto time_point_in_coverage(Time_Window cov) {
 inline auto time_point_outside_coverage(Time_Window cov) {
     return rc::gen::exec([cov] {
         constexpr std::int64_t ten_years_nanos = 86'400'000'000'000LL * 3650;
-        auto before = *rc::gen::inRange<int>(0, 2); // 0 = before, 1 = after
+        auto before = *rc::gen::inRange<int>(0, 2);  // 0 = before, 1 = after
 
         if (before == 0) {
             // Generate in [start - 10 years, start - 1]
@@ -197,31 +192,23 @@ inline auto time_point_outside_coverage(Time_Window cov) {
 inline auto feb29_time_point() {
     return rc::gen::exec([] {
         // Generate a leap year in [1800, 2200]
-        auto year = *rc::gen::suchThat(
-            rc::gen::inRange<std::int32_t>(1800, 2201),
-            [](std::int32_t y) { return Gregorian_Calendar::is_leap_year(y); });
+        auto year =
+            *rc::gen::suchThat(rc::gen::inRange<std::int32_t>(1800, 2201), [](std::int32_t y) { return Gregorian_Calendar::is_leap_year(y); });
 
         auto hour = *rc::gen::inRange<std::int32_t>(0, 24);
         auto minute = *rc::gen::inRange<std::int32_t>(0, 60);
         auto second = *rc::gen::inRange<std::int32_t>(0, 60);
         auto nanosecond = *rc::gen::inRange<std::int32_t>(0, 1'000'000'000);
 
-        return Gregorian_Calendar::to_time_point(
-            Date_Time{year, 2, 29, hour, minute, second, nanosecond});
+        return Gregorian_Calendar::to_time_point(Date_Time{year, 2, 29, hour, minute, second, nanosecond});
     });
 }
 
 /// Generator for Time_Point values guaranteed not on February 29.
 /// Uses the existing gregorian_date_time() generator with a filter.
 inline auto non_feb29_time_point() {
-    return rc::gen::map(
-        rc::gen::suchThat(gregorian_date_time(),
-            [](const Date_Time& dt) {
-                return !(dt.month == 2 && dt.day == 29);
-            }),
-        [](const Date_Time& dt) {
-            return Gregorian_Calendar::to_time_point(dt);
-        });
+    return rc::gen::map(rc::gen::suchThat(gregorian_date_time(), [](const Date_Time &dt) { return !(dt.month == 2 && dt.day == 29); }),
+                        [](const Date_Time &dt) { return Gregorian_Calendar::to_time_point(dt); });
 }
 
-} // namespace tick::gen
+}  // namespace tick::gen

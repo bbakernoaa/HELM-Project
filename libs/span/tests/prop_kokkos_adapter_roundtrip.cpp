@@ -10,15 +10,14 @@
 // **Validates: Requirements 9.1, 9.2, 9.3, 9.5**
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <span/field_view.hpp>
-
-#include <Kokkos_Core.hpp>
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <array>
 #include <cstddef>
+#include <span/field_view.hpp>
 #include <stdexcept>
 #include <vector>
 
@@ -27,7 +26,7 @@ namespace {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -40,10 +39,9 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
-} // namespace
+}  // namespace
 
 // ─── Rank 1 Pointer Identity Round-Trip ──────────────────────────────────────
 // Validates Requirement 9.1:
@@ -121,7 +119,7 @@ RC_GTEST_PROP(KokkosAdapterRoundTrip, ThrowsOnInvalidFieldView, ()) {
     bool threw = false;
     try {
         [[maybe_unused]] auto kv = fv.to_kokkos_view();
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument &) {
         threw = true;
     }
     RC_ASSERT(threw);
@@ -134,15 +132,13 @@ RC_GTEST_PROP(KokkosAdapterRoundTrip, ThrowsOnInvalidFieldView, ()) {
 
 RC_GTEST_PROP(KokkosAdapterRoundTrip, FromKokkosViewThrowsOnNull, ()) {
     // Construct a Kokkos::View with null data pointer
-    using kokkos_view_t = Kokkos::View<double*, Kokkos::LayoutLeft,
-                                        Kokkos::HostSpace, Kokkos::MemoryUnmanaged>;
+    using kokkos_view_t = Kokkos::View<double *, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryUnmanaged>;
     kokkos_view_t null_view(nullptr, 0);
 
     bool threw = false;
     try {
-        [[maybe_unused]] auto fv =
-            span::FieldView<double, 1>::from_kokkos_view(null_view);
-    } catch (const std::invalid_argument&) {
+        [[maybe_unused]] auto fv = span::FieldView<double, 1>::from_kokkos_view(null_view);
+    } catch (const std::invalid_argument &) {
         threw = true;
     }
     RC_ASSERT(threw);

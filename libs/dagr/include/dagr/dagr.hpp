@@ -9,7 +9,9 @@
 #include <stdexcept>
 
 // Forward declarations only — no lower-tier headers exposed publicly (Req 11.3)
-namespace halo { class Communicator; }
+namespace halo {
+class Communicator;
+}
 
 namespace dagr {
 
@@ -26,21 +28,21 @@ struct Pipeline_Config;
 /// GraphOrchestrator is move-only (non-copyable) and manages RAII resources
 /// including halo::Communicator objects for MPI rank pools.
 class GraphOrchestrator {
-public:
+   public:
     /// Construct from parsed pipeline config and world communicator.
     /// @param config  Pipeline configuration (taken by value, moved into internal state)
     /// @param world   World communicator (taken by rvalue reference, moved)
     /// @throws std::invalid_argument if config contains cyclic dependencies,
     ///         dangling task references, or invalid parameter ranges
-    GraphOrchestrator(Pipeline_Config config, halo::Communicator&& world);
+    GraphOrchestrator(Pipeline_Config config, halo::Communicator &&world);
 
     ~GraphOrchestrator();
 
     // Move-only semantics (Req 1.6)
-    GraphOrchestrator(GraphOrchestrator&&) noexcept;
-    GraphOrchestrator& operator=(GraphOrchestrator&&) noexcept;
-    GraphOrchestrator(const GraphOrchestrator&) = delete;
-    GraphOrchestrator& operator=(const GraphOrchestrator&) = delete;
+    GraphOrchestrator(GraphOrchestrator &&) noexcept;
+    GraphOrchestrator &operator=(GraphOrchestrator &&) noexcept;
+    GraphOrchestrator(const GraphOrchestrator &) = delete;
+    GraphOrchestrator &operator=(const GraphOrchestrator &) = delete;
 
     /// Enter the event loop and process all tasks to completion.
     /// @throws std::runtime_error if any TaskNode fails (after draining non-cancelled nodes)
@@ -68,9 +70,9 @@ public:
     [[nodiscard]] std::uint32_t in_flight_count() const noexcept;
     [[nodiscard]] bool is_shutdown() const noexcept;
 
-private:
+   private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
 
-} // namespace dagr
+}  // namespace dagr

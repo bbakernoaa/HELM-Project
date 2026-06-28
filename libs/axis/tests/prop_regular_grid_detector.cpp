@@ -16,17 +16,15 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/detail/regular_grid_detector.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <vector>
 
 namespace {
 
@@ -43,37 +41,31 @@ rc::Gen<std::size_t> genGridDim() {
 /// Generate a positive delta for grid spacing in (0.01, 10.0].
 /// Avoids degenerate zero-width cells.
 rc::Gen<double> genPositiveDelta() {
-    return rc::gen::map(rc::gen::inRange(1, 1001),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(1, 1001), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a longitude starting value in [-180, 180).
 rc::Gen<double> genLonMin() {
-    return rc::gen::map(rc::gen::inRange(-18000, 18000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-18000, 18000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a latitude starting value in [-90, 90).
 rc::Gen<double> genLatMin() {
-    return rc::gen::map(rc::gen::inRange(-9000, 9000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-9000, 9000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 // ─── Helper: Build a uniform regular-grid UnstructuredMesh ───────────────────
 
 /// Constructs a regular lat-lon grid as an UnstructuredMesh.
 /// Grid covers [lon0, lon0 + ni*dlon] × [lat0, lat0 + nj*dlat].
-axis::topology::UnstructuredMesh<MemSpace>
-make_regular_grid(std::size_t ni, std::size_t nj,
-                  double lon0, double dlon,
-                  double lat0, double dlat) {
+axis::topology::UnstructuredMesh<MemSpace> make_regular_grid(std::size_t ni, std::size_t nj, double lon0, double dlon, double lat0, double dlat) {
     const std::size_t n_centers = ni * nj;
     const std::size_t nc_i = ni + 1;
     const std::size_t nc_j = nj + 1;
     const std::size_t n_corners = nc_i * nc_j;
 
-    Kokkos::View<double*, MemSpace> cx("cx", n_centers);
-    Kokkos::View<double*, MemSpace> cy("cy", n_centers);
+    Kokkos::View<double *, MemSpace> cx("cx", n_centers);
+    Kokkos::View<double *, MemSpace> cy("cy", n_centers);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon0 + (static_cast<double>(i) + 0.5) * dlon;
@@ -81,12 +73,10 @@ make_regular_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), axis::topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> crx("crx", n_corners);
-    Kokkos::View<double*, MemSpace> cry("cry", n_corners);
+    Kokkos::View<double *, MemSpace> crx("crx", n_corners);
+    Kokkos::View<double *, MemSpace> cry("cry", n_corners);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_i) = lon0 + static_cast<double>(i) * dlon;
@@ -107,12 +97,8 @@ make_regular_grid(std::size_t ni, std::size_t nj,
 /// @param perturb_lon If true, perturb longitude spacing
 /// @param perturb_lat If true, perturb latitude spacing
 /// @param perturbation_factor How much to perturb (relative to delta)
-axis::topology::UnstructuredMesh<MemSpace>
-make_nonuniform_grid(std::size_t ni, std::size_t nj,
-                     double lon0, double base_dlon,
-                     double lat0, double base_dlat,
-                     bool perturb_lon, bool perturb_lat,
-                     double perturbation_factor) {
+axis::topology::UnstructuredMesh<MemSpace> make_nonuniform_grid(std::size_t ni, std::size_t nj, double lon0, double base_dlon, double lat0,
+                                                                double base_dlat, bool perturb_lon, bool perturb_lat, double perturbation_factor) {
     const std::size_t nc_i = ni + 1;
     const std::size_t nc_j = nj + 1;
     const std::size_t n_corners = nc_i * nc_j;
@@ -125,8 +111,7 @@ make_nonuniform_grid(std::size_t ni, std::size_t nj,
         double factor = 1.0;
         if (perturb_lon) {
             // Alternate wider/narrower cells
-            factor = (i % 2 == 0) ? (1.0 + perturbation_factor)
-                                  : (1.0 - perturbation_factor);
+            factor = (i % 2 == 0) ? (1.0 + perturbation_factor) : (1.0 - perturbation_factor);
         }
         lon_bounds[i] = lon_bounds[i - 1] + base_dlon * factor;
     }
@@ -137,16 +122,15 @@ make_nonuniform_grid(std::size_t ni, std::size_t nj,
     for (std::size_t j = 1; j <= nj; ++j) {
         double factor = 1.0;
         if (perturb_lat) {
-            factor = (j % 2 == 0) ? (1.0 + perturbation_factor)
-                                  : (1.0 - perturbation_factor);
+            factor = (j % 2 == 0) ? (1.0 + perturbation_factor) : (1.0 - perturbation_factor);
         }
         lat_bounds[j] = lat_bounds[j - 1] + base_dlat * factor;
     }
 
     // Build center coordinates from boundaries
     const std::size_t n_centers = ni * nj;
-    Kokkos::View<double*, MemSpace> cx("cx", n_centers);
-    Kokkos::View<double*, MemSpace> cy("cy", n_centers);
+    Kokkos::View<double *, MemSpace> cx("cx", n_centers);
+    Kokkos::View<double *, MemSpace> cy("cy", n_centers);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = 0.5 * (lon_bounds[i] + lon_bounds[i + 1]);
@@ -154,12 +138,10 @@ make_nonuniform_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), axis::topology::CoordinateSystem::SphericalDeg);
 
-    Kokkos::View<double*, MemSpace> crx("crx", n_corners);
-    Kokkos::View<double*, MemSpace> cry("cry", n_corners);
+    Kokkos::View<double *, MemSpace> crx("crx", n_corners);
+    Kokkos::View<double *, MemSpace> cry("cry", n_corners);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_i) = lon_bounds[i];
@@ -235,9 +217,7 @@ RC_GTEST_PROP(PropRegularGridDetector, NonUniformGridRejected, ()) {
     bool perturb_lon = (perturb_mode == 0 || perturb_mode == 2);
     bool perturb_lat = (perturb_mode == 1 || perturb_mode == 2);
 
-    auto mesh = make_nonuniform_grid(ni, nj, lon0, base_dlon, lat0, base_dlat,
-                                     perturb_lon, perturb_lat,
-                                     perturbation_factor);
+    auto mesh = make_nonuniform_grid(ni, nj, lon0, base_dlon, lat0, base_dlat, perturb_lon, perturb_lat, perturbation_factor);
     auto info = axis::detail::detect_regular_grid(mesh);
 
     // Verify: the alternating spacing pattern with perturbation_factor >= 1e-6
@@ -267,8 +247,7 @@ RC_GTEST_PROP(PropRegularGridDetector, TinyPerturbationStillDetectedAsRegular, (
     // 2e-13 << 1e-10, so the grid should still be detected as regular.
     constexpr double tiny_pf = 1.0e-13;
 
-    auto mesh = make_nonuniform_grid(ni, nj, lon0, base_dlon, lat0, base_dlat,
-                                     true, true, tiny_pf);
+    auto mesh = make_nonuniform_grid(ni, nj, lon0, base_dlon, lat0, base_dlat, true, true, tiny_pf);
     auto info = axis::detail::detect_regular_grid(mesh);
 
     RC_ASSERT(info.is_regular);
@@ -309,7 +288,7 @@ RC_GTEST_PROP(PropRegularGridDetector, DetectedParamsAreConsistent, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -322,7 +301,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

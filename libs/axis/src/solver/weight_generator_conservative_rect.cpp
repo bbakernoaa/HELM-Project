@@ -16,18 +16,16 @@
 ///
 /// Requirements: 2.2, 2.3, 2.4, 2.7
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/detail/regular_grid_detector.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <vector>
 
 namespace axis::solver {
 
@@ -43,12 +41,9 @@ namespace axis::solver {
 /// Returns max(0, overlap_x) * max(0, overlap_y).
 /// Result is always non-negative (Req 2.4).
 KOKKOS_INLINE_FUNCTION
-double rect_overlap(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y,
-                    double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y) noexcept {
-    double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x)
-                                 - Kokkos::fmax(s_lo_x, d_lo_x));
-    double dy = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_y, d_hi_y)
-                                 - Kokkos::fmax(s_lo_y, d_lo_y));
+double rect_overlap(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y, double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y) noexcept {
+    double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x) - Kokkos::fmax(s_lo_x, d_lo_x));
+    double dy = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_y, d_hi_y) - Kokkos::fmax(s_lo_y, d_lo_y));
     return dx * dy;
 }
 
@@ -71,14 +66,10 @@ double rect_overlap(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y,
 /// @param dst_grid_info  RegularGridInfo for the destination mesh
 /// @return InterpolationMatrix with conservative weights
 template <class MemorySpace>
-InterpolationMatrix<MemorySpace>
-generate_conservative_rect(
-    const topology::UnstructuredMesh<MemorySpace>& src_mesh,
-    const topology::UnstructuredMesh<MemorySpace>& dst_mesh,
-    const RegridConfig& config,
-    const detail::RegularGridInfo& src_grid_info,
-    const detail::RegularGridInfo& dst_grid_info) {
-
+InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config,
+                                                            const detail::RegularGridInfo &src_grid_info,
+                                                            const detail::RegularGridInfo &dst_grid_info) {
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
 
@@ -87,13 +78,13 @@ generate_conservative_rect(
     const std::size_t dst_ni = dst_grid_info.ni;
     const std::size_t dst_nj = dst_grid_info.nj;
 
-    const double src_lon_min  = src_grid_info.lon_min;
-    const double src_lat_min  = src_grid_info.lat_min;
+    const double src_lon_min = src_grid_info.lon_min;
+    const double src_lat_min = src_grid_info.lat_min;
     const double src_delta_lon = src_grid_info.delta_lon;
     const double src_delta_lat = src_grid_info.delta_lat;
 
-    const double dst_lon_min  = dst_grid_info.lon_min;
-    const double dst_lat_min  = dst_grid_info.lat_min;
+    const double dst_lon_min = dst_grid_info.lon_min;
+    const double dst_lat_min = dst_grid_info.lat_min;
     const double dst_delta_lon = dst_grid_info.delta_lon;
     const double dst_delta_lat = dst_grid_info.delta_lat;
 
@@ -156,15 +147,13 @@ generate_conservative_rect(
 
     // ── Accumulate COO entries ──
     // Use std::vector for host-space accumulation (same pattern as generate_conservative).
-    std::vector<double>  weights_vec;
+    std::vector<double> weights_vec;
     std::vector<index_t> rows_vec;
     std::vector<index_t> cols_vec;
 
     // Pre-estimate capacity: typical overlap count per dst cell
-    const std::size_t est_overlap_lon = static_cast<std::size_t>(
-        std::ceil(dst_delta_lon / src_delta_lon)) + 2;
-    const std::size_t est_overlap_lat = static_cast<std::size_t>(
-        std::ceil(dst_delta_lat / src_delta_lat)) + 2;
+    const std::size_t est_overlap_lon = static_cast<std::size_t>(std::ceil(dst_delta_lon / src_delta_lon)) + 2;
+    const std::size_t est_overlap_lat = static_cast<std::size_t>(std::ceil(dst_delta_lat / src_delta_lat)) + 2;
     const std::size_t est_nnz = n_dst * est_overlap_lon * est_overlap_lat;
     weights_vec.reserve(std::min(est_nnz, n_src * n_dst));
     rows_vec.reserve(std::min(est_nnz, n_src * n_dst));
@@ -239,7 +228,7 @@ generate_conservative_rect(
             }
 
             if (!lon_wraps && is_lo > is_hi) continue;  // No overlap in x
-            if (js_lo > js_hi) continue;  // No overlap in y
+            if (js_lo > js_hi) continue;                // No overlap in y
 
             // Iterate over overlapping source cells
             for (int js = js_lo; js <= js_hi; ++js) {
@@ -247,13 +236,10 @@ generate_conservative_rect(
                     // Handle wrap-around: use modular index for global grids
                     int is_actual = is;
                     if (src_is_global) {
-                        is_actual = ((is % static_cast<int>(src_ni)) + static_cast<int>(src_ni))
-                                    % static_cast<int>(src_ni);
+                        is_actual = ((is % static_cast<int>(src_ni)) + static_cast<int>(src_ni)) % static_cast<int>(src_ni);
                     }
 
-                    const std::size_t src_cell_idx =
-                        static_cast<std::size_t>(js) * src_ni +
-                        static_cast<std::size_t>(is_actual);
+                    const std::size_t src_cell_idx = static_cast<std::size_t>(js) * src_ni + static_cast<std::size_t>(is_actual);
 
                     if (src_cell_idx >= n_src) continue;
 
@@ -264,17 +250,13 @@ generate_conservative_rect(
                     if (area_src <= 0.0) continue;
 
                     // Source cell bounds
-                    const double s_lo_x = src_lon_min +
-                        static_cast<double>(is_actual) * src_delta_lon;
+                    const double s_lo_x = src_lon_min + static_cast<double>(is_actual) * src_delta_lon;
                     const double s_hi_x = s_lo_x + src_delta_lon;
-                    const double s_lo_y = src_lat_min +
-                        static_cast<double>(js) * src_delta_lat;
+                    const double s_lo_y = src_lat_min + static_cast<double>(js) * src_delta_lat;
                     const double s_hi_y = s_lo_y + src_delta_lat;
 
                     // Compute rectangle overlap area
-                    const double overlap_area = rect_overlap(
-                        s_lo_x, s_hi_x, s_lo_y, s_hi_y,
-                        d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                    const double overlap_area = rect_overlap(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
 
                     if (overlap_area <= 0.0) continue;
 
@@ -317,26 +299,26 @@ generate_conservative_rect(
     // ── Pack into InterpolationMatrix ──
     const std::size_t nnz = weights_vec.size();
 
-    Kokkos::View<double*, MemorySpace>  factor_list("factor_list", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_row("factor_row", nnz);
-    Kokkos::View<index_t*, MemorySpace> factor_col("factor_col", nnz);
-    Kokkos::View<double*, MemorySpace>  frac_a("frac_a", n_src);
-    Kokkos::View<double*, MemorySpace>  frac_b("frac_b", n_dst);
-    Kokkos::View<double*, MemorySpace>  area_a("area_a", n_src);
-    Kokkos::View<double*, MemorySpace>  area_b("area_b", n_dst);
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
     auto h_factor_list = Kokkos::create_mirror_view(factor_list);
-    auto h_factor_row  = Kokkos::create_mirror_view(factor_row);
-    auto h_factor_col  = Kokkos::create_mirror_view(factor_col);
-    auto h_frac_a      = Kokkos::create_mirror_view(frac_a);
-    auto h_frac_b      = Kokkos::create_mirror_view(frac_b);
-    auto h_area_a      = Kokkos::create_mirror_view(area_a);
-    auto h_area_b      = Kokkos::create_mirror_view(area_b);
+    auto h_factor_row = Kokkos::create_mirror_view(factor_row);
+    auto h_factor_col = Kokkos::create_mirror_view(factor_col);
+    auto h_frac_a = Kokkos::create_mirror_view(frac_a);
+    auto h_frac_b = Kokkos::create_mirror_view(frac_b);
+    auto h_area_a = Kokkos::create_mirror_view(area_a);
+    auto h_area_b = Kokkos::create_mirror_view(area_b);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         h_factor_list(k) = weights_vec[k];
-        h_factor_row(k)  = rows_vec[k];
-        h_factor_col(k)  = cols_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
     }
 
     for (std::size_t i = 0; i < n_src; ++i) {
@@ -356,11 +338,8 @@ generate_conservative_rect(
     Kokkos::deep_copy(area_a, h_area_a);
     Kokkos::deep_copy(area_b, h_area_b);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b),
-        std::move(area_a), std::move(area_b),
-        n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -369,12 +348,9 @@ generate_conservative_rect(
 //  weight_generator.cpp; rectangle fast-path is host-only for now.)
 // ─────────────────────────────────────────────────────────────────────────────
 
-template InterpolationMatrix<Kokkos::HostSpace>
-generate_conservative_rect<Kokkos::HostSpace>(
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const topology::UnstructuredMesh<Kokkos::HostSpace>&,
-    const RegridConfig&,
-    const detail::RegularGridInfo&,
-    const detail::RegularGridInfo&);
+template InterpolationMatrix<Kokkos::HostSpace> generate_conservative_rect<Kokkos::HostSpace>(const topology::UnstructuredMesh<Kokkos::HostSpace> &,
+                                                                                              const topology::UnstructuredMesh<Kokkos::HostSpace> &,
+                                                                                              const RegridConfig &, const detail::RegularGridInfo &,
+                                                                                              const detail::RegularGridInfo &);
 
-} // namespace axis::solver
+}  // namespace axis::solver

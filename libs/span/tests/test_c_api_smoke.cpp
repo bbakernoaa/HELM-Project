@@ -2,13 +2,14 @@
 // C-API smoke tests (Task 10.3)
 // Verifies basic helm_span_* C function wrappers for Fortran interop.
 
-#include <span/span_constants.h>
-#include "handle_registry.hpp"
-#include "span_c_api.cpp"  // Include directly for testing without shared lib
-
 #include <gtest/gtest.h>
+#include <span/span_constants.h>
+
 #include <cstdint>
 #include <vector>
+
+#include "handle_registry.hpp"
+#include "span_c_api.cpp"  // Include directly for testing without shared lib
 
 TEST(CApiSmoke, RegisterGetUnregisterFlow) {
     std::vector<double> buffer(100, 3.14);
@@ -19,12 +20,12 @@ TEST(CApiSmoke, RegisterGetUnregisterFlow) {
     EXPECT_EQ(rc, HELM_SPAN_SUCCESS);
     EXPECT_GT(handle, 0);
 
-    const void* ptr_out = nullptr;
+    const void *ptr_out = nullptr;
     int64_t dims_out[7] = {};
     int rank_out = 0;
     rc = helm_span_get_view(handle, &ptr_out, dims_out, &rank_out);
     EXPECT_EQ(rc, HELM_SPAN_SUCCESS);
-    EXPECT_EQ(ptr_out, static_cast<void*>(buffer.data()));
+    EXPECT_EQ(ptr_out, static_cast<void *>(buffer.data()));
     EXPECT_EQ(rank_out, 2);
     EXPECT_EQ(dims_out[0], 10);
     EXPECT_EQ(dims_out[1], 10);

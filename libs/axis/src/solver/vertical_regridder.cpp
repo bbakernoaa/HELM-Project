@@ -2,21 +2,17 @@
 // AXIS — Arbitrary eXgrid Interpolation Solver
 // Copyright (c) HELM Project Contributors
 
-#include <axis/solver/vertical_regridder.hpp>
 #include <axis/detail/tspack.hpp>
+#include <axis/solver/vertical_regridder.hpp>
 #include <stdexcept>
 #include <string>
 
 namespace axis::solver {
 
 template <typename MemorySpace>
-void VerticalRegridder<MemorySpace>::interpolate(
-    Kokkos::View<const double**, MemorySpace> src_field,
-    Kokkos::View<double**, MemorySpace>       dst_field,
-    Kokkos::View<const double*, MemorySpace>  src_levels,
-    Kokkos::View<const double*, MemorySpace>  dst_levels,
-    double tension) {
-
+void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, MemorySpace> src_field, Kokkos::View<double **, MemorySpace> dst_field,
+                                                 Kokkos::View<const double *, MemorySpace> src_levels,
+                                                 Kokkos::View<const double *, MemorySpace> dst_levels, double tension) {
     const std::size_t n_col = src_field.extent(0);
     const std::size_t n_src = src_levels.extent(0);
     const std::size_t n_dst = dst_levels.extent(0);
@@ -39,8 +35,8 @@ void VerticalRegridder<MemorySpace>::interpolate(
         throw std::invalid_argument("VerticalRegridder: Vertical level dimensions exceed hard cap of 256 levels");
     }
 
-    Kokkos::parallel_for("VerticalInterpolate1D", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_col),
-        KOKKOS_LAMBDA(const std::size_t c) {
+    Kokkos::parallel_for(
+        "VerticalInterpolate1D", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_col), KOKKOS_LAMBDA(const std::size_t c) {
             double d[MAX_LEVELS];
             double scratch[MAX_LEVELS];
             double src_y[MAX_LEVELS];
@@ -55,28 +51,23 @@ void VerticalRegridder<MemorySpace>::interpolate(
 
             for (std::size_t j = 0; j < n_dst; ++j) {
                 double target = dst_levels(j);
-                
+
                 // Perform binary search or sequential search to locate target cell
                 std::size_t idx = 0;
-                while (idx < n_src - 2 && src_x[idx+1] < target) {
+                while (idx < n_src - 2 && src_x[idx + 1] < target) {
                     idx++;
                 }
-                
-                dst_field(c, j) = axis::detail::tspack::evaluate_spline(
-                    target, src_x[idx], src_x[idx+1], src_y[idx], src_y[idx+1],
-                    d[idx], d[idx+1], tension);
+
+                dst_field(c, j) = axis::detail::tspack::evaluate_spline(target, src_x[idx], src_x[idx + 1], src_y[idx], src_y[idx + 1], d[idx],
+                                                                        d[idx + 1], tension);
             }
         });
 }
 
 template <typename MemorySpace>
-void VerticalRegridder<MemorySpace>::interpolate(
-    Kokkos::View<const double**, MemorySpace>  src_field,
-    Kokkos::View<double**, MemorySpace>        dst_field,
-    Kokkos::View<const double**, MemorySpace>  src_levels,
-    Kokkos::View<const double**, MemorySpace>  dst_levels,
-    double tension) {
-
+void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, MemorySpace> src_field, Kokkos::View<double **, MemorySpace> dst_field,
+                                                 Kokkos::View<const double **, MemorySpace> src_levels,
+                                                 Kokkos::View<const double **, MemorySpace> dst_levels, double tension) {
     const std::size_t n_col = src_field.extent(0);
     const std::size_t n_src = src_levels.extent(1);
     const std::size_t n_dst = dst_levels.extent(1);
@@ -99,8 +90,8 @@ void VerticalRegridder<MemorySpace>::interpolate(
         throw std::invalid_argument("VerticalRegridder: Vertical level dimensions exceed hard cap of 256 levels");
     }
 
-    Kokkos::parallel_for("VerticalInterpolate2D", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_col),
-        KOKKOS_LAMBDA(const std::size_t c) {
+    Kokkos::parallel_for(
+        "VerticalInterpolate2D", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_col), KOKKOS_LAMBDA(const std::size_t c) {
             double d[MAX_LEVELS];
             double scratch[MAX_LEVELS];
             double src_y[MAX_LEVELS];
@@ -115,15 +106,14 @@ void VerticalRegridder<MemorySpace>::interpolate(
 
             for (std::size_t j = 0; j < n_dst; ++j) {
                 double target = dst_levels(c, j);
-                
+
                 std::size_t idx = 0;
-                while (idx < n_src - 2 && src_x[idx+1] < target) {
+                while (idx < n_src - 2 && src_x[idx + 1] < target) {
                     idx++;
                 }
-                
-                dst_field(c, j) = axis::detail::tspack::evaluate_spline(
-                    target, src_x[idx], src_x[idx+1], src_y[idx], src_y[idx+1],
-                    d[idx], d[idx+1], tension);
+
+                dst_field(c, j) = axis::detail::tspack::evaluate_spline(target, src_x[idx], src_x[idx + 1], src_y[idx], src_y[idx + 1], d[idx],
+                                                                        d[idx + 1], tension);
             }
         });
 }
@@ -131,4 +121,4 @@ void VerticalRegridder<MemorySpace>::interpolate(
 // Explicit template instantiations
 template class VerticalRegridder<Kokkos::HostSpace>;
 
-} // namespace axis::solver
+}  // namespace axis::solver

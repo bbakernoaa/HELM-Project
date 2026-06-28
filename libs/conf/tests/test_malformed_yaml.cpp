@@ -5,10 +5,10 @@
 //   - No crash or abort on malformed input
 // ──────────────────────────────────────────────────────────────────────────────
 
+#include <gtest/gtest.h>
+
 #include <conf/config.hpp>
 #include <conf/error.hpp>
-
-#include <gtest/gtest.h>
 #include <cstdio>
 #include <fstream>
 #include <string>
@@ -21,7 +21,7 @@ TEST(MalformedYaml, UnclosedBracket_ThrowsParseError) {
     try {
         auto cfg = conf::Config::from_string(malformed);
         FAIL() << "Expected Conf_Error to be thrown for unclosed bracket";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Parse_Error);
         // Requirement 14.2: message is non-empty
         EXPECT_GT(std::string(e.what()).size(), 0u);
@@ -36,7 +36,7 @@ TEST(MalformedYaml, UnclosedBrace_ThrowsParseError) {
     try {
         auto cfg = conf::Config::from_string(malformed);
         FAIL() << "Expected Conf_Error to be thrown for unclosed brace";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Parse_Error);
         EXPECT_GT(std::string(e.what()).size(), 0u);
     }
@@ -59,7 +59,7 @@ TEST(MalformedYaml, BadIndentation_ThrowsParseError) {
         // yaml-cpp may tolerate some indentation oddities; if it does not throw,
         // verify with a more aggressive case below.
         // Some yaml-cpp versions accept this; skip in that case.
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Parse_Error);
         EXPECT_GT(std::string(e.what()).size(), 0u);
     }
@@ -77,7 +77,7 @@ TEST(MalformedYaml, BadIndentationAggressiveCase_ThrowsParseError) {
     try {
         auto cfg = conf::Config::from_string(malformed);
         FAIL() << "Expected Conf_Error to be thrown for malformed indentation/structure";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Parse_Error);
         EXPECT_GT(std::string(e.what()).size(), 0u);
     }
@@ -95,7 +95,7 @@ TEST(MalformedYaml, TabIndent_ThrowsParseError) {
     try {
         auto cfg = conf::Config::from_string(malformed);
         FAIL() << "Expected Conf_Error to be thrown for tab-indent malformed input";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Parse_Error);
         EXPECT_GT(std::string(e.what()).size(), 0u);
     }
@@ -110,7 +110,7 @@ TEST(MalformedYaml, InvalidColon_ThrowsParseError) {
     try {
         auto cfg = conf::Config::from_string(malformed);
         FAIL() << "Expected Conf_Error to be thrown for invalid colon syntax";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Parse_Error);
         EXPECT_GT(std::string(e.what()).size(), 0u);
     }
@@ -124,12 +124,11 @@ TEST(MalformedYaml, ErrorMessageContainsDiagnostic) {
     try {
         auto cfg = conf::Config::from_string(malformed);
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         const std::string msg(e.what());
         // yaml-cpp's ParserException message typically includes position info
         // or error description. We just require it's non-empty.
-        EXPECT_FALSE(msg.empty())
-            << "Conf_Error message should contain backend diagnostic text";
+        EXPECT_FALSE(msg.empty()) << "Conf_Error message should contain backend diagnostic text";
     }
 }
 
@@ -149,7 +148,7 @@ TEST(MalformedYaml, FromFile_MalformedYaml_ThrowsParseError) {
         auto cfg = conf::Config::from_file(tmp_path);
         std::remove(tmp_path.c_str());
         FAIL() << "Expected Conf_Error to be thrown for malformed YAML file";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         std::remove(tmp_path.c_str());
         EXPECT_EQ(e.code(), conf::Error_Code::Parse_Error);
         EXPECT_GT(std::string(e.what()).size(), 0u);

@@ -20,10 +20,9 @@
 /// For each needed id k, gather_slot[k] is the local index in the gathered
 /// "halo" source buffer where HALO must deposit that cell's value.
 
+#include <axis/types.hpp>
 #include <cstddef>
 #include <vector>
-
-#include <axis/types.hpp>
 
 namespace axis::solver {
 
@@ -32,10 +31,10 @@ namespace axis::solver {
 ///
 /// Contains NO MPI types, NO HALO types, NO AMIO types — only integer arrays.
 struct HaloPattern {
-    std::vector<int>     source_ranks;          ///< Distinct neighbor ranks to gather from
-    std::vector<index_t> rank_offsets;          ///< CSR offsets [source_ranks.size() + 1]
-    std::vector<index_t> needed_global_src_ids; ///< Off-rank global source ids, grouped by neighbor
-    std::vector<index_t> gather_slot;           ///< Local slot in gathered halo buffer per id
+    std::vector<int> source_ranks;               ///< Distinct neighbor ranks to gather from
+    std::vector<index_t> rank_offsets;           ///< CSR offsets [source_ranks.size() + 1]
+    std::vector<index_t> needed_global_src_ids;  ///< Off-rank global source ids, grouped by neighbor
+    std::vector<index_t> gather_slot;            ///< Local slot in gathered halo buffer per id
 
     /// Total number of off-rank source values to gather (== gathered-buffer size).
     [[nodiscard]] std::size_t num_remote() const noexcept {
@@ -48,6 +47,6 @@ struct HaloPattern {
     }
 };
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_HALO_PATTERN_HPP
+#endif  // AXIS_SOLVER_HALO_PATTERN_HPP

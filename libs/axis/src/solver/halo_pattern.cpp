@@ -22,4 +22,4 @@ namespace axis::solver {
 // This is a link-time sanity check — optimized away in release builds.
 [[maybe_unused]] static const HaloPattern odr_check_{};
 
-} // namespace axis::solver
+}  // namespace axis::solver

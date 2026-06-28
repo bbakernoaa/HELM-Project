@@ -21,7 +21,6 @@
 #include <rapidcheck/gtest.h>
 
 #include <conf/error.hpp>
-
 #include <cstring>
 #include <string>
 #include <vector>
@@ -33,128 +32,100 @@
 
 extern "C" {
 
-int conf_load_string_c(const char* yaml_text, int text_len, int* handle_out);
+int conf_load_string_c(const char *yaml_text, int text_len, int *handle_out);
 int conf_close_c(int handle);
-int conf_has_key_c(int handle, const char* key, int key_len, int* exists_out);
-int conf_size_c(int handle, const char* key, int key_len, int* size_out);
-int conf_get_int_c(int handle, const char* key, int key_len, int* out);
-int conf_get_double_c(int handle, const char* key, int key_len, double* out);
-int conf_get_bool_c(int handle, const char* key, int key_len, int* out);
-int conf_get_string_len_c(int handle, const char* key, int key_len, int* str_len_out);
-int conf_get_string_c(int handle, const char* key, int key_len,
-                      char* buf, int buf_cap, int* written_out);
+int conf_has_key_c(int handle, const char *key, int key_len, int *exists_out);
+int conf_size_c(int handle, const char *key, int key_len, int *size_out);
+int conf_get_int_c(int handle, const char *key, int key_len, int *out);
+int conf_get_double_c(int handle, const char *key, int key_len, double *out);
+int conf_get_bool_c(int handle, const char *key, int key_len, int *out);
+int conf_get_string_len_c(int handle, const char *key, int key_len, int *str_len_out);
+int conf_get_string_c(int handle, const char *key, int key_len, char *buf, int buf_cap, int *written_out);
 
-} // extern "C"
+}  // extern "C"
 
 namespace {
 
 // ─── Error code constants ───────────────────────────────────────────────────
 
-constexpr int EC_SUCCESS        = static_cast<int>(conf::Error_Code::Success);
-constexpr int EC_BAD_HANDLE     = static_cast<int>(conf::Error_Code::Bad_Handle);
-constexpr int EC_PARSE_ERROR    = static_cast<int>(conf::Error_Code::Parse_Error);
+constexpr int EC_SUCCESS = static_cast<int>(conf::Error_Code::Success);
+constexpr int EC_BAD_HANDLE = static_cast<int>(conf::Error_Code::Bad_Handle);
+constexpr int EC_PARSE_ERROR = static_cast<int>(conf::Error_Code::Parse_Error);
 
 // ─── YAML generators ────────────────────────────────────────────────────────
 
 /// Generate a lowercase ASCII character (a-z).
 rc::Gen<char> genLowerAlpha() {
-    return rc::gen::map(rc::gen::inRange(0x61, 0x7B),
-        [](int c) { return static_cast<char>(c); });
+    return rc::gen::map(rc::gen::inRange(0x61, 0x7B), [](int c) { return static_cast<char>(c); });
 }
 
 /// Generate a short lowercase string (0–50 chars).
 rc::Gen<std::string> genShortString() {
     return rc::gen::mapcat(rc::gen::inRange<std::size_t>(0, 51),
-        [](std::size_t len) {
-            return rc::gen::container<std::string>(len, genLowerAlpha());
-        });
+                           [](std::size_t len) { return rc::gen::container<std::string>(len, genLowerAlpha()); });
 }
 
 /// Generate a valid simple YAML document with a few typed keys for querying.
 /// The document always contains known keys so queries can exercise all getter
 /// paths without needing to parse the generated YAML structure.
 rc::Gen<std::string> genValidYaml() {
-    return rc::gen::map(
-        rc::gen::tuple(
-            rc::gen::inRange(-1000, 1001),                     // int value
-            rc::gen::map(rc::gen::inRange(-100, 101),          // double value
-                [](int v) { return static_cast<double>(v) * 0.5; }),
-            rc::gen::arbitrary<bool>(),                         // bool value
-            genShortString()                                    // string value
-        ),
-        [](const std::tuple<int, double, bool, std::string>& t) {
-            const auto& [iv, dv, bv, sv] = t;
-            std::string yaml;
-            yaml += "int_val: " + std::to_string(iv) + "\n";
-            yaml += "dbl_val: " + std::to_string(dv) + "\n";
-            yaml += "bool_val: " + std::string(bv ? "true" : "false") + "\n";
-            yaml += "str_val: \"" + sv + "\"\n";
-            yaml += "nested:\n";
-            yaml += "  child: 99\n";
-            return yaml;
-        }
-    );
+    return rc::gen::map(rc::gen::tuple(rc::gen::inRange(-1000, 1001),             // int value
+                                       rc::gen::map(rc::gen::inRange(-100, 101),  // double value
+                                                    [](int v) { return static_cast<double>(v) * 0.5; }),
+                                       rc::gen::arbitrary<bool>(),  // bool value
+                                       genShortString()             // string value
+                                       ),
+                        [](const std::tuple<int, double, bool, std::string> &t) {
+                            const auto &[iv, dv, bv, sv] = t;
+                            std::string yaml;
+                            yaml += "int_val: " + std::to_string(iv) + "\n";
+                            yaml += "dbl_val: " + std::to_string(dv) + "\n";
+                            yaml += "bool_val: " + std::string(bv ? "true" : "false") + "\n";
+                            yaml += "str_val: \"" + sv + "\"\n";
+                            yaml += "nested:\n";
+                            yaml += "  child: 99\n";
+                            return yaml;
+                        });
 }
 
 /// Generate an invalid YAML string that will trigger Parse_Error.
 /// All strings here are verified to cause yaml-cpp to throw a parse exception.
 rc::Gen<std::string> genInvalidYaml() {
-    return rc::gen::element<std::string>(
-        "key: [\n",            // unclosed sequence flow
-        "a: b\n  c: d\n",     // illegal map value (bad indentation)
-        "{{{{\n",              // unclosed map flow
-        "- ]\n",              // illegal flow end
-        "{unclosed",           // unclosed map flow
-        "[unclosed",           // unclosed sequence flow
-        "{key: [}\n",          // illegal flow end (mismatched brackets)
-        "[a, b, {c: ]}\n"     // illegal flow end inside sequence
+    return rc::gen::element<std::string>("key: [\n",        // unclosed sequence flow
+                                         "a: b\n  c: d\n",  // illegal map value (bad indentation)
+                                         "{{{{\n",          // unclosed map flow
+                                         "- ]\n",           // illegal flow end
+                                         "{unclosed",       // unclosed map flow
+                                         "[unclosed",       // unclosed sequence flow
+                                         "{key: [}\n",      // illegal flow end (mismatched brackets)
+                                         "[a, b, {c: ]}\n"  // illegal flow end inside sequence
     );
 }
 
 /// Enumeration of query operations we can perform on a live handle.
-enum class QueryOp {
-    HasKey,
-    Size,
-    GetInt,
-    GetDouble,
-    GetBool,
-    GetStringLen,
-    GetString
-};
+enum class QueryOp { HasKey, Size, GetInt, GetDouble, GetBool, GetStringLen, GetString };
 
 /// Generate a random query operation.
 rc::Gen<QueryOp> genQueryOp() {
-    return rc::gen::element(
-        QueryOp::HasKey,
-        QueryOp::Size,
-        QueryOp::GetInt,
-        QueryOp::GetDouble,
-        QueryOp::GetBool,
-        QueryOp::GetStringLen,
-        QueryOp::GetString
-    );
+    return rc::gen::element(QueryOp::HasKey, QueryOp::Size, QueryOp::GetInt, QueryOp::GetDouble, QueryOp::GetBool, QueryOp::GetStringLen,
+                            QueryOp::GetString);
 }
 
 /// Generate a random key to query (mix of valid and invalid keys).
 rc::Gen<std::string> genQueryKey() {
     return rc::gen::oneOf(
         // Keys that exist in our generated YAML
-        rc::gen::element<std::string>(
-            "int_val", "dbl_val", "bool_val", "str_val",
-            "nested", "nested.child"),
+        rc::gen::element<std::string>("int_val", "dbl_val", "bool_val", "str_val", "nested", "nested.child"),
         // Keys that don't exist (exercise Key_Not_Found path)
-        rc::gen::element<std::string>(
-            "missing", "no.such.key", "x.y.z"),
+        rc::gen::element<std::string>("missing", "no.such.key", "x.y.z"),
         // Malformed keys (exercise Invalid_Arg path)
-        rc::gen::element<std::string>(
-            "", ".leading", "trailing.", "double..dot")
-    );
+        rc::gen::element<std::string>("", ".leading", "trailing.", "double..dot"));
 }
 
 /// Execute a single query operation on the given handle.
 /// Returns the error code from the C bridge function.
-int executeQuery(int handle, QueryOp op, const std::string& key) {
-    const char* key_ptr = key.c_str();
+int executeQuery(int handle, QueryOp op, const std::string &key) {
+    const char *key_ptr = key.c_str();
     int key_len = static_cast<int>(key.size());
 
     // For empty keys, we still pass a valid pointer but length 0.
@@ -194,8 +165,7 @@ int executeQuery(int handle, QueryOp op, const std::string& key) {
         case QueryOp::GetString: {
             char buf[256];
             int written = -1;
-            return conf_get_string_c(handle, key_ptr, key_len,
-                                     buf, static_cast<int>(sizeof(buf)), &written);
+            return conf_get_string_c(handle, key_ptr, key_len, buf, static_cast<int>(sizeof(buf)), &written);
         }
     }
     return -1;  // unreachable
@@ -221,9 +191,7 @@ RC_GTEST_PROP(NoLeakCBridgeProperty4, LoadQueryCloseInvalidatesHandle, ()) {
 
     // Step 1: Load the YAML via the C bridge.
     int handle = 0;
-    int rc_load = conf_load_string_c(yaml.c_str(),
-                                     static_cast<int>(yaml.size()),
-                                     &handle);
+    int rc_load = conf_load_string_c(yaml.c_str(), static_cast<int>(yaml.size()), &handle);
     RC_ASSERT(rc_load == EC_SUCCESS);
     RC_ASSERT(handle > 0);
 
@@ -297,9 +265,7 @@ RC_GTEST_PROP(NoLeakCBridgeProperty4, FailedLoadsNeverRegisterHandle, ()) {
 
     // Initialize handle_out to a known sentinel to verify it's unchanged.
     int handle = -999;
-    int rc_load = conf_load_string_c(bad_yaml.c_str(),
-                                     static_cast<int>(bad_yaml.size()),
-                                     &handle);
+    int rc_load = conf_load_string_c(bad_yaml.c_str(), static_cast<int>(bad_yaml.size()), &handle);
 
     // (1) Must return Parse_Error.
     RC_ASSERT(rc_load == EC_PARSE_ERROR);
@@ -336,9 +302,7 @@ RC_GTEST_PROP(NoLeakCBridgeProperty4, MultipleCyclesNoResidualState, ()) {
 
         // Load
         int handle = 0;
-        int rc_load = conf_load_string_c(yaml.c_str(),
-                                         static_cast<int>(yaml.size()),
-                                         &handle);
+        int rc_load = conf_load_string_c(yaml.c_str(), static_cast<int>(yaml.size()), &handle);
         RC_ASSERT(rc_load == EC_SUCCESS);
         RC_ASSERT(handle > 0);
 
@@ -387,19 +351,14 @@ RC_GTEST_PROP(NoLeakCBridgeProperty4, MultipleCyclesNoResidualState, ()) {
 
 RC_GTEST_PROP(NoLeakCBridgeProperty4, StringQueryLifecycle, ()) {
     // Generate a string value to embed in YAML (1–100 lowercase chars).
-    const std::string str_val = *rc::gen::mapcat(
-        rc::gen::inRange<std::size_t>(1, 101),
-        [](std::size_t len) {
-            return rc::gen::container<std::string>(len, genLowerAlpha());
-        });
+    const std::string str_val = *rc::gen::mapcat(rc::gen::inRange<std::size_t>(1, 101),
+                                                 [](std::size_t len) { return rc::gen::container<std::string>(len, genLowerAlpha()); });
 
     const std::string yaml = "mykey: \"" + str_val + "\"\n";
 
     // Load
     int handle = 0;
-    int rc_load = conf_load_string_c(yaml.c_str(),
-                                     static_cast<int>(yaml.size()),
-                                     &handle);
+    int rc_load = conf_load_string_c(yaml.c_str(), static_cast<int>(yaml.size()), &handle);
     RC_ASSERT(rc_load == EC_SUCCESS);
 
     // Perform the length-first string protocol N times while live.
@@ -414,8 +373,7 @@ RC_GTEST_PROP(NoLeakCBridgeProperty4, StringQueryLifecycle, ()) {
         // Step 2: get string into buffer
         std::vector<char> buf(static_cast<std::size_t>(str_len + 1), '\0');
         int written = -1;
-        int rc_str = conf_get_string_c(handle, "mykey", 5,
-                                       buf.data(), str_len, &written);
+        int rc_str = conf_get_string_c(handle, "mykey", 5, buf.data(), str_len, &written);
         RC_ASSERT(rc_str == EC_SUCCESS);
         RC_ASSERT(written == str_len);
 

@@ -26,8 +26,7 @@ namespace {
 
 // Post a self Isend/Irecv pair on MPI_COMM_SELF and return the raw requests.
 // The caller owns completion of both. `send_val` is transferred into `recv_out`.
-void post_self_pair(int send_val, int& recv_out,
-                    MPI_Request& send_req, MPI_Request& recv_req) {
+void post_self_pair(int send_val, int &recv_out, MPI_Request &send_req, MPI_Request &recv_req) {
     static thread_local int send_buf;  // must outlive the non-blocking op
     send_buf = send_val;
     recv_out = -1;
@@ -93,14 +92,14 @@ TEST(RequestGuardTest, TestReportsCompletion) {
 // ─── Default-constructed guard: test() true, wait() no-op (Req 2.8) ─────────
 TEST(RequestGuardTest, DefaultConstructedIsEmptyNoOp) {
     halo::Request_Guard empty;
-    EXPECT_TRUE(empty.test());        // null handle => already "complete"
-    EXPECT_NO_THROW(empty.wait());    // null handle => no-op
+    EXPECT_TRUE(empty.test());      // null handle => already "complete"
+    EXPECT_NO_THROW(empty.wait());  // null handle => no-op
 }
 
 // ─── handle() exposes the internal request pointer (Req 8.2) ────────────────
 TEST(RequestGuardTest, HandleAccessorReturnsNonNullPointer) {
     halo::Request_Guard empty;
-    MPI_Request* p = empty.handle();
+    MPI_Request *p = empty.handle();
     ASSERT_NE(p, nullptr);
     EXPECT_EQ(*p, MPI_REQUEST_NULL);  // empty guard points at a null request
 
@@ -110,7 +109,7 @@ TEST(RequestGuardTest, HandleAccessorReturnsNonNullPointer) {
     halo::Request_Guard recv_guard(recv_req);
     halo::Request_Guard send_guard(send_req);
 
-    MPI_Request* live = recv_guard.handle();
+    MPI_Request *live = recv_guard.handle();
     ASSERT_NE(live, nullptr);
     EXPECT_NE(*live, MPI_REQUEST_NULL);  // owns a live, pending request
 
@@ -132,7 +131,7 @@ TEST(RequestGuardTest, MoveConstructionTransfersOwnership) {
     EXPECT_TRUE(src.test());
     EXPECT_EQ(*src.handle(), MPI_REQUEST_NULL);
 
-    dst.wait();          // destination owns and completes the recv
+    dst.wait();  // destination owns and completes the recv
     send_guard.wait();
     EXPECT_EQ(recv, 31);
 }
@@ -174,12 +173,15 @@ TEST(RequestGuardTest, DestructorCompletesOnNormalExit) {
 
 // ─── Global MPI environment ─────────────────────────────────────────────────
 class MpiEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override { MPI_Init(nullptr, nullptr); }
-    void TearDown() override { MPI_Finalize(); }
+   public:
+    void SetUp() override {
+        MPI_Init(nullptr, nullptr);
+    }
+    void TearDown() override {
+        MPI_Finalize();
+    }
 };
 
 }  // namespace
 
-static ::testing::Environment* const mpi_env =
-    ::testing::AddGlobalTestEnvironment(new MpiEnvironment);
+static ::testing::Environment *const mpi_env = ::testing::AddGlobalTestEnvironment(new MpiEnvironment);

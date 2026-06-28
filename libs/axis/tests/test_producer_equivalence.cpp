@@ -5,19 +5,22 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/topology/mesh_factory.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -54,7 +57,7 @@ TEST(ProducerEquivalence, TwoCfDescriptorsSameMesh) {
     python_desc.buffers.nj = nj;
 
     // Both go through the same from_descriptor funnel
-    auto mesh_amio   = topology::MeshFactory::from_descriptor<MemSpace>(amio_desc);
+    auto mesh_amio = topology::MeshFactory::from_descriptor<MemSpace>(amio_desc);
     auto mesh_python = topology::MeshFactory::from_descriptor<MemSpace>(python_desc);
 
     // Verify identical structure
@@ -67,8 +70,7 @@ TEST(ProducerEquivalence, TwoCfDescriptorsSameMesh) {
     ASSERT_EQ(coords_a.extent(0), coords_p.extent(0));
     for (std::size_t i = 0; i < coords_a.extent(0); ++i) {
         for (std::size_t d = 0; d < coords_a.extent(1); ++d) {
-            EXPECT_EQ(coords_a(i, d), coords_p(i, d))
-                << "Node " << i << " dim " << d << " differs";
+            EXPECT_EQ(coords_a(i, d), coords_p(i, d)) << "Node " << i << " dim " << d << " differs";
         }
     }
 

@@ -3,6 +3,7 @@
 // Copyright (c) HELM Project Contributors
 
 #include <gtest/gtest.h>
+
 #include <Kokkos_Core.hpp>
 #include <axis/topology/named_grid_registry.hpp>
 #include <stdexcept>
@@ -42,4 +43,4 @@ TEST(NoaaGribNamedGrids, DynamicGenerationAndResolution) {
     EXPECT_THROW(NamedGridRegistry::generate<MemSpace>("grid0"), std::invalid_argument);
 }
 
-} // namespace axis::test
+}  // namespace axis::test

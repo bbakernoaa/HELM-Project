@@ -5,6 +5,10 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
+#include <axis/topology/gmsh_writer.hpp>
+#include <axis/topology/structured_grid.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -12,18 +16,17 @@
 #include <string>
 #include <vector>
 
-#include <axis/types.hpp>
-#include <axis/topology/structured_grid.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/topology/gmsh_writer.hpp>
-
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -34,21 +37,19 @@ using MemSpace = Kokkos::HostSpace;
 static topology::UnstructuredMesh<MemSpace> make_2x2_mesh() {
     const std::size_t n = 2;
     const double dx = 1.0;
-    Kokkos::View<double*, MemSpace> cx("cx", n * n);
-    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    Kokkos::View<double *, MemSpace> cx("cx", n * n);
+    Kokkos::View<double *, MemSpace> cy("cy", n * n);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             cx(i + j * n) = (static_cast<double>(i) + 0.5) * dx;
             cy(i + j * n) = (static_cast<double>(j) + 0.5) * dx;
         }
     }
-    topology::StructuredGrid<MemSpace> grid(
-        n, n, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::Cartesian3D);
+    topology::StructuredGrid<MemSpace> grid(n, n, std::move(cx), std::move(cy), topology::CoordinateSystem::Cartesian3D);
 
     const std::size_t nc = n + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
-    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    Kokkos::View<double *, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double *, MemSpace> cry("cry", nc * nc);
     for (std::size_t j = 0; j <= n; ++j) {
         for (std::size_t i = 0; i <= n; ++i) {
             crx(i + j * nc) = static_cast<double>(i) * dx;
@@ -67,7 +68,7 @@ struct GmshReadResult {
     std::vector<std::vector<int>> elements;  // node indices (1-based from file)
 };
 
-static GmshReadResult read_gmsh_file(const std::string& path) {
+static GmshReadResult read_gmsh_file(const std::string &path) {
     GmshReadResult result;
     std::ifstream in(path);
     std::string line;
@@ -80,7 +81,8 @@ static GmshReadResult read_gmsh_file(const std::string& path) {
             for (std::size_t i = 0; i < result.n_nodes; ++i) {
                 std::getline(in, line);
                 std::istringstream ss(line);
-                int id; double x, y, z;
+                int id;
+                double x, y, z;
                 ss >> id >> x >> y >> z;
                 result.node_coords[i] = {x, y, z};
             }
@@ -95,7 +97,8 @@ static GmshReadResult read_gmsh_file(const std::string& path) {
                 ss >> id >> elem_type >> n_tags;
                 // skip tags
                 for (int t = 0; t < n_tags; ++t) {
-                    int tag; ss >> tag;
+                    int tag;
+                    ss >> tag;
                 }
                 // read remaining node indices
                 int node_id;
@@ -128,10 +131,8 @@ TEST(GmshRoundtrip, WriteThenRead) {
     // Verify node coordinates match within round-off (Gmsh ASCII has limited precision)
     auto orig_coords = mesh.node_coords();
     for (std::size_t i = 0; i < gmsh.n_nodes; ++i) {
-        EXPECT_NEAR(gmsh.node_coords[i][0], orig_coords(i, 0), 1e-6)
-            << "Node " << i << " x mismatch";
-        EXPECT_NEAR(gmsh.node_coords[i][1], orig_coords(i, 1), 1e-6)
-            << "Node " << i << " y mismatch";
+        EXPECT_NEAR(gmsh.node_coords[i][0], orig_coords(i, 0), 1e-6) << "Node " << i << " x mismatch";
+        EXPECT_NEAR(gmsh.node_coords[i][1], orig_coords(i, 1), 1e-6) << "Node " << i << " y mismatch";
     }
 
     // Cleanup
@@ -148,8 +149,7 @@ TEST(GmshRoundtrip, QuadrilateralElements) {
 
     // All cells in a structured-to-unstructured 2x2 grid are quads (4 nodes)
     for (std::size_t i = 0; i < gmsh.n_elements; ++i) {
-        EXPECT_EQ(gmsh.elements[i].size(), std::size_t(4))
-            << "Element " << i << " is not a quadrilateral";
+        EXPECT_EQ(gmsh.elements[i].size(), std::size_t(4)) << "Element " << i << " is not a quadrilateral";
     }
 
     std::remove(tmp_path.c_str());

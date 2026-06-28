@@ -9,9 +9,8 @@
 /// computation and limiter application. The 3×3 normal-equations solve uses
 /// Cramer's rule (device-portable, no LAPACK dependency).
 
-#include <axis/solver/gradient_reconstructor.hpp>
-
 #include <Kokkos_Core.hpp>
+#include <axis/solver/gradient_reconstructor.hpp>
 #include <cmath>
 
 namespace axis::solver {
@@ -31,19 +30,13 @@ constexpr double SINGULAR_EPS = 1.0e-30;
 /// @param[out] g0,g1,g2  Solution gradient components
 /// @return true if solve succeeded, false if singular
 KOKKOS_INLINE_FUNCTION
-bool solve_3x3_cramer(
-    double n00, double n01, double n02,
-    double n11, double n12, double n22,
-    double r0,  double r1,  double r2,
-    double& g0, double& g1, double& g2) noexcept
-{
+bool solve_3x3_cramer(double n00, double n01, double n02, double n11, double n12, double n22, double r0, double r1, double r2, double &g0, double &g1,
+                      double &g2) noexcept {
     // Determinant of the symmetric matrix:
     // | n00 n01 n02 |
     // | n01 n11 n12 |
     // | n02 n12 n22 |
-    const double det = n00 * (n11 * n22 - n12 * n12)
-                     - n01 * (n01 * n22 - n12 * n02)
-                     + n02 * (n01 * n12 - n11 * n02);
+    const double det = n00 * (n11 * n22 - n12 * n12) - n01 * (n01 * n22 - n12 * n02) + n02 * (n01 * n12 - n11 * n02);
 
     if (Kokkos::fabs(det) < SINGULAR_EPS) {
         g0 = g1 = g2 = 0.0;
@@ -54,47 +47,36 @@ bool solve_3x3_cramer(
 
     // Cramer's rule: replace each column of N with rhs
     // g0 = det(N with col0 replaced by rhs) / det(N)
-    g0 = inv_det * (r0 * (n11 * n22 - n12 * n12)
-                  - n01 * (r1 * n22 - n12 * r2)
-                  + n02 * (r1 * n12 - n11 * r2));
+    g0 = inv_det * (r0 * (n11 * n22 - n12 * n12) - n01 * (r1 * n22 - n12 * r2) + n02 * (r1 * n12 - n11 * r2));
 
-    g1 = inv_det * (n00 * (r1 * n22 - n12 * r2)
-                  - r0 * (n01 * n22 - n12 * n02)
-                  + n02 * (n01 * r2 - r1 * n02));
+    g1 = inv_det * (n00 * (r1 * n22 - n12 * r2) - r0 * (n01 * n22 - n12 * n02) + n02 * (n01 * r2 - r1 * n02));
 
-    g2 = inv_det * (n00 * (n11 * r2 - r1 * n12)
-                  - n01 * (n01 * r2 - r1 * n02)
-                  + r0 * (n01 * n12 - n11 * n02));
+    g2 = inv_det * (n00 * (n11 * r2 - r1 * n12) - n01 * (n01 * r2 - r1 * n02) + r0 * (n01 * n12 - n11 * n02));
 
     return true;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GradientReconstructor::compute — explicit specialization for HostSpace
 // ─────────────────────────────────────────────────────────────────────────────
 
 template <class MemorySpace>
-void GradientReconstructor<MemorySpace>::compute(
-    Kokkos::View<const double*, MemorySpace>    cell_values,
-    Kokkos::View<const double*[3], MemorySpace> centroids,
-    Kokkos::View<const index_t*, MemorySpace>   adj_offsets,
-    Kokkos::View<const index_t*, MemorySpace>   adj_indices,
-    Kokkos::View<double*[3], MemorySpace>       grad,
-    bool use_limiter)
-{
+void GradientReconstructor<MemorySpace>::compute(Kokkos::View<const double *, MemorySpace> cell_values,
+                                                 Kokkos::View<const double *[3], MemorySpace> centroids,
+                                                 Kokkos::View<const index_t *, MemorySpace> adj_offsets,
+                                                 Kokkos::View<const index_t *, MemorySpace> adj_indices, Kokkos::View<double *[3], MemorySpace> grad,
+                                                 bool use_limiter) {
     using execution_space = typename MemorySpace::execution_space;
 
     const auto n_cells = static_cast<int>(cell_values.extent(0));
 
     // ── Phase 1: Compute raw least-squares gradients ────────────────────────
     Kokkos::parallel_for(
-        "GradientReconstructor::compute_gradients",
-        Kokkos::RangePolicy<execution_space>(0, n_cells),
-        KOKKOS_LAMBDA(const int i) {
+        "GradientReconstructor::compute_gradients", Kokkos::RangePolicy<execution_space>(0, n_cells), KOKKOS_LAMBDA(const int i) {
             const auto start = adj_offsets(i);
-            const auto end   = adj_offsets(i + 1);
+            const auto end = adj_offsets(i + 1);
             const auto n_nbr = end - start;
 
             // Fallback: zero gradient for cells with < 3 neighbors
@@ -106,9 +88,9 @@ void GradientReconstructor<MemorySpace>::compute(
             }
 
             const double val_i = cell_values(i);
-            const double cx_i  = centroids(i, 0);
-            const double cy_i  = centroids(i, 1);
-            const double cz_i  = centroids(i, 2);
+            const double cx_i = centroids(i, 0);
+            const double cy_i = centroids(i, 1);
+            const double cz_i = centroids(i, 2);
 
             // Build normal equations: N = A^T A, rhs = A^T b
             // N is symmetric 3×3, only store upper triangle
@@ -140,8 +122,7 @@ void GradientReconstructor<MemorySpace>::compute(
 
             // Solve via Cramer's rule
             double gx, gy, gz;
-            const bool ok = solve_3x3_cramer(
-                n00, n01, n02, n11, n12, n22, r0, r1, r2, gx, gy, gz);
+            const bool ok = solve_3x3_cramer(n00, n01, n02, n11, n12, n22, r0, r1, r2, gx, gy, gz);
 
             if (ok) {
                 grad(i, 0) = gx;
@@ -161,11 +142,9 @@ void GradientReconstructor<MemorySpace>::compute(
     if (!use_limiter) return;
 
     Kokkos::parallel_for(
-        "GradientReconstructor::apply_limiter",
-        Kokkos::RangePolicy<execution_space>(0, n_cells),
-        KOKKOS_LAMBDA(const int i) {
+        "GradientReconstructor::apply_limiter", Kokkos::RangePolicy<execution_space>(0, n_cells), KOKKOS_LAMBDA(const int i) {
             const auto start = adj_offsets(i);
-            const auto end   = adj_offsets(i + 1);
+            const auto end = adj_offsets(i + 1);
             const auto n_nbr = end - start;
 
             // No neighbors → gradient is already zero, nothing to limit
@@ -194,9 +173,7 @@ void GradientReconstructor<MemorySpace>::compute(
                 const double dy = centroids(j, 1) - centroids(i, 1);
                 const double dz = centroids(j, 2) - centroids(i, 2);
 
-                const double delta_f = grad(i, 0) * dx
-                                     + grad(i, 1) * dy
-                                     + grad(i, 2) * dz;
+                const double delta_f = grad(i, 0) * dx + grad(i, 1) * dy + grad(i, 2) * dz;
 
                 if (delta_f > 1.0e-30) {
                     // Positive excursion: limit to (val_max - val_i)
@@ -236,4 +213,4 @@ template struct GradientReconstructor<Kokkos::CudaSpace>;
 template struct GradientReconstructor<Kokkos::HIPSpace>;
 #endif
 
-} // namespace axis::solver
+}  // namespace axis::solver

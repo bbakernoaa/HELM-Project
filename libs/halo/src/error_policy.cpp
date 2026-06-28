@@ -1,11 +1,12 @@
 #include "halo/error_policy.hpp"
-#include "halo/environment.hpp"
 
 #include <mpi.h>
 
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+
+#include "halo/environment.hpp"
 
 namespace halo::detail {
 
@@ -30,11 +31,8 @@ std::string query_comm_name(MPI_Comm comm) {
 ///
 /// Builds the full diagnostic message from components and either throws
 /// or aborts depending on the active ErrorPolicy.
-[[noreturn]] void dispatch_error(int mpi_error_code,
-                                 int neighbor_rank,
-                                 const char* operation,
-                                 const std::string& comm_name,
-                                 const std::string& neighbor_summary) {
+[[noreturn]] void dispatch_error(int mpi_error_code, int neighbor_rank, const char *operation, const std::string &comm_name,
+                                 const std::string &neighbor_summary) {
     // Format the MPI error string.
     char error_string[MPI_MAX_ERROR_STRING];
     int resultlen = 0;
@@ -49,8 +47,7 @@ std::string query_comm_name(MPI_Comm comm) {
     }
 
     // Build the core message.
-    std::string msg = std::string(operation) + " failed for rank " +
-                      std::to_string(neighbor_rank) + ": " +
+    std::string msg = std::string(operation) + " failed for rank " + std::to_string(neighbor_rank) + ": " +
                       std::string(error_string, static_cast<std::size_t>(resultlen));
 
     // Prepend local rank prefix.
@@ -83,33 +80,23 @@ std::string query_comm_name(MPI_Comm comm) {
     throw std::runtime_error(msg);
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
-[[noreturn]] void handle_mpi_error(int mpi_error_code,
-                                   int neighbor_rank,
-                                   const char* operation) {
+[[noreturn]] void handle_mpi_error(int mpi_error_code, int neighbor_rank, const char *operation) {
     dispatch_error(mpi_error_code, neighbor_rank, operation, {}, {});
 }
 
-[[noreturn]] void handle_mpi_error(int mpi_error_code,
-                                   int neighbor_rank,
-                                   const char* operation,
-                                   MPI_Comm comm) {
+[[noreturn]] void handle_mpi_error(int mpi_error_code, int neighbor_rank, const char *operation, MPI_Comm comm) {
     std::string comm_name = query_comm_name(comm);
     dispatch_error(mpi_error_code, neighbor_rank, operation, comm_name, {});
 }
 
-[[noreturn]] void handle_mpi_error(int mpi_error_code,
-                                   int neighbor_rank,
-                                   const char* operation,
-                                   MPI_Comm comm,
-                                   const std::string& neighbor_summary) {
+[[noreturn]] void handle_mpi_error(int mpi_error_code, int neighbor_rank, const char *operation, MPI_Comm comm, const std::string &neighbor_summary) {
     std::string comm_name = query_comm_name(comm);
     dispatch_error(mpi_error_code, neighbor_rank, operation, comm_name, neighbor_summary);
 }
 
-std::string format_neighbor_summary(const int* send_ranks, std::size_t num_send,
-                                    const int* recv_ranks, std::size_t num_recv) {
+std::string format_neighbor_summary(const int *send_ranks, std::size_t num_send, const int *recv_ranks, std::size_t num_recv) {
     std::string result = "send-to:[";
     for (std::size_t i = 0; i < num_send; ++i) {
         if (i > 0) result += ',';
@@ -124,4 +111,4 @@ std::string format_neighbor_summary(const int* send_ranks, std::size_t num_send,
     return result;
 }
 
-} // namespace halo::detail
+}  // namespace halo::detail

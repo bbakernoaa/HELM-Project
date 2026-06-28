@@ -33,7 +33,6 @@
 #include <mpi.h>
 
 #include <Kokkos_Core.hpp>
-
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
@@ -53,7 +52,7 @@ constexpr std::size_t kCount = 4;
 /// detectable (a correct exchange overwrites every sentinel).
 constexpr double kSentinel = -1.0;
 
-using HostView = Kokkos::View<double*, Kokkos::HostSpace>;
+using HostView = Kokkos::View<double *, Kokkos::HostSpace>;
 
 /// The encoded value rank `sender` places at intra-block position `j`.
 /// Every send block of a given rank is identical, so a receiver can predict the
@@ -82,7 +81,7 @@ std::vector<int> ring_neighbors(int rank, int size) {
 
 /// Construct symmetric send/recv neighbor lists (same ranks both directions,
 /// kCount elements each) for a ring exchange.
-std::vector<halo::Neighbor_Info> make_neighbor_info(const std::vector<int>& ranks) {
+std::vector<halo::Neighbor_Info> make_neighbor_info(const std::vector<int> &ranks) {
     std::vector<halo::Neighbor_Info> info;
     info.reserve(ranks.size());
     for (int r : ranks) {
@@ -94,7 +93,7 @@ std::vector<halo::Neighbor_Info> make_neighbor_info(const std::vector<int>& rank
 /// Fill the send region [0, K*kCount) so every per-neighbor block holds the
 /// identical sender-encoded pattern, and pre-fill the receive region with the
 /// sentinel. Layout matches exchange.hpp: [ send region | recv region ].
-void initialize_field(HostView& field, int rank, std::size_t num_neighbors) {
+void initialize_field(HostView &field, int rank, std::size_t num_neighbors) {
     const std::size_t total_send = num_neighbors * kCount;
     for (std::size_t s = 0; s < num_neighbors; ++s) {
         for (std::size_t j = 0; j < kCount; ++j) {
@@ -109,25 +108,21 @@ void initialize_field(HostView& field, int rank, std::size_t num_neighbors) {
 /// Verify the receive region holds exactly the data each neighbor sent.
 /// The recv block for recv-neighbor i (rank N) sits at offset
 /// total_send + i*kCount and must equal { encoded_value(N, j) }.
-void verify_received(const HostView& field,
-                     const std::vector<int>& neighbors,
-                     std::size_t num_send_neighbors) {
+void verify_received(const HostView &field, const std::vector<int> &neighbors, std::size_t num_send_neighbors) {
     const std::size_t total_send = num_send_neighbors * kCount;
     for (std::size_t i = 0; i < neighbors.size(); ++i) {
         const int neighbor_rank = neighbors[i];
         for (std::size_t j = 0; j < kCount; ++j) {
             const double got = field(total_send + i * kCount + j);
             const double expected = encoded_value(neighbor_rank, j);
-            EXPECT_DOUBLE_EQ(got, expected)
-                << "recv block " << i << " (from rank " << neighbor_rank
-                << ") element " << j << " mismatch";
+            EXPECT_DOUBLE_EQ(got, expected) << "recv block " << i << " (from rank " << neighbor_rank << ") element " << j << " mismatch";
         }
     }
 }
 
 /// Test fixture providing the current rank/size and a built ring topology.
 class ExchangeLifecycle : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         comm_ = std::make_unique<halo::Communicator>(MPI_COMM_WORLD);
         rank_ = comm_->rank();
@@ -139,8 +134,7 @@ protected:
     /// receive region for the given symmetric neighbor count.
     HostView make_field() const {
         const std::size_t total = 2 * neighbors_.size() * kCount;
-        return HostView(Kokkos::view_alloc(Kokkos::WithoutInitializing, "field"),
-                        total);
+        return HostView(Kokkos::view_alloc(Kokkos::WithoutInitializing, "field"), total);
     }
 
     std::unique_ptr<halo::Communicator> comm_;
@@ -274,8 +268,7 @@ TEST_F(ExchangeLifecycle, CommunicatorSplitAndDuplicate) {
         halo::Halo_Plan sub_plan(sub, info, info);
 
         const std::size_t total = 2 * sub_neighbors.size() * kCount;
-        HostView field(Kokkos::view_alloc(Kokkos::WithoutInitializing, "sub_field"),
-                       total);
+        HostView field(Kokkos::view_alloc(Kokkos::WithoutInitializing, "sub_field"), total);
         initialize_field(field, sub_rank, sub_neighbors.size());
         halo::exchange_blocking(sub_plan, field);
         verify_received(field, sub_neighbors, sub_neighbors.size());
@@ -294,8 +287,7 @@ TEST_F(ExchangeLifecycle, PlanRejectsInvalidRank) {
 
     // A duplicate rank within one direction is rejected.
     if (size_ >= 1) {
-        std::vector<halo::Neighbor_Info> dup{halo::Neighbor_Info{0, kCount},
-                                             halo::Neighbor_Info{0, kCount}};
+        std::vector<halo::Neighbor_Info> dup{halo::Neighbor_Info{0, kCount}, halo::Neighbor_Info{0, kCount}};
         EXPECT_THROW(halo::Halo_Plan(*comm_, dup, {}), std::invalid_argument);
     }
 }
@@ -305,7 +297,7 @@ TEST_F(ExchangeLifecycle, PlanRejectsInvalidRank) {
 // the HALO Environment singleton once for the whole binary, and tears them down
 // in the reverse order. Registered before RUN_ALL_TESTS via gtest_main.
 class HaloMpiEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         int provided = 0;
         MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &provided);
@@ -322,5 +314,4 @@ public:
 }  // namespace
 
 // Register the environment (gtest_main provides main()).
-static ::testing::Environment* const halo_mpi_env =
-    ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);
+static ::testing::Environment *const halo_mpi_env = ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);

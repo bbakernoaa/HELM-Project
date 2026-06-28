@@ -11,18 +11,15 @@ namespace {
 
 /// @brief Validate a neighbor list against the communicator size.
 /// @throws std::invalid_argument for out-of-range or duplicate ranks.
-void validate_neighbors(const std::vector<Neighbor_Info>& neighbors,
-                        int comm_size,
-                        const char* direction) {
+void validate_neighbors(const std::vector<Neighbor_Info> &neighbors, int comm_size, const char *direction) {
     std::unordered_set<int> seen;
     seen.reserve(neighbors.size());
 
-    for (const auto& info : neighbors) {
+    for (const auto &info : neighbors) {
         // Range check
         if (info.rank < 0 || info.rank >= comm_size) {
             std::ostringstream oss;
-            oss << "Halo_Plan: invalid " << direction << " neighbor rank "
-                << info.rank << "; valid range is [0, " << comm_size << ")";
+            oss << "Halo_Plan: invalid " << direction << " neighbor rank " << info.rank << "; valid range is [0, " << comm_size << ")";
             throw std::invalid_argument(oss.str());
         }
 
@@ -30,31 +27,22 @@ void validate_neighbors(const std::vector<Neighbor_Info>& neighbors,
         auto [it, inserted] = seen.insert(info.rank);
         if (!inserted) {
             std::ostringstream oss;
-            oss << "Halo_Plan: duplicate " << direction << " neighbor rank "
-                << info.rank;
+            oss << "Halo_Plan: duplicate " << direction << " neighbor rank " << info.rank;
             throw std::invalid_argument(oss.str());
         }
     }
 }
 
 /// @brief Compute the sum of element counts across all neighbors.
-std::size_t sum_counts(const std::vector<Neighbor_Info>& neighbors) noexcept {
-    return std::accumulate(
-        neighbors.begin(), neighbors.end(), std::size_t{0},
-        [](std::size_t acc, const Neighbor_Info& info) {
-            return acc + info.count;
-        });
+std::size_t sum_counts(const std::vector<Neighbor_Info> &neighbors) noexcept {
+    return std::accumulate(neighbors.begin(), neighbors.end(), std::size_t{0},
+                           [](std::size_t acc, const Neighbor_Info &info) { return acc + info.count; });
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
-Halo_Plan::Halo_Plan(const Communicator& comm,
-                     std::vector<Neighbor_Info> send_neighbors,
-                     std::vector<Neighbor_Info> recv_neighbors)
-    : comm_{&comm},
-      send_neighbors_{std::move(send_neighbors)},
-      recv_neighbors_{std::move(recv_neighbors)} {
-
+Halo_Plan::Halo_Plan(const Communicator &comm, std::vector<Neighbor_Info> send_neighbors, std::vector<Neighbor_Info> recv_neighbors)
+    : comm_{&comm}, send_neighbors_{std::move(send_neighbors)}, recv_neighbors_{std::move(recv_neighbors)} {
     const int comm_size = comm.size();
 
     // Validate send and receive neighbor lists
@@ -90,8 +78,8 @@ std::size_t Halo_Plan::total_recv_elements() const noexcept {
     return total_recv_;
 }
 
-const Communicator& Halo_Plan::communicator() const noexcept {
+const Communicator &Halo_Plan::communicator() const noexcept {
     return *comm_;
 }
 
-} // namespace halo
+}  // namespace halo

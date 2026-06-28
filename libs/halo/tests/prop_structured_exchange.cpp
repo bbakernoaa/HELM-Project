@@ -16,16 +16,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-#include <mpi.h>
 
 #include "halo/communicator.hpp"
 #include "halo/detail/pack_unpack.hpp"
@@ -58,8 +57,7 @@ RC_GTEST_PROP(StructuredExchangeProps, PackUnpackIsIdentity, ()) {
     const auto n1 = static_cast<std::size_t>(*rc::gen::inRange(2, 33));
 
     // Create source view and fill with deterministic pattern
-    Kokkos::View<double**, Kokkos::LayoutRight, Kokkos::HostSpace>
-        src("src", n0, n1);
+    Kokkos::View<double **, Kokkos::LayoutRight, Kokkos::HostSpace> src("src", n0, n1);
 
     for (std::size_t i = 0; i < n0; ++i) {
         for (std::size_t j = 0; j < n1; ++j) {
@@ -69,12 +67,11 @@ RC_GTEST_PROP(StructuredExchangeProps, PackUnpackIsIdentity, ()) {
 
     // Pack into flat buffer
     const std::size_t total = n0 * n1;
-    Kokkos::View<double*, Kokkos::HostSpace> buffer("buffer", total);
+    Kokkos::View<double *, Kokkos::HostSpace> buffer("buffer", total);
     halo::detail::pack(src, buffer);
 
     // Unpack into a fresh destination view
-    Kokkos::View<double**, Kokkos::LayoutRight, Kokkos::HostSpace>
-        dst("dst", n0, n1);
+    Kokkos::View<double **, Kokkos::LayoutRight, Kokkos::HostSpace> dst("dst", n0, n1);
     halo::detail::unpack(buffer, dst);
 
     // Verify element-wise equality
@@ -94,8 +91,7 @@ RC_GTEST_PROP(StructuredExchangeProps, PackUnpackIdentityLayoutLeft, ()) {
     const auto n0 = static_cast<std::size_t>(*rc::gen::inRange(2, 33));
     const auto n1 = static_cast<std::size_t>(*rc::gen::inRange(2, 33));
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace>
-        src("src_ll", n0, n1);
+    Kokkos::View<double **, Kokkos::LayoutLeft, Kokkos::HostSpace> src("src_ll", n0, n1);
 
     for (std::size_t i = 0; i < n0; ++i) {
         for (std::size_t j = 0; j < n1; ++j) {
@@ -104,11 +100,10 @@ RC_GTEST_PROP(StructuredExchangeProps, PackUnpackIdentityLayoutLeft, ()) {
     }
 
     const std::size_t total = n0 * n1;
-    Kokkos::View<double*, Kokkos::HostSpace> buffer("buffer_ll", total);
+    Kokkos::View<double *, Kokkos::HostSpace> buffer("buffer_ll", total);
     halo::detail::pack(src, buffer);
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace>
-        dst("dst_ll", n0, n1);
+    Kokkos::View<double **, Kokkos::LayoutLeft, Kokkos::HostSpace> dst("dst_ll", n0, n1);
     halo::detail::unpack(buffer, dst);
 
     for (std::size_t i = 0; i < n0; ++i) {
@@ -134,8 +129,7 @@ RC_GTEST_PROP(StructuredExchangeProps, PackUnpackIdentityStrided, ()) {
     const auto start1 = static_cast<std::size_t>(*rc::gen::inRange(0, static_cast<int>(outer_n1 - 2)));
     const auto end1 = static_cast<std::size_t>(*rc::gen::inRange(static_cast<int>(start1 + 2), static_cast<int>(outer_n1) + 1));
 
-    Kokkos::View<double**, Kokkos::LayoutRight, Kokkos::HostSpace>
-        outer("outer", outer_n0, outer_n1);
+    Kokkos::View<double **, Kokkos::LayoutRight, Kokkos::HostSpace> outer("outer", outer_n0, outer_n1);
 
     // Fill the whole outer view
     for (std::size_t i = 0; i < outer_n0; ++i) {
@@ -145,21 +139,18 @@ RC_GTEST_PROP(StructuredExchangeProps, PackUnpackIdentityStrided, ()) {
     }
 
     // Extract strided subview
-    auto sub = Kokkos::subview(outer,
-        Kokkos::make_pair(start0, end0),
-        Kokkos::make_pair(start1, end1));
+    auto sub = Kokkos::subview(outer, Kokkos::make_pair(start0, end0), Kokkos::make_pair(start1, end1));
 
     const std::size_t sub_n0 = end0 - start0;
     const std::size_t sub_n1 = end1 - start1;
     const std::size_t total = sub_n0 * sub_n1;
 
     // Pack the subview
-    Kokkos::View<double*, Kokkos::HostSpace> buffer("buf_strided", total);
+    Kokkos::View<double *, Kokkos::HostSpace> buffer("buf_strided", total);
     halo::detail::pack(sub, buffer);
 
     // Unpack into a fresh view of matching shape
-    Kokkos::View<double**, Kokkos::LayoutRight, Kokkos::HostSpace>
-        dst("dst_strided", sub_n0, sub_n1);
+    Kokkos::View<double **, Kokkos::LayoutRight, Kokkos::HostSpace> dst("dst_strided", sub_n0, sub_n1);
     halo::detail::unpack(buffer, dst);
 
     // Verify
@@ -214,7 +205,7 @@ RC_GTEST_PROP(StructuredExchangeProps, RoundTripPreservesHaloData, ()) {
     halo::Structured_Halo_Plan<2> plan(extents, neighbors, halo_widths, comm);
 
     // Create and fill view
-    Kokkos::View<double**, Kokkos::LayoutRight> view("prop_field", total_dim, total_dim1);
+    Kokkos::View<double **, Kokkos::LayoutRight> view("prop_field", total_dim, total_dim1);
     auto h_view = Kokkos::create_mirror_view(view);
 
     const double sentinel = -999.0;
@@ -308,7 +299,7 @@ RC_GTEST_PROP(StructuredExchangeProps, PersistentEqualsNonPersistent, ()) {
     const std::size_t total = 2 * count;
 
     // ─── Non-persistent exchange ────────────────────────────────────────────
-    Kokkos::View<double*, Kokkos::HostSpace> field_np("np_field", total);
+    Kokkos::View<double *, Kokkos::HostSpace> field_np("np_field", total);
     // Fill send region with rank-encoded data
     for (std::size_t j = 0; j < count; ++j) {
         field_np(j) = static_cast<double>(g_rank) * 1000.0 + static_cast<double>(j);
@@ -321,7 +312,7 @@ RC_GTEST_PROP(StructuredExchangeProps, PersistentEqualsNonPersistent, ()) {
     halo::exchange_blocking(plan, field_np);
 
     // ─── Persistent exchange ────────────────────────────────────────────────
-    Kokkos::View<double*, Kokkos::HostSpace> field_p("p_field", total);
+    Kokkos::View<double *, Kokkos::HostSpace> field_p("p_field", total);
     // Fill identically
     for (std::size_t j = 0; j < count; ++j) {
         field_p(j) = static_cast<double>(g_rank) * 1000.0 + static_cast<double>(j);
@@ -343,7 +334,7 @@ RC_GTEST_PROP(StructuredExchangeProps, PersistentEqualsNonPersistent, ()) {
 // ─── Global MPI + Kokkos + HALO environment ─────────────────────────────────
 
 class HaloMpiEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         int provided = 0;
         MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &provided);
@@ -363,5 +354,4 @@ public:
 }  // namespace
 
 // Register the environment (gtest_main provides main()).
-static ::testing::Environment* const halo_mpi_env =
-    ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);
+static ::testing::Environment *const halo_mpi_env = ::testing::AddGlobalTestEnvironment(new HaloMpiEnvironment);

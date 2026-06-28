@@ -17,13 +17,8 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
+#include <algorithm>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
@@ -31,6 +26,9 @@
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <vector>
 
 namespace {
 
@@ -64,43 +62,37 @@ rc::Gen<std::size_t> genDstNj() {
 /// Generate a non-negative longitude start in [0, 180).
 /// Using Cartesian-like coordinates for easy verification.
 rc::Gen<double> genLonMin() {
-    return rc::gen::map(rc::gen::inRange(0, 18000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(0, 18000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a non-negative latitude start in [0, 60).
 rc::Gen<double> genLatMin() {
-    return rc::gen::map(rc::gen::inRange(0, 6000),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(0, 6000), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate a positive grid extent (range) in [1.0, 50.0].
 rc::Gen<double> genExtent() {
-    return rc::gen::map(rc::gen::inRange(100, 5001),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(100, 5001), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 /// Generate coefficients for the linear test field f(x,y) = a*x + b*y + c.
 /// Values in [-10.0, 10.0] to avoid extreme magnitudes.
 rc::Gen<double> genCoeff() {
-    return rc::gen::map(rc::gen::inRange(-1000, 1001),
-                        [](int v) { return static_cast<double>(v) / 100.0; });
+    return rc::gen::map(rc::gen::inRange(-1000, 1001), [](int v) { return static_cast<double>(v) / 100.0; });
 }
 
 // ─── Helper: Build a regular lat-lon grid as UnstructuredMesh ────────────────
 
 /// Constructs a regular grid with ni×nj cells covering
 /// [lon_min, lon_min + lon_extent] × [lat_min, lat_min + lat_extent].
-axis::topology::UnstructuredMesh<MemSpace>
-make_regular_grid(std::size_t ni, std::size_t nj,
-                  double lon_min, double lon_extent,
-                  double lat_min, double lat_extent) {
+axis::topology::UnstructuredMesh<MemSpace> make_regular_grid(std::size_t ni, std::size_t nj, double lon_min, double lon_extent, double lat_min,
+                                                             double lat_extent) {
     const double delta_lon = lon_extent / static_cast<double>(ni);
     const double delta_lat = lat_extent / static_cast<double>(nj);
 
     // Cell centers
-    Kokkos::View<double*, MemSpace> cx("cx", ni * nj);
-    Kokkos::View<double*, MemSpace> cy("cy", ni * nj);
+    Kokkos::View<double *, MemSpace> cx("cx", ni * nj);
+    Kokkos::View<double *, MemSpace> cy("cy", ni * nj);
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon_min + (static_cast<double>(i) + 0.5) * delta_lon;
@@ -108,15 +100,13 @@ make_regular_grid(std::size_t ni, std::size_t nj,
         }
     }
 
-    axis::topology::StructuredGrid<MemSpace> grid(
-        ni, nj, std::move(cx), std::move(cy),
-        axis::topology::CoordinateSystem::SphericalDeg);
+    axis::topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), axis::topology::CoordinateSystem::SphericalDeg);
 
     // Corner coordinates: (ni+1) × (nj+1) nodes
     const std::size_t nc_lon = ni + 1;
     const std::size_t nc_lat = nj + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc_lon * nc_lat);
-    Kokkos::View<double*, MemSpace> cry("cry", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> crx("crx", nc_lon * nc_lat);
+    Kokkos::View<double *, MemSpace> cry("cry", nc_lon * nc_lat);
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * nc_lon) = lon_min + static_cast<double>(i) * delta_lon;
@@ -147,9 +137,7 @@ make_regular_grid(std::size_t ni, std::size_t nj,
 // is equivalent to agreement with any correct bilinear implementation (BVH path).
 // ─────────────────────────────────────────────────────────────────────────────
 
-RC_GTEST_PROP(PropBilinearRectAgreement,
-              LinearFieldReproduction,
-              ()) {
+RC_GTEST_PROP(PropBilinearRectAgreement, LinearFieldReproduction, ()) {
     // Generate random grid dimensions
     const auto src_ni = *genSrcNi();
     const auto src_nj = *genSrcNj();
@@ -185,12 +173,8 @@ RC_GTEST_PROP(PropBilinearRectAgreement,
     RC_PRE(dst_lon_extent > 0.0);
     RC_PRE(dst_lat_extent > 0.0);
 
-    auto src_mesh = make_regular_grid(src_ni, src_nj,
-                                      lon_min, lon_extent,
-                                      lat_min, lat_extent);
-    auto dst_mesh = make_regular_grid(dst_ni, dst_nj,
-                                      dst_lon_min, dst_lon_extent,
-                                      dst_lat_min, dst_lat_extent);
+    auto src_mesh = make_regular_grid(src_ni, src_nj, lon_min, lon_extent, lat_min, lat_extent);
+    auto dst_mesh = make_regular_grid(dst_ni, dst_nj, dst_lon_min, dst_lon_extent, dst_lat_min, dst_lat_extent);
 
     // Configure bilinear interpolation
     axis::solver::RegridConfig cfg;
@@ -199,8 +183,7 @@ RC_GTEST_PROP(PropBilinearRectAgreement,
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Generate interpolation weights via the fast-path
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     RC_ASSERT(matrix.nnz() > 0);
 
@@ -211,7 +194,7 @@ RC_GTEST_PROP(PropBilinearRectAgreement,
     RC_ASSERT(matrix.n_src() == n_src);
     RC_ASSERT(matrix.n_dst() == n_dst);
 
-    Kokkos::View<double*, MemSpace> src_field("src_field", n_src);
+    Kokkos::View<double *, MemSpace> src_field("src_field", n_src);
     for (std::size_t j = 0; j < src_nj; ++j) {
         for (std::size_t i = 0; i < src_ni; ++i) {
             double lon = lon_min + (static_cast<double>(i) + 0.5) * src_delta_lon;
@@ -221,7 +204,7 @@ RC_GTEST_PROP(PropBilinearRectAgreement,
     }
 
     // Apply interpolation: dst_field = matrix * src_field
-    Kokkos::View<double*, MemSpace> dst_field("dst_field", n_dst);
+    Kokkos::View<double *, MemSpace> dst_field("dst_field", n_dst);
 
     axis::field_view<const double, 1> src_view(src_field.data(), n_src);
     axis::field_view<double, 1> dst_view(dst_field.data(), n_dst);
@@ -265,9 +248,7 @@ RC_GTEST_PROP(PropBilinearRectAgreement,
 // BVH path also produces unit row sums for interior bilinear interpolation.
 // ─────────────────────────────────────────────────────────────────────────────
 
-RC_GTEST_PROP(PropBilinearRectAgreement,
-              WeightRowSumsAreUnity,
-              ()) {
+RC_GTEST_PROP(PropBilinearRectAgreement, WeightRowSumsAreUnity, ()) {
     const auto src_ni = *genSrcNi();
     const auto src_nj = *genSrcNj();
     const auto dst_ni = *genDstNi();
@@ -278,20 +259,15 @@ RC_GTEST_PROP(PropBilinearRectAgreement,
     const auto lon_extent = *genExtent();
     const auto lat_extent = *genExtent();
 
-    auto src_mesh = make_regular_grid(src_ni, src_nj,
-                                      lon_min, lon_extent,
-                                      lat_min, lat_extent);
-    auto dst_mesh = make_regular_grid(dst_ni, dst_nj,
-                                      lon_min, lon_extent,
-                                      lat_min, lat_extent);
+    auto src_mesh = make_regular_grid(src_ni, src_nj, lon_min, lon_extent, lat_min, lat_extent);
+    auto dst_mesh = make_regular_grid(dst_ni, dst_nj, lon_min, lon_extent, lat_min, lat_extent);
 
     axis::solver::RegridConfig cfg;
     cfg.method = axis::solver::InterpolationMethod::Bilinear;
     cfg.line_type = axis::solver::LineType::GreatCircle;
     cfg.unmapped = axis::solver::UnmappedAction::Ignore;
 
-    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(
-        src_mesh, dst_mesh, cfg);
+    auto matrix = axis::solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
 
     RC_ASSERT(matrix.nnz() > 0);
 
@@ -323,7 +299,7 @@ RC_GTEST_PROP(PropBilinearRectAgreement,
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -336,7 +312,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

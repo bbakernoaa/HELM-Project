@@ -11,13 +11,13 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include "dagr/pipeline_config.hpp"
-
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
+
+#include "dagr/pipeline_config.hpp"
 
 namespace {
 
@@ -66,11 +66,8 @@ rc::Gen<std::string> gen_dataset_path() {
 }
 
 /// Serialize a single stream entry to YAML text.
-std::string stream_to_yaml(const std::string& name,
-                           const std::string& temporal_profile,
-                           const std::string& oob_policy,
-                           const std::string& dataset_path,
-                           const std::string& snapshot_interval) {
+std::string stream_to_yaml(const std::string &name, const std::string &temporal_profile, const std::string &oob_policy,
+                           const std::string &dataset_path, const std::string &snapshot_interval) {
     std::string yaml;
     yaml += "  - name: " + name + "\n";
     yaml += "    temporal_profile: " + temporal_profile + "\n";
@@ -81,10 +78,9 @@ std::string stream_to_yaml(const std::string& name,
 }
 
 /// Helper: create a temporary YAML file and return its path.
-std::filesystem::path write_temp_yaml(const std::string& content) {
+std::filesystem::path write_temp_yaml(const std::string &content) {
     static int counter = 0;
-    auto path = std::filesystem::temp_directory_path()
-                / ("dagr_prop_duplicate_stream_" + std::to_string(++counter) + ".yaml");
+    auto path = std::filesystem::temp_directory_path() / ("dagr_prop_duplicate_stream_" + std::to_string(++counter) + ".yaml");
     std::ofstream ofs(path);
     ofs << content;
     ofs.close();
@@ -94,17 +90,17 @@ std::filesystem::path write_temp_yaml(const std::string& content) {
 /// RAII guard for temporary files.
 struct TempFileGuard {
     std::filesystem::path path;
-    ~TempFileGuard() { std::filesystem::remove(path); }
+    ~TempFileGuard() {
+        std::filesystem::remove(path);
+    }
 };
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─── Property 12: Duplicate stream name is rejected ──────────────────────────
 // **Validates: Requirements 2.9**
 
-RC_GTEST_PROP(DuplicateStreamRejection,
-              DuplicateStreamNameThrows,
-              ()) {
+RC_GTEST_PROP(DuplicateStreamRejection, DuplicateStreamNameThrows, ()) {
     // Generate a number of unique base streams (2–8)
     auto stream_count = *rc::gen::inRange<std::uint32_t>(2, 9);
 
@@ -150,9 +146,8 @@ RC_GTEST_PROP(DuplicateStreamRejection,
     // parse_pipeline must throw std::invalid_argument
     try {
         (void)dagr::parse_pipeline(path);
-        RC_FAIL("parse_pipeline did not throw for duplicate stream name: '"
-                + duplicate_name + "'");
-    } catch (const std::invalid_argument& e) {
+        RC_FAIL("parse_pipeline did not throw for duplicate stream name: '" + duplicate_name + "'");
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
 
         // Error message must report the duplicate stream name
@@ -164,9 +159,7 @@ RC_GTEST_PROP(DuplicateStreamRejection,
 // Ensures the duplicate is detected regardless of positioning in the stream list.
 // **Validates: Requirements 2.9**
 
-RC_GTEST_PROP(DuplicateStreamRejection,
-              TwoIdenticalStreamsAtAnyPosition,
-              ()) {
+RC_GTEST_PROP(DuplicateStreamRejection, TwoIdenticalStreamsAtAnyPosition, ()) {
     // Generate a shared name for the duplicate pair
     auto duplicate_name = *gen_stream_name();
 
@@ -215,9 +208,8 @@ RC_GTEST_PROP(DuplicateStreamRejection,
     // parse_pipeline must throw std::invalid_argument
     try {
         (void)dagr::parse_pipeline(path);
-        RC_FAIL("parse_pipeline did not throw for duplicate stream name: '"
-                + duplicate_name + "'");
-    } catch (const std::invalid_argument& e) {
+        RC_FAIL("parse_pipeline did not throw for duplicate stream name: '" + duplicate_name + "'");
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
 
         // Error message must report the duplicate stream name

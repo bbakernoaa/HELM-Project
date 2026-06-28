@@ -13,25 +13,24 @@
 ///
 /// Validates: Requirements 7.6, 7.7, 1.4, 8.4, 8.10
 
-#include <logs/logger.hpp>
-#include <logs/scoped_context.hpp>
-#include <logs/stack_trace.hpp>
-
-#include "in_memory_sink.hpp"
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <logs/logger.hpp>
+#include <logs/scoped_context.hpp>
+#include <logs/stack_trace.hpp>
 #include <string>
 #include <vector>
+
+#include "in_memory_sink.hpp"
 
 namespace {
 
 /// Helper: concatenate all entries from an In_Memory_Sink into one string.
-std::string collect_output(const logs::testing::In_Memory_Sink& sink) {
+std::string collect_output(const logs::testing::In_Memory_Sink &sink) {
     std::string result;
-    for (const auto& entry : sink.entries()) {
+    for (const auto &entry : sink.entries()) {
         result += entry;
     }
     return result;
@@ -64,13 +63,7 @@ TEST(StackTraceAttachment, IncludeStackTraceTrue_CarriesStackTraceText) {
     }
 
     // Construct a Log_Record the same way the Logger does internally.
-    logs::Log_Record record(
-        logs::Severity_Level::ERROR,
-        "something failed",
-        0,
-        std::nullopt,
-        {},
-        std::move(stack_trace_text));
+    logs::Log_Record record(logs::Severity_Level::ERROR, "something failed", 0, std::nullopt, {}, std::move(stack_trace_text));
 
     // The record must carry stack_trace text.
     ASSERT_TRUE(record.stack_trace().has_value());
@@ -99,13 +92,7 @@ TEST(StackTraceAttachment, IncludeStackTraceFalse_NoStackTraceText) {
         stack_trace_text = logs::format_stack_trace(opts.frames);
     }
 
-    logs::Log_Record record(
-        logs::Severity_Level::ERROR,
-        "something failed",
-        0,
-        std::nullopt,
-        {},
-        std::move(stack_trace_text));
+    logs::Log_Record record(logs::Severity_Level::ERROR, "something failed", 0, std::nullopt, {}, std::move(stack_trace_text));
 
     // The record must NOT carry stack_trace text.
     EXPECT_FALSE(record.stack_trace().has_value());
@@ -133,8 +120,7 @@ TEST(ContextCapture, ActiveLabels_CarriedOutermostToInnermost) {
 
     // The formatted record includes context as:
     // [initialization > grid_setup > interpolation]
-    EXPECT_NE(output.find("[initialization > grid_setup > interpolation]"),
-              std::string::npos)
+    EXPECT_NE(output.find("[initialization > grid_setup > interpolation]"), std::string::npos)
         << "Expected outermost-to-innermost context labels in output: " << output;
 }
 
@@ -176,9 +162,7 @@ TEST(ContextCapture, NoActiveLabels_EmptyContextSequence) {
 // **Validates: Requirements 7.6, 7.7**
 // ─────────────────────────────────────────────────────────────────────────────
 
-RC_GTEST_PROP(ConditionalStackTrace,
-              Property28_StackTracePresentIffRequested,
-              ()) {
+RC_GTEST_PROP(ConditionalStackTrace, Property28_StackTracePresentIffRequested, ()) {
     // Generate arbitrary frames (0 to 10).
     const auto num_frames = *rc::gen::inRange(0, 10);
     std::vector<logs::Stack_Frame> frames;
@@ -204,18 +188,11 @@ RC_GTEST_PROP(ConditionalStackTrace,
     // stack_trace_text is set iff (include_trace AND frames non-empty).
     std::optional<std::string> stack_trace_text;
     if (include_trace && !frames.empty()) {
-        stack_trace_text = logs::format_stack_trace(
-            std::span<const logs::Stack_Frame>(frames));
+        stack_trace_text = logs::format_stack_trace(std::span<const logs::Stack_Frame>(frames));
     }
 
     // Construct a Log_Record with the same logic the Logger uses.
-    logs::Log_Record record(
-        logs::Severity_Level::WARNING,
-        "test message",
-        0,
-        std::nullopt,
-        {},
-        stack_trace_text);
+    logs::Log_Record record(logs::Severity_Level::WARNING, "test message", 0, std::nullopt, {}, stack_trace_text);
 
     // Property: stack_trace is present iff (include_trace AND frames non-empty).
     if (include_trace && !frames.empty()) {
@@ -227,4 +204,4 @@ RC_GTEST_PROP(ConditionalStackTrace,
     }
 }
 
-} // namespace
+}  // namespace

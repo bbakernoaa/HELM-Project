@@ -3,10 +3,11 @@
 
 #include <gtest/gtest.h>
 #include <rapidcheck/gtest.h>
+
+#include <cstdint>
+#include <limits>
 #include <tick/duration.hpp>
 #include <tick/time_point.hpp>
-#include <limits>
-#include <cstdint>
 
 // ============================================================
 // Property-based tests (RapidCheck)
@@ -23,8 +24,8 @@ RC_GTEST_PROP(DurationArithmetic, AdditionIsExactIntegerMath, ()) {
     auto a_val = *rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL, 4'000'000'000'000'000'000LL);
     auto b_val = *rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL, 4'000'000'000'000'000'000LL);
     // Precondition: no overflow
-    bool no_overflow = (b_val > 0) ? (a_val <= std::numeric_limits<std::int64_t>::max() - b_val)
-                                   : (a_val >= std::numeric_limits<std::int64_t>::min() - b_val);
+    bool no_overflow =
+        (b_val > 0) ? (a_val <= std::numeric_limits<std::int64_t>::max() - b_val) : (a_val >= std::numeric_limits<std::int64_t>::min() - b_val);
     RC_PRE(no_overflow);
     auto a = tick::Duration{a_val};
     auto b = tick::Duration{b_val};
@@ -36,8 +37,8 @@ RC_GTEST_PROP(DurationArithmetic, SubtractionIsExactIntegerMath, ()) {
     auto a_val = *rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL, 4'000'000'000'000'000'000LL);
     auto b_val = *rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL, 4'000'000'000'000'000'000LL);
     // Precondition: no overflow in subtraction (a - b)
-    bool no_overflow = (b_val < 0) ? (a_val <= std::numeric_limits<std::int64_t>::max() + b_val)
-                                   : (a_val >= std::numeric_limits<std::int64_t>::min() + b_val);
+    bool no_overflow =
+        (b_val < 0) ? (a_val <= std::numeric_limits<std::int64_t>::max() + b_val) : (a_val >= std::numeric_limits<std::int64_t>::min() + b_val);
     RC_PRE(no_overflow);
     auto a = tick::Duration{a_val};
     auto b = tick::Duration{b_val};
@@ -70,8 +71,8 @@ RC_GTEST_PROP(DurationArithmetic, TimePointPlusDurationIsExact, ()) {
     auto tp_val = *rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL, 4'000'000'000'000'000'000LL);
     auto d_val = *rc::gen::inRange<std::int64_t>(-4'000'000'000'000'000'000LL, 4'000'000'000'000'000'000LL);
     // Precondition: no overflow
-    bool no_overflow = (d_val > 0) ? (tp_val <= std::numeric_limits<std::int64_t>::max() - d_val)
-                                   : (tp_val >= std::numeric_limits<std::int64_t>::min() - d_val);
+    bool no_overflow =
+        (d_val > 0) ? (tp_val <= std::numeric_limits<std::int64_t>::max() - d_val) : (tp_val >= std::numeric_limits<std::int64_t>::min() - d_val);
     RC_PRE(no_overflow);
     auto tp = tick::Time_Point{tp_val};
     auto d = tick::Duration{d_val};

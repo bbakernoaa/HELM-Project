@@ -10,9 +10,8 @@
 /// Kokkos memory spaces so that downstream translation units do not need
 /// to include the full Kokkos headers to link against the class.
 
-#include <axis/solver/interpolation_matrix.hpp>
-
 #include <Kokkos_Core.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
 
 namespace axis::solver {
 
@@ -30,4 +29,4 @@ template class InterpolationMatrix<Kokkos::CudaSpace>;
 template class InterpolationMatrix<Kokkos::HIPSpace>;
 #endif
 
-} // namespace axis::solver
+}  // namespace axis::solver

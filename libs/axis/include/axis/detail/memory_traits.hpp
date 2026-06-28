@@ -89,6 +89,6 @@ inline constexpr bool is_device_space_v = is_device_space<MemorySpace>::value;
 template <class MemorySpace>
 using exec_space_t = typename MemorySpace::execution_space;
 
-} // namespace axis::detail
+}  // namespace axis::detail
 
-#endif // AXIS_DETAIL_MEMORY_TRAITS_HPP
+#endif  // AXIS_DETAIL_MEMORY_TRAITS_HPP

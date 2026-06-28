@@ -2,8 +2,9 @@
 // AXIS — Arbitrary eXgrid Interpolation Solver
 // Copyright (c) HELM Project Contributors
 
-#include <axis/io/esmf_weight_io.hpp>
 #include <netcdf.h>
+
+#include <axis/io/esmf_weight_io.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -15,7 +16,7 @@ namespace axis::io {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class NetCdf_Handle {
-public:
+   public:
     explicit NetCdf_Handle(int ncid) noexcept : ncid_(ncid) {}
 
     ~NetCdf_Handle() noexcept {
@@ -24,11 +25,11 @@ public:
         }
     }
 
-    NetCdf_Handle(NetCdf_Handle&& other) noexcept : ncid_(other.ncid_) {
+    NetCdf_Handle(NetCdf_Handle &&other) noexcept : ncid_(other.ncid_) {
         other.ncid_ = -1;
     }
 
-    NetCdf_Handle& operator=(NetCdf_Handle&& other) noexcept {
+    NetCdf_Handle &operator=(NetCdf_Handle &&other) noexcept {
         if (this != &other) {
             if (ncid_ >= 0) ::nc_close(ncid_);
             ncid_ = other.ncid_;
@@ -37,13 +38,17 @@ public:
         return *this;
     }
 
-    NetCdf_Handle(const NetCdf_Handle&) = delete;
-    NetCdf_Handle& operator=(const NetCdf_Handle&) = delete;
+    NetCdf_Handle(const NetCdf_Handle &) = delete;
+    NetCdf_Handle &operator=(const NetCdf_Handle &) = delete;
 
-    [[nodiscard]] int get() const noexcept { return ncid_; }
-    [[nodiscard]] explicit operator bool() const noexcept { return ncid_ >= 0; }
+    [[nodiscard]] int get() const noexcept {
+        return ncid_;
+    }
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return ncid_ >= 0;
+    }
 
-private:
+   private:
     int ncid_ = -1;
 };
 
@@ -51,19 +56,16 @@ private:
 // Error handling macros for NetCDF C-API
 // ─────────────────────────────────────────────────────────────────────────────
 
-#define AXIS_NC_CHECK(err) \
-    do { \
-        int e = (err); \
-        if (e != NC_NOERR) { \
+#define AXIS_NC_CHECK(err)                                                                 \
+    do {                                                                                   \
+        int e = (err);                                                                     \
+        if (e != NC_NOERR) {                                                               \
             throw std::runtime_error("AXIS NetCDF Error: " + std::string(nc_strerror(e))); \
-        } \
+        }                                                                                  \
     } while (0)
 
 template <typename MemorySpace>
-void EsmfWeightIO<MemorySpace>::write_esmf(
-    const std::string& filepath,
-    const solver::InterpolationMatrix<MemorySpace>& matrix) {
-
+void EsmfWeightIO<MemorySpace>::write_esmf(const std::string &filepath, const solver::InterpolationMatrix<MemorySpace> &matrix) {
     const std::size_t n_src = matrix.n_src();
     const std::size_t n_dst = matrix.n_dst();
     const std::size_t nnz = matrix.nnz();
@@ -119,9 +121,7 @@ void EsmfWeightIO<MemorySpace>::write_esmf(
 }
 
 template <typename MemorySpace>
-solver::InterpolationMatrix<MemorySpace> EsmfWeightIO<MemorySpace>::read_esmf(
-    const std::string& filepath) {
-
+solver::InterpolationMatrix<MemorySpace> EsmfWeightIO<MemorySpace>::read_esmf(const std::string &filepath) {
     int ncid_raw;
     AXIS_NC_CHECK(nc_open(filepath.c_str(), NC_NOWRITE, &ncid_raw));
     NetCdf_Handle handle(ncid_raw);
@@ -145,7 +145,7 @@ solver::InterpolationMatrix<MemorySpace> EsmfWeightIO<MemorySpace>::read_esmf(
     int ndims;
     int dimids[1];
     AXIS_NC_CHECK(nc_inq_var(ncid, var_s, nullptr, nullptr, &ndims, dimids, nullptr));
-    
+
     std::size_t nnz;
     AXIS_NC_CHECK(nc_inq_dimlen(ncid, dimids[0], &nnz));
 
@@ -159,9 +159,9 @@ solver::InterpolationMatrix<MemorySpace> EsmfWeightIO<MemorySpace>::read_esmf(
     AXIS_NC_CHECK(nc_get_var_int(ncid, var_row, row_idx.data()));
 
     // Translate 1-based back to 0-based
-    Kokkos::View<index_t*, Kokkos::HostSpace> host_rows("h_rows", nnz);
-    Kokkos::View<index_t*, Kokkos::HostSpace> host_cols("h_cols", nnz);
-    Kokkos::View<double*, Kokkos::HostSpace>  host_vals("h_vals", nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> host_rows("h_rows", nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> host_cols("h_cols", nnz);
+    Kokkos::View<double *, Kokkos::HostSpace> host_vals("h_vals", nnz);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         host_rows(k) = static_cast<index_t>(row_idx[k] - 1);
@@ -174,15 +174,10 @@ solver::InterpolationMatrix<MemorySpace> EsmfWeightIO<MemorySpace>::read_esmf(
     auto dev_vals = Kokkos::create_mirror_view_and_copy(MemorySpace(), host_vals);
 
     return solver::InterpolationMatrix<MemorySpace>(
-        dev_vals, dev_rows, dev_cols,
-        Kokkos::View<double*, MemorySpace>("frac_a", n_src),
-        Kokkos::View<double*, MemorySpace>("frac_b", n_dst),
-        Kokkos::View<double*, MemorySpace>("area_a", n_src),
-        Kokkos::View<double*, MemorySpace>("area_b", n_dst),
-        n_src, n_dst
-    );
+        dev_vals, dev_rows, dev_cols, Kokkos::View<double *, MemorySpace>("frac_a", n_src), Kokkos::View<double *, MemorySpace>("frac_b", n_dst),
+        Kokkos::View<double *, MemorySpace>("area_a", n_src), Kokkos::View<double *, MemorySpace>("area_b", n_dst), n_src, n_dst);
 }
 
 template class EsmfWeightIO<Kokkos::HostSpace>;
 
-} // namespace axis::io
+}  // namespace axis::io

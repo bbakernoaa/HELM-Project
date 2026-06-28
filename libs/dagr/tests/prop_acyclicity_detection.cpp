@@ -12,23 +12,22 @@
 #include <rapidcheck/gtest.h>
 
 #include <dagr/pipeline_config.hpp>
-#include "generators.hpp"
-
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "generators.hpp"
+
 namespace {
 
 /// RAII temp file helper: creates a unique temp file, writes content, and
 /// removes the file on destruction.
 class Temp_YAML_File {
-public:
-    explicit Temp_YAML_File(const std::string& content) {
-        path_ = std::filesystem::temp_directory_path() /
-                ("dagr_acyclicity_" + std::to_string(counter_++) + ".yaml");
+   public:
+    explicit Temp_YAML_File(const std::string &content) {
+        path_ = std::filesystem::temp_directory_path() / ("dagr_acyclicity_" + std::to_string(counter_++) + ".yaml");
         std::ofstream ofs(path_);
         ofs << content;
         ofs.close();
@@ -39,12 +38,14 @@ public:
         std::filesystem::remove(path_, ec);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
+    [[nodiscard]] const std::filesystem::path &path() const noexcept {
+        return path_;
+    }
 
-    Temp_YAML_File(const Temp_YAML_File&) = delete;
-    Temp_YAML_File& operator=(const Temp_YAML_File&) = delete;
+    Temp_YAML_File(const Temp_YAML_File &) = delete;
+    Temp_YAML_File &operator=(const Temp_YAML_File &) = delete;
 
-private:
+   private:
     std::filesystem::path path_;
     static inline int counter_ = 0;
 };
@@ -66,11 +67,10 @@ auto guaranteed_cyclic_graph(std::uint32_t min_nodes, std::uint32_t max_nodes) {
         RC_PRE(!dag.edges.empty());
 
         auto edge_idx = *rc::gen::inRange<std::size_t>(0, dag.edges.size());
-        auto& chosen_edge = dag.edges[edge_idx];
+        auto &chosen_edge = dag.edges[edge_idx];
 
         // Add the reverse edge: consumer → producer (creates a 2-node cycle)
-        dag.edges.push_back(dagr::Dependency_Edge{
-            chosen_edge.consumer_id, chosen_edge.producer_id});
+        dag.edges.push_back(dagr::Dependency_Edge{chosen_edge.consumer_id, chosen_edge.producer_id});
 
         return dag;
     });
@@ -78,7 +78,7 @@ auto guaranteed_cyclic_graph(std::uint32_t min_nodes, std::uint32_t max_nodes) {
 
 /// Serialize a Generated_DAG (with cycles) to YAML format suitable for
 /// parse_pipeline. Includes task declarations and dependency edges.
-std::string serialize_cyclic_dag_to_yaml(const dagr::gen::Generated_DAG& dag) {
+std::string serialize_cyclic_dag_to_yaml(const dagr::gen::Generated_DAG &dag) {
     std::string yaml;
 
     // Settings section
@@ -97,13 +97,13 @@ std::string serialize_cyclic_dag_to_yaml(const dagr::gen::Generated_DAG& dag) {
 
     // Tasks section — one task per node
     yaml += "tasks:\n";
-    for (const auto& name : dag.task_names) {
+    for (const auto &name : dag.task_names) {
         yaml += "  - name: " + name + "\n";
     }
 
     // Dependencies section — edges including the back-edge that creates the cycle
     yaml += "dependencies:\n";
-    for (const auto& edge : dag.edges) {
+    for (const auto &edge : dag.edges) {
         yaml += "  - from: " + dag.task_names[edge.producer_id] + "\n";
         yaml += "    to: " + dag.task_names[edge.consumer_id] + "\n";
     }
@@ -111,7 +111,7 @@ std::string serialize_cyclic_dag_to_yaml(const dagr::gen::Generated_DAG& dag) {
     return yaml;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 /// **Validates: Requirements 1.7, 2.11, 13.4**
 RC_GTEST_PROP(AcyclicityDetection, CyclicGraphThrows, ()) {

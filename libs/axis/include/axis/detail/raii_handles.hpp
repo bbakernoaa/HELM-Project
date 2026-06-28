@@ -38,37 +38,41 @@ namespace axis::detail {
 /// in the destructor. If proj_create fails (returns nullptr), the constructor
 /// throws std::runtime_error with the PROJ error text.
 class Proj_Handle {
-public:
+   public:
     /// Construct from a PROJ pipeline/CRS definition string.
     /// @param proj_string  PROJ pipeline or CRS definition (e.g., "+proj=longlat").
     /// @param ctx          Optional PJ_CONTEXT* (nullptr for the default thread context).
     /// @throws std::runtime_error if proj_create returns nullptr.
-    explicit Proj_Handle(const char* proj_string, PJ_CONTEXT* ctx = nullptr);
+    explicit Proj_Handle(const char *proj_string, PJ_CONTEXT *ctx = nullptr);
 
     /// Destructor: calls proj_destroy if the handle is valid. noexcept.
     ~Proj_Handle() noexcept;
 
     // Move construction: transfers ownership; source becomes null.
-    Proj_Handle(Proj_Handle&& other) noexcept;
+    Proj_Handle(Proj_Handle &&other) noexcept;
 
     // Move assignment: releases current handle, transfers ownership from other.
-    Proj_Handle& operator=(Proj_Handle&& other) noexcept;
+    Proj_Handle &operator=(Proj_Handle &&other) noexcept;
 
     // Non-copyable.
-    Proj_Handle(const Proj_Handle&) = delete;
-    Proj_Handle& operator=(const Proj_Handle&) = delete;
+    Proj_Handle(const Proj_Handle &) = delete;
+    Proj_Handle &operator=(const Proj_Handle &) = delete;
 
     /// @brief Access the raw PJ* pointer.
-    [[nodiscard]] PJ* get() const noexcept { return pj_; }
+    [[nodiscard]] PJ *get() const noexcept {
+        return pj_;
+    }
 
     /// @brief Check whether the handle holds a valid PJ*.
-    [[nodiscard]] explicit operator bool() const noexcept { return pj_ != nullptr; }
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return pj_ != nullptr;
+    }
 
-private:
-    PJ* pj_ = nullptr;
+   private:
+    PJ *pj_ = nullptr;
 };
 
-#endif // AXIS_ENABLE_PROJ
+#endif  // AXIS_ENABLE_PROJ
 
 // ─────────────────────────────────────────────────────────────────────────────
 // File_Handle — RAII wrapper for std::FILE*
@@ -80,36 +84,40 @@ private:
 /// in the destructor. If fopen fails (returns nullptr), the constructor throws
 /// std::runtime_error naming the file path.
 class File_Handle {
-public:
+   public:
     /// Construct by opening a file.
     /// @param path  File path to open.
     /// @param mode  fopen mode string (e.g., "w", "rb").
     /// @throws std::runtime_error if std::fopen returns nullptr.
-    explicit File_Handle(const char* path, const char* mode);
+    explicit File_Handle(const char *path, const char *mode);
 
     /// Destructor: calls std::fclose if the handle is valid. noexcept.
     ~File_Handle() noexcept;
 
     // Move construction: transfers ownership; source becomes null.
-    File_Handle(File_Handle&& other) noexcept;
+    File_Handle(File_Handle &&other) noexcept;
 
     // Move assignment: releases current handle, transfers ownership from other.
-    File_Handle& operator=(File_Handle&& other) noexcept;
+    File_Handle &operator=(File_Handle &&other) noexcept;
 
     // Non-copyable.
-    File_Handle(const File_Handle&) = delete;
-    File_Handle& operator=(const File_Handle&) = delete;
+    File_Handle(const File_Handle &) = delete;
+    File_Handle &operator=(const File_Handle &) = delete;
 
     /// @brief Access the raw FILE* pointer.
-    [[nodiscard]] std::FILE* get() const noexcept { return fp_; }
+    [[nodiscard]] std::FILE *get() const noexcept {
+        return fp_;
+    }
 
     /// @brief Check whether the handle holds a valid FILE*.
-    [[nodiscard]] explicit operator bool() const noexcept { return fp_ != nullptr; }
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return fp_ != nullptr;
+    }
 
-private:
-    std::FILE* fp_ = nullptr;
+   private:
+    std::FILE *fp_ = nullptr;
 };
 
-} // namespace axis::detail
+}  // namespace axis::detail
 
-#endif // AXIS_DETAIL_RAII_HANDLES_HPP
+#endif  // AXIS_DETAIL_RAII_HANDLES_HPP

@@ -12,25 +12,23 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <axis/detail/spherical_clipper.hpp>
 #include <cmath>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/detail/spherical_clipper.hpp>
-
 namespace {
 
-using axis::detail::Vec3;
-using axis::detail::SphericalPolygon;
-using axis::detail::SphericalClipper;
-using axis::detail::normalize;
-using axis::detail::dot;
-using axis::detail::cross;
-using axis::detail::length;
 using axis::detail::add;
+using axis::detail::cross;
+using axis::detail::dot;
+using axis::detail::length;
+using axis::detail::normalize;
 using axis::detail::scale;
+using axis::detail::SphericalClipper;
+using axis::detail::SphericalPolygon;
+using axis::detail::Vec3;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -62,11 +60,8 @@ SphericalPolygon<M> make_spherical_cap(Vec3 center, double radius, int n_verts) 
         double ca = std::cos(angle);
         double sa = std::sin(angle);
 
-        Vec3 pt{
-            center.x * cos_r + u.x * sin_r * ca + v.x * sin_r * sa,
-            center.y * cos_r + u.y * sin_r * ca + v.y * sin_r * sa,
-            center.z * cos_r + u.z * sin_r * ca + v.z * sin_r * sa
-        };
+        Vec3 pt{center.x * cos_r + u.x * sin_r * ca + v.x * sin_r * sa, center.y * cos_r + u.y * sin_r * ca + v.y * sin_r * sa,
+                center.z * cos_r + u.z * sin_r * ca + v.z * sin_r * sa};
         poly.push(normalize(pt));
     }
     return poly;
@@ -88,26 +83,20 @@ Vec3 random_direction(double lon, double lat) {
 
 RC_GTEST_PROP(PropSphericalClipper, NonOverlappingClipYieldsZeroArea, ()) {
     // Generate polygon A centered in lon ∈ [-0.3, 0.3], lat ∈ [-0.3, 0.3]
-    double lon_a = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                 [](int v) { return v * 0.001; });
-    double lat_a = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                 [](int v) { return v * 0.001; });
+    double lon_a = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.001; });
+    double lat_a = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.001; });
 
     // Generate polygon B centered on the opposite side of the sphere
     // lon_b ∈ [π-0.3, π+0.3], same lat range
-    double lon_b = M_PI + *rc::gen::map(rc::gen::inRange(-300, 301),
-                                         [](int v) { return v * 0.001; });
-    double lat_b = *rc::gen::map(rc::gen::inRange(-300, 301),
-                                 [](int v) { return v * 0.001; });
+    double lon_b = M_PI + *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.001; });
+    double lat_b = *rc::gen::map(rc::gen::inRange(-300, 301), [](int v) { return v * 0.001; });
 
     // Angular radius: small enough that polygons on opposite hemispheres never overlap.
     // Max angular extent of each polygon center from origin: ~0.3 rad
     // Separation between centers: ~π - 0.6 ≈ 2.54 rad
     // So radius up to ~1.0 rad each guarantees no overlap (2*1.0 < 2.54)
-    double radius_a = *rc::gen::map(rc::gen::inRange(50, 500),
-                                    [](int v) { return v * 0.001; });
-    double radius_b = *rc::gen::map(rc::gen::inRange(50, 500),
-                                    [](int v) { return v * 0.001; });
+    double radius_a = *rc::gen::map(rc::gen::inRange(50, 500), [](int v) { return v * 0.001; });
+    double radius_b = *rc::gen::map(rc::gen::inRange(50, 500), [](int v) { return v * 0.001; });
 
     // Ensure separation is large enough: angular distance between centers > radius_a + radius_b
     Vec3 ca = lonlat_to_vec3(lon_a, lat_a);
@@ -136,43 +125,36 @@ RC_GTEST_PROP(PropSphericalClipper, NonOverlappingClipYieldsZeroArea, ()) {
 
 RC_GTEST_PROP(PropSphericalClipper, ContainedPolygonClipPreservesArea, ()) {
     // Center of both polygons (large and small share a center region)
-    double lon_c = *rc::gen::map(rc::gen::inRange(-3000, 3001),
-                                 [](int v) { return v * 0.001; });
-    double lat_c = *rc::gen::map(rc::gen::inRange(-1200, 1201),
-                                 [](int v) { return v * 0.001; });
+    double lon_c = *rc::gen::map(rc::gen::inRange(-3000, 3001), [](int v) { return v * 0.001; });
+    double lat_c = *rc::gen::map(rc::gen::inRange(-1200, 1201), [](int v) { return v * 0.001; });
 
     Vec3 center = lonlat_to_vec3(lon_c, lat_c);
 
     // Large polygon radius: 0.3 to 0.6 radians (~17-34 degrees)
-    double radius_large = *rc::gen::map(rc::gen::inRange(300, 601),
-                                        [](int v) { return v * 0.001; });
+    double radius_large = *rc::gen::map(rc::gen::inRange(300, 601), [](int v) { return v * 0.001; });
 
     // Small polygon radius: 0.05 to 0.15 radians (~3-9 degrees)
-    double radius_small = *rc::gen::map(rc::gen::inRange(50, 151),
-                                        [](int v) { return v * 0.001; });
+    double radius_small = *rc::gen::map(rc::gen::inRange(50, 151), [](int v) { return v * 0.001; });
 
     // Offset the small polygon center slightly from the large polygon center,
     // but ensure it's still fully contained: offset + radius_small < radius_large
     double max_offset = radius_large - radius_small - 0.02;
     RC_PRE(max_offset > 0.01);
 
-    double offset_frac = *rc::gen::map(rc::gen::inRange(0, 100),
-                                       [](int v) { return v * 0.01; });
+    double offset_frac = *rc::gen::map(rc::gen::inRange(0, 100), [](int v) { return v * 0.01; });
     double offset = offset_frac * max_offset;
 
-    double offset_angle = *rc::gen::map(rc::gen::inRange(0, 628),
-                                        [](int v) { return v * 0.01; });
+    double offset_angle = *rc::gen::map(rc::gen::inRange(0, 628), [](int v) { return v * 0.01; });
 
     // Compute offset center
     Vec3 arbitrary = (std::abs(center.z) < 0.9) ? Vec3{0, 0, 1} : Vec3{1, 0, 0};
     Vec3 u = normalize(cross(center, arbitrary));
     Vec3 v_dir = cross(center, u);
 
-    Vec3 small_center = normalize(Vec3{
-        center.x * std::cos(offset) + u.x * std::sin(offset) * std::cos(offset_angle) + v_dir.x * std::sin(offset) * std::sin(offset_angle),
-        center.y * std::cos(offset) + u.y * std::sin(offset) * std::cos(offset_angle) + v_dir.y * std::sin(offset) * std::sin(offset_angle),
-        center.z * std::cos(offset) + u.z * std::sin(offset) * std::cos(offset_angle) + v_dir.z * std::sin(offset) * std::sin(offset_angle)
-    });
+    Vec3 small_center = normalize(
+        Vec3{center.x * std::cos(offset) + u.x * std::sin(offset) * std::cos(offset_angle) + v_dir.x * std::sin(offset) * std::sin(offset_angle),
+             center.y * std::cos(offset) + u.y * std::sin(offset) * std::cos(offset_angle) + v_dir.y * std::sin(offset) * std::sin(offset_angle),
+             center.z * std::cos(offset) + u.z * std::sin(offset) * std::cos(offset_angle) + v_dir.z * std::sin(offset) * std::sin(offset_angle)});
 
     int nverts_large = *rc::gen::inRange(6, 12);
     int nverts_small = *rc::gen::inRange(4, 9);
@@ -208,20 +190,14 @@ RC_GTEST_PROP(PropSphericalClipper, ClipperTerminatesWithValidOutput, ()) {
     int nverts_b = *rc::gen::inRange(3, 12);
 
     // Generate polygon A from random lon/lat vertices sorted by angle around center
-    double lon_a = *rc::gen::map(rc::gen::inRange(-3141, 3142),
-                                 [](int v) { return v * 0.001; });
-    double lat_a = *rc::gen::map(rc::gen::inRange(-1500, 1501),
-                                 [](int v) { return v * 0.001; });
+    double lon_a = *rc::gen::map(rc::gen::inRange(-3141, 3142), [](int v) { return v * 0.001; });
+    double lat_a = *rc::gen::map(rc::gen::inRange(-1500, 1501), [](int v) { return v * 0.001; });
     // Random radius (can be very small for degenerate cases)
-    double radius_a = *rc::gen::map(rc::gen::inRange(1, 1000),
-                                    [](int v) { return v * 0.001; });
+    double radius_a = *rc::gen::map(rc::gen::inRange(1, 1000), [](int v) { return v * 0.001; });
 
-    double lon_b = *rc::gen::map(rc::gen::inRange(-3141, 3142),
-                                 [](int v) { return v * 0.001; });
-    double lat_b = *rc::gen::map(rc::gen::inRange(-1500, 1501),
-                                 [](int v) { return v * 0.001; });
-    double radius_b = *rc::gen::map(rc::gen::inRange(1, 1000),
-                                    [](int v) { return v * 0.001; });
+    double lon_b = *rc::gen::map(rc::gen::inRange(-3141, 3142), [](int v) { return v * 0.001; });
+    double lat_b = *rc::gen::map(rc::gen::inRange(-1500, 1501), [](int v) { return v * 0.001; });
+    double radius_b = *rc::gen::map(rc::gen::inRange(1, 1000), [](int v) { return v * 0.001; });
 
     Vec3 center_a = lonlat_to_vec3(lon_a, lat_a);
     Vec3 center_b = lonlat_to_vec3(lon_b, lat_b);
@@ -254,7 +230,7 @@ RC_GTEST_PROP(PropSphericalClipper, ClipperTerminatesWithValidOutput, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -267,7 +243,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

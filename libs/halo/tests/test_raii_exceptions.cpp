@@ -50,9 +50,13 @@ inline MPI_Request synthetic_request(std::uintptr_t value) {
 // tests (the spy is a process-wide singleton).
 
 class RAIIExceptionTest : public ::testing::Test {
-protected:
-    void SetUp() override { MPI_Spy::instance().reset(); }
-    void TearDown() override { MPI_Spy::instance().reset(); }
+   protected:
+    void SetUp() override {
+        MPI_Spy::instance().reset();
+    }
+    void TearDown() override {
+        MPI_Spy::instance().reset();
+    }
 };
 
 // ─── Requirement 11.1 ────────────────────────────────────────────────────────
@@ -63,7 +67,7 @@ protected:
 // MPI_COMM_NULL after the free — the leak-free post-condition this test asserts.
 
 TEST_F(RAIIExceptionTest, CommunicatorFreedDuringExceptionUnwinding) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     halo::Communicator world(MPI_COMM_WORLD);
     spy.reset();  // ignore setup; focus on what unwinding does
@@ -76,7 +80,7 @@ TEST_F(RAIIExceptionTest, CommunicatorFreedDuringExceptionUnwinding) {
         ASSERT_NE(dup.handle(), MPI_COMM_NULL);
 
         throw std::runtime_error("trigger stack unwinding");
-    } catch (const std::runtime_error&) {
+    } catch (const std::runtime_error &) {
         caught = true;
     }
 
@@ -92,7 +96,7 @@ TEST_F(RAIIExceptionTest, CommunicatorFreedDuringExceptionUnwinding) {
 // waited on.
 
 TEST_F(RAIIExceptionTest, RequestGuardCancelledAndFreedDuringUnwinding) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     bool caught = false;
     try {
@@ -102,7 +106,7 @@ TEST_F(RAIIExceptionTest, RequestGuardCancelledAndFreedDuringUnwinding) {
         EXPECT_EQ(raw, MPI_REQUEST_NULL);
 
         throw std::runtime_error("trigger stack unwinding");
-    } catch (const std::runtime_error&) {
+    } catch (const std::runtime_error &) {
         caught = true;
     }
 
@@ -128,7 +132,7 @@ TEST_F(RAIIExceptionTest, RequestGuardCancelledAndFreedDuringUnwinding) {
 // Communicator (Comm_free). The recorded call sequence proves the ordering.
 
 TEST_F(RAIIExceptionTest, NestedScopesDestroyInReverseOrder) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     halo::Communicator world(MPI_COMM_WORLD);
 
@@ -148,7 +152,7 @@ TEST_F(RAIIExceptionTest, NestedScopesDestroyInReverseOrder) {
 
             throw std::runtime_error("throw from innermost scope");
         }
-    } catch (const std::runtime_error&) {
+    } catch (const std::runtime_error &) {
         caught = true;
     }
 
@@ -169,7 +173,7 @@ TEST_F(RAIIExceptionTest, NestedScopesDestroyInReverseOrder) {
 // the moved-from source must NOT call MPI_Comm_free.
 
 TEST_F(RAIIExceptionTest, MoveConstructedSourceIsNullAndDestructionIsNoOp) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     halo::Communicator world(MPI_COMM_WORLD);
 
@@ -206,7 +210,7 @@ TEST_F(RAIIExceptionTest, MoveConstructedSourceIsNullAndDestructionIsNoOp) {
 // MPI_Comm_free on destruction.
 
 TEST_F(RAIIExceptionTest, PredefinedCommWorldNotFreed) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     {
         halo::Communicator world(MPI_COMM_WORLD);
@@ -218,7 +222,7 @@ TEST_F(RAIIExceptionTest, PredefinedCommWorldNotFreed) {
 
 // MPI_COMM_SELF is likewise predefined and must not be freed.
 TEST_F(RAIIExceptionTest, PredefinedCommSelfNotFreed) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     {
         halo::Communicator self(MPI_COMM_SELF);
@@ -235,7 +239,7 @@ TEST_F(RAIIExceptionTest, PredefinedCommSelfNotFreed) {
 // round-trip (acquire → release) property.
 
 TEST_F(RAIIExceptionTest, DuplicateRoundTripFreesHandle) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     halo::Communicator world(MPI_COMM_WORLD);
     spy.reset();
@@ -252,7 +256,7 @@ TEST_F(RAIIExceptionTest, DuplicateRoundTripFreesHandle) {
 
 // The same round-trip property holds for split-derived sub-communicators.
 TEST_F(RAIIExceptionTest, SplitRoundTripFreesHandle) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     halo::Communicator world(MPI_COMM_WORLD);
     spy.reset();
@@ -268,7 +272,7 @@ TEST_F(RAIIExceptionTest, SplitRoundTripFreesHandle) {
 
 // A split with MPI_UNDEFINED yields MPI_COMM_NULL, which must not be freed.
 TEST_F(RAIIExceptionTest, SplitUndefinedYieldsNullAndIsNotFreed) {
-    auto& spy = MPI_Spy::instance();
+    auto &spy = MPI_Spy::instance();
 
     halo::Communicator world(MPI_COMM_WORLD);
     spy.reset();

@@ -22,13 +22,12 @@
 ///
 /// Header-only (template) since it is parameterized on MemorySpace.
 
+#include <Kokkos_Core.hpp>
 #include <cstddef>
 #include <functional>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
 
 #ifdef AXIS_HAVE_KOKKOSKERNELS
 #include <KokkosSparse_CrsMatrix.hpp>
@@ -63,74 +62,60 @@ namespace axis::solver {
 ///         dst.extent(0) != matrix.n_dst(). dst is NOT written on validation
 ///         failure.
 template <class MemorySpace>
-void apply(const InterpolationMatrix<MemorySpace>& matrix,
-           field_view<const double, 1>             src,
-           field_view<double, 1>                   dst)
-{
+void apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<const double, 1> src, field_view<double, 1> dst) {
     // ── Extent validation (throw BEFORE touching dst) ────────────────────────
     if (src.extent(0) != matrix.n_src()) {
-        throw std::invalid_argument(
-            "axis::solver::apply: src.extent(0) (" +
-            std::to_string(src.extent(0)) + ") != matrix.n_src() (" +
-            std::to_string(matrix.n_src()) + ")");
+        throw std::invalid_argument("axis::solver::apply: src.extent(0) (" + std::to_string(src.extent(0)) + ") != matrix.n_src() (" +
+                                    std::to_string(matrix.n_src()) + ")");
     }
     if (dst.extent(0) != matrix.n_dst()) {
-        throw std::invalid_argument(
-            "axis::solver::apply: dst.extent(0) (" +
-            std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
-            std::to_string(matrix.n_dst()) + ")");
+        throw std::invalid_argument("axis::solver::apply: dst.extent(0) (" + std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
+                                    std::to_string(matrix.n_dst()) + ")");
     }
 
     // ── Obtain common metadata ──────────────────────────────────────────────
     const std::size_t n_dst = matrix.n_dst();
 
     // Wrap the raw dst pointer in a Kokkos unmanaged View for the kernel.
-    Kokkos::View<double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        dst_view(dst.data_handle(), n_dst);
+    Kokkos::View<double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> dst_view(dst.data_handle(), n_dst);
 
     // Wrap the raw src pointer in a Kokkos unmanaged View for the kernel.
-    Kokkos::View<const double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        src_view(src.data_handle(), src.extent(0));
+    Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> src_view(src.data_handle(), src.extent(0));
 
     using exec_space = typename MemorySpace::execution_space;
 
     if (matrix.is_csr()) {
         // ── CSR path ─────────────────────────────────────────────────────────
-        const auto row_ptr  = matrix.row_ptr();
-        const auto col_idx  = matrix.col_idx();
+        const auto row_ptr = matrix.row_ptr();
+        const auto col_idx = matrix.col_idx();
         const auto csr_vals = matrix.csr_values();
 
 #ifdef AXIS_HAVE_KOKKOSKERNELS
         // Use KokkosSparse::spmv for hardware-tuned SpMV (cuSPARSE on GPU,
         // MKL on CPU when available, or KokkosKernels native implementation).
         using device_t = Kokkos::Device<exec_space, MemorySpace>;
-        using crs_matrix_t = KokkosSparse::CrsMatrix<
-            double, index_t, device_t, void, index_t>;
+        using crs_matrix_t = KokkosSparse::CrsMatrix<double, index_t, device_t, void, index_t>;
         using graph_t = typename crs_matrix_t::staticcrsgraph_type;
 
         // Build the static CRS graph from our row_ptr and col_idx views.
         // The graph constructor takes (entries, row_map) — both non-const.
-        Kokkos::View<index_t*, MemorySpace> row_map_nc("row_map", row_ptr.extent(0));
+        Kokkos::View<index_t *, MemorySpace> row_map_nc("row_map", row_ptr.extent(0));
         Kokkos::deep_copy(row_map_nc, row_ptr);
-        Kokkos::View<index_t*, MemorySpace> entries_nc("entries", col_idx.extent(0));
+        Kokkos::View<index_t *, MemorySpace> entries_nc("entries", col_idx.extent(0));
         Kokkos::deep_copy(entries_nc, col_idx);
 
         graph_t graph(entries_nc, row_map_nc);
 
         // Build values view (non-const copy)
-        Kokkos::View<double*, MemorySpace> vals_nc("vals", csr_vals.extent(0));
+        Kokkos::View<double *, MemorySpace> vals_nc("vals", csr_vals.extent(0));
         Kokkos::deep_copy(vals_nc, csr_vals);
 
         // CrsMatrix(label, ncols, vals, graph)
-        crs_matrix_t A("axis_spmv",
-                       static_cast<index_t>(matrix.n_src()),
-                       vals_nc, graph);
+        crs_matrix_t A("axis_spmv", static_cast<index_t>(matrix.n_src()), vals_nc, graph);
 
         // Wrap src/dst as rank-1 Kokkos Views for KokkosSparse::spmv
-        Kokkos::View<const double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-            x_view(src.data_handle(), src.extent(0));
-        Kokkos::View<double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-            y_view(dst.data_handle(), n_dst);
+        Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> x_view(src.data_handle(), src.extent(0));
+        Kokkos::View<double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> y_view(dst.data_handle(), n_dst);
 
         // y = 1.0 * A * x + 0.0 * y  (i.e., y = A*x, overwriting dst)
         KokkosSparse::spmv("N", 1.0, A, x_view, 0.0, y_view);
@@ -140,52 +125,36 @@ void apply(const InterpolationMatrix<MemorySpace>& matrix,
         using team_policy = Kokkos::TeamPolicy<exec_space>;
         using member_type = typename team_policy::member_type;
 
-        Kokkos::View<double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-            dst_kk(dst.data_handle(), n_dst);
-        Kokkos::View<const double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-            src_kk(src.data_handle(), src.extent(0));
+        Kokkos::View<double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> dst_kk(dst.data_handle(), n_dst);
+        Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> src_kk(src.data_handle(), src.extent(0));
 
         Kokkos::parallel_for(
-            "axis::apply::csr_spmv",
-            team_policy(static_cast<int>(n_dst), Kokkos::AUTO),
-            KOKKOS_LAMBDA(const member_type& team) {
-                const auto j     = team.league_rank();
+            "axis::apply::csr_spmv", team_policy(static_cast<int>(n_dst), Kokkos::AUTO), KOKKOS_LAMBDA(const member_type &team) {
+                const auto j = team.league_rank();
                 const auto start = row_ptr(j);
-                const auto end   = row_ptr(j + 1);
+                const auto end = row_ptr(j + 1);
 
                 double sum = 0.0;
                 Kokkos::parallel_reduce(
-                    Kokkos::TeamVectorRange(team, start, end),
-                    [&](const index_t k, double& lsum) {
-                        lsum += csr_vals(k) * src_kk(col_idx(k));
-                    },
-                    sum);
+                    Kokkos::TeamVectorRange(team, start, end), [&](const index_t k, double &lsum) { lsum += csr_vals(k) * src_kk(col_idx(k)); }, sum);
 
-                Kokkos::single(Kokkos::PerTeam(team), [&]() {
-                    dst_kk(j) = sum;
-                });
+                Kokkos::single(Kokkos::PerTeam(team), [&]() { dst_kk(j) = sum; });
             });
 #endif
     } else {
         // ── COO scatter-add path (original): uses atomics ────────────────────
-        const auto& S   = matrix.factor_list_view();  // [nnz]
-        const auto& row = matrix.factor_row_view();   // [nnz]
-        const auto& col = matrix.factor_col_view();   // [nnz]
+        const auto &S = matrix.factor_list_view();   // [nnz]
+        const auto &row = matrix.factor_row_view();  // [nnz]
+        const auto &col = matrix.factor_col_view();  // [nnz]
         const std::size_t nnz = matrix.nnz();
 
         // Zero-initialize dst before scatter-add
         Kokkos::parallel_for(
-            "axis::apply::zero_dst",
-            Kokkos::RangePolicy<exec_space>(0, n_dst),
-            KOKKOS_LAMBDA(const std::size_t j) {
-                dst_view(j) = 0.0;
-            });
+            "axis::apply::zero_dst", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) { dst_view(j) = 0.0; });
 
         // SpMV scatter-add: dst(row_k) += S(k) * src(col_k)
         Kokkos::parallel_for(
-            "axis::apply::spmv",
-            Kokkos::RangePolicy<exec_space>(0, nnz),
-            KOKKOS_LAMBDA(const std::size_t k) {
+            "axis::apply::spmv", Kokkos::RangePolicy<exec_space>(0, nnz), KOKKOS_LAMBDA(const std::size_t k) {
                 const auto r = row(k);
                 const auto c = col(k);
                 Kokkos::atomic_add(&dst_view(r), S(k) * src_view(c));
@@ -226,72 +195,53 @@ void apply(const InterpolationMatrix<MemorySpace>& matrix,
 ///   - gathered_halo_src.extent(0) != pattern.num_remote()
 ///   - local_src extent disagrees with matrix dimensions
 template <class MemorySpace>
-void apply(const InterpolationMatrix<MemorySpace>& matrix,
-           const HaloPattern&                      pattern,
-           field_view<const double, 1>             local_src,
-           field_view<const double, 1>             gathered_halo_src,
-           field_view<double, 1>                   dst)
-{
+void apply(const InterpolationMatrix<MemorySpace> &matrix, const HaloPattern &pattern, field_view<const double, 1> local_src,
+           field_view<const double, 1> gathered_halo_src, field_view<double, 1> dst) {
     // ── Extent validation (throw BEFORE touching dst) ────────────────────────
     if (dst.extent(0) != matrix.n_dst()) {
-        throw std::invalid_argument(
-            "axis::solver::apply (distributed): dst.extent(0) (" +
-            std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
-            std::to_string(matrix.n_dst()) + ")");
+        throw std::invalid_argument("axis::solver::apply (distributed): dst.extent(0) (" + std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
+                                    std::to_string(matrix.n_dst()) + ")");
     }
     if (gathered_halo_src.extent(0) != pattern.num_remote()) {
-        throw std::invalid_argument(
-            "axis::solver::apply (distributed): gathered_halo_src.extent(0) (" +
-            std::to_string(gathered_halo_src.extent(0)) +
-            ") != pattern.num_remote() (" +
-            std::to_string(pattern.num_remote()) + ")");
+        throw std::invalid_argument("axis::solver::apply (distributed): gathered_halo_src.extent(0) (" + std::to_string(gathered_halo_src.extent(0)) +
+                                    ") != pattern.num_remote() (" + std::to_string(pattern.num_remote()) + ")");
     }
 
     const std::size_t n_local_src = local_src.extent(0);
 
     // Validate: local_src + num_remote should cover the matrix's source space
     if (n_local_src + pattern.num_remote() != matrix.n_src()) {
-        throw std::invalid_argument(
-            "axis::solver::apply (distributed): local_src.extent(0) (" +
-            std::to_string(n_local_src) + ") + pattern.num_remote() (" +
-            std::to_string(pattern.num_remote()) +
-            ") != matrix.n_src() (" +
-            std::to_string(matrix.n_src()) + ")");
+        throw std::invalid_argument("axis::solver::apply (distributed): local_src.extent(0) (" + std::to_string(n_local_src) +
+                                    ") + pattern.num_remote() (" + std::to_string(pattern.num_remote()) + ") != matrix.n_src() (" +
+                                    std::to_string(matrix.n_src()) + ")");
     }
 
     // ── Obtain internal Kokkos Views ─────────────────────────────────────────
-    const auto& S   = matrix.factor_list_view();
-    const auto& row = matrix.factor_row_view();
-    const auto& col = matrix.factor_col_view();
-    const std::size_t nnz   = matrix.nnz();
+    const auto &S = matrix.factor_list_view();
+    const auto &row = matrix.factor_row_view();
+    const auto &col = matrix.factor_col_view();
+    const std::size_t nnz = matrix.nnz();
     const std::size_t n_dst = matrix.n_dst();
 
     // Wrap raw pointers in unmanaged Kokkos Views
-    Kokkos::View<double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        dst_view(dst.data_handle(), n_dst);
+    Kokkos::View<double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> dst_view(dst.data_handle(), n_dst);
 
-    Kokkos::View<const double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        local_src_view(local_src.data_handle(), n_local_src);
+    Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> local_src_view(local_src.data_handle(), n_local_src);
 
-    Kokkos::View<const double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        halo_src_view(gathered_halo_src.data_handle(), pattern.num_remote());
+    Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> halo_src_view(gathered_halo_src.data_handle(),
+                                                                                                     pattern.num_remote());
 
     // ── Zero-initialize dst ──────────────────────────────────────────────────
     Kokkos::parallel_for(
-        "axis::apply_distributed::zero_dst",
-        Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_dst),
-        KOKKOS_LAMBDA(const std::size_t j) {
-            dst_view(j) = 0.0;
-        });
+        "axis::apply_distributed::zero_dst", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, n_dst),
+        KOKKOS_LAMBDA(const std::size_t j) { dst_view(j) = 0.0; });
 
     // ── SpMV with local/remote source dispatch ───────────────────────────────
     // Column indices < n_local_src refer to locally-owned cells;
     // Column indices >= n_local_src refer to gathered halo buffer.
     const auto n_local = static_cast<index_t>(n_local_src);
     Kokkos::parallel_for(
-        "axis::apply_distributed::spmv",
-        Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, nnz),
-        KOKKOS_LAMBDA(const std::size_t k) {
+        "axis::apply_distributed::spmv", Kokkos::RangePolicy<typename MemorySpace::execution_space>(0, nnz), KOKKOS_LAMBDA(const std::size_t k) {
             const auto r = row(k);
             const auto c = col(k);
             double src_val;
@@ -330,20 +280,14 @@ void apply(const InterpolationMatrix<MemorySpace>& matrix,
 ///         distributed overload)
 /// @throws Any exception the gather callback throws
 template <class MemorySpace>
-void apply(const InterpolationMatrix<MemorySpace>&                        matrix,
-           const HaloPattern&                                             pattern,
-           field_view<const double, 1>                                    local_src,
-           const std::function<std::vector<double>(const HaloPattern&)>&  gather,
-           field_view<double, 1>                                          dst)
-{
+void apply(const InterpolationMatrix<MemorySpace> &matrix, const HaloPattern &pattern, field_view<const double, 1> local_src,
+           const std::function<std::vector<double>(const HaloPattern &)> &gather, field_view<double, 1> dst) {
     // Invoke the gather callback to obtain off-rank source values
     std::vector<double> halo_buffer = gather(pattern);
 
     if (halo_buffer.size() != pattern.num_remote()) {
-        throw std::invalid_argument(
-            "axis::solver::apply (callback): gather returned " +
-            std::to_string(halo_buffer.size()) + " values but pattern.num_remote() is " +
-            std::to_string(pattern.num_remote()));
+        throw std::invalid_argument("axis::solver::apply (callback): gather returned " + std::to_string(halo_buffer.size()) +
+                                    " values but pattern.num_remote() is " + std::to_string(pattern.num_remote()));
     }
 
     // Wrap the gathered buffer as a field_view and delegate to the buffer overload
@@ -375,41 +319,30 @@ void apply(const InterpolationMatrix<MemorySpace>&                        matrix
 /// @throws std::invalid_argument if src.extent(0) != matrix.n_src(),
 ///         dst.extent(0) != matrix.n_dst(), or src.extent(1) != dst.extent(1).
 template <class MemorySpace>
-void batch_apply(const InterpolationMatrix<MemorySpace>& matrix,
-                 field_view<const double, 2>             src,
-                 field_view<double, 2>                   dst)
-{
+void batch_apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<const double, 2> src, field_view<double, 2> dst) {
     // ── Extent validation (throw BEFORE touching dst) ────────────────────────
     if (src.extent(0) != matrix.n_src()) {
-        throw std::invalid_argument(
-            "axis::solver::batch_apply: src.extent(0) (" +
-            std::to_string(src.extent(0)) + ") != matrix.n_src() (" +
-            std::to_string(matrix.n_src()) + ")");
+        throw std::invalid_argument("axis::solver::batch_apply: src.extent(0) (" + std::to_string(src.extent(0)) + ") != matrix.n_src() (" +
+                                    std::to_string(matrix.n_src()) + ")");
     }
     if (dst.extent(0) != matrix.n_dst()) {
-        throw std::invalid_argument(
-            "axis::solver::batch_apply: dst.extent(0) (" +
-            std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
-            std::to_string(matrix.n_dst()) + ")");
+        throw std::invalid_argument("axis::solver::batch_apply: dst.extent(0) (" + std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
+                                    std::to_string(matrix.n_dst()) + ")");
     }
     if (src.extent(1) != dst.extent(1)) {
-        throw std::invalid_argument(
-            "axis::solver::batch_apply: src.extent(1) (" +
-            std::to_string(src.extent(1)) + ") != dst.extent(1) (" +
-            std::to_string(dst.extent(1)) + ")");
+        throw std::invalid_argument("axis::solver::batch_apply: src.extent(1) (" + std::to_string(src.extent(1)) + ") != dst.extent(1) (" +
+                                    std::to_string(dst.extent(1)) + ")");
     }
 
     // ── Obtain common metadata ──────────────────────────────────────────────
-    const std::size_t n_dst  = matrix.n_dst();
-    const std::size_t n_src  = matrix.n_src();
+    const std::size_t n_dst = matrix.n_dst();
+    const std::size_t n_src = matrix.n_src();
     const std::size_t n_vars = src.extent(1);
 
     // Wrap raw pointers in unmanaged rank-2 Kokkos Views (LayoutLeft = column-major).
     // field_view is layout_left, so src(cell, var) is contiguous along cells.
-    using dst_view_t = Kokkos::View<double**, Kokkos::LayoutLeft, MemorySpace,
-                                    Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
-    using src_view_t = Kokkos::View<const double**, Kokkos::LayoutLeft, MemorySpace,
-                                    Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+    using dst_view_t = Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+    using src_view_t = Kokkos::View<const double **, Kokkos::LayoutLeft, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
 
     dst_view_t dst_kk(dst.data_handle(), n_dst, n_vars);
     src_view_t src_kk(src.data_handle(), n_src, n_vars);
@@ -421,30 +354,27 @@ void batch_apply(const InterpolationMatrix<MemorySpace>& matrix,
         // TeamPolicy over rows (destination cells). For each row, iterate
         // serially over nonzeros, then use ThreadVectorRange to distribute
         // the variable accumulation across vector lanes.
-        const auto row_ptr  = matrix.row_ptr();
-        const auto col_idx  = matrix.col_idx();
+        const auto row_ptr = matrix.row_ptr();
+        const auto col_idx = matrix.col_idx();
         const auto csr_vals = matrix.csr_values();
 
 #ifdef AXIS_HAVE_KOKKOSKERNELS
         // Use KokkosSparse::spmv with multivector (rank-2) views.
         using device_t = Kokkos::Device<exec_space, MemorySpace>;
-        using crs_matrix_t = KokkosSparse::CrsMatrix<
-            double, index_t, device_t, void, index_t>;
+        using crs_matrix_t = KokkosSparse::CrsMatrix<double, index_t, device_t, void, index_t>;
         using graph_t = typename crs_matrix_t::staticcrsgraph_type;
 
-        Kokkos::View<index_t*, MemorySpace> row_map_nc("row_map", row_ptr.extent(0));
+        Kokkos::View<index_t *, MemorySpace> row_map_nc("row_map", row_ptr.extent(0));
         Kokkos::deep_copy(row_map_nc, row_ptr);
-        Kokkos::View<index_t*, MemorySpace> entries_nc("entries", col_idx.extent(0));
+        Kokkos::View<index_t *, MemorySpace> entries_nc("entries", col_idx.extent(0));
         Kokkos::deep_copy(entries_nc, col_idx);
 
         graph_t graph(entries_nc, row_map_nc);
 
-        Kokkos::View<double*, MemorySpace> vals_nc("vals", csr_vals.extent(0));
+        Kokkos::View<double *, MemorySpace> vals_nc("vals", csr_vals.extent(0));
         Kokkos::deep_copy(vals_nc, csr_vals);
 
-        crs_matrix_t A("axis_batch_spmv",
-                       static_cast<index_t>(matrix.n_src()),
-                       vals_nc, graph);
+        crs_matrix_t A("axis_batch_spmv", static_cast<index_t>(matrix.n_src()), vals_nc, graph);
 
         // KokkosSparse::spmv supports rank-2 (multivector) views
         KokkosSparse::spmv("N", 1.0, A, src_kk, 0.0, dst_kk);
@@ -454,37 +384,31 @@ void batch_apply(const InterpolationMatrix<MemorySpace>& matrix,
         using member_type = typename team_policy::member_type;
 
         Kokkos::parallel_for(
-            "axis::batch_apply::csr",
-            team_policy(static_cast<int>(n_dst), Kokkos::AUTO),
-            KOKKOS_LAMBDA(const member_type& team) {
-                const auto j     = team.league_rank();
+            "axis::batch_apply::csr", team_policy(static_cast<int>(n_dst), Kokkos::AUTO), KOKKOS_LAMBDA(const member_type &team) {
+                const auto j = team.league_rank();
                 const auto start = row_ptr(j);
-                const auto end   = row_ptr(j + 1);
+                const auto end = row_ptr(j + 1);
 
                 // For each variable, accumulate the row dot product
-                Kokkos::parallel_for(
-                    Kokkos::ThreadVectorRange(team, static_cast<int>(n_vars)),
-                    [&](const int v) {
-                        double sum = 0.0;
-                        for (auto k = start; k < end; ++k) {
-                            sum += csr_vals(k) * src_kk(col_idx(k), v);
-                        }
-                        dst_kk(j, v) = sum;
-                    });
+                Kokkos::parallel_for(Kokkos::ThreadVectorRange(team, static_cast<int>(n_vars)), [&](const int v) {
+                    double sum = 0.0;
+                    for (auto k = start; k < end; ++k) {
+                        sum += csr_vals(k) * src_kk(col_idx(k), v);
+                    }
+                    dst_kk(j, v) = sum;
+                });
             });
 #endif
     } else {
         // ── COO scatter-add path ─────────────────────────────────────────────
-        const auto& S   = matrix.factor_list_view();  // [nnz]
-        const auto& row = matrix.factor_row_view();   // [nnz]
-        const auto& col = matrix.factor_col_view();   // [nnz]
+        const auto &S = matrix.factor_list_view();   // [nnz]
+        const auto &row = matrix.factor_row_view();  // [nnz]
+        const auto &col = matrix.factor_col_view();  // [nnz]
         const std::size_t nnz = matrix.nnz();
 
         // Zero-initialize dst
         Kokkos::parallel_for(
-            "axis::batch_apply::zero_dst",
-            Kokkos::RangePolicy<exec_space>(0, n_dst * n_vars),
-            KOKKOS_LAMBDA(const std::size_t idx) {
+            "axis::batch_apply::zero_dst", Kokkos::RangePolicy<exec_space>(0, n_dst * n_vars), KOKKOS_LAMBDA(const std::size_t idx) {
                 const auto j = idx % n_dst;  // cell index (leading dim)
                 const auto v = idx / n_dst;  // variable index (trailing dim)
                 dst_kk(j, v) = 0.0;
@@ -492,11 +416,9 @@ void batch_apply(const InterpolationMatrix<MemorySpace>& matrix,
 
         // Scatter-add: dst(row_k, v) += S(k) * src(col_k, v) for all v
         Kokkos::parallel_for(
-            "axis::batch_apply::coo",
-            Kokkos::RangePolicy<exec_space>(0, nnz * n_vars),
-            KOKKOS_LAMBDA(const std::size_t idx) {
-                const auto k = idx % nnz;    // nonzero index
-                const auto v = idx / nnz;    // variable index
+            "axis::batch_apply::coo", Kokkos::RangePolicy<exec_space>(0, nnz * n_vars), KOKKOS_LAMBDA(const std::size_t idx) {
+                const auto k = idx % nnz;  // nonzero index
+                const auto v = idx / nnz;  // variable index
                 const auto r = row(k);
                 const auto c = col(k);
                 Kokkos::atomic_add(&dst_kk(r, v), S(k) * src_kk(c, v));
@@ -525,92 +447,71 @@ void batch_apply(const InterpolationMatrix<MemorySpace>& matrix,
 /// @throws std::invalid_argument if src.extent(0) != matrix.n_src() or
 ///         dst.extent(0) != matrix.n_dst()
 template <class MemorySpace>
-void apply(const InterpolationMatrix<MemorySpace>& matrix,
-           field_view<const double, 1>             src,
-           field_view<double, 1>                   dst,
-           field_view<const int, 1>                dst_mask)
-{
+void apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<const double, 1> src, field_view<double, 1> dst,
+           field_view<const int, 1> dst_mask) {
     // ── Extent validation (throw BEFORE touching dst) ────────────────────────
     if (src.extent(0) != matrix.n_src()) {
-        throw std::invalid_argument(
-            "axis::solver::apply (masked): src.extent(0) (" +
-            std::to_string(src.extent(0)) + ") != matrix.n_src() (" +
-            std::to_string(matrix.n_src()) + ")");
+        throw std::invalid_argument("axis::solver::apply (masked): src.extent(0) (" + std::to_string(src.extent(0)) + ") != matrix.n_src() (" +
+                                    std::to_string(matrix.n_src()) + ")");
     }
     if (dst.extent(0) != matrix.n_dst()) {
-        throw std::invalid_argument(
-            "axis::solver::apply (masked): dst.extent(0) (" +
-            std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
-            std::to_string(matrix.n_dst()) + ")");
+        throw std::invalid_argument("axis::solver::apply (masked): dst.extent(0) (" + std::to_string(dst.extent(0)) + ") != matrix.n_dst() (" +
+                                    std::to_string(matrix.n_dst()) + ")");
     }
 
     const std::size_t n_dst = matrix.n_dst();
     const bool has_mask = (dst_mask.extent(0) == n_dst);
 
     // Wrap the raw pointers in unmanaged Kokkos Views for the kernel.
-    Kokkos::View<double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        dst_view(dst.data_handle(), n_dst);
-    Kokkos::View<const double*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        src_view(src.data_handle(), src.extent(0));
-    Kokkos::View<const int*, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-        mask_view(dst_mask.data_handle(), dst_mask.extent(0));
+    Kokkos::View<double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> dst_view(dst.data_handle(), n_dst);
+    Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> src_view(src.data_handle(), src.extent(0));
+    Kokkos::View<const int *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> mask_view(dst_mask.data_handle(), dst_mask.extent(0));
 
     using exec_space = typename MemorySpace::execution_space;
 
     if (matrix.is_csr()) {
         // ── CSR path with mask ───────────────────────────────────────────────
-        const auto row_ptr  = matrix.row_ptr();
-        const auto col_idx  = matrix.col_idx();
+        const auto row_ptr = matrix.row_ptr();
+        const auto col_idx = matrix.col_idx();
         const auto csr_vals = matrix.csr_values();
 
         using team_policy = Kokkos::TeamPolicy<exec_space>;
         using member_type = typename team_policy::member_type;
 
         Kokkos::parallel_for(
-            "axis::apply::csr_spmv_masked",
-            team_policy(static_cast<int>(n_dst), Kokkos::AUTO),
-            KOKKOS_LAMBDA(const member_type& team) {
+            "axis::apply::csr_spmv_masked", team_policy(static_cast<int>(n_dst), Kokkos::AUTO), KOKKOS_LAMBDA(const member_type &team) {
                 const auto j = team.league_rank();
 
                 // Skip masked destination cells (Req 8.4)
                 if (has_mask && mask_view(j) == 0) return;
 
                 const auto start = row_ptr(j);
-                const auto end   = row_ptr(j + 1);
+                const auto end = row_ptr(j + 1);
 
                 double sum = 0.0;
                 Kokkos::parallel_reduce(
-                    Kokkos::TeamVectorRange(team, start, end),
-                    [&](const index_t k, double& lsum) {
-                        lsum += csr_vals(k) * src_view(col_idx(k));
-                    },
+                    Kokkos::TeamVectorRange(team, start, end), [&](const index_t k, double &lsum) { lsum += csr_vals(k) * src_view(col_idx(k)); },
                     sum);
 
-                Kokkos::single(Kokkos::PerTeam(team), [&]() {
-                    dst_view(j) = sum;
-                });
+                Kokkos::single(Kokkos::PerTeam(team), [&]() { dst_view(j) = sum; });
             });
     } else {
         // ── COO scatter-add path with mask ───────────────────────────────────
-        const auto& S   = matrix.factor_list_view();
-        const auto& row = matrix.factor_row_view();
-        const auto& col = matrix.factor_col_view();
+        const auto &S = matrix.factor_list_view();
+        const auto &row = matrix.factor_row_view();
+        const auto &col = matrix.factor_col_view();
         const std::size_t nnz = matrix.nnz();
 
         // Zero-initialize only unmasked dst cells
         Kokkos::parallel_for(
-            "axis::apply::zero_dst_masked",
-            Kokkos::RangePolicy<exec_space>(0, n_dst),
-            KOKKOS_LAMBDA(const std::size_t j) {
+            "axis::apply::zero_dst_masked", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) {
                 if (has_mask && mask_view(j) == 0) return;
                 dst_view(j) = 0.0;
             });
 
         // SpMV scatter-add: skip writes to masked rows
         Kokkos::parallel_for(
-            "axis::apply::spmv_masked",
-            Kokkos::RangePolicy<exec_space>(0, nnz),
-            KOKKOS_LAMBDA(const std::size_t k) {
+            "axis::apply::spmv_masked", Kokkos::RangePolicy<exec_space>(0, nnz), KOKKOS_LAMBDA(const std::size_t k) {
                 const auto r = row(k);
                 // Skip masked destination cells
                 if (has_mask && mask_view(r) == 0) return;
@@ -622,6 +523,6 @@ void apply(const InterpolationMatrix<MemorySpace>& matrix,
     Kokkos::fence("axis::apply_masked::complete");
 }
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_APPLY_HPP
+#endif  // AXIS_SOLVER_APPLY_HPP

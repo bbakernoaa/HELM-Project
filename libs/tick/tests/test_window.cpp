@@ -5,10 +5,11 @@
 
 #include <gtest/gtest.h>
 #include <rapidcheck/gtest.h>
-#include <tick/time_window.hpp>
-#include <tick/time_point.hpp>
-#include <tick/duration.hpp>
+
 #include <cstdint>
+#include <tick/duration.hpp>
+#include <tick/time_point.hpp>
+#include <tick/time_window.hpp>
 
 // ============================================================
 // Property-based tests (RapidCheck)
@@ -67,27 +68,19 @@ RC_GTEST_PROP(TimeWindow, ComputeWindowContainsCurrent, ()) {
 // ============================================================
 
 TEST(TimeWindowErrors, ZeroDurationThrows) {
-    EXPECT_THROW(
-        tick::Time_Window(tick::Time_Point{100}, tick::Duration{0}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::Time_Window(tick::Time_Point{100}, tick::Duration{0}), std::invalid_argument);
 }
 
 TEST(TimeWindowErrors, NegativeDurationThrows) {
-    EXPECT_THROW(
-        tick::Time_Window(tick::Time_Point{100}, tick::Duration{-10}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::Time_Window(tick::Time_Point{100}, tick::Duration{-10}), std::invalid_argument);
 }
 
 TEST(TimeWindowErrors, StartEqualsEndThrows) {
-    EXPECT_THROW(
-        tick::Time_Window(tick::Time_Point{100}, tick::Time_Point{100}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::Time_Window(tick::Time_Point{100}, tick::Time_Point{100}), std::invalid_argument);
 }
 
 TEST(TimeWindowErrors, StartGreaterThanEndThrows) {
-    EXPECT_THROW(
-        tick::Time_Window(tick::Time_Point{200}, tick::Time_Point{100}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::Time_Window(tick::Time_Point{200}, tick::Time_Point{100}), std::invalid_argument);
 }
 
 TEST(TimeWindowContains, AtStartInclusive) {
@@ -111,15 +104,11 @@ TEST(TimeWindowContains, BeforeWindow) {
 }
 
 TEST(BoundaryErrors, ZeroDurationThrows) {
-    EXPECT_THROW(
-        tick::is_on_boundary(tick::Time_Point{0}, tick::Duration{0}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::is_on_boundary(tick::Time_Point{0}, tick::Duration{0}), std::invalid_argument);
 }
 
 TEST(BoundaryErrors, NegativeDurationThrows) {
-    EXPECT_THROW(
-        tick::is_on_boundary(tick::Time_Point{0}, tick::Duration{-1}),
-        std::invalid_argument);
+    EXPECT_THROW(tick::is_on_boundary(tick::Time_Point{0}, tick::Duration{-1}), std::invalid_argument);
 }
 
 TEST(ComputeWindow, KnownValues) {

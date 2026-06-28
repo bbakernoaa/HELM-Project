@@ -19,13 +19,13 @@
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <mpi.h>
 #include <numeric>
 #include <stdexcept>
 #include <string>
@@ -70,8 +70,7 @@ rc::Gen<std::vector<halo::Neighbor_Info>> genValidNeighborList() {
         neighbors.reserve(selected.size());
         for (int rank : selected) {
             // Count in [1, 10000] -- reasonable buffer sizes
-            std::size_t count = static_cast<std::size_t>(
-                *rc::gen::inRange(1, 10001));
+            std::size_t count = static_cast<std::size_t>(*rc::gen::inRange(1, 10001));
             neighbors.push_back({rank, count});
         }
 
@@ -105,8 +104,7 @@ rc::Gen<std::vector<halo::Neighbor_Info>> genNeighborListWithDuplicate() {
         std::vector<halo::Neighbor_Info> neighbors;
         neighbors.reserve(static_cast<std::size_t>(num_unique + 1));
         for (int rank : selected) {
-            std::size_t count = static_cast<std::size_t>(
-                *rc::gen::inRange(1, 10001));
+            std::size_t count = static_cast<std::size_t>(*rc::gen::inRange(1, 10001));
             neighbors.push_back({rank, count});
         }
 
@@ -115,8 +113,7 @@ rc::Gen<std::vector<halo::Neighbor_Info>> genNeighborListWithDuplicate() {
         int dup_rank = neighbors[static_cast<std::size_t>(dup_idx)].rank;
 
         // Insert the duplicate at a random position (possibly different count)
-        std::size_t dup_count = static_cast<std::size_t>(
-            *rc::gen::inRange(1, 10001));
+        std::size_t dup_count = static_cast<std::size_t>(*rc::gen::inRange(1, 10001));
         int insert_pos = *rc::gen::inRange(0, static_cast<int>(neighbors.size()) + 1);
         neighbors.insert(neighbors.begin() + insert_pos, {dup_rank, dup_count});
 
@@ -137,7 +134,7 @@ rc::Gen<std::vector<halo::Neighbor_Info>> genNeighborListWithDuplicate() {
 // **Validates: Requirements 5.1, 5.2, 5.3**
 
 RC_GTEST_PROP(HaloPlanProperty8, ConstructionRoundTrip, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate valid send and receive neighbor lists independently
@@ -182,7 +179,7 @@ RC_GTEST_PROP(HaloPlanProperty8, ConstructionRoundTrip, ()) {
 // **Validates: Requirements 5.1, 5.2, 5.3**
 
 RC_GTEST_PROP(HaloPlanProperty8, EmptyListsRoundTrip, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate: one or both lists may be empty
@@ -237,7 +234,7 @@ RC_GTEST_PROP(HaloPlanProperty8, EmptyListsRoundTrip, ()) {
 // **Validates: Requirements 5.4**
 
 RC_GTEST_PROP(HaloPlanProperty9, RejectsInvalidRanks, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a valid neighbor list as a base
@@ -284,7 +281,7 @@ RC_GTEST_PROP(HaloPlanProperty9, RejectsInvalidRanks, ()) {
         } else {
             halo::Halo_Plan plan(comm, other_list, invalid_list);
         }
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument &) {
         threw_invalid_argument = true;
     } catch (...) {
         RC_FAIL("Halo_Plan threw unexpected exception type (expected std::invalid_argument)");
@@ -303,7 +300,7 @@ RC_GTEST_PROP(HaloPlanProperty9, RejectsInvalidRanks, ()) {
 // **Validates: Requirements 5.9**
 
 RC_GTEST_PROP(HaloPlanProperty10, DuplicateInSendListThrows, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a send list with at least one duplicate rank
@@ -317,7 +314,7 @@ RC_GTEST_PROP(HaloPlanProperty10, DuplicateInSendListThrows, ()) {
     bool threw_invalid_arg = false;
     try {
         halo::Halo_Plan plan(comm, send_input, recv_input);
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         threw_invalid_arg = true;
         // Verify the error message mentions "duplicate"
         std::string msg = e.what();
@@ -330,7 +327,7 @@ RC_GTEST_PROP(HaloPlanProperty10, DuplicateInSendListThrows, ()) {
 }
 
 RC_GTEST_PROP(HaloPlanProperty10, DuplicateInRecvListThrows, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate a valid (no duplicates) send list
@@ -344,7 +341,7 @@ RC_GTEST_PROP(HaloPlanProperty10, DuplicateInRecvListThrows, ()) {
     bool threw_invalid_arg = false;
     try {
         halo::Halo_Plan plan(comm, send_input, recv_input);
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         threw_invalid_arg = true;
         // Verify the error message mentions "duplicate"
         std::string msg = e.what();
@@ -357,7 +354,7 @@ RC_GTEST_PROP(HaloPlanProperty10, DuplicateInRecvListThrows, ()) {
 }
 
 RC_GTEST_PROP(HaloPlanProperty10, DuplicateInBothListsThrows, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate both lists with duplicates
@@ -370,7 +367,7 @@ RC_GTEST_PROP(HaloPlanProperty10, DuplicateInBothListsThrows, ()) {
     bool threw_invalid_arg = false;
     try {
         halo::Halo_Plan plan(comm, send_input, recv_input);
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         threw_invalid_arg = true;
         // Verify the error message mentions "duplicate"
         std::string msg = e.what();
@@ -393,7 +390,7 @@ RC_GTEST_PROP(HaloPlanProperty10, DuplicateInBothListsThrows, ()) {
 // **Validates: Requirements 5.5**
 
 RC_GTEST_PROP(HaloPlanProperty11, CopyEquivalence, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     // Generate valid send and receive neighbor lists

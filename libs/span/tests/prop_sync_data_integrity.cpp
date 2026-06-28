@@ -11,16 +11,15 @@
 // **Validates: Requirements 4.7, 4.8, 3.6, 3.8**
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <span/field_view.hpp>
-
-#include <Kokkos_Core.hpp>
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <span/field_view.hpp>
 #include <vector>
 
 namespace {
@@ -28,7 +27,7 @@ namespace {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -41,10 +40,9 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
-} // namespace
+}  // namespace
 
 // ─── Host-to-Device Sync ─────────────────────────────────────────────────────
 // Validates Requirement 4.7:
@@ -62,7 +60,7 @@ RC_GTEST_PROP(SyncDataIntegrity, HostToDevice, ()) {
     std::vector<double> dev_buf(n, 0.0);  // initially zeros
 
     // Fill host with random values
-    for (auto& v : host_buf) {
+    for (auto &v : host_buf) {
         v = *rc::gen::arbitrary<double>();
     }
 
@@ -96,7 +94,7 @@ RC_GTEST_PROP(SyncDataIntegrity, DeviceToHost, ()) {
     std::vector<double> dev_buf(n);
 
     // Fill device with random values
-    for (auto& v : dev_buf) {
+    for (auto &v : dev_buf) {
         v = *rc::gen::arbitrary<double>();
     }
 

@@ -36,16 +36,15 @@
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
+#include <Kokkos_Core.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <vector>
-
-#include <Kokkos_Core.hpp>
-#include <mpi.h>
 
 #include "halo/communicator.hpp"
 #include "handle_registry.hpp"
@@ -56,20 +55,14 @@
 // signatures here (matching the definitions exactly) to call across the boundary.
 
 extern "C" {
-int halo_init_c(int mpi_comm_int, int* comm_handle_out);
-int halo_comm_create_c(int parent_handle, int color, int key,
-                       int* child_handle_out);
-int halo_plan_create_c(int comm_handle,
-                       const int* send_ranks, const int* send_counts, int num_send,
-                       const int* recv_ranks, const int* recv_counts, int num_recv,
-                       int* plan_handle_out);
-int halo_exchange_blocking_c(int plan_handle, void* data,
-                             int num_elements, int element_size);
-int halo_exchange_async_c(int plan_handle, void* data,
-                          int num_elements, int element_size,
-                          int* handle_out);
+int halo_init_c(int mpi_comm_int, int *comm_handle_out);
+int halo_comm_create_c(int parent_handle, int color, int key, int *child_handle_out);
+int halo_plan_create_c(int comm_handle, const int *send_ranks, const int *send_counts, int num_send, const int *recv_ranks, const int *recv_counts,
+                       int num_recv, int *plan_handle_out);
+int halo_exchange_blocking_c(int plan_handle, void *data, int num_elements, int element_size);
+int halo_exchange_async_c(int plan_handle, void *data, int num_elements, int element_size, int *handle_out);
 int halo_wait_c(int handle);
-int halo_test_c(int handle, int* complete_out);
+int halo_test_c(int handle, int *complete_out);
 int halo_destroy_plan_c(int plan_handle);
 int halo_destroy_comm_c(int comm_handle);
 }
@@ -79,9 +72,9 @@ namespace {
 // --- Error code mirror -------------------------------------------------------
 // The Halo_Error enum lives in an anonymous namespace inside halo_c_interop.cpp
 // and is not exported, so we mirror the contract values here for assertions.
-constexpr int HALO_SUCCESS         = 0;
+constexpr int HALO_SUCCESS = 0;
 constexpr int HALO_ERR_INVALID_ARG = 1;
-constexpr int HALO_ERR_BAD_HANDLE  = 4;
+constexpr int HALO_ERR_BAD_HANDLE = 4;
 
 /// The mock MPI_Comm_size always returns 4, so valid ranks are [0, 4).
 constexpr int MOCK_COMM_SIZE = 4;
@@ -94,9 +87,8 @@ constexpr int MOCK_COMM_SIZE = 4;
 // there is no double-free. The single leak is harmless for a test process.
 int valid_comm_handle() {
     static int handle = [] {
-        auto* comm = new halo::Communicator(MPI_COMM_WORLD);
-        return halo::fortran::Handle_Registry::instance()
-            .register_handle(static_cast<void*>(comm));
+        auto *comm = new halo::Communicator(MPI_COMM_WORLD);
+        return halo::fortran::Handle_Registry::instance().register_handle(static_cast<void *>(comm));
     }();
     return handle;
 }
@@ -123,7 +115,7 @@ std::pair<std::vector<int>, std::vector<int>> gen_nonempty_neighbors() {
 }
 
 /// Sum a count vector as bytes.
-std::size_t sum_bytes(const std::vector<int>& counts) {
+std::size_t sum_bytes(const std::vector<int> &counts) {
     std::size_t total = 0;
     for (int c : counts) total += static_cast<std::size_t>(c);
     return total;
@@ -144,7 +136,7 @@ std::size_t sum_bytes(const std::vector<int>& counts) {
 // **Validates: Requirements 14.5, 14.6**
 
 RC_GTEST_PROP(InteropProperty25, BlockingForwardingPreservesPointerAndSize, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     const int comm = valid_comm_handle();
@@ -163,30 +155,20 @@ RC_GTEST_PROP(InteropProperty25, BlockingForwardingPreservesPointerAndSize, ()) 
     // Choose (element_size, num_elements) so num_elements*element_size covers
     // the needed bytes, with a random surplus to exercise oversized buffers.
     const int element_size = *rc::gen::inRange(1, 9);  // 1..8 bytes per element
-    const std::size_t min_elems =
-        (needed_bytes + static_cast<std::size_t>(element_size) - 1) /
-        static_cast<std::size_t>(element_size);
-    const std::size_t extra_elems =
-        static_cast<std::size_t>(*rc::gen::inRange(0, 17));
+    const std::size_t min_elems = (needed_bytes + static_cast<std::size_t>(element_size) - 1) / static_cast<std::size_t>(element_size);
+    const std::size_t extra_elems = static_cast<std::size_t>(*rc::gen::inRange(0, 17));
     const int num_elements = static_cast<int>(min_elems + extra_elems);
 
-    const std::size_t total_bytes =
-        static_cast<std::size_t>(num_elements) *
-        static_cast<std::size_t>(element_size);
+    const std::size_t total_bytes = static_cast<std::size_t>(num_elements) * static_cast<std::size_t>(element_size);
 
     // The real host buffer the Fortran pointer would reference.
     std::vector<char> buffer(total_bytes);
-    void* base = static_cast<void*>(buffer.data());
+    void *base = static_cast<void *>(buffer.data());
 
     // Create the plan through the interop layer (returns an int plan handle).
     int plan_handle = -1;
-    int create_code = halo_plan_create_c(
-        comm,
-        send_ranks.data(), send_counts.data(),
-        static_cast<int>(send_ranks.size()),
-        recv_ranks.data(), recv_counts.data(),
-        static_cast<int>(recv_ranks.size()),
-        &plan_handle);
+    int create_code = halo_plan_create_c(comm, send_ranks.data(), send_counts.data(), static_cast<int>(send_ranks.size()), recv_ranks.data(),
+                                         recv_counts.data(), static_cast<int>(recv_ranks.size()), &plan_handle);
     RC_ASSERT(create_code == HALO_SUCCESS);
 
     // Only the exchange's MPI traffic should be observed.
@@ -196,17 +178,16 @@ RC_GTEST_PROP(InteropProperty25, BlockingForwardingPreservesPointerAndSize, ()) 
     bool threw = false;
     int exchange_code = HALO_ERR_INVALID_ARG;
     try {
-        exchange_code =
-            halo_exchange_blocking_c(plan_handle, base, num_elements, element_size);
+        exchange_code = halo_exchange_blocking_c(plan_handle, base, num_elements, element_size);
     } catch (...) {
         threw = true;
     }
 
     // Collect the buffer pointers that reached MPI, preserving call order.
     auto calls = spy.calls_copy();
-    std::vector<void*> irecv_bufs;
-    std::vector<void*> isend_bufs;
-    for (auto const& rec : calls) {
+    std::vector<void *> irecv_bufs;
+    std::vector<void *> isend_bufs;
+    for (auto const &rec : calls) {
         if (rec.type == halo::testing::MPI_Call_Record::Type::Irecv) {
             irecv_bufs.push_back(rec.handle);
         } else if (rec.type == halo::testing::MPI_Call_Record::Type::Isend) {
@@ -215,21 +196,20 @@ RC_GTEST_PROP(InteropProperty25, BlockingForwardingPreservesPointerAndSize, ()) 
     }
 
     const std::uintptr_t base_addr = reinterpret_cast<std::uintptr_t>(base);
-    const std::uintptr_t end_addr  = base_addr + total_bytes;
+    const std::uintptr_t end_addr = base_addr + total_bytes;
 
     // Compute containment as a plain boolean so RC_ASSERT compares values.
     bool all_within = true;
-    for (void* b : irecv_bufs) {
+    for (void *b : irecv_bufs) {
         const std::uintptr_t a = reinterpret_cast<std::uintptr_t>(b);
         if (!(a >= base_addr && a < end_addr)) all_within = false;
     }
-    for (void* b : isend_bufs) {
+    for (void *b : isend_bufs) {
         const std::uintptr_t a = reinterpret_cast<std::uintptr_t>(b);
         if (!(a >= base_addr && a < end_addr)) all_within = false;
     }
 
-    const std::uintptr_t first_send_addr =
-        isend_bufs.empty() ? 0u : reinterpret_cast<std::uintptr_t>(isend_bufs.front());
+    const std::uintptr_t first_send_addr = isend_bufs.empty() ? 0u : reinterpret_cast<std::uintptr_t>(isend_bufs.front());
 
     // (1) No C++ exception escaped the boundary; forwarding succeeded.
     RC_ASSERT(!threw);
@@ -265,7 +245,7 @@ RC_GTEST_PROP(InteropProperty25, BlockingForwardingPreservesPointerAndSize, ()) 
 // **Validates: Requirements 14.5, 14.6**
 
 RC_GTEST_PROP(InteropProperty25, AsyncForwardingPreservesPointerAndSize, ()) {
-    auto& spy = halo::testing::MPI_Spy::instance();
+    auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
     const int comm = valid_comm_handle();
@@ -278,28 +258,18 @@ RC_GTEST_PROP(InteropProperty25, AsyncForwardingPreservesPointerAndSize, ()) {
     const std::size_t needed_bytes = total_send + total_recv;
 
     const int element_size = *rc::gen::inRange(1, 9);  // 1..8 bytes per element
-    const std::size_t min_elems =
-        (needed_bytes + static_cast<std::size_t>(element_size) - 1) /
-        static_cast<std::size_t>(element_size);
-    const std::size_t extra_elems =
-        static_cast<std::size_t>(*rc::gen::inRange(0, 17));
+    const std::size_t min_elems = (needed_bytes + static_cast<std::size_t>(element_size) - 1) / static_cast<std::size_t>(element_size);
+    const std::size_t extra_elems = static_cast<std::size_t>(*rc::gen::inRange(0, 17));
     const int num_elements = static_cast<int>(min_elems + extra_elems);
 
-    const std::size_t total_bytes =
-        static_cast<std::size_t>(num_elements) *
-        static_cast<std::size_t>(element_size);
+    const std::size_t total_bytes = static_cast<std::size_t>(num_elements) * static_cast<std::size_t>(element_size);
 
     std::vector<char> buffer(total_bytes);
-    void* base = static_cast<void*>(buffer.data());
+    void *base = static_cast<void *>(buffer.data());
 
     int plan_handle = -1;
-    int create_code = halo_plan_create_c(
-        comm,
-        send_ranks.data(), send_counts.data(),
-        static_cast<int>(send_ranks.size()),
-        recv_ranks.data(), recv_counts.data(),
-        static_cast<int>(recv_ranks.size()),
-        &plan_handle);
+    int create_code = halo_plan_create_c(comm, send_ranks.data(), send_counts.data(), static_cast<int>(send_ranks.size()), recv_ranks.data(),
+                                         recv_counts.data(), static_cast<int>(recv_ranks.size()), &plan_handle);
     RC_ASSERT(create_code == HALO_SUCCESS);
 
     spy.reset();
@@ -309,16 +279,15 @@ RC_GTEST_PROP(InteropProperty25, AsyncForwardingPreservesPointerAndSize, ()) {
     int exchange_code = HALO_ERR_INVALID_ARG;
     int async_handle = -1;
     try {
-        exchange_code = halo_exchange_async_c(
-            plan_handle, base, num_elements, element_size, &async_handle);
+        exchange_code = halo_exchange_async_c(plan_handle, base, num_elements, element_size, &async_handle);
     } catch (...) {
         threw = true;
     }
 
     auto calls = spy.calls_copy();
-    std::vector<void*> irecv_bufs;
-    std::vector<void*> isend_bufs;
-    for (auto const& rec : calls) {
+    std::vector<void *> irecv_bufs;
+    std::vector<void *> isend_bufs;
+    for (auto const &rec : calls) {
         if (rec.type == halo::testing::MPI_Call_Record::Type::Irecv) {
             irecv_bufs.push_back(rec.handle);
         } else if (rec.type == halo::testing::MPI_Call_Record::Type::Isend) {
@@ -327,20 +296,19 @@ RC_GTEST_PROP(InteropProperty25, AsyncForwardingPreservesPointerAndSize, ()) {
     }
 
     const std::uintptr_t base_addr = reinterpret_cast<std::uintptr_t>(base);
-    const std::uintptr_t end_addr  = base_addr + total_bytes;
+    const std::uintptr_t end_addr = base_addr + total_bytes;
 
     bool all_within = true;
-    for (void* b : irecv_bufs) {
+    for (void *b : irecv_bufs) {
         const std::uintptr_t a = reinterpret_cast<std::uintptr_t>(b);
         if (!(a >= base_addr && a < end_addr)) all_within = false;
     }
-    for (void* b : isend_bufs) {
+    for (void *b : isend_bufs) {
         const std::uintptr_t a = reinterpret_cast<std::uintptr_t>(b);
         if (!(a >= base_addr && a < end_addr)) all_within = false;
     }
 
-    const std::uintptr_t first_send_addr =
-        isend_bufs.empty() ? 0u : reinterpret_cast<std::uintptr_t>(isend_bufs.front());
+    const std::uintptr_t first_send_addr = isend_bufs.empty() ? 0u : reinterpret_cast<std::uintptr_t>(isend_bufs.front());
 
     const bool handle_is_usable = (async_handle > 0);
 
@@ -377,7 +345,7 @@ RC_GTEST_PROP(InteropProperty25, AsyncForwardingPreservesPointerAndSize, ()) {
 // whole test binary so any code path that touches a Kokkos::View is safe.
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -390,5 +358,4 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);

@@ -2,9 +2,10 @@
 // Threading stress tests for span::TripleBuffer (Task 10.3)
 // Verifies concurrent read/write safety of triple-buffer rotation.
 
-#include <span/triple_buffer.hpp>
 #include <gtest/gtest.h>
+
 #include <atomic>
+#include <span/triple_buffer.hpp>
 #include <thread>
 #include <vector>
 
@@ -85,7 +86,7 @@ TEST(TripleBufferThreading, HighContentionSwapRelease) {
     for (int i = 0; i < NUM_THREADS; ++i) {
         threads.emplace_back(worker);
     }
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 

@@ -13,15 +13,13 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <cmath>
-#include <cstddef>
-#include <vector>
-
 #include <Kokkos_Core.hpp>
-
 #include <axis/solver/apply.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/types.hpp>
+#include <cmath>
+#include <cstddef>
+#include <vector>
 
 namespace {
 
@@ -45,42 +43,42 @@ RC_GTEST_PROP(PropSpmvApply, MatchesReferenceLoop, ()) {
     std::vector<axis::index_t> cols(nnz);
 
     for (std::size_t k = 0; k < nnz; ++k) {
-        weights[k] = *rc::gen::map(rc::gen::inRange(-10000, 10001),
-                                   [](int v) { return static_cast<double>(v) / 1000.0; });
-        rows[k] = static_cast<axis::index_t>(
-            *rc::gen::inRange<std::size_t>(0, n_dst));
-        cols[k] = static_cast<axis::index_t>(
-            *rc::gen::inRange<std::size_t>(0, n_src));
+        weights[k] = *rc::gen::map(rc::gen::inRange(-10000, 10001), [](int v) { return static_cast<double>(v) / 1000.0; });
+        rows[k] = static_cast<axis::index_t>(*rc::gen::inRange<std::size_t>(0, n_dst));
+        cols[k] = static_cast<axis::index_t>(*rc::gen::inRange<std::size_t>(0, n_src));
     }
 
     // Generate random source field
     std::vector<double> src_data(n_src);
     for (std::size_t i = 0; i < n_src; ++i) {
-        src_data[i] = *rc::gen::map(rc::gen::inRange(-10000, 10001),
-                                    [](int v) { return static_cast<double>(v) / 100.0; });
+        src_data[i] = *rc::gen::map(rc::gen::inRange(-10000, 10001), [](int v) { return static_cast<double>(v) / 100.0; });
     }
 
     // Build InterpolationMatrix from the generated data
-    Kokkos::View<double*, Kokkos::HostSpace>       fl("fl", nnz);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fr("fr", nnz);
-    Kokkos::View<axis::index_t*, Kokkos::HostSpace> fc("fc", nnz);
-    Kokkos::View<double*, Kokkos::HostSpace>       fa("fa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       fb("fb", n_dst);
-    Kokkos::View<double*, Kokkos::HostSpace>       aa("aa", n_src);
-    Kokkos::View<double*, Kokkos::HostSpace>       ab("ab", n_dst);
+    Kokkos::View<double *, Kokkos::HostSpace> fl("fl", nnz);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fr("fr", nnz);
+    Kokkos::View<axis::index_t *, Kokkos::HostSpace> fc("fc", nnz);
+    Kokkos::View<double *, Kokkos::HostSpace> fa("fa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> fb("fb", n_dst);
+    Kokkos::View<double *, Kokkos::HostSpace> aa("aa", n_src);
+    Kokkos::View<double *, Kokkos::HostSpace> ab("ab", n_dst);
 
     for (std::size_t k = 0; k < nnz; ++k) {
         fl(k) = weights[k];
         fr(k) = rows[k];
         fc(k) = cols[k];
     }
-    for (std::size_t i = 0; i < n_src; ++i) { fa(i) = 1.0; aa(i) = 1.0; }
-    for (std::size_t j = 0; j < n_dst; ++j) { fb(j) = 1.0; ab(j) = 1.0; }
+    for (std::size_t i = 0; i < n_src; ++i) {
+        fa(i) = 1.0;
+        aa(i) = 1.0;
+    }
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        fb(j) = 1.0;
+        ab(j) = 1.0;
+    }
 
-    axis::solver::InterpolationMatrix<Kokkos::HostSpace> matrix(
-        std::move(fl), std::move(fr), std::move(fc),
-        std::move(fa), std::move(fb), std::move(aa), std::move(ab),
-        n_src, n_dst);
+    axis::solver::InterpolationMatrix<Kokkos::HostSpace> matrix(std::move(fl), std::move(fr), std::move(fc), std::move(fa), std::move(fb),
+                                                                std::move(aa), std::move(ab), n_src, n_dst);
 
     // Compute reference result via scalar loop
     std::vector<double> ref_dst(n_dst, 0.0);
@@ -91,7 +89,7 @@ RC_GTEST_PROP(PropSpmvApply, MatchesReferenceLoop, ()) {
     }
 
     // Compute via solver::apply
-    std::vector<double> dst_data(n_dst, -999.0); // sentinel to verify overwrite
+    std::vector<double> dst_data(n_dst, -999.0);  // sentinel to verify overwrite
     axis::field_view<const double, 1> src_view(src_data.data(), n_src);
     axis::field_view<double, 1> dst_view(dst_data.data(), n_dst);
 
@@ -109,7 +107,7 @@ RC_GTEST_PROP(PropSpmvApply, MatchesReferenceLoop, ()) {
 // ─── Kokkos Initialization ───────────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         if (!Kokkos::is_initialized()) {
             Kokkos::initialize();
@@ -122,7 +120,6 @@ public:
     }
 };
 
-static auto* const kokkos_env =
-    ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 }  // namespace

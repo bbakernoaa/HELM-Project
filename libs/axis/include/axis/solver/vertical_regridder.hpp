@@ -19,20 +19,16 @@ namespace axis::solver {
 /// @tparam MemorySpace The Kokkos memory space (e.g., Kokkos::HostSpace, Kokkos::CudaSpace).
 template <typename MemorySpace>
 class VerticalRegridder {
-public:
+   public:
     /// @brief Interpolate a 2D field from source vertical levels to destination vertical levels (Uniform 1D).
     /// @param src_field   Source field of shape (N_col, N_src_lev).
     /// @param dst_field   Destination field of shape (N_col, N_dst_lev).
     /// @param src_levels  Source level coordinates of shape (N_src_lev).
     /// @param dst_levels  Destination level coordinates of shape (N_dst_lev).
     /// @param tension     Tension parameter (>= 0.0). 0.0 corresponds to standard cubic splines.
-    static void interpolate(
-        Kokkos::View<const double**, MemorySpace> src_field,
-        Kokkos::View<double**, MemorySpace>       dst_field,
-        Kokkos::View<const double*, MemorySpace>  src_levels,
-        Kokkos::View<const double*, MemorySpace>  dst_levels,
-        double tension = 0.0
-    );
+    static void interpolate(Kokkos::View<const double **, MemorySpace> src_field, Kokkos::View<double **, MemorySpace> dst_field,
+                            Kokkos::View<const double *, MemorySpace> src_levels, Kokkos::View<const double *, MemorySpace> dst_levels,
+                            double tension = 0.0);
 
     /// @brief Interpolate a 2D field from source vertical levels to destination vertical levels (Varying 2D).
     /// @param src_field   Source field of shape (N_col, N_src_lev).
@@ -40,15 +36,11 @@ public:
     /// @param src_levels  Source level coordinates of shape (N_col, N_src_lev).
     /// @param dst_levels  Destination level coordinates of shape (N_col, N_dst_lev).
     /// @param tension     Tension parameter (>= 0.0). 0.0 corresponds to standard cubic splines.
-    static void interpolate(
-        Kokkos::View<const double**, MemorySpace>  src_field,
-        Kokkos::View<double**, MemorySpace>        dst_field,
-        Kokkos::View<const double**, MemorySpace>  src_levels,
-        Kokkos::View<const double**, MemorySpace>  dst_levels,
-        double tension = 0.0
-    );
+    static void interpolate(Kokkos::View<const double **, MemorySpace> src_field, Kokkos::View<double **, MemorySpace> dst_field,
+                            Kokkos::View<const double **, MemorySpace> src_levels, Kokkos::View<const double **, MemorySpace> dst_levels,
+                            double tension = 0.0);
 };
 
-} // namespace axis::solver
+}  // namespace axis::solver
 
-#endif // AXIS_SOLVER_VERTICAL_REGRIDDER_HPP
+#endif  // AXIS_SOLVER_VERTICAL_REGRIDDER_HPP

@@ -19,9 +19,8 @@
 /// arrays to host via explicit Kokkos::deep_copy before serialization
 /// (HELM Law #2 — no UVM reliance).
 
-#include <string>
-
 #include <axis/topology/unstructured_mesh.hpp>
+#include <string>
 
 namespace axis::topology {
 
@@ -34,7 +33,7 @@ namespace axis::topology {
 ///   GmshWriter::write("output.msh", mesh);
 /// @endcode
 class GmshWriter {
-public:
+   public:
     /// @brief Serialize an UnstructuredMesh to Gmsh .msh v2.2 ASCII format at the specified file path.
     ///
     /// If the mesh resides in device memory (e.g., CudaSpace or HIPSpace), internal arrays
@@ -54,10 +53,9 @@ public:
     /// @param mesh The UnstructuredMesh<MemorySpace> instance to serialize.
     /// @throw std::runtime_error If the target output file cannot be opened, or if a write error occurs during serialization.
     template <class MemorySpace>
-    static void write(const std::string& filepath,
-                      const UnstructuredMesh<MemorySpace>& mesh);
+    static void write(const std::string &filepath, const UnstructuredMesh<MemorySpace> &mesh);
 };
 
-} // namespace axis::topology
+}  // namespace axis::topology
 
-#endif // AXIS_TOPOLOGY_GMSH_WRITER_HPP
+#endif  // AXIS_TOPOLOGY_GMSH_WRITER_HPP

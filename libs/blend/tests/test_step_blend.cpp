@@ -12,14 +12,13 @@
 
 #include <Kokkos_Core.hpp>
 #include <blend/helm_math_blend.hpp>
-
 #include <stdexcept>
 #include <vector>
 
 // ── Kokkos lifecycle management ───────────────────────────────────────────────
 
 class KokkosEnvironment : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         Kokkos::initialize();
     }
@@ -28,16 +27,16 @@ public:
     }
 };
 
-static ::testing::Environment* const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
+static ::testing::Environment *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEnvironment);
 
 // ── Helper: run StepBlendKernel on host std::vectors ─────────────────────────
 
-static std::vector<double> run_step(const std::vector<double>& left, const std::vector<double>& right, double alpha) {
+static std::vector<double> run_step(const std::vector<double> &left, const std::vector<double> &right, double alpha) {
     const std::size_t n = left.size();
     std::vector<double> target(n, 0.0);
 
-    span::FieldView v_left(const_cast<double*>(left.data()), n);
-    span::FieldView v_right(const_cast<double*>(right.data()), n);
+    span::FieldView v_left(const_cast<double *>(left.data()), n);
+    span::FieldView v_right(const_cast<double *>(right.data()), n);
     span::FieldView v_target(target.data(), n);
 
     blend::StepBlendKernel::apply(v_left, v_right, v_target, alpha);
@@ -49,7 +48,7 @@ static std::vector<double> run_step(const std::vector<double>& left, const std::
 // ── Test 1: alpha < 0.5 → output equals left ─────────────────────────────────
 
 TEST(StepBlendKernel, AlphaLessThanHalfSelectsLeft) {
-    const std::vector<double> left  = {1.0, 2.0, 3.0, 4.0};
+    const std::vector<double> left = {1.0, 2.0, 3.0, 4.0};
     const std::vector<double> right = {10.0, 20.0, 30.0, 40.0};
 
     for (const double alpha : {0.0, 0.1, 0.25, 0.499}) {
@@ -63,7 +62,7 @@ TEST(StepBlendKernel, AlphaLessThanHalfSelectsLeft) {
 // ── Test 2: alpha >= 0.5 → output equals right ───────────────────────────────
 
 TEST(StepBlendKernel, AlphaGeqHalfSelectsRight) {
-    const std::vector<double> left  = {1.0, 2.0, 3.0, 4.0};
+    const std::vector<double> left = {1.0, 2.0, 3.0, 4.0};
     const std::vector<double> right = {10.0, 20.0, 30.0, 40.0};
 
     for (const double alpha : {0.5, 0.501, 0.75, 1.0}) {
@@ -77,7 +76,7 @@ TEST(StepBlendKernel, AlphaGeqHalfSelectsRight) {
 // ── Test 3: Boundary alpha = 0.5 exactly selects right ───────────────────────
 
 TEST(StepBlendKernel, AlphaExactlyHalfSelectsRight) {
-    const std::vector<double> left  = {-5.0, 0.0, 5.0};
+    const std::vector<double> left = {-5.0, 0.0, 5.0};
     const std::vector<double> right = {100.0, 200.0, 300.0};
 
     const auto result = run_step(left, right, 0.5);
@@ -89,8 +88,8 @@ TEST(StepBlendKernel, AlphaExactlyHalfSelectsRight) {
 // ── Test 4: Extent mismatch throws std::invalid_argument ─────────────────────
 
 TEST(StepBlendKernel, ExtentMismatchThrows) {
-    std::vector<double> left   = {1.0, 2.0, 3.0};
-    std::vector<double> right  = {4.0, 5.0};          // wrong size
+    std::vector<double> left = {1.0, 2.0, 3.0};
+    std::vector<double> right = {4.0, 5.0};  // wrong size
     std::vector<double> target = {0.0, 0.0, 0.0};
 
     span::FieldView v_left(left.data(), left.size());
@@ -101,9 +100,9 @@ TEST(StepBlendKernel, ExtentMismatchThrows) {
 }
 
 TEST(StepBlendKernel, TargetExtentMismatchThrows) {
-    std::vector<double> left   = {1.0, 2.0, 3.0};
-    std::vector<double> right  = {4.0, 5.0, 6.0};
-    std::vector<double> target = {0.0};                // wrong size
+    std::vector<double> left = {1.0, 2.0, 3.0};
+    std::vector<double> right = {4.0, 5.0, 6.0};
+    std::vector<double> target = {0.0};  // wrong size
 
     span::FieldView v_left(left.data(), left.size());
     span::FieldView v_right(right.data(), right.size());

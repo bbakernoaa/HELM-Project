@@ -11,22 +11,22 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include <dagr/detail/event_loop.hpp>
-#include <dagr/detail/rank_pool.hpp>
-#include <dagr/detail/task_node.hpp>
-#include "generators.hpp"
-
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <dagr/detail/event_loop.hpp>
+#include <dagr/detail/rank_pool.hpp>
+#include <dagr/detail/task_node.hpp>
 #include <deque>
 #include <set>
 #include <vector>
 
+#include "generators.hpp"
+
 namespace {
 
 /// Build TaskNode vector from a Generated_DAG, computing pending_deps from edges.
-std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_DAG& dag) {
+std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_DAG &dag) {
     const auto node_count = static_cast<std::uint32_t>(dag.task_names.size());
 
     std::vector<dagr::detail::TaskNode> nodes(node_count);
@@ -40,7 +40,7 @@ std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_
     }
 
     // Build adjacency lists and compute in-degrees
-    for (const auto& edge : dag.edges) {
+    for (const auto &edge : dag.edges) {
         if (edge.producer_id < node_count && edge.consumer_id < node_count) {
             nodes[edge.producer_id].dependents.push_back(edge.consumer_id);
             nodes[edge.consumer_id].pending_deps.fetch_add(1, std::memory_order_relaxed);
@@ -50,7 +50,7 @@ std::vector<dagr::detail::TaskNode> build_task_nodes(const dagr::gen::Generated_
     return nodes;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 /// **Validates: Requirements 3.5, 6.5, 13.5**
 RC_GTEST_PROP(ConcurrencyLimit, PeakInFlightNeverExceedsMaxConcurrency, ()) {
@@ -76,7 +76,7 @@ RC_GTEST_PROP(ConcurrencyLimit, PeakInFlightNeverExceedsMaxConcurrency, ()) {
     // Configure Event_Loop with the generated max_concurrency
     dagr::detail::Event_Loop::Config cfg;
     cfg.max_concurrency = max_conc;
-    cfg.deadlock_timeout_s = 3600; // Effectively disable deadlock detection
+    cfg.deadlock_timeout_s = 3600;  // Effectively disable deadlock detection
 
     dagr::detail::Event_Loop loop(cfg, nodes, rank_pool);
 
@@ -88,7 +88,7 @@ RC_GTEST_PROP(ConcurrencyLimit, PeakInFlightNeverExceedsMaxConcurrency, ()) {
     std::deque<std::uint32_t> in_flight_queue;
 
     // Set up dispatch callback: record in-flight count, hold task in queue
-    loop.set_dispatch_callback([&](std::uint32_t node_id, const std::set<int>& /*ranks*/) -> bool {
+    loop.set_dispatch_callback([&](std::uint32_t node_id, const std::set<int> & /*ranks*/) -> bool {
         in_flight_queue.push_back(node_id);
 
         // Track peak in-flight — check AFTER adding this new task
@@ -107,9 +107,7 @@ RC_GTEST_PROP(ConcurrencyLimit, PeakInFlightNeverExceedsMaxConcurrency, ()) {
         std::vector<std::pair<std::uint32_t, bool>> completions;
 
         // Release up to release_per_cycle tasks from the front of the queue
-        std::uint32_t to_release = std::min<std::uint32_t>(
-            release_per_cycle,
-            static_cast<std::uint32_t>(in_flight_queue.size()));
+        std::uint32_t to_release = std::min<std::uint32_t>(release_per_cycle, static_cast<std::uint32_t>(in_flight_queue.size()));
 
         for (std::uint32_t i = 0; i < to_release; ++i) {
             completions.emplace_back(in_flight_queue.front(), true);
@@ -149,9 +147,8 @@ RC_GTEST_PROP(ConcurrencyLimit, PeakInFlightNeverExceedsMaxConcurrency, ()) {
     RC_ASSERT(peak_in_flight <= max_conc);
 
     // Sanity check: verify all nodes reached terminal state
-    for (const auto& node : nodes) {
-        RC_ASSERT(node.status == dagr::detail::Task_Status::completed
-                || node.status == dagr::detail::Task_Status::failed
-                || node.status == dagr::detail::Task_Status::cancelled);
+    for (const auto &node : nodes) {
+        RC_ASSERT(node.status == dagr::detail::Task_Status::completed || node.status == dagr::detail::Task_Status::failed ||
+                  node.status == dagr::detail::Task_Status::cancelled);
     }
 }

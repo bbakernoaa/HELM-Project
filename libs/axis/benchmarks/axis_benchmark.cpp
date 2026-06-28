@@ -21,6 +21,14 @@
 /// Output: JSON array of objects with {name, wall_clock_ms, date, commit}
 /// (Requirement 13.3).
 
+#include <Kokkos_Core.hpp>
+#include <axis/solver/apply.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <axis/topology/named_grid_registry.hpp>
+#include <axis/topology/unstructured_mesh.hpp>
+#include <axis/types.hpp>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -31,16 +39,6 @@
 #include <string>
 #include <vector>
 
-#include <Kokkos_Core.hpp>
-
-#include <axis/solver/apply.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/regrid_config.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/topology/named_grid_registry.hpp>
-#include <axis/topology/unstructured_mesh.hpp>
-#include <axis/types.hpp>
-
 namespace {
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,7 +47,7 @@ namespace {
 
 struct BenchmarkResult {
     std::string name;
-    double      wall_clock_ms;
+    double wall_clock_ms;
     std::string date;
     std::string commit;
 };
@@ -70,10 +68,10 @@ std::string current_date_utc() {
 }
 
 /// Write results as JSON to a stream (Requirement 13.3).
-void write_json(std::ostream& os, const std::vector<BenchmarkResult>& results) {
+void write_json(std::ostream &os, const std::vector<BenchmarkResult> &results) {
     os << "[\n";
     for (std::size_t i = 0; i < results.size(); ++i) {
-        const auto& r = results[i];
+        const auto &r = results[i];
         os << "  {\n"
            << "    \"name\": \"" << r.name << "\",\n"
            << "    \"wall_clock_ms\": " << std::fixed << std::setprecision(3) << r.wall_clock_ms << ",\n"
@@ -88,15 +86,19 @@ void write_json(std::ostream& os, const std::vector<BenchmarkResult>& results) {
 
 /// High-resolution wall-clock timer.
 class Timer {
-public:
-    void start() { start_ = std::chrono::high_resolution_clock::now(); }
-    void stop()  { end_   = std::chrono::high_resolution_clock::now(); }
+   public:
+    void start() {
+        start_ = std::chrono::high_resolution_clock::now();
+    }
+    void stop() {
+        end_ = std::chrono::high_resolution_clock::now();
+    }
 
     double elapsed_ms() const {
         return std::chrono::duration<double, std::milli>(end_ - start_).count();
     }
 
-private:
+   private:
     std::chrono::high_resolution_clock::time_point start_;
     std::chrono::high_resolution_clock::time_point end_;
 };
@@ -104,10 +106,10 @@ private:
 /// Number of warmup iterations before timing.
 constexpr int WARMUP_ITERS = 2;
 /// Number of timed iterations to average.
-constexpr int BENCH_ITERS  = 5;
+constexpr int BENCH_ITERS = 5;
 
 /// Fill a Kokkos view with a smooth test field (cosine bell pattern).
-void fill_test_field(Kokkos::View<double*, Kokkos::HostSpace>& field, std::size_t n) {
+void fill_test_field(Kokkos::View<double *, Kokkos::HostSpace> &field, std::size_t n) {
     Kokkos::resize(field, n);
     for (std::size_t i = 0; i < n; ++i) {
         double t = static_cast<double>(i) / static_cast<double>(n);
@@ -116,14 +118,12 @@ void fill_test_field(Kokkos::View<double*, Kokkos::HostSpace>& field, std::size_
 }
 
 /// Fill a rank-2 Kokkos view with test data for batch apply.
-void fill_test_field_2d(Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostSpace>& field,
-                        std::size_t n_cells, std::size_t n_vars) {
+void fill_test_field_2d(Kokkos::View<double **, Kokkos::LayoutLeft, Kokkos::HostSpace> &field, std::size_t n_cells, std::size_t n_vars) {
     Kokkos::resize(field, n_cells, n_vars);
     for (std::size_t v = 0; v < n_vars; ++v) {
         for (std::size_t i = 0; i < n_cells; ++i) {
             double t = static_cast<double>(i) / static_cast<double>(n_cells);
-            field(i, v) = std::cos(2.0 * M_PI * t + static_cast<double>(v)) *
-                          std::sin(M_PI * t);
+            field(i, v) = std::cos(2.0 * M_PI * t + static_cast<double>(v)) * std::sin(M_PI * t);
         }
     }
 }
@@ -133,7 +133,7 @@ void fill_test_field_2d(Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::HostS
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Case 1: Bilinear O48→O96
-BenchmarkResult bench_bilinear_O48_to_O96(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_bilinear_O48_to_O96(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     // Generate named grids
@@ -142,7 +142,7 @@ BenchmarkResult bench_bilinear_O48_to_O96(const std::string& commit, const std::
 
     // Configure bilinear regridding
     axis::solver::RegridConfig config;
-    config.method   = axis::solver::InterpolationMethod::Bilinear;
+    config.method = axis::solver::InterpolationMethod::Bilinear;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Warmup: generate weights (includes BVH construction)
@@ -162,25 +162,20 @@ BenchmarkResult bench_bilinear_O48_to_O96(const std::string& commit, const std::
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "bilinear_O48_to_O96",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"bilinear_O48_to_O96", total_ms / BENCH_ITERS, date, commit};
 }
 
 /// Case 2: Conservative O48→O96
-BenchmarkResult bench_conservative_O48_to_O96(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_conservative_O48_to_O96(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     auto src_mesh = axis::topology::NamedGridRegistry::generate<MS>("O48");
     auto dst_mesh = axis::topology::NamedGridRegistry::generate<MS>("O96");
 
     axis::solver::RegridConfig config;
-    config.method    = axis::solver::InterpolationMethod::Conservative1stOrder;
+    config.method = axis::solver::InterpolationMethod::Conservative1stOrder;
     config.norm_type = axis::solver::NormType::DstArea;
-    config.unmapped  = axis::solver::UnmappedAction::Ignore;
+    config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Warmup
     axis::solver::InterpolationMatrix<MS> matrix;
@@ -199,40 +194,35 @@ BenchmarkResult bench_conservative_O48_to_O96(const std::string& commit, const s
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "conservative_O48_to_O96",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"conservative_O48_to_O96", total_ms / BENCH_ITERS, date, commit};
 }
 
 /// Case 3: Batch apply 10 variables O96→O96
-BenchmarkResult bench_batch_apply_10vars_O96(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_batch_apply_10vars_O96(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     auto src_mesh = axis::topology::NamedGridRegistry::generate<MS>("O96");
     auto dst_mesh = axis::topology::NamedGridRegistry::generate<MS>("O96");
 
     axis::solver::RegridConfig config;
-    config.method   = axis::solver::InterpolationMethod::Bilinear;
+    config.method = axis::solver::InterpolationMethod::Bilinear;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Generate weights once (not timed — we're benchmarking apply)
     auto matrix = axis::solver::WeightGenerator::generate<MS>(src_mesh, dst_mesh, config);
 
-    const std::size_t n_src  = matrix.n_src();
-    const std::size_t n_dst  = matrix.n_dst();
+    const std::size_t n_src = matrix.n_src();
+    const std::size_t n_dst = matrix.n_dst();
     const std::size_t n_vars = 10;
 
     // Prepare source and destination fields
-    Kokkos::View<double**, Kokkos::LayoutLeft, MS> src_data("src", n_src, n_vars);
-    Kokkos::View<double**, Kokkos::LayoutLeft, MS> dst_data("dst", n_dst, n_vars);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MS> src_data("src", n_src, n_vars);
+    Kokkos::View<double **, Kokkos::LayoutLeft, MS> dst_data("dst", n_dst, n_vars);
     fill_test_field_2d(src_data, n_src, n_vars);
 
     // Create field_views over the Kokkos data
     axis::field_view<const double, 2> src_view(src_data.data(), n_src, n_vars);
-    axis::field_view<double, 2>       dst_view(dst_data.data(), n_dst, n_vars);
+    axis::field_view<double, 2> dst_view(dst_data.data(), n_dst, n_vars);
 
     // Warmup
     for (int i = 0; i < WARMUP_ITERS; ++i) {
@@ -250,17 +240,12 @@ BenchmarkResult bench_batch_apply_10vars_O96(const std::string& commit, const st
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "batch_apply_10vars_O96_to_O96",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"batch_apply_10vars_O96_to_O96", total_ms / BENCH_ITERS, date, commit};
 }
 
 /// Case 5: Conservative 1st-order F720→F360 (1440×720 to 720×360)
 /// Triggers the regular-grid rectangle fast-path since both are F-family (regular lat-lon).
-BenchmarkResult bench_conservative_1440x720_to_720x360(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_conservative_1440x720_to_720x360(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
@@ -269,10 +254,10 @@ BenchmarkResult bench_conservative_1440x720_to_720x360(const std::string& commit
 
     // Configure conservative 1st-order with Cartesian line type
     axis::solver::RegridConfig config;
-    config.method    = axis::solver::InterpolationMethod::Conservative1stOrder;
+    config.method = axis::solver::InterpolationMethod::Conservative1stOrder;
     config.norm_type = axis::solver::NormType::DstArea;
     config.line_type = axis::solver::LineType::Cartesian;
-    config.unmapped  = axis::solver::UnmappedAction::Ignore;
+    config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Warmup
     axis::solver::InterpolationMatrix<MS> matrix;
@@ -291,17 +276,12 @@ BenchmarkResult bench_conservative_1440x720_to_720x360(const std::string& commit
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "conservative_1440x720_to_720x360",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"conservative_1440x720_to_720x360", total_ms / BENCH_ITERS, date, commit};
 }
 
 /// Case 6: Conservative 1st-order F1800→F720 (3600×1800 to 1440×720)
 /// CDO-competitive target (Requirement 6.5).
-BenchmarkResult bench_conservative_3600x1800_to_1440x720(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_conservative_3600x1800_to_1440x720(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
@@ -310,10 +290,10 @@ BenchmarkResult bench_conservative_3600x1800_to_1440x720(const std::string& comm
 
     // Configure conservative 1st-order with Cartesian line type
     axis::solver::RegridConfig config;
-    config.method    = axis::solver::InterpolationMethod::Conservative1stOrder;
+    config.method = axis::solver::InterpolationMethod::Conservative1stOrder;
     config.norm_type = axis::solver::NormType::DstArea;
     config.line_type = axis::solver::LineType::Cartesian;
-    config.unmapped  = axis::solver::UnmappedAction::Ignore;
+    config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Warmup
     axis::solver::InterpolationMatrix<MS> matrix;
@@ -332,18 +312,13 @@ BenchmarkResult bench_conservative_3600x1800_to_1440x720(const std::string& comm
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "conservative_3600x1800_to_1440x720",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"conservative_3600x1800_to_1440x720", total_ms / BENCH_ITERS, date, commit};
 }
 
 /// Case 7: Bilinear fast-path F1800→F720 (3600×1800 to 1440×720)
 /// Exercises the regular-grid bilinear fast-path on a large grid pair.
 /// Target: ≤ 900ms wall-clock (Requirement 6.1).
-BenchmarkResult bench_bilinear_3600x1800_to_1440x720(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_bilinear_3600x1800_to_1440x720(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
@@ -352,7 +327,7 @@ BenchmarkResult bench_bilinear_3600x1800_to_1440x720(const std::string& commit, 
 
     // Configure bilinear regridding
     axis::solver::RegridConfig config;
-    config.method   = axis::solver::InterpolationMethod::Bilinear;
+    config.method = axis::solver::InterpolationMethod::Bilinear;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Warmup
@@ -372,18 +347,13 @@ BenchmarkResult bench_bilinear_3600x1800_to_1440x720(const std::string& commit, 
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "bilinear_3600x1800_to_1440x720",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"bilinear_3600x1800_to_1440x720", total_ms / BENCH_ITERS, date, commit};
 }
 
 /// Case 8: Bilinear fast-path F720→F360 (1440×720 to 720×360)
 /// Exercises the regular-grid bilinear fast-path on a medium grid pair.
 /// Target: ≤ 250ms wall-clock (Requirement 6.2).
-BenchmarkResult bench_bilinear_1440x720_to_720x360(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_bilinear_1440x720_to_720x360(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     // Generate regular lat-lon grids (F-family: 2*N longitudes × N latitudes)
@@ -392,7 +362,7 @@ BenchmarkResult bench_bilinear_1440x720_to_720x360(const std::string& commit, co
 
     // Configure bilinear regridding
     axis::solver::RegridConfig config;
-    config.method   = axis::solver::InterpolationMethod::Bilinear;
+    config.method = axis::solver::InterpolationMethod::Bilinear;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Warmup
@@ -412,23 +382,18 @@ BenchmarkResult bench_bilinear_1440x720_to_720x360(const std::string& commit, co
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "bilinear_1440x720_to_720x360",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"bilinear_1440x720_to_720x360", total_ms / BENCH_ITERS, date, commit};
 }
 
 /// Case 4: CSR apply O96→O96
-BenchmarkResult bench_csr_apply_O96(const std::string& commit, const std::string& date) {
+BenchmarkResult bench_csr_apply_O96(const std::string &commit, const std::string &date) {
     using MS = Kokkos::HostSpace;
 
     auto src_mesh = axis::topology::NamedGridRegistry::generate<MS>("O96");
     auto dst_mesh = axis::topology::NamedGridRegistry::generate<MS>("O96");
 
     axis::solver::RegridConfig config;
-    config.method   = axis::solver::InterpolationMethod::Bilinear;
+    config.method = axis::solver::InterpolationMethod::Bilinear;
     config.unmapped = axis::solver::UnmappedAction::Ignore;
 
     // Generate weights and convert to CSR (not timed)
@@ -439,12 +404,12 @@ BenchmarkResult bench_csr_apply_O96(const std::string& commit, const std::string
     const std::size_t n_dst = matrix.n_dst();
 
     // Prepare source and destination fields
-    Kokkos::View<double*, MS> src_data("src", n_src);
-    Kokkos::View<double*, MS> dst_data("dst", n_dst);
+    Kokkos::View<double *, MS> src_data("src", n_src);
+    Kokkos::View<double *, MS> dst_data("dst", n_dst);
     fill_test_field(src_data, n_src);
 
     axis::field_view<const double, 1> src_view(src_data.data(), n_src);
-    axis::field_view<double, 1>       dst_view(dst_data.data(), n_dst);
+    axis::field_view<double, 1> dst_view(dst_data.data(), n_dst);
 
     // Warmup
     for (int i = 0; i < WARMUP_ITERS; ++i) {
@@ -462,12 +427,7 @@ BenchmarkResult bench_csr_apply_O96(const std::string& commit, const std::string
         total_ms += timer.elapsed_ms();
     }
 
-    return BenchmarkResult{
-        "csr_apply_O96_to_O96",
-        total_ms / BENCH_ITERS,
-        date,
-        commit
-    };
+    return BenchmarkResult{"csr_apply_O96_to_O96", total_ms / BENCH_ITERS, date, commit};
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -479,7 +439,7 @@ struct CliArgs {
     std::string output_path;  // empty = stdout
 };
 
-CliArgs parse_args(int argc, char* argv[]) {
+CliArgs parse_args(int argc, char *argv[]) {
     CliArgs args;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -497,13 +457,13 @@ CliArgs parse_args(int argc, char* argv[]) {
     return args;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     // Parse CLI args before Kokkos (Kokkos consumes its own args)
     CliArgs cli = parse_args(argc, argv);
 

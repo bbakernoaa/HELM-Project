@@ -2,7 +2,6 @@
 // Implementation of conf::detail::Yaml_Tree (private yaml-cpp wrapper).
 
 #include "detail/yaml_tree.hpp"
-#include "conf/value.hpp"
 
 #include <charconv>
 #include <fstream>
@@ -11,17 +10,17 @@
 #include <string_view>
 #include <vector>
 
+#include "conf/value.hpp"
+
 namespace conf::detail {
 
 // ── Private constructor ──────────────────────────────────────────────────────
 
-Yaml_Tree::Yaml_Tree(YAML::Node root) noexcept
-    : root_(std::move(root)) {}
+Yaml_Tree::Yaml_Tree(YAML::Node root) noexcept : root_(std::move(root)) {}
 
 // ── Move semantics ───────────────────────────────────────────────────────────
 
-Yaml_Tree::Yaml_Tree(Yaml_Tree&& other) noexcept
-    : root_(other.root_) {
+Yaml_Tree::Yaml_Tree(Yaml_Tree &&other) noexcept : root_(other.root_) {
     // yaml-cpp Node has reference semantics — assigning a new node to other.root_
     // would mutate the shared underlying data and corrupt our root_. Instead, we
     // leave the moved-from instance's root_ sharing the same data. This is safe
@@ -30,7 +29,7 @@ Yaml_Tree::Yaml_Tree(Yaml_Tree&& other) noexcept
     // or assign to other.root_ here.
 }
 
-Yaml_Tree& Yaml_Tree::operator=(Yaml_Tree&& other) noexcept {
+Yaml_Tree &Yaml_Tree::operator=(Yaml_Tree &&other) noexcept {
     if (this != &other) {
         root_ = other.root_;
         // Same: do NOT invalidate other.root_ due to yaml-cpp's reference semantics.
@@ -40,13 +39,12 @@ Yaml_Tree& Yaml_Tree::operator=(Yaml_Tree&& other) noexcept {
 
 // ── Factory: from_file ───────────────────────────────────────────────────────
 
-Yaml_Tree Yaml_Tree::from_file(const std::string& path) {
+Yaml_Tree Yaml_Tree::from_file(const std::string &path) {
     // Use std::ifstream to distinguish File_Not_Found from Parse_Error:
     // if the file cannot be opened at all, it's File_Not_Found.
     std::ifstream ifs(path);
     if (!ifs.is_open()) {
-        throw Conf_Error(Error_Code::File_Not_Found,
-                         "cannot open file: " + path);
+        throw Conf_Error(Error_Code::File_Not_Found, "cannot open file: " + path);
     }
 
     // Read entire file content, then parse via YAML::Load.
@@ -57,18 +55,18 @@ Yaml_Tree Yaml_Tree::from_file(const std::string& path) {
     try {
         YAML::Node root = YAML::Load(content);
         return Yaml_Tree(root);
-    } catch (const YAML::ParserException& e) {
+    } catch (const YAML::ParserException &e) {
         throw Conf_Error(Error_Code::Parse_Error, e.what());
     }
 }
 
 // ── Factory: from_string ─────────────────────────────────────────────────────
 
-Yaml_Tree Yaml_Tree::from_string(const std::string& text) {
+Yaml_Tree Yaml_Tree::from_string(const std::string &text) {
     try {
         YAML::Node root = YAML::Load(text);
         return Yaml_Tree(root);
-    } catch (const YAML::ParserException& e) {
+    } catch (const YAML::ParserException &e) {
         throw Conf_Error(Error_Code::Parse_Error, e.what());
     }
 }
@@ -99,7 +97,7 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
         }
     }
 
-    for (const auto& seg : segments) {
+    for (const auto &seg : segments) {
         if (seg.empty()) {
             throw Conf_Error(Error_Code::Invalid_Arg, "empty path segment");
         }
@@ -113,14 +111,13 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
     // simple assignment (`current = child`) within the cloned tree.
     YAML::Node current = YAML::Clone(root_);
 
-    for (const auto& seg : segments) {
+    for (const auto &seg : segments) {
         if (current.IsMap()) {
             // Look up segment by literal key (byte-for-byte, no trimming)
             std::string key_str(seg);
             YAML::Node child = current[key_str];
             if (!child.IsDefined()) {
-                throw Conf_Error(Error_Code::Key_Not_Found,
-                    "key not found: " + std::string(dotted_path));
+                throw Conf_Error(Error_Code::Key_Not_Found, "key not found: " + std::string(dotted_path));
             }
             current = child;
 
@@ -135,8 +132,7 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
             }
 
             if (!all_digits) {
-                throw Conf_Error(Error_Code::Key_Not_Found,
-                    "key not found: " + std::string(dotted_path));
+                throw Conf_Error(Error_Code::Key_Not_Found, "key not found: " + std::string(dotted_path));
             }
 
             // Safe index parsing: reject oversized digit strings and out-of-range
@@ -146,21 +142,18 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
 
             if (ec != std::errc{} || ptr != seg.data() + seg.size()) {
                 // Overflow or parse failure (e.g., absurdly large number)
-                throw Conf_Error(Error_Code::Key_Not_Found,
-                    "key not found: " + std::string(dotted_path));
+                throw Conf_Error(Error_Code::Key_Not_Found, "key not found: " + std::string(dotted_path));
             }
 
             if (index >= current.size()) {
-                throw Conf_Error(Error_Code::Key_Not_Found,
-                    "key not found: " + std::string(dotted_path));
+                throw Conf_Error(Error_Code::Key_Not_Found, "key not found: " + std::string(dotted_path));
             }
 
             current = current[index];
 
         } else {
             // Scalar, Null, or Undefined — cannot descend further
-            throw Conf_Error(Error_Code::Key_Not_Found,
-                "key not found: " + std::string(dotted_path));
+            throw Conf_Error(Error_Code::Key_Not_Found, "key not found: " + std::string(dotted_path));
         }
     }
 
@@ -169,69 +162,71 @@ YAML::Node Yaml_Tree::resolve(std::string_view dotted_path) const {
 
 // ── Node kind mapping ────────────────────────────────────────────────────────
 
-Node_Kind Yaml_Tree::node_kind(const YAML::Node& node) noexcept {
+Node_Kind Yaml_Tree::node_kind(const YAML::Node &node) noexcept {
     switch (node.Type()) {
-        case YAML::NodeType::Undefined: return Node_Kind::Undefined;
-        case YAML::NodeType::Null:      return Node_Kind::Null;
-        case YAML::NodeType::Scalar:    return Node_Kind::Scalar;
-        case YAML::NodeType::Sequence:  return Node_Kind::Sequence;
-        case YAML::NodeType::Map:       return Node_Kind::Map;
-        default:                        return Node_Kind::Undefined;
+        case YAML::NodeType::Undefined:
+            return Node_Kind::Undefined;
+        case YAML::NodeType::Null:
+            return Node_Kind::Null;
+        case YAML::NodeType::Scalar:
+            return Node_Kind::Scalar;
+        case YAML::NodeType::Sequence:
+            return Node_Kind::Sequence;
+        case YAML::NodeType::Map:
+            return Node_Kind::Map;
+        default:
+            return Node_Kind::Undefined;
     }
 }
 
 // ── Typed conversion ─────────────────────────────────────────────────────────
 
 template <>
-int Yaml_Tree::convert<int>(const YAML::Node& node) const {
+int Yaml_Tree::convert<int>(const YAML::Node &node) const {
     if (!node.IsScalar()) {
         throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     }
     try {
         return node.as<int>();
-    } catch (const YAML::BadConversion&) {
-        throw Conf_Error(Error_Code::Type_Mismatch,
-                         "cannot convert scalar to int");
+    } catch (const YAML::BadConversion &) {
+        throw Conf_Error(Error_Code::Type_Mismatch, "cannot convert scalar to int");
     }
 }
 
 template <>
-double Yaml_Tree::convert<double>(const YAML::Node& node) const {
+double Yaml_Tree::convert<double>(const YAML::Node &node) const {
     if (!node.IsScalar()) {
         throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     }
     try {
         return node.as<double>();
-    } catch (const YAML::BadConversion&) {
-        throw Conf_Error(Error_Code::Type_Mismatch,
-                         "cannot convert scalar to double");
+    } catch (const YAML::BadConversion &) {
+        throw Conf_Error(Error_Code::Type_Mismatch, "cannot convert scalar to double");
     }
 }
 
 template <>
-bool Yaml_Tree::convert<bool>(const YAML::Node& node) const {
+bool Yaml_Tree::convert<bool>(const YAML::Node &node) const {
     if (!node.IsScalar()) {
         throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     }
     try {
         return node.as<bool>();
-    } catch (const YAML::BadConversion&) {
-        throw Conf_Error(Error_Code::Type_Mismatch,
-                         "cannot convert scalar to bool");
+    } catch (const YAML::BadConversion &) {
+        throw Conf_Error(Error_Code::Type_Mismatch, "cannot convert scalar to bool");
     }
 }
 
 template <>
-std::string Yaml_Tree::convert<std::string>(const YAML::Node& node) const {
+std::string Yaml_Tree::convert<std::string>(const YAML::Node &node) const {
     if (!node.IsScalar()) {
         throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     }
     try {
         return node.as<std::string>();
-    } catch (const YAML::BadConversion&) {
-        throw Conf_Error(Error_Code::Type_Mismatch,
-                         "cannot convert node to string");
+    } catch (const YAML::BadConversion &) {
+        throw Conf_Error(Error_Code::Type_Mismatch, "cannot convert node to string");
     }
 }
 
-} // namespace conf::detail
+}  // namespace conf::detail

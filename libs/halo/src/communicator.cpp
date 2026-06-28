@@ -1,6 +1,7 @@
 #include "halo/communicator.hpp"
 
 #include <mpi.h>
+
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -9,9 +10,7 @@ namespace halo {
 
 // ─── Construction ────────────────────────────────────────────────────────────
 
-Communicator::Communicator(MPI_Comm comm) noexcept
-    : comm_{comm}
-{
+Communicator::Communicator(MPI_Comm comm) noexcept : comm_{comm} {
     // Set MPI_ERRORS_RETURN on HALO-owned communicators so that MPI errors are
     // returned as error codes rather than triggering the default abort handler.
     // Predefined communicators (WORLD, SELF) are not modified to avoid global
@@ -43,11 +42,9 @@ Communicator::~Communicator() {
 
 // ─── Move Semantics ──────────────────────────────────────────────────────────
 
-Communicator::Communicator(Communicator&& other) noexcept
-    : comm_{std::exchange(other.comm_, MPI_COMM_NULL)}
-{}
+Communicator::Communicator(Communicator &&other) noexcept : comm_{std::exchange(other.comm_, MPI_COMM_NULL)} {}
 
-Communicator& Communicator::operator=(Communicator&& other) noexcept {
+Communicator &Communicator::operator=(Communicator &&other) noexcept {
     if (this != &other) {
         // Free current handle if owned (same logic as destructor)
         if (comm_ != MPI_COMM_NULL && !is_predefined()) {
@@ -77,8 +74,7 @@ int Communicator::rank() const {
         char err_str[MPI_MAX_ERROR_STRING];
         int len = 0;
         MPI_Error_string(rc, err_str, &len);
-        throw std::runtime_error(
-            std::string("MPI_Comm_rank failed: ") + std::string(err_str, len));
+        throw std::runtime_error(std::string("MPI_Comm_rank failed: ") + std::string(err_str, len));
     }
     return r;
 }
@@ -90,8 +86,7 @@ int Communicator::size() const {
         char err_str[MPI_MAX_ERROR_STRING];
         int len = 0;
         MPI_Error_string(rc, err_str, &len);
-        throw std::runtime_error(
-            std::string("MPI_Comm_size failed: ") + std::string(err_str, len));
+        throw std::runtime_error(std::string("MPI_Comm_size failed: ") + std::string(err_str, len));
     }
     return s;
 }
@@ -105,8 +100,7 @@ Communicator Communicator::split(int color, int key) const {
         char err_str[MPI_MAX_ERROR_STRING];
         int len = 0;
         MPI_Error_string(rc, err_str, &len);
-        throw std::runtime_error(
-            std::string("MPI_Comm_split failed: ") + std::string(err_str, len));
+        throw std::runtime_error(std::string("MPI_Comm_split failed: ") + std::string(err_str, len));
     }
     // Set MPI_ERRORS_RETURN before wrapping in Communicator RAII object.
     if (new_comm != MPI_COMM_NULL) {
@@ -122,8 +116,7 @@ Communicator Communicator::duplicate() const {
         char err_str[MPI_MAX_ERROR_STRING];
         int len = 0;
         MPI_Error_string(rc, err_str, &len);
-        throw std::runtime_error(
-            std::string("MPI_Comm_dup failed: ") + std::string(err_str, len));
+        throw std::runtime_error(std::string("MPI_Comm_dup failed: ") + std::string(err_str, len));
     }
     // Set MPI_ERRORS_RETURN before wrapping in Communicator RAII object.
     if (new_comm != MPI_COMM_NULL) {
@@ -138,4 +131,4 @@ bool Communicator::is_predefined() const noexcept {
     return comm_ == MPI_COMM_WORLD || comm_ == MPI_COMM_SELF;
 }
 
-} // namespace halo
+}  // namespace halo

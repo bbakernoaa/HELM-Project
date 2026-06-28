@@ -4,22 +4,25 @@
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#include <axis/types.hpp>
+#include <axis/solver/apply.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/regrid_config.hpp>
+#include <axis/solver/weight_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/solver/weight_generator.hpp>
-#include <axis/solver/apply.hpp>
-#include <axis/solver/regrid_config.hpp>
+#include <axis/types.hpp>
 
 namespace {
 class KokkosEnv : public ::testing::Environment {
-public:
-    void SetUp() override { if (!Kokkos::is_initialized()) Kokkos::initialize(); }
-    void TearDown() override { if (Kokkos::is_initialized()) Kokkos::finalize(); }
+   public:
+    void SetUp() override {
+        if (!Kokkos::is_initialized()) Kokkos::initialize();
+    }
+    void TearDown() override {
+        if (Kokkos::is_initialized()) Kokkos::finalize();
+    }
 };
-static auto* const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
+static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 }  // namespace
 
 namespace axis::test {
@@ -27,13 +30,11 @@ namespace axis::test {
 using MemSpace = Kokkos::HostSpace;
 
 // Helper: build a simple NxN structured grid with optional mask
-static topology::UnstructuredMesh<MemSpace>
-make_uniform_mesh(std::size_t n, double size,
-                  Kokkos::View<int*, MemSpace> mask = {}) {
+static topology::UnstructuredMesh<MemSpace> make_uniform_mesh(std::size_t n, double size, Kokkos::View<int *, MemSpace> mask = {}) {
     const double dx = size / static_cast<double>(n);
 
-    Kokkos::View<double*, MemSpace> cx("cx", n * n);
-    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    Kokkos::View<double *, MemSpace> cx("cx", n * n);
+    Kokkos::View<double *, MemSpace> cy("cy", n * n);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             cx(i + j * n) = (static_cast<double>(i) + 0.5) * dx;
@@ -41,13 +42,11 @@ make_uniform_mesh(std::size_t n, double size,
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        n, n, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::Cartesian3D);
+    topology::StructuredGrid<MemSpace> grid(n, n, std::move(cx), std::move(cy), topology::CoordinateSystem::Cartesian3D);
 
     const std::size_t nc = n + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
-    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    Kokkos::View<double *, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double *, MemSpace> cry("cry", nc * nc);
     for (std::size_t j = 0; j <= n; ++j) {
         for (std::size_t i = 0; i <= n; ++i) {
             crx(i + j * nc) = static_cast<double>(i) * dx;
@@ -60,13 +59,8 @@ make_uniform_mesh(std::size_t n, double size,
 
     // If a mask was provided, rebuild with mask
     if (mask.extent(0) > 0) {
-        return topology::UnstructuredMesh<MemSpace>(
-            mesh.node_coords_view(),
-            mesh.conn_offsets_view(),
-            mesh.conn_indices_view(),
-            mesh.coord_system(),
-            mesh.cell_areas_view(),
-            std::move(mask));
+        return topology::UnstructuredMesh<MemSpace>(mesh.node_coords_view(), mesh.conn_offsets_view(), mesh.conn_indices_view(), mesh.coord_system(),
+                                                    mesh.cell_areas_view(), std::move(mask));
     }
 
     return mesh;
@@ -79,7 +73,7 @@ make_uniform_mesh(std::size_t n, double size,
 TEST(Masking, MaskedSourceCellsExcludedFromWeights) {
     // 3x3 src with cell 4 (center) masked
     const std::size_t n = 3;
-    Kokkos::View<int*, MemSpace> src_mask("src_mask", n * n);
+    Kokkos::View<int *, MemSpace> src_mask("src_mask", n * n);
     for (std::size_t i = 0; i < n * n; ++i) src_mask(i) = 1;
     src_mask(4) = 0;  // mask center cell
 
@@ -98,8 +92,7 @@ TEST(Masking, MaskedSourceCellsExcludedFromWeights) {
     auto factor_col = matrix.factor_col();
     auto nnz = matrix.nnz();
     for (std::size_t k = 0; k < nnz; ++k) {
-        EXPECT_NE(factor_col[k], 4)
-            << "Weight entry k=" << k << " references masked source cell 4";
+        EXPECT_NE(factor_col[k], 4) << "Weight entry k=" << k << " references masked source cell 4";
     }
 }
 
@@ -109,7 +102,7 @@ TEST(Masking, MaskedSourceCellsExcludedFromWeights) {
 
 TEST(Masking, MaskedDestinationCellsProduceNoEntries) {
     const std::size_t n = 3;
-    Kokkos::View<int*, MemSpace> dst_mask("dst_mask", n * n);
+    Kokkos::View<int *, MemSpace> dst_mask("dst_mask", n * n);
     for (std::size_t i = 0; i < n * n; ++i) dst_mask(i) = 1;
     dst_mask(0) = 0;  // mask first destination cell
     dst_mask(8) = 0;  // mask last destination cell
@@ -129,10 +122,8 @@ TEST(Masking, MaskedDestinationCellsProduceNoEntries) {
     auto factor_row = matrix.factor_row();
     auto nnz = matrix.nnz();
     for (std::size_t k = 0; k < nnz; ++k) {
-        EXPECT_NE(factor_row[k], 0)
-            << "Weight entry k=" << k << " targets masked dst cell 0";
-        EXPECT_NE(factor_row[k], 8)
-            << "Weight entry k=" << k << " targets masked dst cell 8";
+        EXPECT_NE(factor_row[k], 0) << "Weight entry k=" << k << " targets masked dst cell 0";
+        EXPECT_NE(factor_row[k], 8) << "Weight entry k=" << k << " targets masked dst cell 8";
     }
 }
 
@@ -146,7 +137,7 @@ TEST(Masking, CoverageFractionReflectsPartialMasking) {
     const std::size_t n_src = 2;
     const std::size_t n_dst = 1;
 
-    Kokkos::View<int*, MemSpace> src_mask("src_mask", n_src * n_src);
+    Kokkos::View<int *, MemSpace> src_mask("src_mask", n_src * n_src);
     for (std::size_t i = 0; i < n_src * n_src; ++i) src_mask(i) = 1;
     src_mask(0) = 0;  // mask one corner cell
 
@@ -164,8 +155,7 @@ TEST(Masking, CoverageFractionReflectsPartialMasking) {
     // frac_b for the single destination cell should be ~0.75 (3 of 4 src cells)
     auto frac_b = matrix.frac_b();
     ASSERT_GE(frac_b.extent(0), static_cast<std::size_t>(1));
-    EXPECT_NEAR(frac_b[0], 0.75, 0.01)
-        << "frac_b should reflect partial coverage (~0.75 with 1 of 4 cells masked)";
+    EXPECT_NEAR(frac_b[0], 0.75, 0.01) << "frac_b should reflect partial coverage (~0.75 with 1 of 4 cells masked)";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,8 +200,7 @@ TEST(Masking, ApplySkipsMaskedDestinationCells) {
     // Unmasked cells should have interpolated values (approx 5.0 for identity grids)
     for (std::size_t j = 0; j < n_dst; ++j) {
         if (mask_data[j] != 0) {
-            EXPECT_NE(dst_data[j], -999.0)
-                << "Unmasked cell " << j << " was not written";
+            EXPECT_NE(dst_data[j], -999.0) << "Unmasked cell " << j << " was not written";
         }
     }
 }
@@ -222,7 +211,7 @@ TEST(Masking, ApplySkipsMaskedDestinationCells) {
 
 TEST(Masking, MaskAccessorsWork) {
     const std::size_t n = 3;
-    Kokkos::View<int*, MemSpace> mask("mask", n * n);
+    Kokkos::View<int *, MemSpace> mask("mask", n * n);
     for (std::size_t i = 0; i < n * n; ++i) mask(i) = 1;
     mask(0) = 0;
 
@@ -250,8 +239,8 @@ TEST(Masking, ThrowForUnmaskedDstWithZeroCoverageWhenError) {
     auto src_mesh = make_uniform_mesh(n, 2.0);
 
     // Destination mesh at [10,12]x[10,12] (no overlap with source)
-    Kokkos::View<double*, MemSpace> cx("cx", n * n);
-    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    Kokkos::View<double *, MemSpace> cx("cx", n * n);
+    Kokkos::View<double *, MemSpace> cy("cy", n * n);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             cx(i + j * n) = 10.0 + (static_cast<double>(i) + 0.5) * dx;
@@ -259,13 +248,11 @@ TEST(Masking, ThrowForUnmaskedDstWithZeroCoverageWhenError) {
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        n, n, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::Cartesian3D);
+    topology::StructuredGrid<MemSpace> grid(n, n, std::move(cx), std::move(cy), topology::CoordinateSystem::Cartesian3D);
 
     const std::size_t nc = n + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
-    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    Kokkos::View<double *, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double *, MemSpace> cry("cry", nc * nc);
     for (std::size_t j = 0; j <= n; ++j) {
         for (std::size_t i = 0; i <= n; ++i) {
             crx(i + j * nc) = 10.0 + static_cast<double>(i) * dx;
@@ -275,20 +262,15 @@ TEST(Masking, ThrowForUnmaskedDstWithZeroCoverageWhenError) {
     grid.set_corners(std::move(crx), std::move(cry));
 
     // Destination mask: mask cells 0 and 1, leave 2 and 3 unmasked
-    Kokkos::View<int*, MemSpace> dst_mask("dst_mask", n * n);
+    Kokkos::View<int *, MemSpace> dst_mask("dst_mask", n * n);
     dst_mask(0) = 0;  // masked — should NOT trigger error
     dst_mask(1) = 0;  // masked — should NOT trigger error
     dst_mask(2) = 1;  // unmasked — WILL have zero coverage
     dst_mask(3) = 1;  // unmasked — WILL have zero coverage
 
     auto dst_umesh = grid.to_unstructured();
-    auto dst_mesh = topology::UnstructuredMesh<MemSpace>(
-        dst_umesh.node_coords_view(),
-        dst_umesh.conn_offsets_view(),
-        dst_umesh.conn_indices_view(),
-        dst_umesh.coord_system(),
-        dst_umesh.cell_areas_view(),
-        std::move(dst_mask));
+    auto dst_mesh = topology::UnstructuredMesh<MemSpace>(dst_umesh.node_coords_view(), dst_umesh.conn_offsets_view(), dst_umesh.conn_indices_view(),
+                                                         dst_umesh.coord_system(), dst_umesh.cell_areas_view(), std::move(dst_mask));
 
     solver::RegridConfig cfg;
     cfg.method = solver::InterpolationMethod::Conservative1stOrder;
@@ -297,9 +279,7 @@ TEST(Masking, ThrowForUnmaskedDstWithZeroCoverageWhenError) {
     cfg.unmapped = solver::UnmappedAction::Error;
 
     // Should throw because unmasked dst cells (2, 3) have zero coverage
-    EXPECT_THROW(
-        solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg),
-        std::runtime_error);
+    EXPECT_THROW(solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg), std::runtime_error);
 }
 
 TEST(Masking, NoThrowForMaskedDstWithZeroCoverageWhenError) {
@@ -310,8 +290,8 @@ TEST(Masking, NoThrowForMaskedDstWithZeroCoverageWhenError) {
     auto src_mesh = make_uniform_mesh(n, 2.0);
 
     // Non-overlapping dst mesh
-    Kokkos::View<double*, MemSpace> cx("cx", n * n);
-    Kokkos::View<double*, MemSpace> cy("cy", n * n);
+    Kokkos::View<double *, MemSpace> cx("cx", n * n);
+    Kokkos::View<double *, MemSpace> cy("cy", n * n);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             cx(i + j * n) = 10.0 + (static_cast<double>(i) + 0.5) * dx;
@@ -319,13 +299,11 @@ TEST(Masking, NoThrowForMaskedDstWithZeroCoverageWhenError) {
         }
     }
 
-    topology::StructuredGrid<MemSpace> grid(
-        n, n, std::move(cx), std::move(cy),
-        topology::CoordinateSystem::Cartesian3D);
+    topology::StructuredGrid<MemSpace> grid(n, n, std::move(cx), std::move(cy), topology::CoordinateSystem::Cartesian3D);
 
     const std::size_t nc = n + 1;
-    Kokkos::View<double*, MemSpace> crx("crx", nc * nc);
-    Kokkos::View<double*, MemSpace> cry("cry", nc * nc);
+    Kokkos::View<double *, MemSpace> crx("crx", nc * nc);
+    Kokkos::View<double *, MemSpace> cry("cry", nc * nc);
     for (std::size_t j = 0; j <= n; ++j) {
         for (std::size_t i = 0; i <= n; ++i) {
             crx(i + j * nc) = 10.0 + static_cast<double>(i) * dx;
@@ -335,17 +313,12 @@ TEST(Masking, NoThrowForMaskedDstWithZeroCoverageWhenError) {
     grid.set_corners(std::move(crx), std::move(cry));
 
     // All dst cells masked
-    Kokkos::View<int*, MemSpace> dst_mask("dst_mask", n * n);
+    Kokkos::View<int *, MemSpace> dst_mask("dst_mask", n * n);
     Kokkos::deep_copy(dst_mask, 0);  // all masked
 
     auto dst_umesh = grid.to_unstructured();
-    auto dst_mesh = topology::UnstructuredMesh<MemSpace>(
-        dst_umesh.node_coords_view(),
-        dst_umesh.conn_offsets_view(),
-        dst_umesh.conn_indices_view(),
-        dst_umesh.coord_system(),
-        dst_umesh.cell_areas_view(),
-        std::move(dst_mask));
+    auto dst_mesh = topology::UnstructuredMesh<MemSpace>(dst_umesh.node_coords_view(), dst_umesh.conn_offsets_view(), dst_umesh.conn_indices_view(),
+                                                         dst_umesh.coord_system(), dst_umesh.cell_areas_view(), std::move(dst_mask));
 
     solver::RegridConfig cfg;
     cfg.method = solver::InterpolationMethod::Conservative1stOrder;
@@ -354,8 +327,7 @@ TEST(Masking, NoThrowForMaskedDstWithZeroCoverageWhenError) {
     cfg.unmapped = solver::UnmappedAction::Error;
 
     // Should NOT throw because all dst cells are masked
-    EXPECT_NO_THROW(
-        solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg));
+    EXPECT_NO_THROW(solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg));
 }
 
 }  // namespace axis::test

@@ -9,18 +9,18 @@
 //   - Defaulted accessor returns converted value on success
 // ──────────────────────────────────────────────────────────────────────────────
 
+#include <gtest/gtest.h>
+
+#include <cmath>
 #include <conf/config.hpp>
 #include <conf/error.hpp>
-
-#include <gtest/gtest.h>
-#include <cmath>
 #include <optional>
 #include <string>
 
 namespace {
 
 // YAML fixture covering scalars of each type plus non-scalar nodes.
-constexpr const char* kTypeCastingYaml = R"(
+constexpr const char *kTypeCastingYaml = R"(
 int_val: 42
 double_val: 3.14159
 bool_val: true
@@ -32,7 +32,7 @@ list: [1, 2, 3]
 )";
 
 class TypeCasting : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         cfg_ = conf::Config::from_string(kTypeCastingYaml);
     }
@@ -40,7 +40,7 @@ protected:
     conf::Config cfg_{conf::Config::from_string("")};
 };
 
-} // namespace
+}  // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Happy Path: Throwing accessors return expected values (Req 5.1)
@@ -80,7 +80,7 @@ TEST_F(TypeCasting, GetInt_NonNumericScalar_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_int("text_val");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -89,7 +89,7 @@ TEST_F(TypeCasting, GetDouble_NonNumericScalar_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_double("text_val");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -98,7 +98,7 @@ TEST_F(TypeCasting, GetBool_NonBoolScalar_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_bool("text_val");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -109,7 +109,7 @@ TEST_F(TypeCasting, GetInt_MapNode_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_int("nested");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -118,7 +118,7 @@ TEST_F(TypeCasting, GetInt_SequenceNode_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_int("list");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -127,7 +127,7 @@ TEST_F(TypeCasting, GetDouble_MapNode_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_double("nested");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -136,7 +136,7 @@ TEST_F(TypeCasting, GetBool_MapNode_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_bool("nested");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -145,7 +145,7 @@ TEST_F(TypeCasting, GetString_MapNode_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_string("nested");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -154,7 +154,7 @@ TEST_F(TypeCasting, GetString_SequenceNode_ThrowsTypeMismatch) {
     try {
         (void)cfg_.get_string("list");
         FAIL() << "Expected Conf_Error to be thrown";
-    } catch (const conf::Conf_Error& e) {
+    } catch (const conf::Conf_Error &e) {
         EXPECT_EQ(e.code(), conf::Error_Code::Type_Mismatch);
     }
 }
@@ -229,8 +229,7 @@ TEST_F(TypeCasting, GetOr_Bool_ValidScalar_ReturnsConvertedValue) {
 }
 
 TEST_F(TypeCasting, GetOr_String_ValidScalar_ReturnsConvertedValue) {
-    EXPECT_EQ(cfg_.get_or<std::string>("string_val", std::string("default")),
-              "hello world");
+    EXPECT_EQ(cfg_.get_or<std::string>("string_val", std::string("default")), "hello world");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

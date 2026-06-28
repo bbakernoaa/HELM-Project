@@ -4,23 +4,21 @@
 
 #include <gtest/gtest.h>
 
-#include "dagr/pipeline_config.hpp"
-#include "conf/conf.hpp"
-
 #include <filesystem>
 #include <fstream>
-#include <string>
 #include <stdexcept>
+#include <string>
+
+#include "conf/conf.hpp"
+#include "dagr/pipeline_config.hpp"
 
 namespace {
 
 /// Helper: create a temporary YAML file with the given content and return its path.
 /// Uses std::filesystem::temp_directory_path() + a unique name based on test info.
-std::filesystem::path write_temp_yaml(const std::string& content,
-                                       const std::string& suffix = ".yaml") {
+std::filesystem::path write_temp_yaml(const std::string &content, const std::string &suffix = ".yaml") {
     static int counter = 0;
-    auto path = std::filesystem::temp_directory_path()
-                / ("dagr_test_" + std::to_string(++counter) + suffix);
+    auto path = std::filesystem::temp_directory_path() / ("dagr_test_" + std::to_string(++counter) + suffix);
     std::ofstream ofs(path);
     ofs << content;
     ofs.close();
@@ -35,7 +33,7 @@ struct TempFileGuard {
     }
 };
 
-} // anonymous namespace
+}  // anonymous namespace
 
 // ─── Req 2.1, 2.2: Missing file → conf::Conf_Error propagation ──────────────
 
@@ -84,14 +82,12 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument to be thrown";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         // Error message should contain the stream name
         std::string msg = e.what();
-        EXPECT_NE(msg.find("sst_forcing"), std::string::npos)
-            << "Error message should contain the stream name. Got: " << msg;
+        EXPECT_NE(msg.find("sst_forcing"), std::string::npos) << "Error message should contain the stream name. Got: " << msg;
         // Should also mention dataset_path
-        EXPECT_NE(msg.find("dataset_path"), std::string::npos)
-            << "Error message should mention 'dataset_path'. Got: " << msg;
+        EXPECT_NE(msg.find("dataset_path"), std::string::npos) << "Error message should mention 'dataset_path'. Got: " << msg;
     }
 }
 
@@ -115,12 +111,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument to be thrown";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("wind_data"), std::string::npos)
-            << "Error message should contain the stream name. Got: " << msg;
-        EXPECT_NE(msg.find("snapshot_interval"), std::string::npos)
-            << "Error message should mention 'snapshot_interval'. Got: " << msg;
+        EXPECT_NE(msg.find("wind_data"), std::string::npos) << "Error message should contain the stream name. Got: " << msg;
+        EXPECT_NE(msg.find("snapshot_interval"), std::string::npos) << "Error message should mention 'snapshot_interval'. Got: " << msg;
     }
 }
 
@@ -144,12 +138,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument to be thrown";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("precip_stream"), std::string::npos)
-            << "Error message should contain the stream name. Got: " << msg;
-        EXPECT_NE(msg.find("snapshot_interval"), std::string::npos)
-            << "Error message should mention 'snapshot_interval'. Got: " << msg;
+        EXPECT_NE(msg.find("precip_stream"), std::string::npos) << "Error message should contain the stream name. Got: " << msg;
+        EXPECT_NE(msg.find("snapshot_interval"), std::string::npos) << "Error message should mention 'snapshot_interval'. Got: " << msg;
     }
 }
 
@@ -220,10 +212,9 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for duplicate stream names";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("sst_forcing"), std::string::npos)
-            << "Error message should contain the duplicate stream name. Got: " << msg;
+        EXPECT_NE(msg.find("sst_forcing"), std::string::npos) << "Error message should contain the duplicate stream name. Got: " << msg;
     }
 }
 
@@ -247,12 +238,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for invalid temporal_profile";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("wind_stream"), std::string::npos)
-            << "Error message should contain the stream name. Got: " << msg;
-        EXPECT_NE(msg.find("cubic_spline"), std::string::npos)
-            << "Error message should contain the invalid value. Got: " << msg;
+        EXPECT_NE(msg.find("wind_stream"), std::string::npos) << "Error message should contain the stream name. Got: " << msg;
+        EXPECT_NE(msg.find("cubic_spline"), std::string::npos) << "Error message should contain the invalid value. Got: " << msg;
     }
 }
 
@@ -276,12 +265,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for invalid out_of_bounds_policy";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("pressure_data"), std::string::npos)
-            << "Error message should contain the stream name. Got: " << msg;
-        EXPECT_NE(msg.find("extrapolate"), std::string::npos)
-            << "Error message should contain the invalid value. Got: " << msg;
+        EXPECT_NE(msg.find("pressure_data"), std::string::npos) << "Error message should contain the stream name. Got: " << msg;
+        EXPECT_NE(msg.find("extrapolate"), std::string::npos) << "Error message should contain the invalid value. Got: " << msg;
     }
 }
 
@@ -304,12 +291,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for missing temporal_profile";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("humidity"), std::string::npos)
-            << "Error message should contain stream name. Got: " << msg;
-        EXPECT_NE(msg.find("temporal_profile"), std::string::npos)
-            << "Error message should mention the missing field. Got: " << msg;
+        EXPECT_NE(msg.find("humidity"), std::string::npos) << "Error message should contain stream name. Got: " << msg;
+        EXPECT_NE(msg.find("temporal_profile"), std::string::npos) << "Error message should mention the missing field. Got: " << msg;
     }
 }
 
@@ -330,12 +315,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for missing out_of_bounds_policy";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("ozone"), std::string::npos)
-            << "Error message should contain stream name. Got: " << msg;
-        EXPECT_NE(msg.find("out_of_bounds_policy"), std::string::npos)
-            << "Error message should mention the missing field. Got: " << msg;
+        EXPECT_NE(msg.find("ozone"), std::string::npos) << "Error message should contain stream name. Got: " << msg;
+        EXPECT_NE(msg.find("out_of_bounds_policy"), std::string::npos) << "Error message should mention the missing field. Got: " << msg;
     }
 }
 
@@ -356,12 +339,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for missing dataset_path";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("aerosol"), std::string::npos)
-            << "Error message should contain stream name. Got: " << msg;
-        EXPECT_NE(msg.find("dataset_path"), std::string::npos)
-            << "Error message should mention the missing field. Got: " << msg;
+        EXPECT_NE(msg.find("aerosol"), std::string::npos) << "Error message should contain stream name. Got: " << msg;
+        EXPECT_NE(msg.find("dataset_path"), std::string::npos) << "Error message should mention the missing field. Got: " << msg;
     }
 }
 
@@ -382,12 +363,10 @@ dependencies: []
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for missing snapshot_interval";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("radiation"), std::string::npos)
-            << "Error message should contain stream name. Got: " << msg;
-        EXPECT_NE(msg.find("snapshot_interval"), std::string::npos)
-            << "Error message should mention the missing field. Got: " << msg;
+        EXPECT_NE(msg.find("radiation"), std::string::npos) << "Error message should contain stream name. Got: " << msg;
+        EXPECT_NE(msg.find("snapshot_interval"), std::string::npos) << "Error message should mention the missing field. Got: " << msg;
     }
 }
 
@@ -415,10 +394,9 @@ dependencies:
         auto cfg = dagr::parse_pipeline(path);
         (void)cfg;
         FAIL() << "Expected std::invalid_argument for cyclic dependencies";
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
-        EXPECT_NE(msg.find("cycle"), std::string::npos)
-            << "Error message should mention 'cycle'. Got: " << msg;
+        EXPECT_NE(msg.find("cycle"), std::string::npos) << "Error message should mention 'cycle'. Got: " << msg;
     }
 }
 

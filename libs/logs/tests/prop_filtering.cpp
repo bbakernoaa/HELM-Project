@@ -6,27 +6,21 @@
 ///
 /// **Validates: Requirements 3.1, 3.5, 3.8**
 
-#include <logs/logger.hpp>
-
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
 #include <array>
 #include <atomic>
+#include <logs/logger.hpp>
 #include <thread>
 #include <vector>
 
 namespace {
 
 /// All valid Severity_Level values for validation.
-constexpr std::array<logs::Severity_Level, 5> ALL_LEVELS = {
-    logs::Severity_Level::DEBUG,
-    logs::Severity_Level::INFO,
-    logs::Severity_Level::WARNING,
-    logs::Severity_Level::ERROR,
-    logs::Severity_Level::FATAL
-};
+constexpr std::array<logs::Severity_Level, 5> ALL_LEVELS = {logs::Severity_Level::DEBUG, logs::Severity_Level::INFO, logs::Severity_Level::WARNING,
+                                                            logs::Severity_Level::ERROR, logs::Severity_Level::FATAL};
 
 /// Check whether a value is one of the valid Severity_Level enum values (0-4).
 bool is_valid_severity(logs::Severity_Level level) {
@@ -36,9 +30,7 @@ bool is_valid_severity(logs::Severity_Level level) {
 
 /// Generate a random valid Severity_Level (int 0–4 cast to enum).
 rc::Gen<logs::Severity_Level> genSeverityLevel() {
-    return rc::gen::map(rc::gen::inRange(0, 5), [](int v) {
-        return static_cast<logs::Severity_Level>(v);
-    });
+    return rc::gen::map(rc::gen::inRange(0, 5), [](int v) { return static_cast<logs::Severity_Level>(v); });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,9 +40,7 @@ rc::Gen<logs::Severity_Level> genSeverityLevel() {
 
 /// Concurrent threshold-setting from N threads; verify threshold() always
 /// returns a valid Severity_Level (no torn reads).
-RC_GTEST_PROP(AtomicThresholdLastWriterWins,
-              NoTornValuesUnderConcurrency,
-              ()) {
+RC_GTEST_PROP(AtomicThresholdLastWriterWins, NoTornValuesUnderConcurrency, ()) {
     constexpr int NUM_THREADS = 8;
     constexpr int ITERS_PER_THREAD = 1000;
 
@@ -84,7 +74,7 @@ RC_GTEST_PROP(AtomicThresholdLastWriterWins,
         RC_ASSERT(is_valid_severity(observed));
     }
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
@@ -94,9 +84,7 @@ RC_GTEST_PROP(AtomicThresholdLastWriterWins,
 
 /// After all concurrent threads finish, set threshold to a known value;
 /// verify it sticks (last-writer-wins after contention resolves).
-RC_GTEST_PROP(AtomicThresholdLastWriterWins,
-              LastSetterGovernsAfterConcurrency,
-              ()) {
+RC_GTEST_PROP(AtomicThresholdLastWriterWins, LastSetterGovernsAfterConcurrency, ()) {
     constexpr int NUM_THREADS = 8;
     constexpr int ITERS_PER_THREAD = 500;
 
@@ -121,7 +109,7 @@ RC_GTEST_PROP(AtomicThresholdLastWriterWins,
 
     start_flag.store(true, std::memory_order_release);
 
-    for (auto& th : threads) {
+    for (auto &th : threads) {
         th.join();
     }
 
@@ -134,9 +122,7 @@ RC_GTEST_PROP(AtomicThresholdLastWriterWins,
 
 /// Single-threaded set_threshold immediately governs: after the call returns,
 /// the threshold equals the set value.
-RC_GTEST_PROP(AtomicThresholdLastWriterWins,
-              SetThenReadIsImmediate,
-              ()) {
+RC_GTEST_PROP(AtomicThresholdLastWriterWins, SetThenReadIsImmediate, ()) {
     logs::Logger logger;
     const auto level = *genSeverityLevel();
 
@@ -195,19 +181,18 @@ TEST(AtomicThresholdLastWriterWins, ThresholdAlwaysValidUnderStress) {
     start_flag.store(true, std::memory_order_release);
 
     // Wait for writers to finish.
-    for (auto& th : writers) {
+    for (auto &th : writers) {
         th.join();
     }
 
     // Signal readers to stop.
     stop_flag.store(true, std::memory_order_release);
 
-    for (auto& th : readers) {
+    for (auto &th : readers) {
         th.join();
     }
 
-    EXPECT_EQ(invalid_count.load(), 0)
-        << "Detected torn/invalid threshold value under concurrent writes";
+    EXPECT_EQ(invalid_count.load(), 0) << "Detected torn/invalid threshold value under concurrent writes";
 }
 
 /// Verify last-writer-wins: sequential overwrites always yield the last value.
@@ -227,7 +212,7 @@ TEST(AtomicThresholdLastWriterWins, SequentialOverwritesYieldLastValue) {
     }
 }
 
-} // namespace
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Property 11: FATAL Is Never Suppressed
@@ -262,15 +247,14 @@ TEST(FatalIsNeverSuppressed, FatalAcceptedAtEveryThreshold) {
             },
             ::testing::ExitedWithCode(logs::ABORT_EXIT_CODE),
             msg  // Verify the FATAL message text appears in stderr output.
-        ) << "FATAL suppressed when threshold=" << static_cast<int>(threshold);
+            )
+            << "FATAL suppressed when threshold=" << static_cast<int>(threshold);
     }
 }
 
 /// Property-based variant: for any randomly generated threshold, FATAL is
 /// always dispatched to output (never filtered) before termination.
-RC_GTEST_PROP(FatalIsNeverSuppressed,
-              RandomThresholdNeverSuppressesFatal,
-              ()) {
+RC_GTEST_PROP(FatalIsNeverSuppressed, RandomThresholdNeverSuppressesFatal, ()) {
     const auto threshold = *genSeverityLevel();
     const std::string msg = "rc_fatal_" + std::to_string(static_cast<int>(threshold));
 
@@ -288,8 +272,7 @@ RC_GTEST_PROP(FatalIsNeverSuppressed,
 /// every possible threshold it satisfies severity >= threshold.
 TEST(FatalIsNeverSuppressed, FatalIsMaximumSeverity) {
     for (auto threshold : ALL_LEVELS) {
-        EXPECT_GE(static_cast<int>(logs::Severity_Level::FATAL),
-                  static_cast<int>(threshold))
+        EXPECT_GE(static_cast<int>(logs::Severity_Level::FATAL), static_cast<int>(threshold))
             << "FATAL must be >= every threshold for never-suppressed guarantee";
     }
 }
