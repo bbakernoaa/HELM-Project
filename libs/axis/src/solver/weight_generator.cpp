@@ -97,6 +97,15 @@ void compute_cell_centroids_xy(
     }
 }
 
+/// @brief Safe, loop-free, constant-time longitude normalization.
+/// @details Prevents GPU infinite loops on invalid or infinite coordinates.
+KOKKOS_FORCEINLINE_FUNCTION double normalize_longitude(double lon) noexcept {
+    if (Kokkos::isnan(lon) || Kokkos::isinf(lon)) return 0.0;
+    double wrapped = std::fmod(lon, 360.0);
+    if (wrapped < 0.0) wrapped += 360.0;
+    return wrapped;
+}
+
 // ─────────────────────── compute_cell_aabbs ─────────────────────────────────
 
 /// Compute axis-aligned bounding boxes for all cells (min_x, min_y, max_x, max_y).
@@ -130,9 +139,7 @@ compute_cell_aabbs(const topology::UnstructuredMesh<MemorySpace>& mesh,
             if (tripolar.is_tripolar && y > tripolar.seam_lat) {
                 // Analytically reflect coordinate over the polar folded seam
                 y = 2.0 * tripolar.seam_lat - y;
-                x = tripolar.seam_lon_center + (tripolar.seam_lon_center - x);
-                while (x >= 360.0) x -= 360.0;
-                while (x < 0.0) x += 360.0;
+                x = normalize_longitude(tripolar.seam_lon_center + (tripolar.seam_lon_center - x));
             }
 
             min_x = std::min(min_x, x);
@@ -774,9 +781,7 @@ compute_cell_aabbs_device(const topology::UnstructuredMesh<MemorySpace>& mesh,
                 if (tripolar.is_tripolar && y > tripolar.seam_lat) {
                     // Analytically reflect coordinate over the polar folded seam on-device
                     y = 2.0 * tripolar.seam_lat - y;
-                    x = tripolar.seam_lon_center + (tripolar.seam_lon_center - x);
-                    while (x >= 360.0) x -= 360.0;
-                    while (x < 0.0) x += 360.0;
+                    x = normalize_longitude(tripolar.seam_lon_center + (tripolar.seam_lon_center - x));
                 }
 
                 float fx = static_cast<float>(x);
