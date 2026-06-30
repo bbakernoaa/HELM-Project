@@ -1744,6 +1744,75 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
 // generate_nearest — ArborX nearest(point, 1) query
 // ─────────────────────────────────────────────────────────────────────────────
 
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_nearest_rect(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                       const detail::RegularGridInfo &src_reg,
+                                                       const detail::RegularGridInfo &dst_reg,
+                                                       const RegridConfig &config) {
+    using ExecutionSpace = typename MemorySpace::execution_space;
+    const std::size_t n_dst = dst_mesh.n_cells();
+
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", n_dst);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", n_dst);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", n_dst);
+
+    const index_t src_ni = src_reg.ni;
+    const index_t src_nj = src_reg.nj;
+    const double src_lon_start = src_reg.lon_min;
+    const double src_lat_start = src_reg.lat_min;
+    const double src_dlon = src_reg.delta_lon;
+    const double src_dlat = src_reg.delta_lat;
+
+    const index_t dst_ni = dst_reg.ni;
+    const double dst_lon_start = dst_reg.lon_min;
+    const double dst_lat_start = dst_reg.lat_min;
+    const double dst_dlon = dst_reg.delta_lon;
+    const double dst_dlat = dst_reg.delta_lat;
+
+    Kokkos::parallel_for(
+        "generate_nearest_rect", Kokkos::RangePolicy<ExecutionSpace>(0, n_dst),
+        KOKKOS_LAMBDA(const std::size_t j) {
+            index_t d_i = j % dst_ni;
+            index_t d_j = j / dst_ni;
+
+            double lon = dst_lon_start + static_cast<double>(d_i) * dst_dlon;
+            double lat = dst_lat_start + static_cast<double>(d_j) * dst_dlat;
+
+            // Safe, periodic longitude shift mapping to standard [0, 360) space
+            double relative_lon = lon - src_lon_start;
+            while (relative_lon < 0.0) relative_lon += 360.0;
+            while (relative_lon >= 360.0) relative_lon -= 360.0;
+
+            // Rounding to nearest source coordinate index
+            index_t s_i = static_cast<index_t>(Kokkos::round(relative_lon / src_dlon));
+            if (s_i >= src_ni) s_i -= src_ni;
+            if (s_i < 0) s_i += src_ni;
+
+            index_t s_j = static_cast<index_t>(Kokkos::round((lat - src_lat_start) / src_dlat));
+
+            // Clamp latitude safely
+            if (s_j < 0) s_j = 0;
+            if (s_j >= src_nj) s_j = src_nj - 1;
+
+            index_t src_idx = s_j * src_ni + s_i;
+
+            factor_list(j) = 1.0;
+            factor_row(j) = static_cast<index_t>(j);
+            factor_col(j) = src_idx;
+        });
+
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", src_mesh.n_cells());
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", src_mesh.n_cells());
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
+
+    return InterpolationMatrix<MemorySpace>(
+        std::move(factor_list), std::move(factor_row), std::move(factor_col),
+        std::move(frac_a), std::move(frac_b), std::move(area_a), std::move(area_b),
+        src_mesh.n_cells(), n_dst);
+}
+
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                        const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
@@ -1753,6 +1822,12 @@ template <class MemorySpace>
 InterpolationMatrix<MemorySpace> WeightGenerator::generate_nearest(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                                    const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
                                                                    const RegridConfig &config) {
+    auto src_reg = detail::detect_regular_grid(src_mesh);
+    auto dst_reg = detail::detect_regular_grid(dst_mesh);
+    if (src_reg.is_regular && dst_reg.is_regular) {
+        return generate_nearest_rect<MemorySpace>(src_mesh, dst_mesh, src_reg, dst_reg, config);
+    }
+
     const auto csys = src_mesh.coord_system();
     const bool use_spherical_nn = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
     if (use_spherical_nn) {

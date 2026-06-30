@@ -41,7 +41,7 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 | Method | CDO Time (s) | xregrid (s) | AXIS Time (s) | AXIS Speedup | Max Err (vs CDO) | RMS Err (vs CDO) | Dst Σ (CDO vs xregrid vs AXIS) |
 |--------|:------------:|:-----------:|:--------------:|:------------:|:----------------:|:----------------:|:------------------------------:|
 | Bilinear | 0.804 | 14.550 | **0.378** | **2.1x vs CDO / 38x vs xregrid** | 3.67e-06 (xr) / 2.19e-03 (ax) | 1.19e-06 (xr) / 1.54e-03 (ax) | -0.0000 vs -0.0000 vs -0.0131 |
-| Nearest Neighbor | 0.936 | 3.730 | **0.457** | **2.0x vs CDO / 8x vs xregrid** | 8.73e-03 (xr) / 8.75e-03 (ax) | 2.18e-03 (xr) / 2.19e-03 (ax) | 0.0174 vs 4.1678 vs -0.1105 |
+| Nearest Neighbor | 0.936 | 3.730 | **0.289** | **3.2x vs CDO / 15x vs xregrid** | 8.73e-03 (xr) / 8.73e-03 (ax) | 2.18e-03 (xr) / 3.08e-03 (ax) | 0.0174 vs 4.1678 vs -0.0000 |
 | Conservative (Great Circle) | 2.866 | 23.498 | **0.288** | **10.0x vs CDO / 81x vs xregrid** | 5.51e-06 (xr) / 5.46e-03 (ax) | 1.33e-06 (xr) / 2.09e-03 (ax) | -0.0000 vs -0.0000 vs -0.0000 |
 | Conservative (Cartesian) | 2.866 | 23.498 | **0.288** | **10.0x vs CDO / 81x vs xregrid** | 5.51e-06 (xr) / **1.15e-15** (ax) | 1.33e-06 (xr) / **2.05e-16** (ax) | -0.0000 vs -0.0000 vs -0.0000 |
 
