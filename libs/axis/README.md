@@ -108,6 +108,78 @@ axis-regrid -s source.nc -t target_grid.nc -o output.nc -m bilinear --periodic -
 
 ---
 
+## 🛠 Supported Interpolation Methods
+
+AXIS implements six high-performance, stateless spatial interpolation algorithms:
+1. **Bilinear (`bilinear`):** Standard multi-linear interpolation in local 2D physical tangent space via gnomonic projection.
+2. **Nearest Neighbor (`nearest`):** Zero-order interpolation assigning values from the closest source cell centroid in $O(1)$ constant-time for regular grids, and $O(\log N)$ parallel BVH searches for unstructured grids.
+3. **Bicubic (`bicubic`):** High-order Hermite spline interpolation solving local gradients over a $4\times4$ grid stencil.
+4. **Patch (`patch`):** Smooth, biquadratic local least-squares approximation minimizing edge discontinuities across unstructured cells.
+5. **Conservative First-Order (`conservative`):** Area-conservative remapping on the curved unit sphere using analytical spherical excess integrals.
+6. **Conservative Second-Order (`conservative2nd`):** High-order conservative remapping incorporating piecewise linear reconstruction gradients to minimize numerical diffusion.
+
+---
+
+## 💻 Native C++20 Interface
+
+AXIS is structured as a pure C++20 template library, allowing downstream compiled models to generate weights and execute SpMV remapping entirely on-device without host round-trips:
+
+```cpp
+#include <axis/topology/mesh_factory.hpp>
+#include <axis/solver/weight_generator.hpp>
+#include <axis/solver/apply.hpp>
+
+// 1. Ingest grid geometries into Kokkos-parallel UnstructuredMeshes (HELM Law #2)
+axis::ingest::GridDescriptor src_desc = ...;
+auto src_mesh = axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(src_desc);
+auto dst_mesh = axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(dst_desc);
+
+// 2. Configure regridding options
+axis::solver::RegridConfig config;
+config.method = axis::solver::InterpolationMethod::Conservative1stOrder;
+config.line_type = axis::solver::LineType::GreatCircle;
+
+// 3. Generate the interpolation weights sparse matrix in parallel
+auto weights = axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config);
+
+// 4. Perform parallel SpMV remapping on field arrays using Kokkos
+axis::field_view<const double, 1> src_field(src_data_ptr, src_mesh.n_cells());
+axis::field_view<double, 1> dst_field(dst_data_ptr, dst_mesh.n_cells());
+
+axis::solver::apply<Kokkos::HostSpace>(weights, src_field, dst_field);
+```
+
+---
+
+## 📜 Modern Fortran 2018 Interface
+
+AXIS exposes a modern, strongly-typed object-oriented Fortran 2018 wrapper (`axis_mod.f90`) utilizing standard ISO_C_BINDINGS to completely bridge the gap for legacy atmospheric and ocean models:
+
+```fortran
+use axis_mod
+
+type(axis_mesh_t)   :: src_mesh, dst_mesh
+type(axis_matrix_t) :: weights_matrix
+real(8), dimension(:), pointer :: src_data, dst_data
+
+! 1. Initialize meshes from descriptors
+src_mesh = axis_mesh_from_descriptor(src_desc)
+dst_mesh = axis_mesh_from_descriptor(dst_desc)
+
+! 2. Generate conservative weights matrix in parallel
+call axis_generate_weights(src_mesh, dst_mesh, "conservative", weights_matrix)
+
+! 3. Remap source data array to destination array via parallel SpMV
+call axis_apply_weights(weights_matrix, src_data, dst_data)
+
+! 4. Generate coupled vector weights (U/V) including coordinate frame rotation
+type(axis_matrix_t) :: weights_u, weights_v
+real(8), dimension(:), pointer :: src_alpha, dst_alpha
+call axis_generate_vector_weights(src_mesh, dst_mesh, src_alpha, dst_alpha, "bilinear", weights_u, weights_v)
+```
+
+---
+
 ## Prerequisites
 
 | Dependency | Version | Notes |
