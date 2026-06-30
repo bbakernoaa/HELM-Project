@@ -108,6 +108,15 @@ axis-regrid -s source.nc -t target_grid.nc -o output.nc -m bilinear --periodic -
 
 ---
 
+## 🌊 Advanced Coastal & Vector Remapping
+
+AXIS implements dedicated operational-grade solvers for complex Earth-system remapping tasks:
+
+1. **Coupled Vector Wind Remapping:** Unlike scalar fields, vector wind and current components ($U$ and $V$) cannot be interpolated independently because their local physical coordinate frames rotate over the sphere's curved surface. AXIS features a unified **`VectorWeightGenerator`** that generates coupled weight matrices and applies local physical coordinate frame rotations in a single, parallel, on-device step.
+2. **Coastal Renormalization & Extrapolation:** To prevent unphysical leaks at land-sea boundaries, AXIS deploys an advanced, multi-stage **coastal re-normalization solver**. It dynamically re-normalizes weights near complex shorelines to prevent missing-value bleed, and automatically extrapolates values onto coastal shelf boundaries to maintain absolute mass conservation and numerical stability.
+
+---
+
 ## 🛠 Supported Interpolation Methods
 
 AXIS implements six high-performance, stateless spatial interpolation algorithms:
