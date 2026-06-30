@@ -3,7 +3,7 @@ from typing import Any, Union
 import xarray as xr
 from .regridder import Regridder
 
-@xr.register_dataarray_accessor("regrid")
+@xr.register_dataarray_accessor("axis")
 class RegridDataArrayAccessor:
     """
     Xarray Accessor for regridding DataArrays.
@@ -32,7 +32,7 @@ class RegridDataArrayAccessor:
         return Regridder(source_ds, target_grid, **kwargs)
 
 
-@xr.register_dataset_accessor("regrid")
+@xr.register_dataset_accessor("axis")
 class RegridDatasetAccessor:
     """
     Xarray Accessor for regridding Datasets.

@@ -95,7 +95,7 @@ def test_regridder_lazy_dask(sample_grids):
     np.testing.assert_allclose(computed.values, 1.0, rtol=1e-12)
 
 def test_regridder_accessor(sample_grids):
-    """Verify that xarray datasets and dataarrays can be regridded via the .regrid accessor."""
+    """Verify that xarray datasets and dataarrays can be regridded via the .axis accessor."""
     ds_in, ds_out = sample_grids
     
     da_in = xr.DataArray(
@@ -105,15 +105,15 @@ def test_regridder_accessor(sample_grids):
         name="temperature"
     )
     
-    # 1. Test DataArray accessor: da.regrid.to(ds_out)
-    da_out = da_in.regrid.to(ds_out, method="bilinear")
+    # 1. Test DataArray accessor: da.axis.to(ds_out)
+    da_out = da_in.axis.to(ds_out, method="bilinear")
     assert da_out.shape == (10, 20)
     assert da_out.name == "temperature"
     np.testing.assert_allclose(da_out.values, 1.0, rtol=1e-12)
     
-    # 2. Test Dataset accessor: ds.regrid.to(ds_out)
+    # 2. Test Dataset accessor: ds.axis.to(ds_out)
     ds_in_vars = xr.Dataset({"temperature": da_in})
-    ds_out_vars = ds_in_vars.regrid.to(ds_out, method="bilinear")
+    ds_out_vars = ds_in_vars.axis.to(ds_out, method="bilinear")
     assert "temperature" in ds_out_vars.data_vars
     assert ds_out_vars["temperature"].shape == (10, 20)
     np.testing.assert_allclose(ds_out_vars["temperature"].values, 1.0, rtol=1e-12)
