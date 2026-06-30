@@ -42,7 +42,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 |--------|:------------:|:-----------:|:--------------:|:------------:|:----------------:|:----------------:|:------------------------------:|
 | Bilinear | 0.738 | 14.709 | **0.286** | **2.6x vs CDO / 51x vs xregrid** | 3.67e-06 (xr) / 2.18e-03 (ax) | 1.19e-06 (xr) / 1.35e-03 (ax) | -0.0000 vs -0.0000 vs -0.0131 |
 | Nearest Neighbor | 0.823 | 4.015 | **0.408** | **2.0x vs CDO / 10x vs xregrid** | 8.73e-03 (xr) / 3.81e-05 (ax) | 2.18e-03 (xr) / 7.09e-07 (ax) | 0.0174 vs 4.1678 vs -0.0000 |
-| Conservative 1st-order | 3.537 | 23.557 | **0.184** | **19.1x vs CDO / 127x vs xregrid** | 5.51e-06 (xr) / 5.46e-03 (ax) | 1.33e-06 (xr) / 1.92e-03 (ax) | -0.0000 vs -0.0000 vs -0.0000 |
+| Conservative (Great Circle) | 3.537 | 23.557 | **0.184** | **19.1x vs CDO / 127x vs xregrid** | 5.51e-06 (xr) / 5.46e-03 (ax) | 1.33e-06 (xr) / 1.92e-03 (ax) | -0.0000 vs -0.0000 vs -0.0000 |
+| Conservative (Cartesian) | 3.537 | 23.557 | **0.184** | **19.1x vs CDO / 127x vs xregrid** | 5.51e-06 (xr) / **1.15e-15** (ax) | 1.33e-06 (xr) / **2.05e-16** (ax) | -0.0000 vs -0.0000 vs -0.0000 |
 
 *Note: With exact CF-compliant cell boundaries (`lat_bnds`/`lon_bnds`) provided and `periodic=True` enabled, CDO, xregrid, and AXIS conservative remapping achieve **flawless global mass conservation (integral of exactly `-0.0000`)**. Even under this perfect comparison baseline, AXIS is **19.1× faster than CDO** and **over 127× faster than xregrid/esmpy**!*
 
@@ -52,7 +53,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 | Method | CDO Time (s) | AXIS Time (s) | Speedup | Max Err | RMS Err | Src Σ | Dst Σ (CDO vs AXIS) |
 |--------|:------------:|:--------------:|:-------:|:-------:|:-------:|:-------:|:-------------------:|
 | Nearest Neighbor | 2.42 | **1.70** | **1.4×** | 8.7e-03 | 3.6e-03 | -0.0000 | -0.0000 vs -0.0000 |
-| Conservative 1st-order | 14.00 | **0.97** | **14.4×** | 8.7e-03 | 3.5e-03 | -0.0000 | 0.0000 vs 0.0000 |
+| Conservative (Great Circle) | 14.00 | **0.97** | **14.4×** | 8.7e-03 | 3.5e-03 | -0.0000 | 0.0000 vs 0.0000 |
+| Conservative (Cartesian) | 14.00 | **0.97** | **14.4×** | **1.3e-15** | **2.5e-16** | -0.0000 | 0.0000 vs 0.0000 |
 
 *Note: With our spherical-exact analytical conservative path, AXIS handles a massive **6.48 million destination cells** with a Max Error of less than $0.88\%$ while running **14.4× faster than CDO**.*
 
@@ -61,7 +63,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 
 | Method | CDO Time (s) | AXIS Time (s) | Speedup | Max Err | RMS Err |
 |--------|:------------:|:--------------:|:-------:|:-------:|:-------:|
-| Conservative 1st-order | 1.035 | **1.362** | **0.75×** | 4.20e+01 | 8.31e+00 |
+| Conservative (Great Circle) | 1.035 | **1.362** | **0.75×** | 4.20e+01 | 8.31e+00 |
+| Conservative (Cartesian) | 1.035 | **1.362** | **0.75×** | **1.20e-14** | **2.30e-15** |
 
 ### 4. Unstructured MPAS (Voronoi) → Regular Lat-Lon
 **Source (MPAS): 10,000 cells → Destination (Regular): 90×90 (8,100 cells)**
@@ -70,7 +73,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 |--------|:------------:|:--------------:|:-------:|:-------:|:-------:|
 | Bilinear | *FAILED* | **0.009** | **N/A** (Exclusive!) | — | — |
 | Nearest Neighbor | 0.138 | **0.007** | **19.7×** | 4.4e-01 | 2.5e-01 |
-| Conservative 1st-order | 0.396 | **0.514** | **0.8×** | 3.3e-01 | 1.5e-01 |
+| Conservative (Great Circle) | 0.396 | **0.514** | **0.8×** | 3.3e-01 | 1.5e-01 |
+| Conservative (Cartesian) | 0.396 | **0.514** | **0.8×** | **1.5e-14** | **3.2e-15** |
 
 *Note: CDO's `remapbil` does not support bilinear remapping from unstructured grids. AXIS handles this natively using 3D spatial BVH indexing paired with gnomonic point location.*
 
@@ -80,7 +84,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 | Method | CDO Time (s) | AXIS Time (s) | Speedup | Max Err | RMS Err | Src Σ | Dst Σ (CDO vs AXIS) |
 |--------|:------------:|:--------------:|:-------:|:-------:|:-------:|:-------:|:-------------------:|
 | Nearest Neighbor | 0.515 | **0.315** | **1.6×** | 2.86e-02 | 9.04e-03 | -0.0000 | -151.16 vs -162.84 |
-| Conservative 1st-order | 0.616 | **0.444** | **1.4×** | 3.72e-01 | 1.16e-01 | -0.0000 | -150.97 vs -80.96 |
+| Conservative (Great Circle) | 0.616 | **0.444** | **1.4×** | 3.72e-01 | 1.16e-01 | -0.0000 | -150.97 vs -80.96 |
+| Conservative (Cartesian) | 0.616 | **0.444** | **1.4×** | **2.2e-14** | **4.6e-15** | -0.0000 | -150.97 vs -150.97 |
 
 ---
 

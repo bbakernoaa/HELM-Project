@@ -424,7 +424,7 @@ def run_axis_remap(input_file, target_grid, dst_lats, dst_lons, method, grid_typ
         is_global = (dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0)
 
         # Initialize high-level xarray regridder
-        regridder = axis.Regridder(ds_in, ds_out, method=method, periodic=is_global)
+        regridder = axis.Regridder(ds_in, ds_out, method=method, periodic=is_global, line_type=line_type)
         
         # Regrid the DataArray
         da_out = regridder(ds_in["temperature"])
@@ -440,15 +440,16 @@ def compare_results(axis_result, cdo_result):
     if axis_result is None or cdo_result is None:
         return {"max_error": np.nan, "rms_error": np.nan, "mean_error": np.nan}
 
-    # Flatten CDO result to match AXIS
-    cdo_flat = cdo_result.ravel()
+    # Flatten results to match 1-D size
+    axis_flat = np.ravel(axis_result)
+    cdo_flat = np.ravel(cdo_result)
 
     # Truncate to common size
-    n = min(len(axis_result), len(cdo_flat))
-    diff = axis_result[:n] - cdo_flat[:n]
+    n = min(len(axis_flat), len(cdo_flat))
+    diff = axis_flat[:n] - cdo_flat[:n]
 
     # Ignore NaN values from unmapped cells in local projected / unstructured grids
-    valid = ~np.isnan(diff) & ~np.isnan(axis_result[:n]) & ~np.isnan(cdo_flat[:n])
+    valid = ~np.isnan(diff) & ~np.isnan(axis_flat[:n]) & ~np.isnan(cdo_flat[:n])
     if not np.any(valid):
         return {"max_error": 0.0, "rms_error": 0.0, "mean_error": 0.0}
 
@@ -523,7 +524,7 @@ def main():
         print(f"Dest grid:    {dst_nlon}x{dst_nlat} {args.dst_grid_type} ({dst_nlon*dst_nlat:,} cells)")
     print(f"Test field:   {args.field}")
     print(f"Methods:      {', '.join(methods)}")
-    print(f"AXIS module:  {'loaded' if axis_py else 'NOT AVAILABLE'}")
+    print(f"AXIS module:  {'loaded' if axis else 'NOT AVAILABLE'}")
     print(f"{'='*70}")
     print()
 
@@ -654,7 +655,7 @@ def main():
     print("  - Max/RMS Err = Engine result vs CDO result (CDO is the reference)")
     print("  - Src/Dst Σ = sum of field values (check conservation)")
     print("  - Time includes weight generation + apply (not I/O)")
-    if axis_py is None:
+    if axis is None:
         print("\n  To enable AXIS comparison, build the Python module:")
         print("    cd libs/axis && cmake -B build-py -DBUILD_PYTHON=ON")
         print("    cmake --build build-py && export PYTHONPATH=build-py/python")
