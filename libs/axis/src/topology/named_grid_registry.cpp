@@ -390,10 +390,10 @@ static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
     {3, 360, 181, -180.0, -90.0, 1.0, 1.0, nullptr},
     // grid4: GFS 0.5 degree global grid
     {4, 720, 361, -180.0, -90.0, 0.5, 0.5, nullptr},
-    // grid127: GFS 0.125 degree global grid
-    {127, 2880, 1441, -180.0, -90.0, 0.125, 0.125, nullptr},
-    // grid129: GFS 0.25 degree global grid
-    {129, 1440, 721, -180.0, -90.0, 0.25, 0.25, nullptr},
+    // grid174: GFS 0.125 degree global grid
+    {174, 2880, 1441, -180.0, -90.0, 0.125, 0.125, nullptr},
+    // grid193: GFS 0.25 degree global grid
+    {193, 1440, 721, -180.0, -90.0, 0.25, 0.25, nullptr},
     // grid218: NAM / RAP 12km ConUS Lambert Conformal grid (requires PROJ)
     {218, 614, 428, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"}};
 
