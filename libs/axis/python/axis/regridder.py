@@ -173,8 +173,9 @@ class Regridder:
             except (ImportError, ValueError):
                 client = None
 
+            weights_key_arg = f"weights_{self._uid}"
+
             if client is not None:
-                weights_key_arg = f"weights_{self._uid}"
                 client_id = getattr(client, "id", id(client))
 
                 # If workers are not synchronized, replicate the serialized bytes and deserialize
@@ -196,6 +197,16 @@ class Regridder:
                     if (client_id, tw_key) not in _DRIVER_CACHE:
                         client.run(_setup_worker_cache, tw_key, self._total_weights)
                         _DRIVER_CACHE[(client_id, tw_key)] = True
+                    total_weights_arg = tw_key
+            else:
+                # Fallback: register locally in our _WORKER_CACHE so that local multiprocessing or thread schedulers
+                # can lookup the weights matrix by string key, completely avoiding PicklingErrors!
+                _setup_worker_cache(weights_key_arg, self._weights_matrix)
+                weights_arg = weights_key_arg
+
+                if self._total_weights is not None:
+                    tw_key = f"tw_{self._uid}_sum"
+                    _setup_worker_cache(tw_key, self._total_weights)
                     total_weights_arg = tw_key
 
         # Execute parallelized map-blocks SpMV using apply_ufunc
