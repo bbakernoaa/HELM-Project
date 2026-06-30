@@ -59,10 +59,8 @@ axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_mesh_with_coord_system
 }
 
 /// Build a small mesh with specific CoordinateSystem and bounds.
-axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_mesh_with_bounds(std::size_t ni, std::size_t nj,
-                                                                           axis::topology::CoordinateSystem coord_sys,
-                                                                           double lon_min, double lon_max,
-                                                                           double lat_min, double lat_max,
+axis::topology::UnstructuredMesh<Kokkos::HostSpace> build_mesh_with_bounds(std::size_t ni, std::size_t nj, axis::topology::CoordinateSystem coord_sys,
+                                                                           double lon_min, double lon_max, double lat_min, double lat_max,
                                                                            bool perturb = false) {
     const std::size_t n_centers = ni * nj;
     const std::size_t n_corners = (ni + 1) * (nj + 1);

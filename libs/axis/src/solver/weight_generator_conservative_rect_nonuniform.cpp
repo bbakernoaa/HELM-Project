@@ -29,9 +29,8 @@ double rect_overlap_nonuniform(double s_lo_x, double s_hi_x, double s_lo_y, doub
 }
 
 KOKKOS_INLINE_FUNCTION
-double rect_overlap_spherical_nonuniform(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y,
-                                         double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y,
-                                         bool is_degrees) noexcept {
+double rect_overlap_spherical_nonuniform(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y, double d_lo_x, double d_hi_x, double d_lo_y,
+                                         double d_hi_y, bool is_degrees) noexcept {
     double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x) - Kokkos::fmax(s_lo_x, d_lo_x));
     double lo_y = Kokkos::fmax(s_lo_y, d_lo_y);
     double hi_y = Kokkos::fmin(s_hi_y, d_hi_y);

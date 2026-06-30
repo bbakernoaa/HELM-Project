@@ -199,10 +199,8 @@ Kokkos::View<ArborX::Box<3> *, Kokkos::HostSpace> compute_cell_aabbs_3d(const to
 
         // Apply a small isotropic dilation to ensure we account for great-circle arc bulge
         const double eps = 0.02;
-        boxes(c) = ArborX::Box<3>{
-            {static_cast<float>(min_x - eps), static_cast<float>(min_y - eps), static_cast<float>(min_z - eps)},
-            {static_cast<float>(max_x + eps), static_cast<float>(max_y + eps), static_cast<float>(max_z + eps)}
-        };
+        boxes(c) = ArborX::Box<3>{{static_cast<float>(min_x - eps), static_cast<float>(min_y - eps), static_cast<float>(min_z - eps)},
+                                  {static_cast<float>(max_x + eps), static_cast<float>(max_y + eps), static_cast<float>(max_z + eps)}};
     }
 
     return boxes;
@@ -869,10 +867,7 @@ Kokkos::View<ArborX::Box<3> *, MemorySpace> compute_cell_aabbs_3d_device(const t
             }
 
             const float eps = 0.02f;
-            boxes(c) = ArborX::Box<3>{
-                {min_x - eps, min_y - eps, min_z - eps},
-                {max_x + eps, max_y + eps, max_z + eps}
-            };
+            boxes(c) = ArborX::Box<3>{{min_x - eps, min_y - eps, min_z - eps}, {max_x + eps, max_y + eps, max_z + eps}};
         });
 
     return boxes;
@@ -991,7 +986,8 @@ struct COOEntry {
 /// approach: first count entries per destination (to size buffers), then fill.
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_conservative_device_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
+                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                   const RegridConfig &config) {
     using exec_space = execution_space_for_t<MemorySpace>;
     using Box = ArborX::Box<Dimension>;
 
@@ -1246,8 +1242,7 @@ InterpolationMatrix<MemorySpace> generate_bilinear_device_impl(const topology::U
     Kokkos::View<Point *, MemorySpace> src_points("src_points_device", n_src);
     if constexpr (Dimension == 3) {
         Kokkos::parallel_for(
-            "build_src_points_3d", Kokkos::RangePolicy<exec_space>(0, n_src),
-            KOKKOS_LAMBDA(const index_t i) {
+            "build_src_points_3d", Kokkos::RangePolicy<exec_space>(0, n_src), KOKKOS_LAMBDA(const index_t i) {
                 double lon = src_centroids(i, 0);
                 double lat = src_centroids(i, 1);
                 if (csys == topology::CoordinateSystem::SphericalDeg) {
@@ -1262,8 +1257,7 @@ InterpolationMatrix<MemorySpace> generate_bilinear_device_impl(const topology::U
             });
     } else {
         Kokkos::parallel_for(
-            "build_src_points_2d", Kokkos::RangePolicy<exec_space>(0, n_src),
-            KOKKOS_LAMBDA(const index_t i) {
+            "build_src_points_2d", Kokkos::RangePolicy<exec_space>(0, n_src), KOKKOS_LAMBDA(const index_t i) {
                 src_points(i) = Point{static_cast<float>(src_centroids(i, 0)), static_cast<float>(src_centroids(i, 1))};
             });
     }
@@ -1692,7 +1686,8 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
 
             // Skip the throw if we are on a structured fast-path where periodic wrap-around shifts are supported natively
             bool is_structured_fast_path = false;
-            if (config.method == InterpolationMethod::Bilinear || config.method == InterpolationMethod::Bicubic || config.method == InterpolationMethod::Patch) {
+            if (config.method == InterpolationMethod::Bilinear || config.method == InterpolationMethod::Bicubic ||
+                config.method == InterpolationMethod::Patch) {
                 auto src_reg = detail::detect_regular_grid(src_mesh);
                 auto src_rect = detail::detect_rectilinear_grid(src_mesh);
                 if (src_reg.is_regular || src_rect.is_rectilinear) {
@@ -1704,11 +1699,17 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
                 const std::string unit = (csys == topology::CoordinateSystem::SphericalDeg) ? "degrees" : "radians";
                 throw std::invalid_argument(
                     "WeightGenerator::generate: Spherical longitude coordinate range mismatch. "
-                    "Source longitude range is [" + std::to_string(src_min_lon) + ", " + std::to_string(src_max_lon) + "], "
-                    "but destination longitude range is [" + std::to_string(dst_min_lon) + ", " + std::to_string(dst_max_lon) + "]. "
-                    "These ranges are completely disjoint in raw 2D space but would overlap if shifted by " + std::to_string(shift) + " " + unit + ". "
-                    "This mismatch causes 2D spatial BVH queries to fail silently. Please normalize your coordinate ranges to match before weight generation."
-                );
+                    "Source longitude range is [" +
+                    std::to_string(src_min_lon) + ", " + std::to_string(src_max_lon) +
+                    "], "
+                    "but destination longitude range is [" +
+                    std::to_string(dst_min_lon) + ", " + std::to_string(dst_max_lon) +
+                    "]. "
+                    "These ranges are completely disjoint in raw 2D space but would overlap if shifted by " +
+                    std::to_string(shift) + " " + unit +
+                    ". "
+                    "This mismatch causes 2D spatial BVH queries to fail silently. Please normalize your coordinate ranges to match before weight "
+                    "generation.");
             }
         }
     }
@@ -1747,8 +1748,7 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_rect(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                        const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                       const detail::RegularGridInfo &src_reg,
-                                                       const detail::RegularGridInfo &dst_reg,
+                                                       const detail::RegularGridInfo &src_reg, const detail::RegularGridInfo &dst_reg,
                                                        const RegridConfig &config) {
     using ExecutionSpace = typename MemorySpace::execution_space;
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -1771,8 +1771,7 @@ InterpolationMatrix<MemorySpace> generate_nearest_rect(const topology::Unstructu
     const double dst_dlat = dst_reg.delta_lat;
 
     Kokkos::parallel_for(
-        "generate_nearest_rect", Kokkos::RangePolicy<ExecutionSpace>(0, n_dst),
-        KOKKOS_LAMBDA(const std::size_t j) {
+        "generate_nearest_rect", Kokkos::RangePolicy<ExecutionSpace>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) {
             index_t d_i = j % dst_ni;
             index_t d_j = j / dst_ni;
 
@@ -1807,16 +1806,13 @@ InterpolationMatrix<MemorySpace> generate_nearest_rect(const topology::Unstructu
     Kokkos::View<double *, MemorySpace> area_a("area_a", src_mesh.n_cells());
     Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
 
-    return InterpolationMatrix<MemorySpace>(
-        std::move(factor_list), std::move(factor_row), std::move(factor_col),
-        std::move(frac_a), std::move(frac_b), std::move(area_a), std::move(area_b),
-        src_mesh.n_cells(), n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), src_mesh.n_cells(), n_dst);
 }
 
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                       const RegridConfig &config);
+                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> WeightGenerator::generate_nearest(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
@@ -1839,8 +1835,7 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_nearest(const topolog
 
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                       const RegridConfig &config) {
+                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
     using Point = ArborX::Point<Dimension>;
 
@@ -2965,8 +2960,7 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
 
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_conservative_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                            const RegridConfig &config);
+                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
@@ -3015,8 +3009,7 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const to
 
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_conservative_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                            const RegridConfig &config) {
+                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
 
     const std::size_t n_src = src_mesh.n_cells();

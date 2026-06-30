@@ -430,7 +430,8 @@ static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
     {188, 709, 795, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid189: Polar Stereographic
     {189, 655, 855, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=225.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
-    // grid197: Grid over the contiguous United States - 16X Resolution (5 km) (Used by the Radar Stage IV precipitation analyses and Satellite-derived Precipitation Estimates and NAM DNG grids and RTMA NDFD grids) (Lambert Conformal)
+    // grid197: Grid over the contiguous United States - 16X Resolution (5 km) (Used by the Radar Stage IV precipitation analyses and
+    // Satellite-derived Precipitation Estimates and NAM DNG grids and RTMA NDFD grids) (Lambert Conformal)
     {197, 1073, 689, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid198: Grid over Alaska (Polar Stereographic)
     {198, 825, 553, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
@@ -451,21 +452,25 @@ static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
     // grid209: Regional - NOAMIM - Intermediate Resolution North American Master Grid (Lambert Conformal)
     {209, 275, 223, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=45.0 +lat_2=45.0 +lat_0=45.0 +lon_0=249.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid211: (Q)	Regional - CONUS (Lambert Conformal)
-    {211, 93, 65, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    {211, 93, 65, -3738443.0, -2600656.0, 3738443.0, 2600656.0,
+     "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid212: (R)[R]	Regional - CONUS - Double Resolution (Lambert Conformal)
-    {212, 185, 129, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    {212, 185, 129, -3738443.0, -2600656.0, 3738443.0, 2600656.0,
+     "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid213: (H)	National - CONUS - Double Resolution (Polar Stereographic)
     {213, 129, 85, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid214: ()[T]	Regional - Alaska - Double Resolution (Polar Stereographic)
     {214, 97, 69, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid215: (U)[U]	 grid over the contiguous United States - Quadruple Resolution (used by the 29-km NAM model)(Lambert Conformal)
-    {215, 369, 257, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    {215, 369, 257, -3738443.0, -2600656.0, 3738443.0, 2600656.0,
+     "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid216: (V)[V]	 grid over Alaska (Polar Stereographic)
     {216, 139, 107, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=225.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid217: (Y)	 Grid over Alaska - Double Resolution grid (Polar Stereographic)
     {217, 277, 213, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=225.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid218: (B)[B]	  Grid over the Contiguous United States (used by the 12-km NAM Model) (Lambert Conformal)
-    {218, 614, 428, -3733392.0, -2602779.0, 3733392.0, 2602779.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=265.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    {218, 614, 428, -3733392.0, -2602779.0, 3733392.0, 2602779.0,
+     "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=265.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid219: ()[C]	 grid over the Northern Hemisphere to depict SSMI-derived ice concentrations (Polar Stereographics)
     {219, 385, 465, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=280.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid220: ()[D]	 grid over the Southern Hemisphere to depict SSMI-derived ice concentrations (Polar Stereographics)

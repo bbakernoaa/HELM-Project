@@ -153,14 +153,16 @@ int axis_generate_weights_c(int src_handle, int dst_handle, int method, int *mat
 /// @param[out] matrix_u_handle Pointer to integer token for the created U-component interpolation matrix.
 /// @param[out] matrix_v_handle Pointer to integer token for the created V-component interpolation matrix.
 /// @return @c AXIS_SUCCESS on success, @c AXIS_ERROR on failure.
-int axis_generate_vector_weights_c(int src_handle, int dst_handle, const double *src_alpha, const double *dst_alpha, int method,
-                                   int *matrix_u_handle, int *matrix_v_handle) {
+int axis_generate_vector_weights_c(int src_handle, int dst_handle, const double *src_alpha, const double *dst_alpha, int method, int *matrix_u_handle,
+                                   int *matrix_v_handle) {
     try {
         auto &reg = axis::fortran::Handle_Registry::instance();
 
         auto src_ptr = reg.lookup(src_handle);
         auto dst_ptr = reg.lookup(dst_handle);
-        if (!src_ptr || !dst_ptr) { return AXIS_ERROR; }
+        if (!src_ptr || !dst_ptr) {
+            return AXIS_ERROR;
+        }
 
         auto &src_mesh = *std::static_pointer_cast<HostMesh>(src_ptr);
         auto &dst_mesh = *std::static_pointer_cast<HostMesh>(dst_ptr);
@@ -188,8 +190,7 @@ int axis_generate_vector_weights_c(int src_handle, int dst_handle, const double 
         axis::solver::GridRotation<Kokkos::HostSpace> src_rot{src_rot_view};
         axis::solver::GridRotation<Kokkos::HostSpace> dst_rot{dst_rot_view};
 
-        auto [W_u, W_v] = axis::solver::VectorWeightGenerator<Kokkos::HostSpace>::generate(
-            src_mesh, dst_mesh, src_rot, dst_rot, config);
+        auto [W_u, W_v] = axis::solver::VectorWeightGenerator<Kokkos::HostSpace>::generate(src_mesh, dst_mesh, src_rot, dst_rot, config);
 
         auto W_u_ptr = std::make_shared<HostMatrix>(std::move(W_u));
         auto W_v_ptr = std::make_shared<HostMatrix>(std::move(W_v));

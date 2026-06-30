@@ -463,29 +463,25 @@ NB_MODULE(axis_py, m) {
             res["seam_lon_center"] = info.seam_lon_center;
             return res;
         },
-        "mesh"_a, "ni"_a, "nj"_a,
-        "Detect whether an unstructured mesh represents a folded tripolar grid");
+        "mesh"_a, "ni"_a, "nj"_a, "Detect whether an unstructured mesh represents a folded tripolar grid");
 
     // ─── Vector weight generation ───────────────────────────────────────────
 
     m.def(
         "generate_vector_weights",
-        [](const HostMesh &src, const HostMesh &dst,
-           nb::ndarray<const double, nb::ndim<1>> src_alpha,
-           nb::ndarray<const double, nb::ndim<1>> dst_alpha,
-           const nb::dict &config) -> std::pair<HostMatrix, HostMatrix> {
+        [](const HostMesh &src, const HostMesh &dst, nb::ndarray<const double, nb::ndim<1>> src_alpha,
+           nb::ndarray<const double, nb::ndim<1>> dst_alpha, const nb::dict &config) -> std::pair<HostMatrix, HostMatrix> {
             ensure_kokkos();
-            
+
             axis::solver::RegridConfig cfg = parse_regrid_config(config);
-            
+
             Kokkos::View<const double *, Kokkos::HostSpace> src_rot_view(src_alpha.data(), src.n_cells());
             Kokkos::View<const double *, Kokkos::HostSpace> dst_rot_view(dst_alpha.data(), dst.n_cells());
 
             axis::solver::GridRotation<Kokkos::HostSpace> src_rot{src_rot_view};
             axis::solver::GridRotation<Kokkos::HostSpace> dst_rot{dst_rot_view};
 
-            auto [W_u, W_v] = axis::solver::VectorWeightGenerator<Kokkos::HostSpace>::generate(
-                src, dst, src_rot, dst_rot, cfg);
+            auto [W_u, W_v] = axis::solver::VectorWeightGenerator<Kokkos::HostSpace>::generate(src, dst, src_rot, dst_rot, cfg);
 
             return std::make_pair(W_u, W_v);
         },

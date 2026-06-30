@@ -48,8 +48,7 @@ double rect_overlap(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y, 
 }
 
 KOKKOS_INLINE_FUNCTION
-double rect_overlap_spherical(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y,
-                              double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y,
+double rect_overlap_spherical(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y, double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y,
                               bool is_degrees) noexcept {
     double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x) - Kokkos::fmax(s_lo_x, d_lo_x));
     double lo_y = Kokkos::fmax(s_lo_y, d_lo_y);
