@@ -384,24 +384,125 @@ struct NoaaGribDefinition {
 /// @brief Global declarative registry of supported NOAA GRIB grids.
 /// @details Adding a new grid to AXIS is a simple, single-line addition here!
 static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
-    // grid2: GFS 2.5 degree global grid
-    {2, 144, 73, -180.0, -90.0, 2.5, 2.5, nullptr},
-    // grid3: GFS 1.0 degree global grid
-    {3, 360, 181, -180.0, -90.0, 1.0, 1.0, nullptr},
-    // grid4: GFS 0.5 degree global grid
-    {4, 720, 361, -180.0, -90.0, 0.5, 0.5, nullptr},
-    // grid174: GFS 0.125 degree global grid
-    {174, 2880, 1441, -180.0, -90.0, 0.125, 0.125, nullptr},
-    // grid193: GFS 0.25 degree global grid
-    {193, 1440, 721, -180.0, -90.0, 0.25, 0.25, nullptr},
-    // grid211: CONUS 80km Lambert Conformal grid (AWIPS 211)
-    {211, 93, 65, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
-    // grid212: CONUS 40km Lambert Conformal grid (AWIPS 212)
-    {212, 185, 129, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
-    // grid215: CONUS 20km Lambert Conformal grid (AWIPS 215)
-    {215, 369, 257, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
-    // grid218: NAM / RAP 12km ConUS Lambert Conformal grid (requires PROJ)
-    {218, 614, 428, -3733392.0, -2602779.0, 3733392.0, 2602779.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"}};
+    // grid87: U.S. Area; used in MAPS/RUC (60km at 40N) (N. Hem. Polar Stereographic)
+    {87, 81, 62, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid88: North American Area; used in RSAS (Polar Stereographic)
+    {88, 580, 548, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid90: Grid over CONUS - (1.27 km)
+    {90, 4289, 2753, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid91: Grid over Alaska (Polar Stereographic)
+    {91, 1649, 1105, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid92: Grid over Alaska (Polar Stereographic)
+    {92, 3297, 2209, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid130: ()	Regional - CONUS (Lambert Conformal) - 13 km
+    {130, 451, 337, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid132: Regional Double Resolution North American Grid (Lambert Conformal) used by SREF
+    {132, 697, 553, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=50.0 +lat_2=50.0 +lat_0=50.0 +lon_0=253.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid138: Air-Quality Forecasting CONUS
+    {138, 468, 288, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=263.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid139: Air-Quality Forecasting Hawaii
+    {139, 80, 52, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=202.5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid140: Air-Quality Forecasting Alaska
+    {140, 199, 163, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=211.4 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid145: Air-Quality Forecasting Northeast Intermediate Domain
+    {145, 169, 145, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=280.5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid146: Air-Quality Forecasting Northeast Output Domain
+    {146, 166, 142, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=280.5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid147: Air-Quality Forecasting Eastern "3x" Domain
+    {147, 268, 259, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=263.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid148: Air-Quality Forecasting CONUS "5x" Domain
+    {148, 442, 265, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=263.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid150: Central America - Latitude/Longitude grid
+    {150, 401, 201, 260.0, 5.0, 0.0, 0.0, nullptr},
+    // grid151: Grid over North America (Polar Stereographic)
+    {151, 478, 429, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=250.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid160: [Z]	47.5 km North Polar Stereographic grid for Alaska
+    {160, 180, 156, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid163: ()	Regional - CONUS 5 km grid
+    {163, 1008, 722, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid179: Grid over North America (Polar Stereographic)
+    {179, 1196, 871, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=260.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid184: Grid over CONUS - (2.54 km)
+    {184, 2145, 1377, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid187: Grid over CONUS - (2.54 km) - Lambert Conformal
+    {187, 2145, 1597, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid188: Grid over CONUS - (2.54 km) - Lambert Conformal
+    {188, 709, 795, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid189: Polar Stereographic
+    {189, 655, 855, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=225.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid197: Grid over the contiguous United States - 16X Resolution (5 km) (Used by the Radar Stage IV precipitation analyses and Satellite-derived Precipitation Estimates and NAM DNG grids and RTMA NDFD grids) (Lambert Conformal)
+    {197, 1073, 689, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid198: Grid over Alaska (Polar Stereographic)
+    {198, 825, 553, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid200: Puerto Rico FAA Regional Grid
+    {200, 108, 94, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=253.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid201: (A)	Northern Hemispheric (Polar Stereographic)
+    {201, 65, 65, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid202: (I)	National - CONUS (Polar Stereographic)
+    {202, 65, 43, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid203: (J)	National - Alaska (Polar Stereographic)
+    {203, 45, 39, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid205: (L)	National - Puerto Rico (Polar Stereographic)
+    {205, 45, 39, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=300.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid206: Regional - Central US MARD (Lambert Conformal)
+    {206, 51, 41, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid207: (N)	Regional - Alaska (Polar Stereographic)
+    {207, 49, 35, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid209: Regional - NOAMIM - Intermediate Resolution North American Master Grid (Lambert Conformal)
+    {209, 275, 223, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=45.0 +lat_2=45.0 +lat_0=45.0 +lon_0=249.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid211: (Q)	Regional - CONUS (Lambert Conformal)
+    {211, 93, 65, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid212: (R)[R]	Regional - CONUS - Double Resolution (Lambert Conformal)
+    {212, 185, 129, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid213: (H)	National - CONUS - Double Resolution (Polar Stereographic)
+    {213, 129, 85, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid214: ()[T]	Regional - Alaska - Double Resolution (Polar Stereographic)
+    {214, 97, 69, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid215: (U)[U]	 grid over the contiguous United States - Quadruple Resolution (used by the 29-km NAM model)(Lambert Conformal)
+    {215, 369, 257, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid216: (V)[V]	 grid over Alaska (Polar Stereographic)
+    {216, 139, 107, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=225.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid217: (Y)	 Grid over Alaska - Double Resolution grid (Polar Stereographic)
+    {217, 277, 213, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=225.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid218: (B)[B]	  Grid over the Contiguous United States (used by the 12-km NAM Model) (Lambert Conformal)
+    {218, 614, 428, -3733392.0, -2602779.0, 3733392.0, 2602779.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=265.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid219: ()[C]	 grid over the Northern Hemisphere to depict SSMI-derived ice concentrations (Polar Stereographics)
+    {219, 385, 465, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=280.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid220: ()[D]	 grid over the Southern Hemisphere to depict SSMI-derived ice concentrations (Polar Stereographics)
+    {220, 345, 355, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=100.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid221: ()[E]	Regional North American Grid (Lambert Conformal)
+    {221, 349, 277, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=50.0 +lat_2=50.0 +lat_0=50.0 +lon_0=253.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid222: Regional - NOAMLO - Low Resolution North American Master Grid (Lambert Conformal)
+    {222, 138, 112, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=45.0 +lat_2=45.0 +lat_0=45.0 +lon_0=249.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid223: Hemispheric - Double Resolution (Lambert Conformal)
+    {223, 129, 129, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid224: Southern Hemispheric (Polar Stereographic)
+    {224, 65, 65, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=-105.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid226: (M)	 grid over the contiguous United States - 8X Resolution (10 km) (Used by the Radar mosaics) (Lambert Conformal)
+    {226, 737, 517, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid227: Regional grid over the contiguous United States - 16X Resolution
+    {227, 1473, 1025, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25.0 +lat_2=25.0 +lat_0=25.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid236: (W)	Regional - CONUS (Lambert Conformal)
+    {236, 151, 113, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid237: (P)	Puerto Rico FAA Regional Grid (Lambert Conformal)
+    {237, 54, 47, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=253.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid240: ()	HRAP Grid over the Contiguous United States and Puerto Rico (Polar Stereographic)
+    {240, 1121, 881, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid241: ()	Regional - NOAMHI - High Resolution North American Grid (Lambert Conformal)
+    {241, 549, 445, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=249.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid242: (S)	 Grid over Alaska - Quadruple Resolution Grid (Polar Stereographic)
+    {242, 553, 425, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=225.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid245: ()	Regional - NOAMHI - High Resolution over Eastern US (Lambert Conformal for 8 km NMM)
+    {245, 336, 372, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=280.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid246: ()	Regional - NOAMHI - High Resolution over Western US (Lambert Conformal for 8 km NMM)
+    {246, 332, 371, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=245.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid247: ()	Regional - NOAMHI - High Resolution over Central US (Lambert Conformal for 8 km NMM)
+    {247, 336, 372, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=262.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid249: ()	 Grid over Alaska for 10-km Alaska nest (Polar Stereographic)
+    {249, 367, 343, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=210.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid252: ()	Regional - CONUS (Lambert Conformal)
+    {252, 301, 225, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=2.0 +lat_2=2.0 +lat_0=2.0 +lon_0=265.0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+};
 
 /// @brief Total count of registered NOAA NWS grids in our static array.
 static constexpr std::size_t NOAA_GRIB_GRIDS_COUNT = sizeof(NOAA_GRIB_GRIDS) / sizeof(NOAA_GRIB_GRIDS[0]);
