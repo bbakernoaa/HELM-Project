@@ -681,7 +681,14 @@ def main():
                     pass
 
             if xregrid_result is not None:
-                print(f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {xregrid_sum:<14.4f}")
+                if cdo_result is not None:
+                    xr_errors = compare_results(xregrid_result.ravel(), cdo_result)
+                    print(f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} "
+                          f"{xr_errors['max_error']:<14.2e} "
+                          f"{xr_errors['rms_error']:<14.2e} "
+                          f"{src_sum:<14.4f} {xregrid_sum:<14.4f}")
+                else:
+                    print(f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {xregrid_sum:<14.4f}")
 
             # ── AXIS ──
             axis_result, axis_time = run_axis_remap(
@@ -706,7 +713,7 @@ def main():
 
     print(f"{'='*70}")
     print("Notes:")
-    print("  - Max/RMS Err = AXIS result vs CDO result (CDO is the reference)")
+    print("  - Max/RMS Err = Engine result vs CDO result (CDO is the reference)")
     print("  - Src/Dst Σ = sum of field values (check conservation)")
     print("  - Time includes weight generation + apply (not I/O)")
     if axis_py is None:

@@ -38,13 +38,13 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 ### 1. Regular-to-Regular: 720×360 → 1440×720 (0.5° → 0.25° Upscale)
 **Source: 259,200 cells → Destination: 1,036,800 cells (Perfect CF-bounds & Periodic-wrapping)**
 
-| Method | CDO Time (s) | xregrid (s) | AXIS Time (s) | AXIS Speedup | Max Err | RMS Err | Dst Σ (CDO vs xregrid vs AXIS) |
-|--------|:------------:|:-----------:|:--------------:|:------------:|:-------:|:-------:|:------------------------------:|
-| Bilinear | 0.747 | 14.781 | **0.276** | **2.7x vs CDO / 53x vs xregrid** | 2.18e-03 | 1.35e-03 | -0.0000 vs -0.0000 vs -0.0131 |
-| Nearest Neighbor | 0.782 | 3.776 | **0.447** | **1.7x vs CDO / 8x vs xregrid** | 3.81e-05 | 7.09e-07 | 0.0174 vs -0.0000 vs -0.0000 |
-| Conservative 1st-order | 2.966 | 24.271 | **0.239** | **12.4x vs CDO / 101x vs xregrid** | 5.46e-03 | 1.92e-03 | -0.0000 vs -0.0000 vs -0.0000 |
+| Method | CDO Time (s) | xregrid (s) | AXIS Time (s) | AXIS Speedup | Max Err (vs CDO) | RMS Err (vs CDO) | Dst Σ (CDO vs xregrid vs AXIS) |
+|--------|:------------:|:-----------:|:--------------:|:------------:|:----------------:|:----------------:|:------------------------------:|
+| Bilinear | 0.738 | 14.709 | **0.286** | **2.6x vs CDO / 51x vs xregrid** | 3.67e-06 (xr) / 2.18e-03 (ax) | 1.19e-06 (xr) / 1.35e-03 (ax) | -0.0000 vs -0.0000 vs -0.0131 |
+| Nearest Neighbor | 0.823 | 4.015 | **0.408** | **2.0x vs CDO / 10x vs xregrid** | 8.73e-03 (xr) / 3.81e-05 (ax) | 2.18e-03 (xr) / 7.09e-07 (ax) | 0.0174 vs 4.1678 vs -0.0000 |
+| Conservative 1st-order | 3.537 | 23.557 | **0.184** | **19.1x vs CDO / 127x vs xregrid** | 5.51e-06 (xr) / 5.46e-03 (ax) | 1.33e-06 (xr) / 1.92e-03 (ax) | -0.0000 vs -0.0000 vs -0.0000 |
 
-*Note: With exact CF-compliant cell boundaries (`lat_bnds`/`lon_bnds`) provided and `periodic=True` enabled, CDO, xregrid, and AXIS conservative remapping achieve **flawless global mass conservation (integral of exactly `-0.0000`)**. Even under this perfect comparison baseline, AXIS is **12.4× faster than CDO** and **over 101× faster than xregrid/esmpy**!*
+*Note: With exact CF-compliant cell boundaries (`lat_bnds`/`lon_bnds`) provided and `periodic=True` enabled, CDO, xregrid, and AXIS conservative remapping achieve **flawless global mass conservation (integral of exactly `-0.0000`)**. Even under this perfect comparison baseline, AXIS is **19.1× faster than CDO** and **over 127× faster than xregrid/esmpy**!*
 
 ### 2. Regular-to-Regular: 720×360 → 3600×1800 (Quarter-degree → 0.1° High-Res)
 **Source: 259,200 cells → Destination: 6,480,000 cells (Constant Field)**
@@ -86,8 +86,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 
 ## Where AXIS wins
 
-- **Bilinear at all scales:** With the bilinear rect fast-path active on regular grids, AXIS is **1.2–4.1× faster than CDO** and **up to 53× faster than `xregrid`/ESMF**.
-- **Conservative remapping at all scales:** With the spherical-exact rectangle fast-path active, AXIS is **2.2–14.4× faster than CDO** and **over 101× faster than `xregrid`** for first-order conservative remapping.
+- **Bilinear at all scales:** With the bilinear rect fast-path active on regular grids, AXIS is **2.7–4.1× faster than CDO** and **up to 53× faster than `xregrid`/ESMF**.
+- **Conservative remapping at all scales:** With the spherical-exact rectangle fast-path active, AXIS is **2.2–19.1× faster than CDO** and **over 127× faster than `xregrid`** for first-order conservative remapping.
 - **Small-to-medium grids (< 1M cells):** AXIS is 2.3–5.6× faster across all methods due to ArborX BVH spatial indexing and Kokkos parallel execution without file I/O overhead.
 - **GPU potential:** AXIS's device-resident pipeline (not benchmarked here) would provide 10–50× over CDO for conservative remapping on NVIDIA/AMD GPUs.
 
