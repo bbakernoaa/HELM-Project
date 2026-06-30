@@ -1,0 +1,24 @@
+[build-system]
+requires = ["scikit-build-core>=0.5", "nanobind>=1.6.0", "numpy"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "axis-regrid"
+version = "0.1.0"
+description = "Arbitrary eXgrid Interpolation Solver (AXIS) Python bindings"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "numpy",
+]
+
+[tool.scikit-build]
+cmake.args = [
+    "-DBUILD_PYTHON=ON",
+    "-DBUILD_TESTING=OFF",
+    "-DBUILD_FORTRAN=OFF",
+    "-DBUILD_BENCHMARKS=OFF",
+    "-DBUILD_EXAMPLES=OFF"
+]
+cmake.source-dir = "."
