@@ -29,6 +29,7 @@ class Regridder:
         unmapped: str = "ignore",
         skipna: bool = False,
         na_thres: float = 1.0,
+        line_type: str = "great_circle",
     ):
         """
         Initialize the regridder by generating spatial interpolation weights in C++.
@@ -49,10 +50,13 @@ class Regridder:
             If True, dynamically re-normalizes weights to handle NaNs.
         na_thres : float, default 1.0
             Minimum fraction of valid input contribution required to not mask output.
+        line_type : str, default "great_circle"
+            Line geometry: "great_circle" (spherical exact) or "cartesian" (Sutherland flat-clipping).
         """
         self.method = method
         self.periodic = periodic
         self.unmapped = unmapped
+        self.line_type = line_type
         self.skipna = skipna
         self.na_thres = na_thres
         self._uid = str(uuid.uuid4())
@@ -79,6 +83,15 @@ class Regridder:
         
         self._axis_method = method_map[method.lower()]
 
+        # Map line_type to AXIS LineType enum
+        line_type_map = {
+            "great_circle": axis_py.LineType.GreatCircle,
+            "cartesian": axis_py.LineType.Cartesian,
+        }
+        if line_type.lower() not in line_type_map:
+            raise ValueError(f"Unknown line type: {line_type}. Choose from {list(line_type_map.keys())}")
+        self._axis_line_type = line_type_map[line_type.lower()]
+
         # Generate on-device meshes and weights using C++ AXIS
         self._src_mesh = create_axis_mesh(ds_in, method)
         self._dst_mesh = create_axis_mesh(ds_out, method)
@@ -86,6 +99,7 @@ class Regridder:
         config = {
             "method": self._axis_method,
             "periodic": periodic,
+            "line_type": self._axis_line_type,
             "unmapped": axis_py.UnmappedAction.Ignore if unmapped == "ignore" else axis_py.UnmappedAction.Error
         }
 

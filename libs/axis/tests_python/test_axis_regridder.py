@@ -238,6 +238,23 @@ def test_regridder_projected_lcc():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 1.0, rtol=1e-12)
 
+def test_regridder_sutherland_approximation(sample_grids):
+    """Verify that the regridder supports Sutherland-Hodgman flat planar clipping via line_type='cartesian'."""
+    ds_in, ds_out = sample_grids
+    da_in = xr.DataArray(
+        np.ones((5, 10)),
+        coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
+        dims=["lat", "lon"]
+    )
+    
+    # Initialize conservative regridder with Cartesian flat-plane clipping
+    regridder = axis.Regridder(ds_in, ds_out, method="conservative", line_type="cartesian")
+    da_out = regridder(da_in)
+    
+    assert da_out.shape == (10, 20)
+    # Verify that non-boundary cells are exactly 1.0 (unmapped polar cells may be 0.0)
+    np.testing.assert_allclose(da_out.values[1:-1, :], 1.0, rtol=1e-12)
+
 def test_regridder_errors(sample_grids):
     """Verify that the regridder correctly rejects invalid inputs and raises exceptions."""
     ds_in, ds_out = sample_grids
@@ -250,6 +267,10 @@ def test_regridder_errors(sample_grids):
     regridder = axis.Regridder(ds_in, ds_out, method="bilinear")
     with pytest.raises(TypeError):
         regridder("not_an_xarray_object")
+        
+    # 4. Invalid line_type name
+    with pytest.raises(ValueError):
+        axis.Regridder(ds_in, ds_out, method="conservative", line_type="invalid_line_type")
         
     # 3. Missing latitude coordinates in dataset
     bad_ds = xr.Dataset({"lon": ds_in["lon"]}) # No lat coordinate!
