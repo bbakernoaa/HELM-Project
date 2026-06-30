@@ -24,4 +24,15 @@ find_dependency(MPI REQUIRED COMPONENTS CXX)
 
 include("${CMAKE_CURRENT_LIST_DIR}/LOGSTargets.cmake")
 
+# Provide the documented uppercase alias HELM::LOGS that downstream consumers
+# use in target_link_libraries(). The install-exported target is HELM::logs
+# (lowercase) because CMake's NAMESPACE prefix is prepended to the target name
+# as-is; the uppercase alias matches the HELM naming convention.
+if(NOT TARGET HELM::LOGS)
+    add_library(HELM::LOGS INTERFACE IMPORTED)
+    set_target_properties(HELM::LOGS PROPERTIES
+        INTERFACE_LINK_LIBRARIES HELM::logs
+    )
+endif()
+
 check_required_components(LOGS)

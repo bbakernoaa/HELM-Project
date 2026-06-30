@@ -28,28 +28,29 @@ void Mpi_Environment::detect(MPI_Comm comm) noexcept {
         comm_ = comm;
         has_comm_ = true;
 
-        // Step 2: Call MPI_Comm_rank exactly once; on failure set rank to -1.
-        int r = -1;
-        int rc = MPI_Comm_rank(comm, &r);
-        if (rc == MPI_SUCCESS) {
-            rank_.store(r, std::memory_order_release);
-        } else {
-            rank_.store(-1, std::memory_order_release);
-        }
-
-        // Step 3: Check if MPI is initialized.
+        // Step 2: Check if MPI is initialized.
         int initialized = 0;
         MPI_Initialized(&initialized);
 
-        // Step 4/5: Query thread level if initialized; conservative default otherwise.
+        // Step 3: Query rank and thread level only if MPI is active.
         if (initialized) {
+            int r = -1;
+            int rc = MPI_Comm_rank(comm, &r);
+            if (rc == MPI_SUCCESS) {
+                rank_.store(r, std::memory_order_release);
+            } else {
+                rank_.store(-1, std::memory_order_release);
+            }
+
             int level = MPI_THREAD_SINGLE;
             if (MPI_Query_thread(&level) == MPI_SUCCESS) {
                 thread_level_.store(level, std::memory_order_release);
             }
-            // If MPI_Query_thread fails, keep the conservative default.
+        } else {
+            // If not initialized, set defaults.
+            rank_.store(-1, std::memory_order_release);
+            thread_level_.store(MPI_THREAD_SINGLE, std::memory_order_release);
         }
-        // If not initialized, thread_level_ remains MPI_THREAD_SINGLE (default).
 
     } catch (...) {
         // Absorb any exception; ensure rank is sentinel on failure.
