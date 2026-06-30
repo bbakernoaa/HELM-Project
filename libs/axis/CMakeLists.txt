@@ -76,6 +76,18 @@ if(NOT Kokkos_FOUND AND AXIS_FETCH_KOKKOS)
     
     FetchContent_MakeAvailable(kokkos)
     set(Kokkos_FOUND ON)
+
+    # Generate a dummy KokkosConfig.cmake for subprojects (ArborX, HALO, etc.)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos/KokkosConfig.cmake" "
+        set(Kokkos_FOUND TRUE)
+        set(Kokkos_VERSION \"5.1.1\")
+        if(NOT TARGET Kokkos::kokkos)
+            add_library(Kokkos::kokkos ALIAS kokkos)
+        endif()
+    ")
+    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos")
+    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} PARENT_SCOPE)
 endif()
 
 if(NOT Kokkos_FOUND)
