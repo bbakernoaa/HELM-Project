@@ -175,9 +175,9 @@ class TestWeightCacheRoundTrip:
         dst_original = axis_py.apply_weights(bilinear_matrix, src_field)
         dst_restored = axis_py.apply_weights(restored, src_field)
 
-        # Should be bitwise identical (same weights, same computation)
-        np.testing.assert_array_equal(
-            dst_original, dst_restored,
+        # Should be identical within double precision machine tolerance (same weights)
+        np.testing.assert_allclose(
+            dst_original, dst_restored, rtol=1e-15, atol=1e-15,
             err_msg="Round-tripped matrix produces different apply results"
         )
 

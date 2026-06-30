@@ -1,0 +1,230 @@
+# SPDX-License-Identifier: Apache-2.0
+import numpy as np
+import xarray as xr
+from typing import Tuple, Union, Optional
+import axis_py
+
+# Unstructured spatial dimension tags commonly used in climate datasets
+UNSTRUCTURED_DIMS = {
+    "ncol", "grid_size", "nCells", "nVertices", "nNodes", "nFaces", "nEdges",
+    "n_node", "n_face", "n_edge", "n_cells", "n_vertices", "node", "face",
+    "vertex", "cell", "n_pts"
+}
+
+def _get_non_spatial_dims(ds: xr.Dataset) -> set[str]:
+    """Identify and filter out non-spatial dimensions (Time, Z, Member)."""
+    spatial_keywords = {"lat", "lon", "x", "y", "node", "face", "element", "cell", "n_pts", "ncol", "nCells", "grid_size"}
+    non_spatial = set()
+    for d in ds.dims:
+        d_lower = str(d).lower()
+        if not any(kw in d_lower for kw in spatial_keywords):
+            non_spatial.add(str(d))
+    return non_spatial
+
+def _find_coord(ds: xr.Dataset, name: str) -> Optional[xr.DataArray]:
+    """Find a coordinate array based on standard_name, axis, or name heuristics."""
+    for c in ds.coords:
+        da = ds[c]
+        if da.attrs.get("standard_name") == name:
+            return da
+        if name == "latitude" and da.attrs.get("axis") == "Y":
+            return da
+        if name == "longitude" and da.attrs.get("axis") == "X":
+            return da
+    return None
+
+def _get_mesh_info(
+    ds: xr.Dataset,
+    method: Optional[str] = None,
+) -> Tuple[xr.DataArray, xr.DataArray, Tuple[int, ...], Tuple[str, ...], bool]:
+    """Detect grid type and extract coordinate DataArrays and dimensions."""
+    non_spatial_dims = _get_non_spatial_dims(ds)
+
+    lat = None
+    lon = None
+
+    # CF search priority
+    lat = _find_coord(ds, "latitude")
+    if lat is None:
+        for v in ["lat", "latCell", "lat_face", "lat_node", "latitude"]:
+            if v in ds:
+                lat = ds[v]
+                break
+
+    if lat is None:
+        raise KeyError("Could not find latitude coordinates in dataset.")
+
+    lon_name = lat.name.replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
+    if lon_name in ds:
+        lon = ds[lon_name]
+    else:
+        lon = _find_coord(ds, "longitude")
+
+    if lon is None:
+        for v in ["lon", "lonCell", "lon_face", "lon_node", "longitude"]:
+            if v in ds:
+                lon = ds[v]
+                break
+
+    if lon is None:
+        raise KeyError("Could not find matching longitude coordinates.")
+
+    # Drop non-spatial dimensions if present
+    lat_isel = {d: 0 for d in non_spatial_dims if d in lat.dims}
+    lon_isel = {d: 0 for d in non_spatial_dims if d in lon.dims}
+    if lat_isel:
+        lat = lat.isel(lat_isel, drop=True)
+    if lon_isel:
+        lon = lon.isel(lon_isel, drop=True)
+
+    # Detect if unstructured
+    is_unstructured = False
+    if "mesh" in lat.attrs and "location" in lat.attrs:
+        is_unstructured = True
+    elif any(d in lat.dims for d in UNSTRUCTURED_DIMS):
+        is_unstructured = True
+    else:
+        for var in ds.variables:
+            if ds[var].attrs.get("cf_role") == "mesh_topology":
+                is_unstructured = True
+                break
+
+    if is_unstructured:
+        return lon, lat, lat.shape, lat.dims, True
+    else:
+        # Structured grid: both latitude and longitude are spatial dimensions!
+        if lat.ndim == 1:
+            # Regular grid with 1D lat and 1D lon.
+            # Return full 2D spatial dims and shape
+            dims = (lat.name, lon.name)
+            shape = (len(lat), len(lon))
+            return lon, lat, shape, dims, False
+        else:
+            # Curvilinear grid with 2D lat and 2D lon
+            return lon, lat, lat.shape, lat.dims, False
+
+def _triangulate_mpas_mesh(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Triangulate arbitrary polygon cells (like MPAS Voronoi cells) into triangles."""
+    non_spatial_dims = _get_non_spatial_dims(ds)
+    
+    v_lat = ds["latVertex"]
+    v_lon = ds["lonVertex"]
+    v_conn = ds["verticesOnCell"]
+
+    # Filter non-spatial dimensions
+    isel_dict = {d: 0 for d in non_spatial_dims if d in v_lat.dims}
+    if isel_dict:
+        v_lat = v_lat.isel(isel_dict, drop=True)
+        v_lon = v_lon.isel(isel_dict, drop=True)
+        v_conn = v_conn.isel(isel_dict, drop=True)
+
+    # Normalize longitudes and latitudes to degrees
+    node_lat = v_lat.values
+    node_lon = v_lon.values
+    if np.any(np.abs(node_lat) > 2.0 * np.pi):
+         pass # Already degrees
+    else:
+         node_lat = np.degrees(node_lat)
+         node_lon = np.degrees(node_lon)
+
+    # Wrap longitudes to [0, 360]
+    node_lon = np.mod(node_lon, 360.0)
+
+    conn_raw = v_conn.values
+    n_edges = ds["nEdgesOnCell"].values if "nEdgesOnCell" in ds else np.full(conn_raw.shape[0], conn_raw.shape[1])
+
+    n_cells, max_edges = conn_raw.shape
+    max_tris = max_edges - 2
+    j = np.arange(1, max_tris + 1)
+    mask = j[None, :] < (n_edges[:, None] - 1)
+
+    v0 = np.repeat(conn_raw[:, 0:1], max_tris, axis=1) - 1
+    v1 = conn_raw[:, 1:-1] - 1
+    v2 = conn_raw[:, 2:] - 1
+
+    element_conn = np.stack([v0[mask], v1[mask], v2[mask]], axis=1).flatten()
+    orig_cell_index = np.repeat(np.arange(n_cells), max_tris)[mask.flatten()]
+
+    return node_lon, node_lat, element_conn.astype(np.int32)
+
+def _get_ugrid_info(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Extract standard UGRID mesh connectivity and node coordinates."""
+    mesh_var = None
+    for var in ds.variables:
+        if ds[var].attrs.get("cf_role") == "mesh_topology":
+            mesh_var = var
+            break
+
+    if mesh_var is None:
+        raise KeyError("Could not find CF UGRID mesh_topology variable.")
+
+    attrs = ds[mesh_var].attrs
+    node_coords_names = attrs.get("node_coordinates", "").split()
+    face_conn_name = attrs.get("face_node_connectivity", "")
+
+    node_lon = ds[node_coords_names[0]].values
+    node_lat = ds[node_coords_names[1]].values
+    face_conn = ds[face_conn_name].values
+
+    # Adjust for 1-based indexing in some UGRID files
+    start_index = ds[face_conn_name].attrs.get("start_index", 0)
+    if start_index == 1:
+        face_conn = face_conn - 1
+
+    return node_lon, node_lat, face_conn.astype(np.int32).flatten()
+
+def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Mesh:
+    """Build a native C++ Kokkos-parallel AXIS Mesh from an xarray dataset."""
+    lon, lat, shape, dims, is_unstructured = _get_mesh_info(ds, method)
+
+    if is_unstructured:
+        # 1. Triangulated MPAS
+        if "verticesOnCell" in ds and "latVertex" in ds:
+            node_lon, node_lat, element_conn = _triangulate_mpas_mesh(ds)
+        # 2. CF-UGRID standard
+        else:
+            node_lon, node_lat, element_conn = _get_ugrid_info(ds)
+
+        node_coords = np.column_stack([node_lon, node_lat])
+        conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
+        conn_indices = element_conn.astype(np.int32)
+
+        return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+    else:
+        # Structured: regular or rectilinear/projected
+        if lon.ndim == 1 and lat.ndim == 1:
+            # Regular grid
+            ni = len(lon)
+            nj = len(lat)
+            lon_start = float(lon[0])
+            lat_start = float(lat[0])
+            dlon = float(lon[1] - lon[0]) if ni > 1 else 1.0
+            dlat = float(lat[1] - lat[0]) if nj > 1 else 1.0
+
+            return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
+        else:
+            # 2D Curvilinear or Projected grid
+            # If coordinates have a grid_mapping or PROJ metadata, build a projected mesh
+            grid_mapping = None
+            for v in ds.variables:
+                if "grid_mapping_name" in ds[v].attrs:
+                    grid_mapping = ds[v].attrs["grid_mapping_name"]
+                    break
+
+            if grid_mapping == "lambert_conformal_conic":
+                # Generate local projection string and coordinates
+                # Host models can configure custom LCC params here, otherwise fallback to CONUS standard
+                proj_string = "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+                ni, nj = shape[1], shape[0]
+                center_x = lon.values.ravel()
+                center_y = lat.values.ravel()
+                return axis_py.make_projected_mesh(ni, nj, proj_string, center_x, center_y)
+            else:
+                # Flat regular 2D fallback
+                ni, nj = shape[1], shape[0]
+                lon_start = float(lon[0, 0])
+                lat_start = float(lat[0, 0])
+                dlon = float(lon[0, 1] - lon[0, 0]) if ni > 1 else 1.0
+                dlat = float(lat[1, 0] - lat[0, 0]) if nj > 1 else 1.0
+
+                return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)

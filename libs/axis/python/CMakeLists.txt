@@ -12,4 +12,11 @@ target_include_directories(axis_py PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/ArborX/src
 )
 
+# Install the pure-python axis package directory
+install(DIRECTORY axis DESTINATION .)
+
+# Install the compiled nanobind binary extension in the axis package folder
+install(TARGETS axis_py LIBRARY DESTINATION axis)
+
+# Also install axis_py to the root destination to support direct top-level import axis_py
 install(TARGETS axis_py LIBRARY DESTINATION .)
