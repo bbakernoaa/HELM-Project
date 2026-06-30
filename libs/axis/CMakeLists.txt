@@ -57,7 +57,30 @@ option(BUILD_BENCHMARKS "Build the AXIS performance benchmark harness"          
 # ##############################################################################
 
 # Kokkos — the ONLY required third-party dependency (HELM Law #2).
-find_package(Kokkos REQUIRED)
+option(AXIS_FETCH_KOKKOS "Fetch and build Kokkos automatically if not found on system" ON)
+
+find_package(Kokkos QUIET)
+
+if(NOT Kokkos_FOUND AND AXIS_FETCH_KOKKOS)
+    message(STATUS "Kokkos not found on system. Fetching and building Kokkos on-the-fly via FetchContent...")
+    include(FetchContent)
+    FetchContent_Declare(
+        kokkos
+        GIT_REPOSITORY https://github.com/kokkos/kokkos.git
+        GIT_TAG        5.1.1
+    )
+    # Ensure Kokkos builds with position independent code and suitable default backend
+    set(Kokkos_ENABLE_OPENMP ON CACHE BOOL "Enable OpenMP backend" FORCE)
+    set(Kokkos_ENABLE_SERIAL ON CACHE BOOL "Enable Serial backend" FORCE)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    
+    FetchContent_MakeAvailable(kokkos)
+    set(Kokkos_FOUND ON)
+endif()
+
+if(NOT Kokkos_FOUND)
+    message(FATAL_ERROR "Kokkos REQUIRED but not found on system, and AXIS_FETCH_KOKKOS is OFF.")
+endif()
 
 # MPI — REQUIRED for distributed weights generation
 find_package(MPI REQUIRED COMPONENTS CXX)
