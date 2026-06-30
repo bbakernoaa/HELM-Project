@@ -5,7 +5,7 @@ import uuid
 import warnings
 from typing import Union, Optional, Tuple, Any
 
-import axis_py
+from . import axis_py
 from .grid import create_axis_mesh, _get_mesh_info, _get_non_spatial_dims
 from .core import _apply_weights_core, _setup_worker_cache, _sync_cache_from_worker_data
 

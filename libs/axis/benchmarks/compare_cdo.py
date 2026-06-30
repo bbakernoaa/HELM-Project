@@ -42,16 +42,17 @@ except ImportError:
     print("ERROR: python-cdo not available. Install with: mamba install -c conda-forge python-cdo")
     sys.exit(1)
 
-# Try to import axis_py — if not built, provide instructions
+# Try to import axis — if not built, provide instructions
 try:
-    import axis_py
+    import axis
+    AXIS_AVAILABLE = True
 except ImportError:
-    print("WARNING: axis_py module not found. Building requires:")
-    print("  cd libs/axis && cmake -B build-py -DBUILD_PYTHON=ON && cmake --build build-py")
-    print("  Then: export PYTHONPATH=build-py/python")
+    print("WARNING: axis Python package not found. Building requires:")
+    print("  pip install ./libs/axis")
     print("")
     print("Running CDO-only benchmark (no AXIS comparison)...")
-    axis_py = None
+    axis = None
+    AXIS_AVAILABLE = False
 
 # Try to import xregrid for optional comparative benchmarking
 try:
@@ -401,100 +402,37 @@ def run_xregrid_remap(input_file, target_grid, dst_lats, dst_lons, method, dst_g
         return None, 0.0
 
 
-def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_type="regular", line_type="great_circle", dst_grid_type="regular", dst_field_data=None):
-    """Run AXIS remapping and return (result, wall_time)."""
-    if axis_py is None:
+def run_axis_remap(input_file, target_grid, dst_lats, dst_lons, method, grid_type="regular", line_type="great_circle", dst_grid_type="regular"):
+    """Run AXIS remapping via high-level Python Regridder class and return (result, wall_time)."""
+    if not AXIS_AVAILABLE:
         return None, 0.0
 
-    # Map method name to AXIS enum
-    method_map = {
-        "bilinear": axis_py.Method.Bilinear,
-        "nearest": axis_py.Method.NearestNeighbor,
-        "bicubic": axis_py.Method.Bicubic,
-        "patch": axis_py.Method.Patch,
-        "conservative": axis_py.Method.Conservative,
-    }
-
     t0 = time.perf_counter()
+    try:
+        ds_in = xr.open_dataset(input_file)
 
-    if grid_type == "mpas":
-        data = field  # Unstructured data package passed here
-        src_mesh = axis_py.make_ugrid_mesh(
-            np.asfortranarray(data["node_coords"]), data["conn_offsets"], data["conn_indices"])
-    elif grid_type == "lcc":
-        # Generate 1D arrays of centers in projected space
-        min_x = -1000000.0
-        max_x =  1000000.0
-        min_y = -1000000.0
-        max_y =  1000000.0
-        dx = (max_x - min_x) / src_nlon
-        dy = (max_y - min_y) / src_nlat
-
-        center_x = np.zeros(src_nlon * src_nlat)
-        center_y = np.zeros(src_nlon * src_nlat)
-        for j in range(src_nlat):
-            for i in range(src_nlon):
-                idx = i + j * src_nlon
-                center_x[idx] = min_x + (i + 0.5) * dx
-                center_y[idx] = min_y + (j + 0.5) * dy
-
-        src_mesh = axis_py.make_projected_mesh(src_nlon, src_nlat, LCC_PROJ, center_x, center_y)
-    else:
-        # regular
-        src_dlon = 360.0 / src_nlon
-        src_dlat = 180.0 / src_nlat
-        src_mesh = axis_py.make_regular_mesh(
-            src_nlon, src_nlat, 0.0, -90.0, src_dlon, src_dlat)
-
-    # Build destination mesh
-    if dst_grid_type == "mpas":
-        dst_mesh = axis_py.make_ugrid_mesh(
-            np.asfortranarray(dst_field_data["node_coords"]), dst_field_data["conn_offsets"], dst_field_data["conn_indices"])
-    else:
-        # Build destination mesh (regular lat-lon spanning the local U.S. sector of LCC/MPAS for cleaner overlap metrics)
-        if grid_type in ["lcc"]:
-            # Spans U.S. region roughly overlapping the LCC domain
-            dst_min_lon = -110.0
-            dst_max_lon = -82.0
-            dst_min_lat = 30.0
-            dst_max_lat = 50.0
-        elif grid_type in ["mpas"]:
-            # Spans U.S. region roughly overlapping the MPAS domain
-            dst_min_lon = 250.0
-            dst_max_lon = 278.0
-            dst_min_lat = 30.0
-            dst_max_lat = 50.0
+        # Load or construct target dataset
+        if dst_grid_type == "mpas":
+            ds_out = xr.open_dataset(target_grid)
         else:
-            # Global
-            dst_min_lon = 0.0
-            dst_max_lon = 360.0
-            dst_min_lat = -90.0
-            dst_max_lat = 90.0
+            ds_out = xr.Dataset({
+                "lat": (["lat"], dst_lats),
+                "lon": (["lon"], dst_lons)
+            })
 
-        dst_dlon = (dst_max_lon - dst_min_lon) / dst_nlon
-        dst_dlat = (dst_max_lat - dst_min_lat) / dst_nlat
-        dst_mesh = axis_py.make_regular_mesh(
-            dst_nlon, dst_nlat, dst_min_lon, dst_min_lat, dst_dlon, dst_dlat)
+        # Determine periodic longitude wrapping
+        is_global = (dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0)
 
-    # Generate weights with full configuration dictionary
-    config = {
-        "method": method_map[method],
-        "line_type": line_type,
-        "unmapped": "ignore"
-    }
-    matrix = axis_py.generate_weights(src_mesh, dst_mesh, config)
-
-    # Apply weights
-    if grid_type == "mpas":
-        src_flat = data["field"].astype(np.float64)
-    else:
-        src_flat = field.ravel().astype(np.float64)
-
-    dst_flat = axis_py.apply_weights(matrix, src_flat)
-
-    elapsed = time.perf_counter() - t0
-
-    return dst_flat, elapsed
+        # Initialize high-level xarray regridder
+        regridder = axis.Regridder(ds_in, ds_out, method=method, periodic=is_global)
+        
+        # Regrid the DataArray
+        da_out = regridder(ds_in["temperature"])
+        result = da_out.values
+        elapsed = time.perf_counter() - t0
+        return result, elapsed
+    except Exception as e:
+        return None, 0.0
 
 
 def compare_results(axis_result, cdo_result):
@@ -692,7 +630,7 @@ def main():
 
             # ── AXIS ──
             axis_result, axis_time = run_axis_remap(
-                src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, args.grid_type, args.line_type, args.dst_grid_type, dst_field_data)
+                src_nc, target_grid, dst_lats, dst_lons, method, args.grid_type, args.line_type, args.dst_grid_type)
 
             if axis_result is not None:
                 axis_sum = float(np.nansum(axis_result))

@@ -2,7 +2,7 @@
 import numpy as np
 import xarray as xr
 from typing import Tuple, Union, Optional
-import axis_py
+from . import axis_py
 
 # Unstructured spatial dimension tags commonly used in climate datasets
 UNSTRUCTURED_DIMS = {
