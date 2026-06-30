@@ -30,9 +30,11 @@ class Regridder:
         skipna: bool = False,
         na_thres: float = 1.0,
         line_type: str = "great_circle",
+        weights_file: Optional[str] = None,
     ):
         """
-        Initialize the regridder by generating spatial interpolation weights in C++.
+        Initialize the regridder by generating spatial interpolation weights in C++,
+        or by reloading pre-computed weights from a file.
         
         Parameters
         ----------
@@ -52,6 +54,8 @@ class Regridder:
             Minimum fraction of valid input contribution required to not mask output.
         line_type : str, default "great_circle"
             Line geometry: "great_circle" (spherical exact) or "cartesian" (Sutherland flat-clipping).
+        weights_file : str, optional
+            Path to a binary file containing pre-computed weights to reload.
         """
         self.method = method
         self.periodic = periodic
@@ -69,51 +73,69 @@ class Regridder:
         self.source_grid_ds = ds_in
         self.target_grid_ds = ds_out
 
-        # Map string method name to AXIS enum
-        method_map = {
-            "bilinear": axis_py.Method.Bilinear,
-            "nearest": axis_py.Method.NearestNeighbor,
-            "bicubic": axis_py.Method.Bicubic,
-            "patch": axis_py.Method.Patch,
-            "conservative": axis_py.Method.Conservative,
-            "conservative2nd": axis_py.Method.Conservative2ndOrder,
-        }
-        if method.lower() not in method_map:
-            raise ValueError(f"Unknown interpolation method: {method}. Choose from {list(method_map.keys())}")
-        
-        self._axis_method = method_map[method.lower()]
+        if weights_file is not None:
+            # Load pre-computed weights from file, completely bypassing weight generation
+            with open(weights_file, "rb") as f:
+                self._serialized_weights = f.read()
+            self._weights_matrix = axis_py.Matrix.from_bytes(self._serialized_weights)
+        else:
+            # Map string method name to AXIS enum
+            method_map = {
+                "bilinear": axis_py.Method.Bilinear,
+                "nearest": axis_py.Method.NearestNeighbor,
+                "bicubic": axis_py.Method.Bicubic,
+                "patch": axis_py.Method.Patch,
+                "conservative": axis_py.Method.Conservative,
+                "conservative2nd": axis_py.Method.Conservative2ndOrder,
+            }
+            if method.lower() not in method_map:
+                raise ValueError(f"Unknown interpolation method: {method}. Choose from {list(method_map.keys())}")
+            
+            self._axis_method = method_map[method.lower()]
 
-        # Map line_type to AXIS LineType enum
-        line_type_map = {
-            "great_circle": axis_py.LineType.GreatCircle,
-            "cartesian": axis_py.LineType.Cartesian,
-        }
-        if line_type.lower() not in line_type_map:
-            raise ValueError(f"Unknown line type: {line_type}. Choose from {list(line_type_map.keys())}")
-        self._axis_line_type = line_type_map[line_type.lower()]
+            # Map line_type to AXIS LineType enum
+            line_type_map = {
+                "great_circle": axis_py.LineType.GreatCircle,
+                "cartesian": axis_py.LineType.Cartesian,
+            }
+            if line_type.lower() not in line_type_map:
+                raise ValueError(f"Unknown line type: {line_type}. Choose from {list(line_type_map.keys())}")
+            self._axis_line_type = line_type_map[line_type.lower()]
 
-        # Generate on-device meshes and weights using C++ AXIS
-        self._src_mesh = create_axis_mesh(ds_in, method)
-        self._dst_mesh = create_axis_mesh(ds_out, method)
+            # Generate on-device meshes and weights using C++ AXIS
+            self._src_mesh = create_axis_mesh(ds_in, method)
+            self._dst_mesh = create_axis_mesh(ds_out, method)
 
-        config = {
-            "method": self._axis_method,
-            "periodic": periodic,
-            "line_type": self._axis_line_type,
-            "unmapped": axis_py.UnmappedAction.Ignore if unmapped == "ignore" else axis_py.UnmappedAction.Error
-        }
+            config = {
+                "method": self._axis_method,
+                "periodic": periodic,
+                "line_type": self._axis_line_type,
+                "unmapped": axis_py.UnmappedAction.Ignore if unmapped == "ignore" else axis_py.UnmappedAction.Error
+            }
 
-        # Build sparse matrix weights
-        self._weights_matrix = axis_py.generate_weights(self._src_mesh, self._dst_mesh, config)
-        
-        # Serialize C++ weights to bytes so they can be securely copied to remote Dask workers
-        self._serialized_weights = self._weights_matrix.to_bytes()
+            # Build sparse matrix weights
+            self._weights_matrix = axis_py.generate_weights(self._src_mesh, self._dst_mesh, config)
+            
+            # Serialize C++ weights to bytes so they can be securely copied to remote Dask workers
+            self._serialized_weights = self._weights_matrix.to_bytes()
 
         # Compute total weights sum for NaN-aware re-normalization
         if self.skipna:
             self._total_weights = np.array(axis_py.apply_weights(self._weights_matrix, np.ones(self._weights_matrix.n_src))).flatten()
         else:
             self._total_weights = None
+
+    def to_file(self, filename: str) -> None:
+        """
+        Save the compiled sparse regridding weights to a binary file for future reuse.
+        
+        Parameters
+        ----------
+        filename : str
+            Path where the weights binary file will be saved.
+        """
+        with open(filename, "wb") as f:
+            f.write(self._serialized_weights)
 
     def __call__(
         self,

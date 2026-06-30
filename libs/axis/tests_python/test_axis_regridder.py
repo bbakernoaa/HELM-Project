@@ -276,3 +276,27 @@ def test_regridder_errors(sample_grids):
     bad_ds = xr.Dataset({"lon": ds_in["lon"]}) # No lat coordinate!
     with pytest.raises(KeyError):
         axis.Regridder(bad_ds, ds_out, method="bilinear")
+
+def test_regridder_save_and_reuse_weights(sample_grids, tmp_path):
+    """Verify that regridding weights can be serialized to a file and loaded/reused successfully."""
+    ds_in, ds_out = sample_grids
+    da_in = xr.DataArray(
+        np.ones((len(ds_in["lat"]), len(ds_in["lon"]))),
+        coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
+        dims=["lat", "lon"]
+    )
+    
+    # 1. Instantiate, run, and save weights to a temporary file
+    regridder_gen = axis.Regridder(ds_in, ds_out, method="bilinear")
+    da_out_gen = regridder_gen(da_in)
+    
+    weights_path = tmp_path / "weights.bin"
+    regridder_gen.to_file(str(weights_path))
+    assert weights_path.exists()
+    
+    # 2. Instantiate a brand new regridder using the saved weights file (skips generation)
+    regridder_loaded = axis.Regridder(ds_in, ds_out, weights_file=str(weights_path))
+    da_out_loaded = regridder_loaded(da_in)
+    
+    # 3. Assert results are mathematically identical
+    np.testing.assert_allclose(da_out_loaded.values, da_out_gen.values, rtol=1e-15, atol=1e-15)
