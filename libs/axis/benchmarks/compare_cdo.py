@@ -53,6 +53,13 @@ except ImportError:
     print("Running CDO-only benchmark (no AXIS comparison)...")
     axis_py = None
 
+# Try to import xregrid for optional comparative benchmarking
+try:
+    import xregrid
+    XREGRID_AVAILABLE = True
+except ImportError:
+    XREGRID_AVAILABLE = False
+
 
 # Lambert Conformal Conic (LCC) projection string
 LCC_PROJ = "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
@@ -319,6 +326,49 @@ def run_cdo_remap(input_file, output_file, target_grid, method):
     return elapsed
 
 
+def run_xregrid_remap(input_file, target_grid, dst_lats, dst_lons, method, dst_grid_type):
+    """Run xregrid remapping and return (result, wall_clock_time)."""
+    if not XREGRID_AVAILABLE:
+        return None, 0.0
+
+    # xregrid methods mapping (translates to ESMF native operators)
+    method_map = {
+        "bilinear": "bilinear",
+        "nearest": "nearest_s2d",
+        "conservative": "conservative",
+        "bicubic": "bicubic",
+        "patch": "patch"
+    }
+
+    if method not in method_map:
+        return None, 0.0
+
+    t0 = time.perf_counter()
+    try:
+        # Load source dataset
+        ds_in = xr.open_dataset(input_file)
+
+        # Load or construct target dataset
+        if dst_grid_type == "mpas":
+            ds_out = xr.open_dataset(target_grid)
+        else:
+            ds_out = xr.Dataset({
+                "lat": (["lat"], dst_lats),
+                "lon": (["lon"], dst_lons)
+            })
+            ds_out["lat"].attrs = {"units": "degrees_north", "axis": "Y"}
+            ds_out["lon"].attrs = {"units": "degrees_east", "axis": "X"}
+
+        regridder = xregrid.Regridder(ds_in, ds_out, method=method_map[method])
+        res_ds = regridder(ds_in["temperature"])
+        result = res_ds.values
+        elapsed = time.perf_counter() - t0
+        return result, elapsed
+    except Exception as e:
+        # Silently return None if esmpy/xregrid fails (e.g. for certain unperiodic coordinates)
+        return None, 0.0
+
+
 def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_type="regular", line_type="great_circle", dst_grid_type="regular", dst_field_data=None):
     """Run AXIS remapping and return (result, wall_time)."""
     if axis_py is None:
@@ -459,6 +509,7 @@ def main():
                         choices=["cosine", "linear", "constant", "step"],
                         help="Test field type")
     parser.add_argument("--skip-cdo", action="store_true", help="Skip CDO runs")
+    parser.add_argument("--skip-xregrid", action="store_true", help="Skip xregrid runs")
     parser.add_argument("--line-type", type=str, default="great_circle",
                         choices=["great_circle", "cartesian"],
                         help="Line geometry to use: great_circle (default) or cartesian (fast planar)")
@@ -584,6 +635,22 @@ def main():
             if cdo_result is not None:
                 print(f"{method:<15} {'CDO':<8} {cdo_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {cdo_sum:<14.4f}")
 
+            # ── xregrid ──
+            xregrid_result = None
+            xregrid_time = 0.0
+            xregrid_sum = np.nan
+            if not args.skip_xregrid and XREGRID_AVAILABLE:
+                try:
+                    xregrid_result, xregrid_time = run_xregrid_remap(
+                        src_nc, target_grid, dst_lats, dst_lons, method, args.dst_grid_type)
+                    if xregrid_result is not None:
+                        xregrid_sum = float(np.nansum(xregrid_result))
+                except Exception as e:
+                    pass
+
+            if xregrid_result is not None:
+                print(f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {xregrid_sum:<14.4f}")
+
             # ── AXIS ──
             axis_result, axis_time = run_axis_remap(
                 src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, args.grid_type, args.line_type, args.dst_grid_type, dst_field_data)
@@ -614,6 +681,10 @@ def main():
         print("\n  To enable AXIS comparison, build the Python module:")
         print("    cd libs/axis && cmake -B build-py -DBUILD_PYTHON=ON")
         print("    cmake --build build-py && export PYTHONPATH=build-py/python")
+    if not XREGRID_AVAILABLE:
+        print("\n  To enable xregrid comparison, install esmpy and xregrid:")
+        print("    conda install -c conda-forge esmpy dask")
+        print("    pip install git+https://github.com/noaa-emc/xregrid.git")
 
 
 if __name__ == "__main__":
