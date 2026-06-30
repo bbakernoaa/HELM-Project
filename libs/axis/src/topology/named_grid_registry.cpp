@@ -374,10 +374,10 @@ struct NoaaGribDefinition {
     int number;               ///< Official GRIB grid number.
     std::size_t ni;           ///< Columns count (Ni).
     std::size_t nj;           ///< Rows count (Nj).
-    double lon_start;         ///< Leftmost longitude boundary (for regular grids).
-    double lat_start;         ///< Southernmost latitude boundary (for regular grids).
-    double dlon;              ///< Longitude grid spacing (for regular grids).
-    double dlat;              ///< Latitude grid spacing (for regular grids).
+    double lon_start;         ///< Leftmost longitude boundary (for regular grids) or min_x (for projected grids).
+    double lat_start;         ///< Southernmost latitude boundary (for regular grids) or min_y (for projected grids).
+    double dlon;              ///< Longitude grid spacing (for regular grids) or max_x (for projected grids).
+    double dlat;              ///< Latitude grid spacing (for regular grids) or max_y (for projected grids).
     const char *proj_string;  ///< PROJ-compliant string (nullptr if regular global grid).
 };
 
@@ -394,8 +394,14 @@ static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
     {174, 2880, 1441, -180.0, -90.0, 0.125, 0.125, nullptr},
     // grid193: GFS 0.25 degree global grid
     {193, 1440, 721, -180.0, -90.0, 0.25, 0.25, nullptr},
+    // grid211: CONUS 80km Lambert Conformal grid (AWIPS 211)
+    {211, 93, 65, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid212: CONUS 40km Lambert Conformal grid (AWIPS 212)
+    {212, 185, 129, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
+    // grid215: CONUS 20km Lambert Conformal grid (AWIPS 215)
+    {215, 369, 257, -3738443.0, -2600656.0, 3738443.0, 2600656.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid218: NAM / RAP 12km ConUS Lambert Conformal grid (requires PROJ)
-    {218, 614, 428, 0.0, 0.0, 0.0, 0.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"}};
+    {218, 614, 428, -3733392.0, -2602779.0, 3733392.0, 2602779.0, "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"}};
 
 /// @brief Total count of registered NOAA NWS grids in our static array.
 static constexpr std::size_t NOAA_GRIB_GRIDS_COUNT = sizeof(NOAA_GRIB_GRIDS) / sizeof(NOAA_GRIB_GRIDS[0]);
@@ -464,11 +470,11 @@ inline UnstructuredMesh<MemorySpace> generate_noaa_grib_grid(int number) {
                 const std::size_t nj = grid_def.nj;
                 const std::size_t n_points = ni * nj;
 
-                // Set coordinates in projection space for NAM Grid 218
-                double min_x = -3733392.0;
-                double max_x = 3733392.0;
-                double min_y = -2602779.0;
-                double max_y = 2602779.0;
+                // Set coordinates in projection space from the grid definition
+                double min_x = grid_def.lon_start;
+                double max_x = grid_def.dlon;
+                double min_y = grid_def.lat_start;
+                double max_y = grid_def.dlat;
                 double dx = (max_x - min_x) / (ni - 1);
                 double dy = (max_y - min_y) / (nj - 1);
 
