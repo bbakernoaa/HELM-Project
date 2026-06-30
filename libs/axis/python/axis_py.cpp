@@ -19,11 +19,13 @@
 #include <nanobind/stl/vector.h>
 
 #include <Kokkos_Core.hpp>
+#include <axis/detail/regular_grid_detector.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
+#include <axis/solver/vector_regridder.hpp>
 #include <axis/solver/weight_cache.hpp>
 #include <axis/solver/weight_generator.hpp>
 #include <axis/topology/mesh_factory.hpp>
@@ -445,4 +447,48 @@ NB_MODULE(axis_py, m) {
             return result;
         },
         "matrix"_a, "src"_a, "dst"_a, "Check conservation between source and destination fields");
+
+    // ─── Tripolar grid detection ─────────────────────────────────────────────
+
+    m.def(
+        "detect_tripolar_grid",
+        [](const HostMesh &mesh, std::size_t ni, std::size_t nj) -> nb::dict {
+            ensure_kokkos();
+            auto info = axis::detail::detect_tripolar_grid<Kokkos::HostSpace>(mesh, ni, nj);
+            nb::dict res;
+            res["is_tripolar"] = info.is_tripolar;
+            res["ni"] = info.ni;
+            res["nj"] = info.nj;
+            res["seam_lat"] = info.seam_lat;
+            res["seam_lon_center"] = info.seam_lon_center;
+            return res;
+        },
+        "mesh"_a, "ni"_a, "nj"_a,
+        "Detect whether an unstructured mesh represents a folded tripolar grid");
+
+    // ─── Vector weight generation ───────────────────────────────────────────
+
+    m.def(
+        "generate_vector_weights",
+        [](const HostMesh &src, const HostMesh &dst,
+           nb::ndarray<const double, nb::shape<-1>, nb::c_style> src_alpha,
+           nb::ndarray<const double, nb::shape<-1>, nb::c_style> dst_alpha,
+           const nb::dict &config) -> std::pair<HostMatrix, HostMatrix> {
+            ensure_kokkos();
+            
+            axis::solver::RegridConfig cfg = parse_regrid_config(config);
+            
+            Kokkos::View<const double *, Kokkos::HostSpace> src_rot_view(src_alpha.data(), src.n_cells());
+            Kokkos::View<const double *, Kokkos::HostSpace> dst_rot_view(dst_alpha.data(), dst.n_cells());
+
+            axis::solver::GridRotation<Kokkos::HostSpace> src_rot{src_rot_view};
+            axis::solver::GridRotation<Kokkos::HostSpace> dst_rot{dst_rot_view};
+
+            auto [W_u, W_v] = axis::solver::VectorWeightGenerator<Kokkos::HostSpace>::generate(
+                src, dst, src_rot, dst_rot, cfg);
+
+            return std::make_pair(W_u, W_v);
+        },
+        "src_mesh"_a, "dst_mesh"_a, "src_alpha"_a, "dst_alpha"_a, "config"_a,
+        "Generate coupled vector interpolation weights for U and V wind components");
 }
