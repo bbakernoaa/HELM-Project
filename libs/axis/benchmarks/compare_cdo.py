@@ -432,6 +432,8 @@ def run_axis_remap(input_file, target_grid, dst_lats, dst_lons, method, grid_typ
         elapsed = time.perf_counter() - t0
         return result, elapsed
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return None, 0.0
 
 

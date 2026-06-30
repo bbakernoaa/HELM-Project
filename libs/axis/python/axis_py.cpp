@@ -471,8 +471,8 @@ NB_MODULE(axis_py, m) {
     m.def(
         "generate_vector_weights",
         [](const HostMesh &src, const HostMesh &dst,
-           nb::ndarray<const double, nb::shape<-1>, nb::c_style> src_alpha,
-           nb::ndarray<const double, nb::shape<-1>, nb::c_style> dst_alpha,
+           nb::ndarray<const double, nb::ndim<1>> src_alpha,
+           nb::ndarray<const double, nb::ndim<1>> dst_alpha,
            const nb::dict &config) -> std::pair<HostMatrix, HostMatrix> {
             ensure_kokkos();
             

@@ -153,6 +153,75 @@ def _triangulate_mpas_mesh(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.n
 
     return node_lon, node_lat, element_conn.astype(np.int32)
 
+def _parse_scrip_bounds(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Parse unstructured SCRIP-style cell centers and 2D bounds into general polygon nodes/connectivity offsets/indices."""
+    # Find longitude/latitude coordinates
+    lat = None
+    for v in ["lat", "latCell", "latitude"]:
+        if v in ds:
+            lat = ds[v]
+            break
+    if lat is None:
+        raise KeyError("Could not find latitude coordinates in dataset.")
+
+    lon_name = lat.name.replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
+    if lon_name in ds:
+        lon = ds[lon_name]
+    else:
+        for v in ["lon", "lonCell", "longitude"]:
+            if v in ds:
+                lon = ds[v]
+                break
+    if lon is None:
+        raise KeyError("Could not find longitude coordinates.")
+    
+    lat_bnds_name = lat.attrs.get("bounds", "lat_bnds")
+    lon_bnds_name = lon.attrs.get("bounds", "lon_bnds")
+    
+    lat_bnds = ds[lat_bnds_name].values
+    lon_bnds = ds[lon_bnds_name].values
+    
+    n_cells, nv = lat_bnds.shape
+    
+    node_lons = []
+    node_lats = []
+    conn_offsets = [0]
+    conn_indices = []
+    
+    node_counter = 0
+    for idx in range(n_cells):
+        lats_c = lat_bnds[idx]
+        lons_c = lon_bnds[idx]
+        
+        # Filter out repeated padded corners
+        cell_vertices = []
+        for v in range(nv):
+            # Skip repeated padded corners (standard CDO SCRIP padding)
+            if v > 0 and lats_c[v] == lats_c[v-1] and lons_c[v] == lons_c[v-1]:
+                continue
+            cell_vertices.append((lons_c[v], lats_c[v]))
+            
+        n_vertices = len(cell_vertices)
+        if n_vertices < 3:
+            # Fallback: if too many repeated, just use the first 3
+            cell_vertices = [(lons_c[0], lats_c[0]), (lons_c[1], lats_c[1]), (lons_c[2], lats_c[2])]
+            n_vertices = 3
+            
+        for lon_val, lat_val in cell_vertices:
+            node_lons.append(lon_val)
+            node_lats.append(lat_val)
+            conn_indices.append(node_counter)
+            node_counter += 1
+            
+        conn_offsets.append(len(conn_indices))
+        
+    return (
+        np.mod(np.array(node_lons), 360.0),
+        np.array(node_lats),
+        np.array(conn_offsets, dtype=np.int32),
+        np.array(conn_indices, dtype=np.int32)
+    )
+
 def _get_ugrid_info(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Extract standard UGRID mesh connectivity and node coordinates."""
     mesh_var = None
@@ -187,15 +256,22 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
         # 1. Triangulated MPAS
         if "verticesOnCell" in ds and "latVertex" in ds:
             node_lon, node_lat, element_conn = _triangulate_mpas_mesh(ds)
-        # 2. CF-UGRID standard
+            node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
+            conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
+            conn_indices = element_conn.astype(np.int32)
+            return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+        # 2. SCRIP 2D Bounds format
+        elif "lat_bnds" in ds or any("bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon"]):
+            node_lon, node_lat, conn_offsets, conn_indices = _parse_scrip_bounds(ds)
+            node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
+            return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+        # 3. CF-UGRID standard
         else:
             node_lon, node_lat, element_conn = _get_ugrid_info(ds)
-
-        node_coords = np.column_stack([node_lon, node_lat])
-        conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
-        conn_indices = element_conn.astype(np.int32)
-
-        return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+            node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
+            conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
+            conn_indices = element_conn.astype(np.int32)
+            return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
     else:
         # Structured: regular or rectilinear/projected
         if lon.ndim == 1 and lat.ndim == 1:

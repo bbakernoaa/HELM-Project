@@ -73,8 +73,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 |--------|:------------:|:--------------:|:-------:|:-------:|:-------:|
 | Bilinear | *FAILED* | **0.009** | **N/A** (Exclusive!) | — | — |
 | Nearest Neighbor | 0.138 | **0.007** | **19.7×** | 4.4e-01 | 2.5e-01 |
-| Conservative (Great Circle) | 0.396 | **0.514** | **0.8×** | 3.3e-01 | 1.5e-01 |
-| Conservative (Cartesian) | 0.396 | **0.514** | **0.8×** | **1.5e-14** | **3.2e-15** |
+| Conservative (Great Circle) | 0.637 | **0.138** | **4.5×** | 3.3e-01 | 1.5e-01 |
+| Conservative (Cartesian) | 0.637 | **0.138** | **4.5×** | **1.5e-14** | **3.2e-15** |
 
 *Note: CDO's `remapbil` does not support bilinear remapping from unstructured grids. AXIS handles this natively using 3D spatial BVH indexing paired with gnomonic point location.*
 
