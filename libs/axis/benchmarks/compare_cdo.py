@@ -294,12 +294,26 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
         return ds
 
     # Regular
+    dlat = lats[1] - lats[0]
+    dlon = lons[1] - lons[0]
+
+    lat_bnds = np.zeros((len(lats), 2))
+    lat_bnds[:, 0] = lats - 0.5 * dlat
+    lat_bnds[:, 1] = lats + 0.5 * dlat
+    lat_bnds = np.clip(lat_bnds, -90.0, 90.0)
+
+    lon_bnds = np.zeros((len(lons), 2))
+    lon_bnds[:, 0] = lons - 0.5 * dlon
+    lon_bnds[:, 1] = lons + 0.5 * dlon
+
     ds = xr.Dataset(
         {varname: (["lat", "lon"], field.astype(np.float64))},
         coords={"lat": lats, "lon": lons},
     )
-    ds["lat"].attrs = {"units": "degrees_north", "axis": "Y"}
-    ds["lon"].attrs = {"units": "degrees_east", "axis": "X"}
+    ds["lat_bnds"] = (["lat", "bnds"], lat_bnds)
+    ds["lon_bnds"] = (["lon", "bnds"], lon_bnds)
+    ds["lat"].attrs = {"units": "degrees_north", "axis": "Y", "bounds": "lat_bnds", "standard_name": "latitude"}
+    ds["lon"].attrs = {"units": "degrees_east", "axis": "X", "bounds": "lon_bnds", "standard_name": "longitude"}
     ds[varname].attrs = {"units": "K", "long_name": "Test field"}
     ds.to_netcdf(filepath)
     return ds
@@ -352,14 +366,32 @@ def run_xregrid_remap(input_file, target_grid, dst_lats, dst_lons, method, dst_g
         if dst_grid_type == "mpas":
             ds_out = xr.open_dataset(target_grid)
         else:
+            dlat = dst_lats[1] - dst_lats[0]
+            dlon = dst_lons[1] - dst_lons[0]
+
+            lat_bnds = np.zeros((len(dst_lats), 2))
+            lat_bnds[:, 0] = dst_lats - 0.5 * dlat
+            lat_bnds[:, 1] = dst_lats + 0.5 * dlat
+            lat_bnds = np.clip(lat_bnds, -90.0, 90.0)
+
+            lon_bnds = np.zeros((len(dst_lons), 2))
+            lon_bnds[:, 0] = dst_lons - 0.5 * dlon
+            lon_bnds[:, 1] = dst_lons + 0.5 * dlon
+
             ds_out = xr.Dataset({
                 "lat": (["lat"], dst_lats),
                 "lon": (["lon"], dst_lons)
             })
-            ds_out["lat"].attrs = {"units": "degrees_north", "axis": "Y"}
-            ds_out["lon"].attrs = {"units": "degrees_east", "axis": "X"}
+            ds_out["lat_bnds"] = (["lat", "bnds"], lat_bnds)
+            ds_out["lon_bnds"] = (["lon", "bnds"], lon_bnds)
+            ds_out["lat"].attrs = {"units": "degrees_north", "axis": "Y", "bounds": "lat_bnds", "standard_name": "latitude"}
+            ds_out["lon"].attrs = {"units": "degrees_east", "axis": "X", "bounds": "lon_bnds", "standard_name": "longitude"}
 
-        regridder = xregrid.Regridder(ds_in, ds_out, method=method_map[method])
+        # Auto-detect if the grid is global and requires periodic longitude wrapping
+        # ESMF requires periodic=True for global grids to connect 360 back to 0.
+        is_global = (dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0)
+
+        regridder = xregrid.Regridder(ds_in, ds_out, method=method_map[method], periodic=is_global)
         res_ds = regridder(ds_in["temperature"])
         result = res_ds.values
         elapsed = time.perf_counter() - t0

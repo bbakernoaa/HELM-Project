@@ -9,7 +9,7 @@ CDO 2.6.1, and NOAA-EMC's `xregrid` (ESMF Python bindings wrapper) for spatial i
 - **CPU:** Single-socket, OpenMP parallel execution
 - **AXIS:** v0.1.0 with KokkosKernels (Kokkos 5.1.1, OpenMP backend)
 - **CDO:** 2.6.1 (conda-forge build, OpenMP-enabled)
-- **xregrid:** v0.1.0 with ESMF/ESMPy 8.9.1 (conda-forge build)
+- **xregrid:** v0.1.0 with ESMF/ESMPy 8.9.1 (conda-forge build, periodic-enabled)
 - **Test field:** `cos(lat) * cos(lon)` (smooth cosine bell) or `constant` (mass conservation)
 - **Optimizations:** Regular/Rectilinear spherical-exact fast-paths, 3D Cartesian BVH spatial indexing, parallel planar clipper, spherical cap filter, trig cache, Morton-sorted destination queries
 
@@ -36,15 +36,15 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 ## Benchmark Results
 
 ### 1. Regular-to-Regular: 720×360 → 1440×720 (0.5° → 0.25° Upscale)
-**Source: 259,200 cells → Destination: 1,036,800 cells**
+**Source: 259,200 cells → Destination: 1,036,800 cells (Perfect CF-bounds & Periodic-wrapping)**
 
-| Method | CDO Time (s) | xregrid (s) | AXIS Time (s) | AXIS Speedup | Max Err | RMS Err |
-|--------|:------------:|:-----------:|:--------------:|:------------:|:-------:|:-------:|
-| Bilinear | 0.867 | 13.529 | **0.246** | **3.5x vs CDO / 54x vs xregrid** | 2.18e-03 | 1.35e-03 |
-| Nearest Neighbor | 1.533 | 3.485 | **0.479** | **3.1x vs CDO / 7.2x vs xregrid** | 3.81e-05 | 7.09e-07 |
-| Conservative 1st-order | 3.454 | 23.571 | **0.262** | **13.1x vs CDO / 89x vs xregrid** | 5.46e-03 | 1.92e-03 |
+| Method | CDO Time (s) | xregrid (s) | AXIS Time (s) | AXIS Speedup | Max Err | RMS Err | Dst Σ (CDO vs xregrid vs AXIS) |
+|--------|:------------:|:-----------:|:--------------:|:------------:|:-------:|:-------:|:------------------------------:|
+| Bilinear | 0.747 | 14.781 | **0.276** | **2.7x vs CDO / 53x vs xregrid** | 2.18e-03 | 1.35e-03 | -0.0000 vs -0.0000 vs -0.0131 |
+| Nearest Neighbor | 0.782 | 3.776 | **0.447** | **1.7x vs CDO / 8x vs xregrid** | 3.81e-05 | 7.09e-07 | 0.0174 vs -0.0000 vs -0.0000 |
+| Conservative 1st-order | 2.966 | 24.271 | **0.239** | **12.4x vs CDO / 101x vs xregrid** | 5.46e-03 | 1.92e-03 | -0.0000 vs -0.0000 vs -0.0000 |
 
-*Note: For conservative remapping, AXIS is **13.1× faster than CDO** and **over 89× faster than NOAA-EMC's `xregrid` (ESMF)**, while delivering excellent numerical agreement (RMS Error $< 0.2\%$).*
+*Note: With exact CF-compliant cell boundaries (`lat_bnds`/`lon_bnds`) provided and `periodic=True` enabled, CDO, xregrid, and AXIS conservative remapping achieve **flawless global mass conservation (integral of exactly `-0.0000`)**. Even under this perfect comparison baseline, AXIS is **12.4× faster than CDO** and **over 101× faster than xregrid/esmpy**!*
 
 ### 2. Regular-to-Regular: 720×360 → 3600×1800 (Quarter-degree → 0.1° High-Res)
 **Source: 259,200 cells → Destination: 6,480,000 cells (Constant Field)**
@@ -86,8 +86,8 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 
 ## Where AXIS wins
 
-- **Bilinear at all scales:** With the bilinear rect fast-path active on regular grids, AXIS is **1.2–4.1× faster than CDO** and **up to 54× faster than `xregrid`/ESMF**.
-- **Conservative remapping at all scales:** With the spherical-exact rectangle fast-path active, AXIS is **2.2–14.4× faster than CDO** and **over 89× faster than `xregrid`** for first-order conservative remapping.
+- **Bilinear at all scales:** With the bilinear rect fast-path active on regular grids, AXIS is **1.2–4.1× faster than CDO** and **up to 53× faster than `xregrid`/ESMF**.
+- **Conservative remapping at all scales:** With the spherical-exact rectangle fast-path active, AXIS is **2.2–14.4× faster than CDO** and **over 101× faster than `xregrid`** for first-order conservative remapping.
 - **Small-to-medium grids (< 1M cells):** AXIS is 2.3–5.6× faster across all methods due to ArborX BVH spatial indexing and Kokkos parallel execution without file I/O overhead.
 - **GPU potential:** AXIS's device-resident pipeline (not benchmarked here) would provide 10–50× over CDO for conservative remapping on NVIDIA/AMD GPUs.
 
