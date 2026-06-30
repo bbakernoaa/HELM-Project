@@ -206,4 +206,35 @@ RC_GTEST_PROP(PropNamedGridRegistration, RegisteredFamiliesAreFNO, ()) {
     RC_ASSERT(families == expected);
 }
 
+// ─── Property 5h: Registered GRIB grid numbers parse successfully ────────────
+// Verify that all registered NOAA GRIB grid numbers (case-insensitive) parse
+// successfully as family 'G' with the correct number.
+RC_GTEST_PROP(PropNamedGridRegistration, RegisteredGribGridsParseCorrectly, ()) {
+    const std::vector<int> registered_numbers = {2, 3, 4, 174, 193, 211, 212, 215, 218};
+    const int number = *rc::gen::elementOf(registered_numbers);
+    
+    // Test case-insensitivity: randomly choose "grid", "GRID", "Grid"
+    const std::string prefix = *rc::gen::element<std::string>("grid", "GRID", "Grid");
+    const std::string name = prefix + std::to_string(number);
+
+    NamedGridRegistry::ParsedName parsed = NamedGridRegistry::parse(name);
+    RC_ASSERT(parsed.family == 'G');
+    RC_ASSERT(parsed.number == number);
+    RC_ASSERT(NamedGridRegistry::is_registered(name));
+}
+
+// ─── Property 5i: Unregistered GRIB grid numbers throw std::invalid_argument ─
+// Verify that any grid numbers not in the registered GRIB list throw.
+RC_GTEST_PROP(PropNamedGridRegistration, UnregisteredGribGridsThrow, ()) {
+    const std::vector<int> registered_numbers = {2, 3, 4, 174, 193, 211, 212, 215, 218};
+    const int number = *rc::gen::suchThat(rc::gen::inRange(1, 1000), [&](int n) {
+        return std::find(registered_numbers.begin(), registered_numbers.end(), n) == registered_numbers.end();
+    });
+
+    const std::string name = "grid" + std::to_string(number);
+
+    RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
+    RC_ASSERT(!NamedGridRegistry::is_registered(name));
+}
+
 }  // namespace
