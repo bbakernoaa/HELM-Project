@@ -19,6 +19,7 @@
 #include <axis/solver/conservation.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
+#include <axis/solver/vector_regridder.hpp>
 #include <axis/solver/weight_cache.hpp>
 #include <axis/solver/weight_generator.hpp>
 #include <axis/topology/mesh_factory.hpp>
@@ -141,6 +142,65 @@ int axis_generate_weights_c(int src_handle, int dst_handle, int method, int *mat
         auto matrix = std::make_shared<HostMatrix>(axis::solver::WeightGenerator::generate<Kokkos::HostSpace>(src_mesh, dst_mesh, config));
 
         *matrix_handle = reg.register_handle(std::move(matrix)););
+}
+
+/// @brief Generate coupled vector interpolation weights between source and destination meshes.
+/// @param[in]  src_handle      Integer token for the source mesh.
+/// @param[in]  dst_handle      Integer token for the destination mesh.
+/// @param[in]  src_alpha       Pointer to source grid cell rotation angles [n_src].
+/// @param[in]  dst_alpha       Pointer to destination grid cell rotation angles [n_dst].
+/// @param[in]  method          Interpolation method (0=Bilinear, 1=NearestNeighbor, 2=Conservative1st).
+/// @param[out] matrix_u_handle Pointer to integer token for the created U-component interpolation matrix.
+/// @param[out] matrix_v_handle Pointer to integer token for the created V-component interpolation matrix.
+/// @return @c AXIS_SUCCESS on success, @c AXIS_ERROR on failure.
+int axis_generate_vector_weights_c(int src_handle, int dst_handle, const double *src_alpha, const double *dst_alpha, int method,
+                                   int *matrix_u_handle, int *matrix_v_handle) {
+    try {
+        auto &reg = axis::fortran::Handle_Registry::instance();
+
+        auto src_ptr = reg.lookup(src_handle);
+        auto dst_ptr = reg.lookup(dst_handle);
+        if (!src_ptr || !dst_ptr) { return AXIS_ERROR; }
+
+        auto &src_mesh = *std::static_pointer_cast<HostMesh>(src_ptr);
+        auto &dst_mesh = *std::static_pointer_cast<HostMesh>(dst_ptr);
+
+        // Map integer method code to InterpolationMethod enum
+        axis::solver::RegridConfig config;
+        switch (method) {
+            case 0:
+                config.method = axis::solver::InterpolationMethod::Bilinear;
+                break;
+            case 1:
+                config.method = axis::solver::InterpolationMethod::NearestNeighbor;
+                break;
+            case 2:
+                config.method = axis::solver::InterpolationMethod::Conservative1stOrder;
+                break;
+            default:
+                return AXIS_ERROR;
+        }
+
+        // Construct unmanaged Views for GridRotation
+        Kokkos::View<const double *, Kokkos::HostSpace> src_rot_view(src_alpha, src_mesh.n_cells());
+        Kokkos::View<const double *, Kokkos::HostSpace> dst_rot_view(dst_alpha, dst_mesh.n_cells());
+
+        axis::solver::GridRotation<Kokkos::HostSpace> src_rot{src_rot_view};
+        axis::solver::GridRotation<Kokkos::HostSpace> dst_rot{dst_rot_view};
+
+        auto [W_u, W_v] = axis::solver::VectorWeightGenerator<Kokkos::HostSpace>::generate(
+            src_mesh, dst_mesh, src_rot, dst_rot, config);
+
+        auto W_u_ptr = std::make_shared<HostMatrix>(std::move(W_u));
+        auto W_v_ptr = std::make_shared<HostMatrix>(std::move(W_v));
+
+        *matrix_u_handle = reg.register_handle(std::move(W_u_ptr));
+        *matrix_v_handle = reg.register_handle(std::move(W_v_ptr));
+
+        return AXIS_SUCCESS;
+    } catch (...) {
+        return AXIS_ERROR;
+    }
 }
 
 /// @brief Apply interpolation weights: dst = S * src.

@@ -36,6 +36,7 @@ module axis_mod
   public :: axis_mesh_from_named
   public :: axis_mesh_from_descriptor
   public :: axis_generate_weights
+  public :: axis_generate_vector_weights
   public :: axis_apply
   public :: axis_destroy_mesh
   public :: axis_destroy_matrix
@@ -104,6 +105,19 @@ module axis_mod
       integer(c_int), value, intent(in) :: method
       integer(c_int), intent(out)       :: matrix_handle
     end function axis_generate_weights_c
+
+    integer(c_int) function axis_generate_vector_weights_c(src_handle, dst_handle, &
+        src_alpha, dst_alpha, method, matrix_u_handle, matrix_v_handle) &
+        bind(C, name="axis_generate_vector_weights_c")
+      import :: c_int, c_ptr
+      integer(c_int), value, intent(in) :: src_handle
+      integer(c_int), value, intent(in) :: dst_handle
+      type(c_ptr), value, intent(in)    :: src_alpha
+      type(c_ptr), value, intent(in)    :: dst_alpha
+      integer(c_int), value, intent(in) :: method
+      integer(c_int), intent(out)       :: matrix_u_handle
+      integer(c_int), intent(out)       :: matrix_v_handle
+    end function axis_generate_vector_weights_c
 
     !> @brief Apply interpolation weights using SpMV in the C++ layer.
     !> @param[in] matrix_handle Opaque integer token of the interpolation matrix.
@@ -205,6 +219,32 @@ contains
 
     ierr = axis_generate_weights_c(src_handle, dst_handle, method, matrix_handle)
   end subroutine axis_generate_weights
+
+  !> @brief Generate coupled vector interpolation weights between source and destination meshes.
+  !!
+  !! @param[in]  src_handle      Opaque integer handle of the source mesh.
+  !! @param[in]  dst_handle      Opaque integer handle of the destination mesh.
+  !! @param[in]  src_alpha       Source grid cell rotation angles double-precision array.
+  !! @param[in]  dst_alpha       Destination grid cell rotation angles double-precision array.
+  !! @param[in]  method          Interpolation method. Must be @c AXIS_METHOD_BILINEAR,
+  !!                             @c AXIS_METHOD_NEAREST, or @c AXIS_METHOD_CONSERVATIVE.
+  !! @param[out] matrix_u_handle Opaque integer handle for the generated U-component interpolation matrix.
+  !! @param[out] matrix_v_handle Opaque integer handle for the generated V-component interpolation matrix.
+  !! @param[out] ierr            Status code containing @c AXIS_SUCCESS on success, or @c AXIS_ERROR on failure.
+  subroutine axis_generate_vector_weights(src_handle, dst_handle, src_alpha, dst_alpha, method, &
+                                          matrix_u_handle, matrix_v_handle, ierr)
+    integer(c_int), intent(in)             :: src_handle
+    integer(c_int), intent(in)             :: dst_handle
+    real(c_double), intent(in), target     :: src_alpha(*)
+    real(c_double), intent(in), target     :: dst_alpha(*)
+    integer(c_int), intent(in)             :: method
+    integer(c_int), intent(out)            :: matrix_u_handle
+    integer(c_int), intent(out)            :: matrix_v_handle
+    integer(c_int), intent(out)            :: ierr
+
+    ierr = axis_generate_vector_weights_c(src_handle, dst_handle, c_loc(src_alpha(1)), c_loc(dst_alpha(1)), &
+                                          method, matrix_u_handle, matrix_v_handle)
+  end subroutine axis_generate_vector_weights
 
   !> @brief Apply interpolation weights: dst = S * src.
   !! @details src and dst are contiguous Fortran double-precision arrays passed via c_loc.
