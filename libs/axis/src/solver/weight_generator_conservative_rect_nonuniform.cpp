@@ -28,6 +28,26 @@ double rect_overlap_nonuniform(double s_lo_x, double s_hi_x, double s_lo_y, doub
     return dx * dy;
 }
 
+KOKKOS_INLINE_FUNCTION
+double rect_overlap_spherical_nonuniform(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y,
+                                         double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y,
+                                         bool is_degrees) noexcept {
+    double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x) - Kokkos::fmax(s_lo_x, d_lo_x));
+    double lo_y = Kokkos::fmax(s_lo_y, d_lo_y);
+    double hi_y = Kokkos::fmin(s_hi_y, d_hi_y);
+
+    if (hi_y <= lo_y || dx <= 0.0) return 0.0;
+
+    if (is_degrees) {
+        constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+        dx *= deg2rad;
+        lo_y *= deg2rad;
+        hi_y *= deg2rad;
+    }
+
+    return dx * (Kokkos::sin(hi_y) - Kokkos::sin(lo_y));
+}
+
 }  // namespace
 
 template <class MemorySpace>
@@ -42,6 +62,10 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
     const std::size_t src_nj = src_rect_info.nj;
     const std::size_t dst_ni = dst_rect_info.ni;
     const std::size_t dst_nj = dst_rect_info.nj;
+
+    const auto csys = src_mesh.coord_system();
+    const bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
+    const bool is_degrees = (csys == topology::CoordinateSystem::SphericalDeg);
 
     auto src_lons = src_rect_info.unique_lons;
     auto src_lats = src_rect_info.unique_lats;
@@ -77,7 +101,25 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
             double d_lo_y = dst_lats(jd);
             double d_hi_y = dst_lats(jd + 1);
 
-            double area_dst = has_dst_areas ? mesh_dst_areas(c_dst) : (d_hi_x - d_lo_x) * (d_hi_y - d_lo_y);
+            double area_dst = 0.0;
+            if (has_dst_areas) {
+                area_dst = mesh_dst_areas(c_dst);
+            } else {
+                if (is_spherical) {
+                    double dlon = d_hi_x - d_lo_x;
+                    double d_lo_y_r = d_lo_y;
+                    double d_hi_y_r = d_hi_y;
+                    if (is_degrees) {
+                        constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+                        dlon *= deg2rad;
+                        d_lo_y_r *= deg2rad;
+                        d_hi_y_r *= deg2rad;
+                    }
+                    area_dst = dlon * (std::sin(d_hi_y_r) - std::sin(d_lo_y_r));
+                } else {
+                    area_dst = (d_hi_x - d_lo_x) * (d_hi_y - d_lo_y);
+                }
+            }
             if (area_dst <= 0.0) continue;
 
             // Find overlapping source cell index ranges using binary search
@@ -104,10 +146,33 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
                     double s_lo_y = src_lats(js);
                     double s_hi_y = src_lats(js + 1);
 
-                    double overlap_area = rect_overlap_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                    double overlap_area = 0.0;
+                    if (is_spherical) {
+                        overlap_area = rect_overlap_spherical_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y, is_degrees);
+                    } else {
+                        overlap_area = rect_overlap_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                    }
 
                     if (overlap_area > 1e-12) {
-                        double area_src = has_src_areas ? mesh_src_areas(c_src) : (s_hi_x - s_lo_x) * (s_hi_y - s_lo_y);
+                        double area_src = 0.0;
+                        if (has_src_areas) {
+                            area_src = mesh_src_areas(c_src);
+                        } else {
+                            if (is_spherical) {
+                                double dlon = s_hi_x - s_lo_x;
+                                double s_lo_y_r = s_lo_y;
+                                double s_hi_y_r = s_hi_y;
+                                if (is_degrees) {
+                                    constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+                                    dlon *= deg2rad;
+                                    s_lo_y_r *= deg2rad;
+                                    s_hi_y_r *= deg2rad;
+                                }
+                                area_src = dlon * (std::sin(s_hi_y_r) - std::sin(s_lo_y_r));
+                            } else {
+                                area_src = (s_hi_x - s_lo_x) * (s_hi_y - s_lo_y);
+                            }
+                        }
                         if (area_src <= 0.0) continue;
 
                         double weight = overlap_area / area_dst;
@@ -161,7 +226,24 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
         double s_hi_x = src_lons((i % src_ni) + 1);
         double s_lo_y = src_lats(i / src_ni);
         double s_hi_y = src_lats((i / src_ni) + 1);
-        h_area_a(i) = has_src_areas ? mesh_src_areas(i) : (s_hi_x - s_lo_x) * (s_hi_y - s_lo_y);
+        if (has_src_areas) {
+            h_area_a(i) = mesh_src_areas(i);
+        } else {
+            if (is_spherical) {
+                double dlon = s_hi_x - s_lo_x;
+                double s_lo_y_r = s_lo_y;
+                double s_hi_y_r = s_hi_y;
+                if (is_degrees) {
+                    constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+                    dlon *= deg2rad;
+                    s_lo_y_r *= deg2rad;
+                    s_hi_y_r *= deg2rad;
+                }
+                h_area_a(i) = dlon * (std::sin(s_hi_y_r) - std::sin(s_lo_y_r));
+            } else {
+                h_area_a(i) = (s_hi_x - s_lo_x) * (s_hi_y - s_lo_y);
+            }
+        }
         h_frac_a(i) = std::min(frac_a_acc[i], 1.0);
     }
     for (std::size_t j = 0; j < n_dst; ++j) {
@@ -169,7 +251,24 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
         double d_hi_x = dst_lons((j % dst_ni) + 1);
         double d_lo_y = dst_lats(j / dst_ni);
         double d_hi_y = dst_lats((j / dst_ni) + 1);
-        h_area_b(j) = has_dst_areas ? mesh_dst_areas(j) : (d_hi_x - d_lo_x) * (d_hi_y - d_lo_y);
+        if (has_dst_areas) {
+            h_area_b(j) = mesh_dst_areas(j);
+        } else {
+            if (is_spherical) {
+                double dlon = d_hi_x - d_lo_x;
+                double d_lo_y_r = d_lo_y;
+                double d_hi_y_r = d_hi_y;
+                if (is_degrees) {
+                    constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+                    dlon *= deg2rad;
+                    d_lo_y_r *= deg2rad;
+                    d_hi_y_r *= deg2rad;
+                }
+                h_area_b(j) = dlon * (std::sin(d_hi_y_r) - std::sin(d_lo_y_r));
+            } else {
+                h_area_b(j) = (d_hi_x - d_lo_x) * (d_hi_y - d_lo_y);
+            }
+        }
         h_frac_b(j) = std::min(frac_b_acc[j], 1.0);
     }
 

@@ -33,6 +33,7 @@
 #include <axis/solver/gradient_reconstructor.hpp>
 #include <axis/solver/weight_generator.hpp>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -140,6 +141,68 @@ Kokkos::View<ArborX::Box<2> *, Kokkos::HostSpace> compute_cell_aabbs(
         }
 
         boxes(c) = ArborX::Box<2>{{static_cast<float>(min_x), static_cast<float>(min_y)}, {static_cast<float>(max_x), static_cast<float>(max_y)}};
+    }
+
+    return boxes;
+}
+
+/// Compute axis-aligned bounding boxes in 3D Cartesian coordinates on the unit sphere.
+/// Returns a host-space View of ArborX::Box<3>.
+template <class MemorySpace>
+Kokkos::View<ArborX::Box<3> *, Kokkos::HostSpace> compute_cell_aabbs_3d(const topology::UnstructuredMesh<MemorySpace> &mesh) {
+    const auto n_cells = mesh.n_cells();
+    const auto coords = mesh.node_coords_view();
+    const auto offsets = mesh.conn_offsets_view();
+    const auto indices = mesh.conn_indices_view();
+    const auto csys = mesh.coord_system();
+
+    Kokkos::View<ArborX::Box<3> *, Kokkos::HostSpace> boxes("cell_aabbs_3d", n_cells);
+
+    // Deep copy coords to host to avoid device access if memory space is device
+    auto coords_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, coords);
+    auto offsets_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, offsets);
+    auto indices_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, indices);
+
+    for (std::size_t c = 0; c < n_cells; ++c) {
+        auto start = static_cast<std::size_t>(offsets_host[c]);
+        auto end = static_cast<std::size_t>(offsets_host[c + 1]);
+
+        double min_x = std::numeric_limits<double>::max();
+        double min_y = std::numeric_limits<double>::max();
+        double min_z = std::numeric_limits<double>::max();
+        double max_x = -std::numeric_limits<double>::max();
+        double max_y = -std::numeric_limits<double>::max();
+        double max_z = -std::numeric_limits<double>::max();
+
+        for (std::size_t i = start; i < end; ++i) {
+            auto ni = static_cast<std::size_t>(indices_host[i]);
+            double lon = coords_host(ni, 0);
+            double lat = coords_host(ni, 1);
+
+            if (csys == topology::CoordinateSystem::SphericalDeg) {
+                const double pi = 3.14159265358979323846;
+                lon = lon * pi / 180.0;
+                lat = lat * pi / 180.0;
+            }
+
+            double x = std::cos(lat) * std::cos(lon);
+            double y = std::cos(lat) * std::sin(lon);
+            double z = std::sin(lat);
+
+            min_x = std::min(min_x, x);
+            min_y = std::min(min_y, y);
+            min_z = std::min(min_z, z);
+            max_x = std::max(max_x, x);
+            max_y = std::max(max_y, y);
+            max_z = std::max(max_z, z);
+        }
+
+        // Apply a small isotropic dilation to ensure we account for great-circle arc bulge
+        const double eps = 0.02;
+        boxes(c) = ArborX::Box<3>{
+            {static_cast<float>(min_x - eps), static_cast<float>(min_y - eps), static_cast<float>(min_z - eps)},
+            {static_cast<float>(max_x + eps), static_cast<float>(max_y + eps), static_cast<float>(max_z + eps)}
+        };
     }
 
     return boxes;
@@ -757,6 +820,64 @@ Kokkos::View<ArborX::Box<2> *, MemorySpace> compute_cell_aabbs_device(
     return boxes;
 }
 
+/// Compute 3D axis-aligned bounding boxes on device.
+template <class MemorySpace>
+Kokkos::View<ArborX::Box<3> *, MemorySpace> compute_cell_aabbs_3d_device(const topology::UnstructuredMesh<MemorySpace> &mesh) {
+    using exec_space = execution_space_for_t<MemorySpace>;
+
+    const auto n_cells = mesh.n_cells();
+    const auto coords = mesh.node_coords();
+    const auto offsets = mesh.conn_offsets();
+    const auto indices = mesh.conn_indices();
+    const auto csys = mesh.coord_system();
+
+    Kokkos::View<ArborX::Box<3> *, MemorySpace> boxes("cell_aabbs_3d_device", n_cells);
+
+    Kokkos::parallel_for(
+        "compute_aabbs_3d", Kokkos::RangePolicy<exec_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t c) {
+            auto start = static_cast<std::size_t>(offsets[c]);
+            auto end = static_cast<std::size_t>(offsets[c + 1]);
+
+            float min_x = 1e30f;
+            float min_y = 1e30f;
+            float min_z = 1e30f;
+            float max_x = -1e30f;
+            float max_y = -1e30f;
+            float max_z = -1e30f;
+
+            for (std::size_t i = start; i < end; ++i) {
+                auto ni = static_cast<std::size_t>(indices[i]);
+                double lon = coords(ni, 0);
+                double lat = coords(ni, 1);
+
+                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                    const double pi = 3.14159265358979323846;
+                    lon = lon * pi / 180.0;
+                    lat = lat * pi / 180.0;
+                }
+
+                float x = static_cast<float>(Kokkos::cos(lat) * Kokkos::cos(lon));
+                float y = static_cast<float>(Kokkos::cos(lat) * Kokkos::sin(lon));
+                float z = static_cast<float>(Kokkos::sin(lat));
+
+                min_x = (x < min_x) ? x : min_x;
+                min_y = (y < min_y) ? y : min_y;
+                min_z = (z < min_z) ? z : min_z;
+                max_x = (x > max_x) ? x : max_x;
+                max_y = (y > max_y) ? y : max_y;
+                max_z = (z > max_z) ? z : max_z;
+            }
+
+            const float eps = 0.02f;
+            boxes(c) = ArborX::Box<3>{
+                {min_x - eps, min_y - eps, min_z - eps},
+                {max_x + eps, max_y + eps, max_z + eps}
+            };
+        });
+
+    return boxes;
+}
+
 // ──────────────── Device-space cell area computation ─────────────────────────
 
 /// Compute cell areas (spherical or flat) on device.
@@ -868,11 +989,11 @@ struct COOEntry {
 ///
 /// Since the number of overlapping pairs is unknown a-priori, we use a two-pass
 /// approach: first count entries per destination (to size buffers), then fill.
-template <class MemorySpace>
-InterpolationMatrix<MemorySpace> generate_conservative_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                              const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_conservative_device_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     using exec_space = execution_space_for_t<MemorySpace>;
-    using Box2 = ArborX::Box<2>;
+    using Box = ArborX::Box<Dimension>;
 
     const auto n_src = static_cast<index_t>(src_mesh.n_cells());
     const auto n_dst = static_cast<index_t>(dst_mesh.n_cells());
@@ -880,16 +1001,26 @@ InterpolationMatrix<MemorySpace> generate_conservative_device(const topology::Un
     const bool use_spherical = (config.line_type == LineType::GreatCircle);
 
     // ── Step 1: Build ArborX BVH on device from source cell AABBs ──
-    auto src_boxes = compute_cell_aabbs_device(src_mesh);
+    Kokkos::View<ArborX::Box<Dimension> *, MemorySpace> src_boxes;
+    if constexpr (Dimension == 3) {
+        src_boxes = compute_cell_aabbs_3d_device(src_mesh);
+    } else {
+        src_boxes = compute_cell_aabbs_device(src_mesh);
+    }
 
     exec_space exec_inst{};
     auto tree = ArborX::BoundingVolumeHierarchy(exec_inst, ArborX::Experimental::attach_indices(src_boxes));
 
     // ── Step 2: Build intersection queries from destination cell AABBs ──
-    auto dst_boxes = compute_cell_aabbs_device(dst_mesh);
+    Kokkos::View<ArborX::Box<Dimension> *, MemorySpace> dst_boxes;
+    if constexpr (Dimension == 3) {
+        dst_boxes = compute_cell_aabbs_3d_device(dst_mesh);
+    } else {
+        dst_boxes = compute_cell_aabbs_device(dst_mesh);
+    }
 
     // Create query predicates view — one intersects(box) per dst cell
-    Kokkos::View<decltype(ArborX::intersects(Box2{})) *, MemorySpace> queries("queries_device", n_dst);
+    Kokkos::View<decltype(ArborX::intersects(Box{})) *, MemorySpace> queries("queries_device", n_dst);
 
     Kokkos::parallel_for(
         "build_queries", Kokkos::RangePolicy<exec_space>(0, n_dst),
@@ -1082,18 +1213,29 @@ InterpolationMatrix<MemorySpace> generate_conservative_device(const topology::Un
                                             static_cast<std::size_t>(n_dst));
 }
 
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_conservative_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                              const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
+    if (config.line_type == LineType::GreatCircle) {
+        return generate_conservative_device_impl<3, MemorySpace>(src_mesh, dst_mesh, config);
+    } else {
+        return generate_conservative_device_impl<2, MemorySpace>(src_mesh, dst_mesh, config);
+    }
+}
+
 // ─────────────── Device-resident bilinear pipeline ───────────────────────────
 
 /// Device-space generate_bilinear implementation.
 /// Uses ArborX nearest-neighbor queries on device and IDW fallback.
-template <class MemorySpace>
-InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                          const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_bilinear_device_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                               const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     using exec_space = execution_space_for_t<MemorySpace>;
-    using Point2 = ArborX::Point<2>;
+    using Point = ArborX::Point<Dimension>;
 
     const auto n_src = static_cast<index_t>(src_mesh.n_cells());
     const auto n_dst = static_cast<index_t>(dst_mesh.n_cells());
+    const auto csys = src_mesh.coord_system();
 
     const int k_neighbors = static_cast<int>((n_src < 4) ? n_src : 4);
 
@@ -1101,10 +1243,30 @@ InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::Unstru
     auto src_centroids = compute_cell_centroids_device(src_mesh);
 
     // Build point cloud for BVH
-    Kokkos::View<Point2 *, MemorySpace> src_points("src_points_device", n_src);
-    Kokkos::parallel_for(
-        "build_src_points", Kokkos::RangePolicy<exec_space>(0, n_src),
-        KOKKOS_LAMBDA(const index_t i) { src_points(i) = Point2{static_cast<float>(src_centroids(i, 0)), static_cast<float>(src_centroids(i, 1))}; });
+    Kokkos::View<Point *, MemorySpace> src_points("src_points_device", n_src);
+    if constexpr (Dimension == 3) {
+        Kokkos::parallel_for(
+            "build_src_points_3d", Kokkos::RangePolicy<exec_space>(0, n_src),
+            KOKKOS_LAMBDA(const index_t i) {
+                double lon = src_centroids(i, 0);
+                double lat = src_centroids(i, 1);
+                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                    const double pi = 3.14159265358979323846;
+                    lon = lon * pi / 180.0;
+                    lat = lat * pi / 180.0;
+                }
+                float x = static_cast<float>(Kokkos::cos(lat) * Kokkos::cos(lon));
+                float y = static_cast<float>(Kokkos::cos(lat) * Kokkos::sin(lon));
+                float z = static_cast<float>(Kokkos::sin(lat));
+                src_points(i) = Point{x, y, z};
+            });
+    } else {
+        Kokkos::parallel_for(
+            "build_src_points_2d", Kokkos::RangePolicy<exec_space>(0, n_src),
+            KOKKOS_LAMBDA(const index_t i) {
+                src_points(i) = Point{static_cast<float>(src_centroids(i, 0)), static_cast<float>(src_centroids(i, 1))};
+            });
+    }
 
     // ── Build ArborX BVH on device ──
     exec_space exec_inst{};
@@ -1114,11 +1276,28 @@ InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::Unstru
     auto dst_centroids = compute_cell_centroids_device(dst_mesh);
 
     // Build nearest(point, k) queries
-    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, MemorySpace> queries("queries_device", n_dst);
-    Kokkos::parallel_for(
-        "build_nn_queries", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const index_t j) {
-            queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_centroids(j, 0)), static_cast<float>(dst_centroids(j, 1))}, k_neighbors);
-        });
+    Kokkos::View<decltype(ArborX::nearest(Point{}, 1)) *, MemorySpace> queries("queries_device", n_dst);
+    if constexpr (Dimension == 3) {
+        Kokkos::parallel_for(
+            "build_nn_queries_3d", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const index_t j) {
+                double lon = dst_centroids(j, 0);
+                double lat = dst_centroids(j, 1);
+                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                    const double pi = 3.14159265358979323846;
+                    lon = lon * pi / 180.0;
+                    lat = lat * pi / 180.0;
+                }
+                float x = static_cast<float>(Kokkos::cos(lat) * Kokkos::cos(lon));
+                float y = static_cast<float>(Kokkos::cos(lat) * Kokkos::sin(lon));
+                float z = static_cast<float>(Kokkos::sin(lat));
+                queries(j) = ArborX::nearest(Point{x, y, z}, k_neighbors);
+            });
+    } else {
+        Kokkos::parallel_for(
+            "build_nn_queries_2d", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const index_t j) {
+                queries(j) = ArborX::nearest(Point{static_cast<float>(dst_centroids(j, 0)), static_cast<float>(dst_centroids(j, 1))}, k_neighbors);
+            });
+    }
 
     // ── Execute query ──
     Kokkos::View<typename decltype(tree)::value_type *, MemorySpace> values("values", 0);
@@ -1150,9 +1329,32 @@ InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::Unstru
 
             for (int vi = begin; vi < end; ++vi) {
                 auto src_idx = static_cast<index_t>(values(vi).index);
-                double dx = px - src_centroids(src_idx, 0);
-                double dy = py - src_centroids(src_idx, 1);
-                double dist = Kokkos::sqrt(dx * dx + dy * dy);
+                double dist = 0.0;
+                if constexpr (Dimension == 3) {
+                    double lon_s = src_centroids(src_idx, 0);
+                    double lat_s = src_centroids(src_idx, 1);
+                    double lon_d = dst_centroids(j, 0);
+                    double lat_d = dst_centroids(j, 1);
+                    if (csys == topology::CoordinateSystem::SphericalDeg) {
+                        const double pi = 3.14159265358979323846;
+                        lon_s = lon_s * pi / 180.0;
+                        lat_s = lat_s * pi / 180.0;
+                        lon_d = lon_d * pi / 180.0;
+                        lat_d = lat_d * pi / 180.0;
+                    }
+                    double sx = Kokkos::cos(lat_s) * Kokkos::cos(lon_s);
+                    double sy = Kokkos::cos(lat_s) * Kokkos::sin(lon_s);
+                    double sz = Kokkos::sin(lat_s);
+                    double dx = Kokkos::cos(lat_d) * Kokkos::cos(lon_d) - sx;
+                    double dy = Kokkos::cos(lat_d) * Kokkos::sin(lon_d) - sy;
+                    double dz = Kokkos::sin(lat_d) - sz;
+                    dist = Kokkos::sqrt(dx * dx + dy * dy + dz * dz);
+                } else {
+                    double dx = px - src_centroids(src_idx, 0);
+                    double dy = py - src_centroids(src_idx, 1);
+                    dist = Kokkos::sqrt(dx * dx + dy * dy);
+                }
+
                 if (dist <= 0.0) {
                     has_zero = true;
                     zero_idx = vi;
@@ -1170,9 +1372,31 @@ InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::Unstru
             } else {
                 for (int vi = begin; vi < end; ++vi) {
                     auto src_idx = static_cast<index_t>(values(vi).index);
-                    double dx = px - src_centroids(src_idx, 0);
-                    double dy = py - src_centroids(src_idx, 1);
-                    double dist = Kokkos::sqrt(dx * dx + dy * dy);
+                    double dist = 0.0;
+                    if constexpr (Dimension == 3) {
+                        double lon_s = src_centroids(src_idx, 0);
+                        double lat_s = src_centroids(src_idx, 1);
+                        double lon_d = dst_centroids(j, 0);
+                        double lat_d = dst_centroids(j, 1);
+                        if (csys == topology::CoordinateSystem::SphericalDeg) {
+                            const double pi = 3.14159265358979323846;
+                            lon_s = lon_s * pi / 180.0;
+                            lat_s = lat_s * pi / 180.0;
+                            lon_d = lon_d * pi / 180.0;
+                            lat_d = lat_d * pi / 180.0;
+                        }
+                        double sx = Kokkos::cos(lat_s) * Kokkos::cos(lon_s);
+                        double sy = Kokkos::cos(lat_s) * Kokkos::sin(lon_s);
+                        double sz = Kokkos::sin(lat_s);
+                        double dx = Kokkos::cos(lat_d) * Kokkos::cos(lon_d) - sx;
+                        double dy = Kokkos::cos(lat_d) * Kokkos::sin(lon_d) - sy;
+                        double dz = Kokkos::sin(lat_d) - sz;
+                        dist = Kokkos::sqrt(dx * dx + dy * dy + dz * dz);
+                    } else {
+                        double dx = px - src_centroids(src_idx, 0);
+                        double dy = py - src_centroids(src_idx, 1);
+                        dist = Kokkos::sqrt(dx * dx + dy * dy);
+                    }
                     double w = (1.0 / dist) / sum_inv_dist;
 
                     int idx = Kokkos::atomic_fetch_add(&coo_count(), 1);
@@ -1219,6 +1443,17 @@ InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::Unstru
     return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
                                             std::move(frac_b), std::move(area_a), std::move(area_b), static_cast<std::size_t>(n_src),
                                             static_cast<std::size_t>(n_dst));
+}
+
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_bilinear_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                          const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
+    const auto csys = src_mesh.coord_system();
+    if (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad) {
+        return generate_bilinear_device_impl<3, MemorySpace>(src_mesh, dst_mesh, config);
+    } else {
+        return generate_bilinear_device_impl<2, MemorySpace>(src_mesh, dst_mesh, config);
+    }
 }
 
 }  // namespace
@@ -1389,6 +1624,95 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
             std::to_string(static_cast<int>(src_mesh.coord_system())) + ", dst=" + std::to_string(static_cast<int>(dst_mesh.coord_system())) + ")");
     }
 
+    // Spherical longitude disjoint range check (safeguard against silent 2D matching / BVH empty overlaps)
+    const auto csys = src_mesh.coord_system();
+    if (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad) {
+        auto src_coords_dev = src_mesh.node_coords_view();
+        auto src_offsets_dev = src_mesh.conn_offsets_view();
+        auto src_indices_dev = src_mesh.conn_indices_view();
+        auto src_coords = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src_coords_dev);
+        auto src_offsets = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src_offsets_dev);
+        auto src_indices = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, src_indices_dev);
+
+        auto dst_coords_dev = dst_mesh.node_coords_view();
+        auto dst_offsets_dev = dst_mesh.conn_offsets_view();
+        auto dst_indices_dev = dst_mesh.conn_indices_view();
+        auto dst_coords = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst_coords_dev);
+        auto dst_offsets = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst_offsets_dev);
+        auto dst_indices = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, dst_indices_dev);
+
+        double src_min_lon = std::numeric_limits<double>::max();
+        double src_max_lon = -std::numeric_limits<double>::max();
+        for (std::size_t c = 0; c < src_mesh.n_cells(); ++c) {
+            auto start = static_cast<std::size_t>(src_offsets[c]);
+            auto end = static_cast<std::size_t>(src_offsets[c + 1]);
+            auto n_verts = end - start;
+            if (n_verts == 0) continue;
+            double sx = 0.0;
+            for (std::size_t i = start; i < end; ++i) {
+                auto ni = static_cast<std::size_t>(src_indices[i]);
+                sx += src_coords(ni, 0);
+            }
+            double cx = sx / static_cast<double>(n_verts);
+            src_min_lon = std::min(src_min_lon, cx);
+            src_max_lon = std::max(src_max_lon, cx);
+        }
+
+        double dst_min_lon = std::numeric_limits<double>::max();
+        double dst_max_lon = -std::numeric_limits<double>::max();
+        for (std::size_t c = 0; c < dst_mesh.n_cells(); ++c) {
+            auto start = static_cast<std::size_t>(dst_offsets[c]);
+            auto end = static_cast<std::size_t>(dst_offsets[c + 1]);
+            auto n_verts = end - start;
+            if (n_verts == 0) continue;
+            double sx = 0.0;
+            for (std::size_t i = start; i < end; ++i) {
+                auto ni = static_cast<std::size_t>(dst_indices[i]);
+                sx += dst_coords(ni, 0);
+            }
+            double cx = sx / static_cast<double>(n_verts);
+            dst_min_lon = std::min(dst_min_lon, cx);
+            dst_max_lon = std::max(dst_max_lon, cx);
+        }
+
+        bool disjoint = (src_max_lon < dst_min_lon) || (dst_max_lon < src_min_lon);
+        if (disjoint) {
+            const double pi = 3.14159265358979323846;
+            const double period = (csys == topology::CoordinateSystem::SphericalDeg) ? 360.0 : (2.0 * pi);
+
+            // Compute optimal shift multiplier
+            double src_centroid = 0.5 * (src_min_lon + src_max_lon);
+            double dst_centroid = 0.5 * (dst_min_lon + dst_max_lon);
+            double shift = std::round((src_centroid - dst_centroid) / period) * period;
+
+            double shifted_dst_min = dst_min_lon + shift;
+            double shifted_dst_max = dst_max_lon + shift;
+
+            bool overlaps_after_shift = !(src_max_lon < shifted_dst_min || shifted_dst_max < src_min_lon);
+
+            // Skip the throw if we are on a structured fast-path where periodic wrap-around shifts are supported natively
+            bool is_structured_fast_path = false;
+            if (config.method == InterpolationMethod::Bilinear || config.method == InterpolationMethod::Bicubic || config.method == InterpolationMethod::Patch) {
+                auto src_reg = detail::detect_regular_grid(src_mesh);
+                auto src_rect = detail::detect_rectilinear_grid(src_mesh);
+                if (src_reg.is_regular || src_rect.is_rectilinear) {
+                    is_structured_fast_path = true;
+                }
+            }
+
+            if (overlaps_after_shift && !is_structured_fast_path) {
+                const std::string unit = (csys == topology::CoordinateSystem::SphericalDeg) ? "degrees" : "radians";
+                throw std::invalid_argument(
+                    "WeightGenerator::generate: Spherical longitude coordinate range mismatch. "
+                    "Source longitude range is [" + std::to_string(src_min_lon) + ", " + std::to_string(src_max_lon) + "], "
+                    "but destination longitude range is [" + std::to_string(dst_min_lon) + ", " + std::to_string(dst_max_lon) + "]. "
+                    "These ranges are completely disjoint in raw 2D space but would overlap if shifted by " + std::to_string(shift) + " " + unit + ". "
+                    "This mismatch causes 2D spatial BVH queries to fail silently. Please normalize your coordinate ranges to match before weight generation."
+                );
+            }
+        }
+    }
+
     InterpolationMatrix<MemorySpace> raw_matrix;
     switch (config.method) {
         case InterpolationMethod::Bilinear:
@@ -1420,12 +1744,30 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
 // generate_nearest — ArborX nearest(point, 1) query
 // ─────────────────────────────────────────────────────────────────────────────
 
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_nearest_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                       const RegridConfig &config);
+
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> WeightGenerator::generate_nearest(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                                    const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
                                                                    const RegridConfig &config) {
+    const auto csys = src_mesh.coord_system();
+    const bool use_spherical_nn = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
+    if (use_spherical_nn) {
+        return generate_nearest_impl<3, MemorySpace>(src_mesh, dst_mesh, config);
+    } else {
+        return generate_nearest_impl<2, MemorySpace>(src_mesh, dst_mesh, config);
+    }
+}
+
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_nearest_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                       const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                       const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
-    using Point2 = ArborX::Point<2>;
+    using Point = ArborX::Point<Dimension>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -1434,27 +1776,64 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_nearest(const topolog
     Kokkos::View<double *, HostSpace> src_cx, src_cy;
     compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
 
-    Kokkos::View<Point2 *, HostSpace> src_points("src_points", n_src);
-    for (std::size_t i = 0; i < n_src; ++i) {
-        src_points(i) = Point2{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))};
-    }
-
-    Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
-
-    // ── Build nearest(point, 1) queries for each dst cell ──
     Kokkos::View<double *, HostSpace> dst_cx, dst_cy;
     compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
-    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> queries("queries", n_dst);
-    for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, 1);
-    }
+    const auto csys = src_mesh.coord_system();
 
-    // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    Kokkos::View<ArborX::PairValueIndex<Point, unsigned int> *, HostSpace> values("values", 0);
     Kokkos::View<int *, HostSpace> offsets("offsets", 0);
-    tree.query(host_exec, queries, values, offsets);
+    Kokkos::DefaultHostExecutionSpace host_exec;
+
+    if constexpr (Dimension == 3) {
+        Kokkos::View<Point *, HostSpace> src_points("src_points_3d", n_src);
+        for (std::size_t i = 0; i < n_src; ++i) {
+            double lon = src_cx(i);
+            double lat = src_cy(i);
+            if (csys == topology::CoordinateSystem::SphericalDeg) {
+                const double pi = 3.14159265358979323846;
+                lon = lon * pi / 180.0;
+                lat = lat * pi / 180.0;
+            }
+            float x = static_cast<float>(std::cos(lat) * std::cos(lon));
+            float y = static_cast<float>(std::cos(lat) * std::sin(lon));
+            float z = static_cast<float>(std::sin(lat));
+            src_points(i) = Point{x, y, z};
+        }
+
+        ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
+
+        Kokkos::View<decltype(ArborX::nearest(Point{}, 1)) *, HostSpace> queries("queries_3d", n_dst);
+        for (std::size_t j = 0; j < n_dst; ++j) {
+            double lon = dst_cx(j);
+            double lat = dst_cy(j);
+            if (csys == topology::CoordinateSystem::SphericalDeg) {
+                const double pi = 3.14159265358979323846;
+                lon = lon * pi / 180.0;
+                lat = lat * pi / 180.0;
+            }
+            float x = static_cast<float>(std::cos(lat) * std::cos(lon));
+            float y = static_cast<float>(std::cos(lat) * std::sin(lon));
+            float z = static_cast<float>(std::sin(lat));
+            queries(j) = ArborX::nearest(Point{x, y, z}, 1);
+        }
+
+        tree.query(host_exec, queries, values, offsets);
+    } else {
+        Kokkos::View<Point *, HostSpace> src_points("src_points", n_src);
+        for (std::size_t i = 0; i < n_src; ++i) {
+            src_points(i) = Point{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))};
+        }
+
+        ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
+
+        Kokkos::View<decltype(ArborX::nearest(Point{}, 1)) *, HostSpace> queries("queries", n_dst);
+        for (std::size_t j = 0; j < n_dst; ++j) {
+            queries(j) = ArborX::nearest(Point{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, 1);
+        }
+
+        tree.query(host_exec, queries, values, offsets);
+    }
 
     // ── Build COO entries ──
     std::vector<double> weights_vec;
@@ -2509,6 +2888,11 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
                                                                        const RegridConfig &config, const detail::RectilinearGridInfo &src_rect_info,
                                                                        const detail::RectilinearGridInfo &dst_rect_info);
 
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_conservative_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                            const RegridConfig &config);
+
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                                         const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
@@ -2547,13 +2931,24 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const to
         }
     }
 
-    // ── Host-space path (original implementation) ──
+    if (config.line_type == LineType::GreatCircle) {
+        return generate_conservative_impl<3, MemorySpace>(src_mesh, dst_mesh, config);
+    } else {
+        return generate_conservative_impl<2, MemorySpace>(src_mesh, dst_mesh, config);
+    }
+}
 
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_conservative_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                            const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                            const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
-    using Box2 = ArborX::Box<2>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
+
+    auto src_grid_info = detail::detect_regular_grid(src_mesh);
+    auto dst_grid_info = detail::detect_regular_grid(dst_mesh);
 
     // Determine whether to use the spherical clipping path.
     const bool use_spherical = (config.line_type == LineType::GreatCircle);
@@ -2580,24 +2975,34 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const to
         dst_degenerate[static_cast<std::size_t>(idx)] = true;
     }
 
-    // ── Build ArborX BVH from source cell AABBs ──
-    auto src_boxes = compute_cell_aabbs(src_mesh);
-
-    Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
-
-    // ── Build intersection queries from destination cell AABBs ──
-    auto dst_boxes = compute_cell_aabbs(dst_mesh);
-
-    Kokkos::View<decltype(ArborX::intersects(Box2{})) *, HostSpace> queries("queries", n_dst);
-    for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::intersects(dst_boxes(j));
-    }
-
-    // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    // ── Build ArborX BVH ──
+    Kokkos::View<ArborX::PairValueIndex<ArborX::Box<Dimension>, unsigned int> *, HostSpace> values("values", 0);
     Kokkos::View<int *, HostSpace> offsets_view("offsets", 0);
-    tree.query(host_exec, queries, values, offsets_view);
+    Kokkos::DefaultHostExecutionSpace host_exec;
+
+    if constexpr (Dimension == 3) {
+        auto src_boxes = compute_cell_aabbs_3d(src_mesh);
+        ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
+        auto dst_boxes = compute_cell_aabbs_3d(dst_mesh);
+
+        using Box3 = ArborX::Box<3>;
+        Kokkos::View<decltype(ArborX::intersects(Box3{})) *, HostSpace> queries("queries_3d", n_dst);
+        for (std::size_t j = 0; j < n_dst; ++j) {
+            queries(j) = ArborX::intersects(dst_boxes(j));
+        }
+        tree.query(host_exec, queries, values, offsets_view);
+    } else {
+        auto src_boxes = compute_cell_aabbs(src_mesh);
+        ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
+        auto dst_boxes = compute_cell_aabbs(dst_mesh);
+
+        using Box2 = ArborX::Box<2>;
+        Kokkos::View<decltype(ArborX::intersects(Box2{})) *, HostSpace> queries("queries_2d", n_dst);
+        for (std::size_t j = 0; j < n_dst; ++j) {
+            queries(j) = ArborX::intersects(dst_boxes(j));
+        }
+        tree.query(host_exec, queries, values, offsets_view);
+    }
 
     // ── Get cell areas (spherical or flat) ──
     std::vector<double> src_areas;
@@ -3020,12 +3425,27 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const to
 //      Normalize by destination area.
 // ─────────────────────────────────────────────────────────────────────────────
 
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                      const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                      const RegridConfig &config);
+
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative_2nd_order(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                                                   const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
                                                                                   const RegridConfig &config) {
+    if (config.line_type == LineType::GreatCircle) {
+        return generate_conservative_2nd_order_impl<3, MemorySpace>(src_mesh, dst_mesh, config);
+    } else {
+        return generate_conservative_2nd_order_impl<2, MemorySpace>(src_mesh, dst_mesh, config);
+    }
+}
+
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                                      const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                                      const RegridConfig &config) {
     using HostSpace = Kokkos::HostSpace;
-    using Box2 = ArborX::Box<2>;
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
@@ -3033,24 +3453,34 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative_2nd_orde
     // Determine whether to use the spherical clipping path.
     const bool use_spherical = (config.line_type == LineType::GreatCircle);
 
-    // ── Build ArborX BVH from source cell AABBs ──
-    auto src_boxes = compute_cell_aabbs(src_mesh);
-
-    Kokkos::DefaultHostExecutionSpace host_exec;
-    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
-
-    // ── Build intersection queries from destination cell AABBs ──
-    auto dst_boxes = compute_cell_aabbs(dst_mesh);
-
-    Kokkos::View<decltype(ArborX::intersects(Box2{})) *, HostSpace> queries("queries", n_dst);
-    for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::intersects(dst_boxes(j));
-    }
-
-    // ── Execute query ──
-    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> values("values", 0);
+    // ── Build ArborX BVH ──
+    Kokkos::View<ArborX::PairValueIndex<ArborX::Box<Dimension>, unsigned int> *, HostSpace> values("values", 0);
     Kokkos::View<int *, HostSpace> offsets_view("offsets", 0);
-    tree.query(host_exec, queries, values, offsets_view);
+    Kokkos::DefaultHostExecutionSpace host_exec;
+
+    if constexpr (Dimension == 3) {
+        auto src_boxes = compute_cell_aabbs_3d(src_mesh);
+        ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
+        auto dst_boxes = compute_cell_aabbs_3d(dst_mesh);
+
+        using Box3 = ArborX::Box<3>;
+        Kokkos::View<decltype(ArborX::intersects(Box3{})) *, HostSpace> queries("queries_3d", n_dst);
+        for (std::size_t j = 0; j < n_dst; ++j) {
+            queries(j) = ArborX::intersects(dst_boxes(j));
+        }
+        tree.query(host_exec, queries, values, offsets_view);
+    } else {
+        auto src_boxes = compute_cell_aabbs(src_mesh);
+        ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_boxes));
+        auto dst_boxes = compute_cell_aabbs(dst_mesh);
+
+        using Box2 = ArborX::Box<2>;
+        Kokkos::View<decltype(ArborX::intersects(Box2{})) *, HostSpace> queries("queries_2d", n_dst);
+        for (std::size_t j = 0; j < n_dst; ++j) {
+            queries(j) = ArborX::intersects(dst_boxes(j));
+        }
+        tree.query(host_exec, queries, values, offsets_view);
+    }
 
     // ── Get cell areas (spherical or flat) ──
     std::vector<double> src_areas;

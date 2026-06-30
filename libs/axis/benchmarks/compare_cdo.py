@@ -62,52 +62,61 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
     """Create a test field on a regular lat-lon, LCC, or unstructured MPAS (Voronoi) grid."""
     if grid_type == "mpas":
         # Generate random/Poisson-like generator points in regional sector
+        # We use [245.0, 283.0] (equivalent to [-115, -77] shifted by +360) to overlap with global regular grids
         n_cells = nlon  # Use total cells requested as nlon (e.g. --src-size 1000)
-        min_lon = -115.0
-        max_lon = -77.0
+        min_lon = 245.0
+        max_lon = 283.0
         min_lat = 25.0
         max_lat = 55.0
-        
+
         # Deterministic generation
         np.random.seed(42)
         lons = np.random.uniform(min_lon, max_lon, n_cells)
         lats = np.random.uniform(min_lat, max_lat, n_cells)
         points = np.column_stack((lons, lats))
-        
+
         from scipy.spatial import Voronoi
         vor = Voronoi(points)
-        
+
         node_coords = vor.vertices
-        
+
         conn_offsets = [0]
         conn_indices = []
         valid_cell_indices = []
         cell_lons = []
         cell_lats = []
-        
+
         for i, r_idx in enumerate(vor.point_region):
             region = vor.regions[r_idx]
             # Valid bounded cell has at least 3 vertices and no infinity vertex (-1)
             if len(region) >= 3 and not -1 in region:
-                valid_cell_indices.append(r_idx)
-                conn_indices.extend(region)
-                conn_offsets.append(len(conn_indices))
-                cell_lons.append(lons[i])
-                cell_lats.append(lats[i])
-                
+                # Filter out crazy boundary cells
+                valid_coords = True
+                for v_idx in region:
+                    v_lon, v_lat = node_coords[v_idx]
+                    if v_lon < (min_lon - 5.0) or v_lon > (max_lon + 5.0) or v_lat < (min_lat - 5.0) or v_lat > (max_lat + 5.0):
+                        valid_coords = False
+                        break
+                if valid_coords:
+                    valid_cell_indices.append(r_idx)
+                    conn_indices.extend(region)
+                    conn_offsets.append(len(conn_indices))
+                    cell_lons.append(lons[i])
+                    cell_lats.append(lats[i])
+
         n_valid_cells = len(valid_cell_indices)
         cell_lons = np.array(cell_lons)
         cell_lats = np.array(cell_lats)
         conn_offsets = np.array(conn_offsets, dtype=np.int64)
         conn_indices = np.array(conn_indices, dtype=np.int64)
-        
+
         # Determine maximum vertices per cell for the CDO 2D bounds padding
         max_nv = max(len(vor.regions[r]) for r in valid_cell_indices)
         face_nodes = -1 * np.ones((n_valid_cells, max_nv), dtype=np.int32)
         for idx, r_idx in enumerate(valid_cell_indices):
             region = vor.regions[r_idx]
             face_nodes[idx, :len(region)] = region
-            
+
         if field_type == "cosine":
             field = np.cos(np.radians(cell_lats)) * np.cos(np.radians(cell_lons))
         elif field_type == "linear":
@@ -118,7 +127,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
             field = np.where(cell_lats > 40, 1.0, 0.0)
         else:
             raise ValueError(f"Unknown field type: {field_type}")
-            
+
         # Return structured data package for unstructured grid
         return cell_lats, cell_lons, {
             "node_coords": node_coords,
@@ -137,7 +146,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
         max_x =  1000000.0
         min_y = -1000000.0
         max_y =  1000000.0
-        
+
         xs = np.linspace(min_x, max_x, nlon)
         ys = np.linspace(min_y, max_y, nlat)
         x_grid2d, y_grid2d = np.meshgrid(xs, ys)
@@ -188,20 +197,20 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
         data = field  # Unstructured mesh data package
         n_cells = len(data["cell_lon"])
         max_nv = data["face_nodes"].shape[1]
-        
+
         lon_bnds = np.zeros((n_cells, max_nv))
         lat_bnds = np.zeros((n_cells, max_nv))
-        
+
         # Populate bounds from face_nodes and node_coords
         for idx in range(n_cells):
             node_idx_list = [n for n in data["face_nodes"][idx] if n != -1]
             n_vertices = len(node_idx_list)
-            
+
             # Fill existing corners
             for v_idx in range(n_vertices):
                 lon_bnds[idx, v_idx] = data["node_coords"][node_idx_list[v_idx], 0]
                 lat_bnds[idx, v_idx] = data["node_coords"][node_idx_list[v_idx], 1]
-                
+
             # Repeat last corner to pad up to max_nv (standard CDO SCRIP-style padding)
             last_lon = lon_bnds[idx, n_vertices - 1]
             last_lat = lat_bnds[idx, n_vertices - 1]
@@ -310,7 +319,7 @@ def run_cdo_remap(input_file, output_file, target_grid, method):
     return elapsed
 
 
-def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_type="regular", line_type="great_circle"):
+def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_type="regular", line_type="great_circle", dst_grid_type="regular", dst_field_data=None):
     """Run AXIS remapping and return (result, wall_time)."""
     if axis_py is None:
         return None, 0.0
@@ -329,7 +338,7 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_t
     if grid_type == "mpas":
         data = field  # Unstructured data package passed here
         src_mesh = axis_py.make_ugrid_mesh(
-            data["node_coords"], data["conn_offsets"], data["conn_indices"])
+            np.asfortranarray(data["node_coords"]), data["conn_offsets"], data["conn_indices"])
     elif grid_type == "lcc":
         # Generate 1D arrays of centers in projected space
         min_x = -1000000.0
@@ -355,24 +364,35 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_t
         src_mesh = axis_py.make_regular_mesh(
             src_nlon, src_nlat, 0.0, -90.0, src_dlon, src_dlat)
 
-    # Build destination mesh (regular lat-lon spanning the local U.S. sector of LCC/MPAS for cleaner overlap metrics)
-    if grid_type in ["lcc", "mpas"]:
-        # Spans U.S. region roughly overlapping the LCC / MPAS domain
-        dst_min_lon = -110.0
-        dst_max_lon = -82.0
-        dst_min_lat = 30.0
-        dst_max_lat = 50.0
+    # Build destination mesh
+    if dst_grid_type == "mpas":
+        dst_mesh = axis_py.make_ugrid_mesh(
+            np.asfortranarray(dst_field_data["node_coords"]), dst_field_data["conn_offsets"], dst_field_data["conn_indices"])
     else:
-        # Global
-        dst_min_lon = 0.0
-        dst_max_lon = 360.0
-        dst_min_lat = -90.0
-        dst_max_lat = 90.0
+        # Build destination mesh (regular lat-lon spanning the local U.S. sector of LCC/MPAS for cleaner overlap metrics)
+        if grid_type in ["lcc"]:
+            # Spans U.S. region roughly overlapping the LCC domain
+            dst_min_lon = -110.0
+            dst_max_lon = -82.0
+            dst_min_lat = 30.0
+            dst_max_lat = 50.0
+        elif grid_type in ["mpas"]:
+            # Spans U.S. region roughly overlapping the MPAS domain
+            dst_min_lon = 250.0
+            dst_max_lon = 278.0
+            dst_min_lat = 30.0
+            dst_max_lat = 50.0
+        else:
+            # Global
+            dst_min_lon = 0.0
+            dst_max_lon = 360.0
+            dst_min_lat = -90.0
+            dst_max_lat = 90.0
 
-    dst_dlon = (dst_max_lon - dst_min_lon) / dst_nlon
-    dst_dlat = (dst_max_lat - dst_min_lat) / dst_nlat
-    dst_mesh = axis_py.make_regular_mesh(
-        dst_nlon, dst_nlat, dst_min_lon, dst_min_lat, dst_dlon, dst_dlat)
+        dst_dlon = (dst_max_lon - dst_min_lon) / dst_nlon
+        dst_dlat = (dst_max_lat - dst_min_lat) / dst_nlat
+        dst_mesh = axis_py.make_regular_mesh(
+            dst_nlon, dst_nlat, dst_min_lon, dst_min_lat, dst_dlon, dst_dlat)
 
     # Generate weights with full configuration dictionary
     config = {
@@ -387,7 +407,7 @@ def run_axis_remap(src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, grid_t
         src_flat = data["field"].astype(np.float64)
     else:
         src_flat = field.ravel().astype(np.float64)
-        
+
     dst_flat = axis_py.apply_weights(matrix, src_flat)
 
     elapsed = time.perf_counter() - t0
@@ -430,11 +450,15 @@ def main():
     parser.add_argument("--grid-type", type=str, default="regular",
                         choices=["regular", "lcc", "mpas"],
                         help="Source grid type: regular (lat-lon), lcc (Lambert Conformal), or mpas (unstructured Voronoi)")
+    parser.add_argument("--dst-grid-type", type=str, default="regular",
+                        choices=["regular", "mpas"],
+                        help="Destination grid type: regular (lat-lon) or mpas (unstructured Voronoi)")
     parser.add_argument("--methods", type=str, default="bilinear,nearest,bicubic,patch,conservative",
                         help="Comma-separated interpolation methods to test")
     parser.add_argument("--field", type=str, default="cosine",
                         choices=["cosine", "linear", "constant", "step"],
                         help="Test field type")
+    parser.add_argument("--skip-cdo", action="store_true", help="Skip CDO runs")
     parser.add_argument("--line-type", type=str, default="great_circle",
                         choices=["great_circle", "cartesian"],
                         help="Line geometry to use: great_circle (default) or cartesian (fast planar)")
@@ -454,8 +478,14 @@ def main():
         src_nlat = 1
     else:
         src_nlon, src_nlat = parse_grid_size(args.src_size)
-        
-    dst_nlon, dst_nlat = parse_grid_size(args.dst_size)
+
+    if args.dst_grid_type == "mpas":
+        # Unstructured: dst-size defines total cells directly (nlon)
+        dst_nlon = int(args.dst_size)
+        dst_nlat = 1
+    else:
+        dst_nlon, dst_nlat = parse_grid_size(args.dst_size)
+
     methods = [m.strip() for m in args.methods.split(",")]
 
     print(f"{'='*70}")
@@ -465,44 +495,63 @@ def main():
         print(f"Source grid:  {src_nlon} unstructured MPAS cells")
     else:
         print(f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon*src_nlat:,} cells)")
-    print(f"Dest grid:    {dst_nlon}x{dst_nlat} regular lat-lon ({dst_nlon*dst_nlat:,} cells)")
+
+    if args.dst_grid_type == "mpas":
+        print(f"Dest grid:    {dst_nlon} unstructured MPAS cells")
+    else:
+        print(f"Dest grid:    {dst_nlon}x{dst_nlat} {args.dst_grid_type} ({dst_nlon*dst_nlat:,} cells)")
     print(f"Test field:   {args.field}")
     print(f"Methods:      {', '.join(methods)}")
     print(f"AXIS module:  {'loaded' if axis_py else 'NOT AVAILABLE'}")
     print(f"{'='*70}")
     print()
 
+    print("Creating test field...")
     # Create test field
     lats, lons, field = create_test_field(src_nlat, src_nlon, args.field, args.grid_type)
 
+    print("Writing source NetCDF...")
     # Write source NetCDF for CDO
     with tempfile.TemporaryDirectory() as tmpdir:
         src_nc = os.path.join(tmpdir, "source.nc")
         write_netcdf(src_nc, lats, lons, field, args.grid_type)
 
-        # Create CDO target grid description (representing regional sector for LCC/MPAS, or global for regular)
-        if args.grid_type in ["lcc", "mpas"]:
-            dst_min_lon = -110.0
-            dst_max_lon = -82.0
-            dst_min_lat = 30.0
-            dst_max_lat = 50.0
+        dst_field_data = None
+        if args.dst_grid_type == "mpas":
+            print("Creating destination test field (MPAS)...")
+            dst_lats, dst_lons, dst_field_data = create_test_field(dst_nlat, dst_nlon, args.field, "mpas")
+            print("Writing destination NetCDF...")
+            target_grid = os.path.join(tmpdir, "target_grid.nc")
+            write_netcdf(target_grid, dst_lats, dst_lons, dst_field_data, "mpas")
         else:
-            dst_min_lon = 0.0
-            dst_max_lon = 360.0
-            dst_min_lat = -90.0
-            dst_max_lat = 90.0
+            # Create CDO target grid description (representing regional sector for LCC/MPAS, or global for regular)
+            if args.grid_type in ["lcc"]:
+                dst_min_lon = -110.0
+                dst_max_lon = -82.0
+                dst_min_lat = 30.0
+                dst_max_lat = 50.0
+            elif args.grid_type in ["mpas"]:
+                dst_min_lon = 250.0
+                dst_max_lon = 278.0
+                dst_min_lat = 30.0
+                dst_max_lat = 50.0
+            else:
+                dst_min_lon = 0.0
+                dst_max_lon = 360.0
+                dst_min_lat = -90.0
+                dst_max_lat = 90.0
 
-        dst_lats = np.linspace(dst_min_lat, dst_max_lat, dst_nlat)
-        dst_lons = np.linspace(dst_min_lon, dst_max_lon, dst_nlon, endpoint=False)
-        target_grid = os.path.join(tmpdir, "target_grid.txt")
-        with open(target_grid, "w") as f:
-            f.write(f"gridtype = lonlat\n")
-            f.write(f"xsize = {dst_nlon}\n")
-            f.write(f"ysize = {dst_nlat}\n")
-            f.write(f"xfirst = {dst_lons[0]}\n")
-            f.write(f"xinc = {dst_lons[1] - dst_lons[0]}\n")
-            f.write(f"yfirst = {dst_lats[0]}\n")
-            f.write(f"yinc = {dst_lats[1] - dst_lats[0]}\n")
+            dst_lats = np.linspace(dst_min_lat, dst_max_lat, dst_nlat)
+            dst_lons = np.linspace(dst_min_lon, dst_max_lon, dst_nlon, endpoint=False)
+            target_grid = os.path.join(tmpdir, "target_grid.txt")
+            with open(target_grid, "w") as f:
+                f.write(f"gridtype = lonlat\n")
+                f.write(f"xsize = {dst_nlon}\n")
+                f.write(f"ysize = {dst_nlat}\n")
+                f.write(f"xfirst = {dst_lons[0]}\n")
+                f.write(f"xinc = {dst_lons[1] - dst_lons[0]}\n")
+                f.write(f"yfirst = {dst_lats[0]}\n")
+                f.write(f"yinc = {dst_lats[1] - dst_lats[0]}\n")
 
         # Run benchmarks
         print(f"{'Method':<15} {'Engine':<8} {'Time (s)':<12} {'Max Err':<14} {'RMS Err':<14} {'Src Σ':<14} {'Dst Σ':<14}")
@@ -511,16 +560,21 @@ def main():
         for method in methods:
             # ── CDO ──
             cdo_out = os.path.join(tmpdir, f"cdo_{method}.nc")
-            try:
-                cdo_time = run_cdo_remap(src_nc, cdo_out, target_grid, method)
-                cdo_ds = xr.open_dataset(cdo_out)
-                cdo_result = cdo_ds["temperature"].values
-                cdo_sum = float(np.nansum(cdo_result))
-            except Exception as e:
-                print(f"{method:<15} {'CDO':<8} {'FAILED':<12} {str(e)[:40]}")
+            if args.skip_cdo:
                 cdo_result = None
                 cdo_time = 0.0
                 cdo_sum = np.nan
+            else:
+                try:
+                    cdo_time = run_cdo_remap(src_nc, cdo_out, target_grid, method)
+                    cdo_ds = xr.open_dataset(cdo_out)
+                    cdo_result = cdo_ds["temperature"].values
+                    cdo_sum = float(np.nansum(cdo_result))
+                except Exception as e:
+                    print(f"{method:<15} {'CDO':<8} {'FAILED':<12} {str(e)[:40]}")
+                    cdo_result = None
+                    cdo_time = 0.0
+                    cdo_sum = np.nan
 
             if args.grid_type == "mpas":
                 src_sum = float(np.sum(field["field"]))
@@ -532,7 +586,7 @@ def main():
 
             # ── AXIS ──
             axis_result, axis_time = run_axis_remap(
-                src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, args.grid_type, args.line_type)
+                src_nlat, src_nlon, dst_nlat, dst_nlon, field, method, args.grid_type, args.line_type, args.dst_grid_type, dst_field_data)
 
             if axis_result is not None:
                 axis_sum = float(np.nansum(axis_result))

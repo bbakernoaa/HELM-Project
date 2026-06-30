@@ -47,6 +47,26 @@ double rect_overlap(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y, 
     return dx * dy;
 }
 
+KOKKOS_INLINE_FUNCTION
+double rect_overlap_spherical(double s_lo_x, double s_hi_x, double s_lo_y, double s_hi_y,
+                              double d_lo_x, double d_hi_x, double d_lo_y, double d_hi_y,
+                              bool is_degrees) noexcept {
+    double dx = Kokkos::fmax(0.0, Kokkos::fmin(s_hi_x, d_hi_x) - Kokkos::fmax(s_lo_x, d_lo_x));
+    double lo_y = Kokkos::fmax(s_lo_y, d_lo_y);
+    double hi_y = Kokkos::fmin(s_hi_y, d_hi_y);
+
+    if (hi_y <= lo_y || dx <= 0.0) return 0.0;
+
+    if (is_degrees) {
+        constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+        dx *= deg2rad;
+        lo_y *= deg2rad;
+        hi_y *= deg2rad;
+    }
+
+    return dx * (Kokkos::sin(hi_y) - Kokkos::sin(lo_y));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // generate_conservative_rect — analytic rectangle overlap path
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,6 +179,10 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
     rows_vec.reserve(std::min(est_nnz, n_src * n_dst));
     cols_vec.reserve(std::min(est_nnz, n_src * n_dst));
 
+    const auto csys = src_mesh.coord_system();
+    const bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
+    const bool is_degrees = (csys == topology::CoordinateSystem::SphericalDeg);
+
     // ── Conservation bookkeeping arrays ──
     std::vector<double> frac_a_acc(n_src, 0.0);
     std::vector<double> frac_b_acc(n_dst, 0.0);
@@ -170,8 +194,23 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
         if (has_src_areas) {
             src_areas[c] = mesh_src_areas[c];
         } else {
-            // For regular grid: area = delta_lon * delta_lat
-            src_areas[c] = src_delta_lon * src_delta_lat;
+            if (is_spherical) {
+                std::size_t js = c / src_ni;
+                double s_lo_y = src_lat_min + static_cast<double>(js) * src_delta_lat;
+                double s_hi_y = s_lo_y + src_delta_lat;
+                double dlon = src_delta_lon;
+                double s_lo_y_r = s_lo_y;
+                double s_hi_y_r = s_hi_y;
+                if (is_degrees) {
+                    constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+                    dlon *= deg2rad;
+                    s_lo_y_r *= deg2rad;
+                    s_hi_y_r *= deg2rad;
+                }
+                src_areas[c] = dlon * (std::sin(s_hi_y_r) - std::sin(s_lo_y_r));
+            } else {
+                src_areas[c] = src_delta_lon * src_delta_lat;
+            }
         }
     }
 
@@ -180,7 +219,23 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
         if (has_dst_areas) {
             dst_areas[c] = mesh_dst_areas[c];
         } else {
-            dst_areas[c] = dst_delta_lon * dst_delta_lat;
+            if (is_spherical) {
+                std::size_t jd = c / dst_ni;
+                double d_lo_y = dst_lat_min + static_cast<double>(jd) * dst_delta_lat;
+                double d_hi_y = d_lo_y + dst_delta_lat;
+                double dlon = dst_delta_lon;
+                double d_lo_y_r = d_lo_y;
+                double d_hi_y_r = d_hi_y;
+                if (is_degrees) {
+                    constexpr double deg2rad = 3.14159265358979323846 / 180.0;
+                    dlon *= deg2rad;
+                    d_lo_y_r *= deg2rad;
+                    d_hi_y_r *= deg2rad;
+                }
+                dst_areas[c] = dlon * (std::sin(d_hi_y_r) - std::sin(d_lo_y_r));
+            } else {
+                dst_areas[c] = dst_delta_lon * dst_delta_lat;
+            }
         }
     }
 
@@ -250,13 +305,18 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
                     if (area_src <= 0.0) continue;
 
                     // Source cell bounds
-                    const double s_lo_x = src_lon_min + static_cast<double>(is_actual) * src_delta_lon;
+                    const double s_lo_x = src_lon_min + static_cast<double>(is) * src_delta_lon;
                     const double s_hi_x = s_lo_x + src_delta_lon;
                     const double s_lo_y = src_lat_min + static_cast<double>(js) * src_delta_lat;
                     const double s_hi_y = s_lo_y + src_delta_lat;
 
                     // Compute rectangle overlap area
-                    const double overlap_area = rect_overlap(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                    double overlap_area = 0.0;
+                    if (is_spherical) {
+                        overlap_area = rect_overlap_spherical(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y, is_degrees);
+                    } else {
+                        overlap_area = rect_overlap(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                    }
 
                     if (overlap_area <= 0.0) continue;
 
