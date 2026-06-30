@@ -13,7 +13,7 @@ UNSTRUCTURED_DIMS = {
 
 def _get_non_spatial_dims(ds: xr.Dataset) -> set[str]:
     """Identify and filter out non-spatial dimensions (Time, Z, Member)."""
-    spatial_keywords = {"lat", "lon", "x", "y", "node", "face", "element", "cell", "n_pts", "ncol", "nCells", "grid_size"}
+    spatial_keywords = {"lat", "lon", "x", "y", "node", "face", "element", "cell", "n_pts", "ncol", "ncells", "grid_size", "vert", "vertex", "vertices"}
     non_spatial = set()
     for d in ds.dims:
         d_lower = str(d).lower()
@@ -111,12 +111,18 @@ def _triangulate_mpas_mesh(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.n
     v_lon = ds["lonVertex"]
     v_conn = ds["verticesOnCell"]
 
-    # Filter non-spatial dimensions
-    isel_dict = {d: 0 for d in non_spatial_dims if d in v_lat.dims}
-    if isel_dict:
-        v_lat = v_lat.isel(isel_dict, drop=True)
-        v_lon = v_lon.isel(isel_dict, drop=True)
-        v_conn = v_conn.isel(isel_dict, drop=True)
+    # Filter non-spatial dimensions individually to prevent mismatched dimension indexing
+    isel_lat = {d: 0 for d in non_spatial_dims if d in v_lat.dims}
+    if isel_lat:
+        v_lat = v_lat.isel(isel_lat, drop=True)
+        
+    isel_lon = {d: 0 for d in non_spatial_dims if d in v_lon.dims}
+    if isel_lon:
+        v_lon = v_lon.isel(isel_lon, drop=True)
+        
+    isel_conn = {d: 0 for d in non_spatial_dims if d in v_conn.dims}
+    if isel_conn:
+        v_conn = v_conn.isel(isel_conn, drop=True)
 
     # Normalize longitudes and latitudes to degrees
     node_lat = v_lat.values
