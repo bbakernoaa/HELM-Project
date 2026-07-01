@@ -197,8 +197,16 @@ Kokkos::View<ArborX::Box<3> *, Kokkos::HostSpace> compute_cell_aabbs_3d(const to
             max_z = std::max(max_z, z);
         }
 
-        // Apply a small isotropic dilation to ensure we account for great-circle arc bulge
-        const double eps = 0.02;
+        // Apply a small isotropic dilation to account for great-circle arc bulge
+        // (the AABB is built from chord endpoints; the arc bulges outward by
+        // ~extent^2/8).  The dilation MUST scale with the cell's own size: a
+        // fixed value that is large relative to fine cells inflates every box so
+        // much that each destination cell matches thousands of source cells,
+        // exploding the ArborX candidate-pair count past INT_MAX (which wraps to
+        // a garbage allocation size).  Scale with the cell extent, with a small
+        // floor and a cap equal to the historical fixed value for coarse grids.
+        const double max_extent = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
+        const double eps = std::min(std::max(0.25 * max_extent, 1.0e-6), 0.02);
         boxes(c) = ArborX::Box<3>{{static_cast<float>(min_x - eps), static_cast<float>(min_y - eps), static_cast<float>(min_z - eps)},
                                   {static_cast<float>(max_x + eps), static_cast<float>(max_y + eps), static_cast<float>(max_z + eps)}};
     }
@@ -866,7 +874,11 @@ Kokkos::View<ArborX::Box<3> *, MemorySpace> compute_cell_aabbs_3d_device(const t
                 max_z = (z > max_z) ? z : max_z;
             }
 
-            const float eps = 0.02f;
+            // Resolution-aware dilation (see the host compute_cell_aabbs_3d for
+            // rationale): scale with cell extent to avoid exploding the ArborX
+            // candidate-pair count on fine grids, capped at the historical 0.02.
+            const float max_extent = Kokkos::fmax(max_x - min_x, Kokkos::fmax(max_y - min_y, max_z - min_z));
+            const float eps = Kokkos::fmin(Kokkos::fmax(0.25f * max_extent, 1.0e-6f), 0.02f);
             boxes(c) = ArborX::Box<3>{{min_x - eps, min_y - eps, min_z - eps}, {max_x + eps, max_y + eps, max_z + eps}};
         });
 
