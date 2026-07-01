@@ -4,7 +4,7 @@
 
 **Goal:** Accelerate target cell location on ORCA-style ocean grids using analytical coordinate reflections, and enable multi-node clustered execution by assembling distributed sparse matrices via the `libs/halo` boundary exchange library.
 
-**Architecture:** 
+**Architecture:**
 - *Tripolar Reflections:* Intercept coordinate lookups near folded seams on-device. If $\phi > \phi_{seam}$, analytically reflect $\lambda$ and $\phi$ and resolve the destination cell in $O(1)$ time, skipping BVH queries.
 - *MPI Distribution:* Introduce `axis::distributed::generate_distributed_weights`. Partition local destination meshes, execute `halo` boundary exchanges to acquire "ghost" source cells, and build a distributed `InterpolationMatrix`.
 
@@ -52,7 +52,7 @@ if (tripolar_info.is_tripolar && query_lat > tripolar_info.seam_lat) {
     // Analytically reflect coordinate
     query_lat = 2.0 * tripolar_info.seam_lat - query_lat;
     query_lon = tripolar_info.seam_lon_center + (tripolar_info.seam_lon_center - query_lon);
-    
+
     // Normalize longitude
     while (query_lon >= 360.0) query_lon -= 360.0;
     while (query_lon < 0.0) query_lon += 360.0;
@@ -133,7 +133,7 @@ In `libs/axis/CMakeLists.txt`, add the new source file (which will be created in
 
 - [ ] **Step 1: Write `distributed_weight_generator.cpp`**
 
-Implement `generate_distributed_weights`. 
+Implement `generate_distributed_weights`.
 *   Use `libs/halo` to determine bounding boxes for `local_dst_mesh`.
 *   Execute an MPI exchange to fetch coordinates and cell variables of overlapping "ghost" source cells from neighboring ranks.
 *   Concatenate `local_src_mesh` and "ghost" source cells into an extended temporary unstructured mesh.

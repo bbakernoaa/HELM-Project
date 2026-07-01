@@ -7,9 +7,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # 1. Install Core HPC & C++20 Toolchain
 RUN apt-get update && apt-get install -y \
     build-essential \
+    clang-format \
+    clang-tidy \
     g++-13 \
     gcc-13 \
     gfortran-13 \
+    libomp-dev \
     cmake \
     ninja-build \
     git \

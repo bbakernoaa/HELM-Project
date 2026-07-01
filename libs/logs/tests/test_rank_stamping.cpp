@@ -196,8 +196,7 @@ TEST_F(RankStampingTest, SentinelRankBeforeConfigure) {
     // All entries must carry the sentinel rank -1 (rendered as "----").
     for (const auto &entry : entries) {
         int extracted = extract_rank_from_formatted(entry);
-        EXPECT_EQ(extracted, -1) << "Before configure_communicator, rank must be sentinel -1. "
-                                 << "Entry: " << entry;
+        EXPECT_EQ(extracted, -1) << "Before configure_communicator, rank must be sentinel -1. " << "Entry: " << entry;
     }
 }
 

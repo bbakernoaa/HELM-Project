@@ -40,7 +40,7 @@ def main():
         "-v", "--var", action="append",
         help="Specific variable(s) to regrid (optional, defaults to all spatial variables)."
     )
-    
+
     args = parser.parse_args()
 
     if not os.path.exists(args.source):

@@ -425,7 +425,7 @@ def run_axis_remap(input_file, target_grid, dst_lats, dst_lons, method, grid_typ
 
         # Initialize high-level xarray regridder
         regridder = axis.Regridder(ds_in, ds_out, method=method, periodic=is_global, line_type=line_type)
-        
+
         # Regrid the DataArray
         da_out = regridder(ds_in["temperature"])
         result = da_out.values

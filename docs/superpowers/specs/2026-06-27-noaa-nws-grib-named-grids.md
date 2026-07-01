@@ -1,7 +1,7 @@
 # Spec: AXIS NOAA NWS Named GRIB Grids Support (G-Family)
 
 ## 1. Overview & Motivation
-Meteorological models operated by NOAA NWS (National Weather Service) and NCEP (National Centers for Environmental Prediction) heavily utilize standardized grids identified by official GRIB grid numbers (such as `grid3`, `grid4`, or `grid218`). 
+Meteorological models operated by NOAA NWS (National Weather Service) and NCEP (National Centers for Environmental Prediction) heavily utilize standardized grids identified by official GRIB grid numbers (such as `grid3`, `grid4`, or `grid218`).
 
 This specification defines the architectural and interface designs to add a new **`G` family** of named grids to the `NamedGridRegistry`, allowing these standard grids to be generated dynamically and analytically on-the-fly inside AXIS without any heavy file-I/O dependencies.
 

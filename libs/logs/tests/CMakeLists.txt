@@ -228,5 +228,3 @@ if(EXISTS "${LOGS_NO_INPUT_PARSING_SCRIPT}")
         TIMEOUT 60
     )
 endif()
-
-

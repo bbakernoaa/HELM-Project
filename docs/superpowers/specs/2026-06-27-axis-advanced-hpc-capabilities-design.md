@@ -24,7 +24,7 @@ enum class ExtrapolationAction : std::uint8_t {
 
 struct RegridConfig {
     // Existing fields (method, line_type, etc.)...
-    
+
     /// @brief Extrapolation method when a destination cell has zero wet source overlaps.
     ExtrapolationAction extrap_method{ExtrapolationAction::NearestWet};
 };

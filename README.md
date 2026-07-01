@@ -32,9 +32,9 @@ mkdir build && cd build
 cmake ..
 make -j4
 ctest --output-on-failure
-   
+
 ## License
 
-This project is part of NOAA-EMC Ecosystem. 
+This project is part of NOAA-EMC Ecosystem.
 
 See LICENSE and DISCLAIMER for details.

@@ -1,0 +1,26 @@
+---
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  readability-container-size-empty,
+  readability-delete-null-pointer,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-redundant-declaration,
+  readability-simplify-boolean-expr,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
+  -clang-analyzer-optin.mpi.MPI-Checker,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-exception-escape,
+  -performance-unnecessary-value-param
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(libs|include|src|tests)/'
+FormatStyle: file
+CheckOptions:
+  - key: bugprone-branch-clone.MinComplexity
+    value: '20'
+...

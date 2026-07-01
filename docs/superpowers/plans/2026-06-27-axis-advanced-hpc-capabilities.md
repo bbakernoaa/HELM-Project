@@ -4,7 +4,7 @@
 
 **Goal:** Implement a suite of advanced high-performance features in AXIS including Coastal Mask Renormalization, optional ESMF-compliant NetCDF Weight I/O, and Warp-Cooperative GPU clipping.
 
-**Architecture:** 
+**Architecture:**
 - *Coastal:* Dynamically filter masked cells, renormalize row sums to exactly 1.0, and perform nearest-neighbor extrapolation via ArborX for completely land-bound points.
 - *NetCDF/ESMF:* Compile an optional C++ `axis_io` target when NetCDF is detected, translating sparse matrices to 1-based, ESMF-compliant formats.
 - *Warp-Cooperative:* Auto-dispatch warp-team parallel clipping for high-order cells (vertices >= 5) using Kokkos shared scratchpad memory.

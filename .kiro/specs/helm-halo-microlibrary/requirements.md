@@ -236,4 +236,3 @@ HALO (Hardware-Abstracted Link Operations) is a Tier 1 C++20 micro-library withi
 14. THE halo_mod and C_Interop_Layer SHALL compile and link correctly with Fortran 2008-compliant compilers including gfortran 9 or later, Intel ifort 2021 or later, and NVIDIA nvfortran 21.1 or later.
 15. THE halo_mod derived types used for configuration structures SHALL use the `bind(c)` attribute with only `integer(c_int)` and `real(c_double)` members, and SHALL NOT contain allocatable, pointer, or polymorphic members.
 16. WHEN halo_mod::halo_init is called with an integer MPI communicator handle, THE C_Interop_Layer SHALL call Environment::initialize and construct a root Communicator from the provided handle, returning an Opaque_Handle for the Communicator and an integer error code.
-

@@ -106,7 +106,7 @@ def _get_mesh_info(
 def _triangulate_mpas_mesh(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Triangulate arbitrary polygon cells (like MPAS Voronoi cells) into triangles."""
     non_spatial_dims = _get_non_spatial_dims(ds)
-    
+
     v_lat = ds["latVertex"]
     v_lon = ds["lonVertex"]
     v_conn = ds["verticesOnCell"]
@@ -115,11 +115,11 @@ def _triangulate_mpas_mesh(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.n
     isel_lat = {d: 0 for d in non_spatial_dims if d in v_lat.dims}
     if isel_lat:
         v_lat = v_lat.isel(isel_lat, drop=True)
-        
+
     isel_lon = {d: 0 for d in non_spatial_dims if d in v_lon.dims}
     if isel_lon:
         v_lon = v_lon.isel(isel_lon, drop=True)
-        
+
     isel_conn = {d: 0 for d in non_spatial_dims if d in v_conn.dims}
     if isel_conn:
         v_conn = v_conn.isel(isel_conn, drop=True)
@@ -174,25 +174,25 @@ def _parse_scrip_bounds(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndar
                 break
     if lon is None:
         raise KeyError("Could not find longitude coordinates.")
-    
+
     lat_bnds_name = lat.attrs.get("bounds", "lat_bnds")
     lon_bnds_name = lon.attrs.get("bounds", "lon_bnds")
-    
+
     lat_bnds = ds[lat_bnds_name].values
     lon_bnds = ds[lon_bnds_name].values
-    
+
     n_cells, nv = lat_bnds.shape
-    
+
     node_lons = []
     node_lats = []
     conn_offsets = [0]
     conn_indices = []
-    
+
     node_counter = 0
     for idx in range(n_cells):
         lats_c = lat_bnds[idx]
         lons_c = lon_bnds[idx]
-        
+
         # Filter out repeated padded corners
         cell_vertices = []
         for v in range(nv):
@@ -200,21 +200,21 @@ def _parse_scrip_bounds(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndar
             if v > 0 and lats_c[v] == lats_c[v-1] and lons_c[v] == lons_c[v-1]:
                 continue
             cell_vertices.append((lons_c[v], lats_c[v]))
-            
+
         n_vertices = len(cell_vertices)
         if n_vertices < 3:
             # Fallback: if too many repeated, just use the first 3
             cell_vertices = [(lons_c[0], lats_c[0]), (lons_c[1], lats_c[1]), (lons_c[2], lats_c[2])]
             n_vertices = 3
-            
+
         for lon_val, lat_val in cell_vertices:
             node_lons.append(lon_val)
             node_lats.append(lat_val)
             conn_indices.append(node_counter)
             node_counter += 1
-            
+
         conn_offsets.append(len(conn_indices))
-        
+
     return (
         np.mod(np.array(node_lons), 360.0),
         np.array(node_lats),

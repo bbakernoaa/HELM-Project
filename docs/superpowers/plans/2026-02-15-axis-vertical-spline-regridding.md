@@ -7,7 +7,7 @@
 2.  **AXIS-Vector:** 2D vector field regridding with local frame rotations pre-assembled into unified remapping matrices.
 3.  **AXIS-Tripolar:** Analytical coordinate fast-path for tripolar ORCA ocean grids to resolve polar folding seams.
 
-**Architecture:** 
+**Architecture:**
 - *Vertical:* Port Robert Renka's core TSPACK spline evaluation and tridiagonal solving routines into C++ device-resident inline functions (`KOKKOS_FUNCTION`) running column-parallel with static stack-allocated workspaces.
 - *Vector:* Pre-assemble coordinate rotation matrices ($R$) with spatial interpolation weights ($W$) into coupled SpMV weights matrices ($W_u$, $W_v$).
 - *Tripolar:* Identify tripolar land poles analytically and execute localized $O(1)$ reflection coordinate translation near folded boundaries.

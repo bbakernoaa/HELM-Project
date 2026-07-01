@@ -15,11 +15,11 @@ _DRIVER_CACHE = {}
 class Regridder:
     """
     Exascale-ready spatial regridder wrapping AXIS's compiled Kokkos-parallel engine.
-    
-    Seamlessly supports NumPy eager arrays, xarray Datasets/DataArrays, and Dask 
+
+    Seamlessly supports NumPy eager arrays, xarray Datasets/DataArrays, and Dask
     distributed lazy arrays.
     """
-    
+
     def __init__(
         self,
         ds_in: xr.Dataset,
@@ -35,7 +35,7 @@ class Regridder:
         """
         Initialize the regridder by generating spatial interpolation weights in C++,
         or by reloading pre-computed weights from a file.
-        
+
         Parameters
         ----------
         ds_in : xarray.Dataset
@@ -68,7 +68,7 @@ class Regridder:
         # Extract coordinate information and dimensions
         _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(ds_in, method)
         _, _, self._shape_target, self._dims_target, _ = _get_mesh_info(ds_out, method)
-        
+
         # Save original datasets for coordinate matching
         self.source_grid_ds = ds_in
         self.target_grid_ds = ds_out
@@ -90,7 +90,7 @@ class Regridder:
             }
             if method.lower() not in method_map:
                 raise ValueError(f"Unknown interpolation method: {method}. Choose from {list(method_map.keys())}")
-            
+
             self._axis_method = method_map[method.lower()]
 
             # Map line_type to AXIS LineType enum
@@ -115,7 +115,7 @@ class Regridder:
 
             # Build sparse matrix weights
             self._weights_matrix = axis_py.generate_weights(self._src_mesh, self._dst_mesh, config)
-            
+
             # Serialize C++ weights to bytes so they can be securely copied to remote Dask workers
             self._serialized_weights = self._weights_matrix.to_bytes()
 
@@ -128,7 +128,7 @@ class Regridder:
     def to_file(self, filename: str) -> None:
         """
         Save the compiled sparse regridding weights to a binary file for future reuse.
-        
+
         Parameters
         ----------
         filename : str

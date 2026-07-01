@@ -298,8 +298,8 @@ TEST_F(NeighborCollectiveEquivalenceTest, MatchesBlockingNonPeriodic) {
 
     for (std::size_t i = 0; i < kTotal; ++i) {
         for (std::size_t j = 0; j < kTotal; ++j) {
-            EXPECT_DOUBLE_EQ(h_blocking(i, j), h_neighbor(i, j)) << "Non-periodic: mismatch between blocking and neighbor_collective"
-                                                                 << " at (" << i << ", " << j << ") on rank " << rank_;
+            EXPECT_DOUBLE_EQ(h_blocking(i, j), h_neighbor(i, j))
+                << "Non-periodic: mismatch between blocking and neighbor_collective" << " at (" << i << ", " << j << ") on rank " << rank_;
         }
     }
 }

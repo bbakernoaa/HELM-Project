@@ -134,8 +134,7 @@ int main(int argc, char *argv[]) {
         // ── Verify: recv region now contains data from left neighbor ─────────
         const std::size_t recv_start = own_end;
         if (num_ranks > 1) {
-            std::cout << "[Rank " << my_rank << "] "
-                      << "First received cell value = " << temperature(recv_start) << "\n";
+            std::cout << "[Rank " << my_rank << "] " << "First received cell value = " << temperature(recv_start) << "\n";
         } else {
             std::cout << "[Rank 0] Single-rank: recv mirrors own data = " << temperature(recv_start) << "\n";
         }

@@ -73,7 +73,7 @@ if(NOT Kokkos_FOUND AND AXIS_FETCH_KOKKOS)
     set(Kokkos_ENABLE_OPENMP ON CACHE BOOL "Enable OpenMP backend" FORCE)
     set(Kokkos_ENABLE_SERIAL ON CACHE BOOL "Enable Serial backend" FORCE)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    
+
     FetchContent_MakeAvailable(kokkos)
     set(Kokkos_FOUND ON)
 
@@ -256,14 +256,14 @@ if(AXIS_ENABLE_NETCDF)
     if(NOT netCDF_FOUND)
         find_package(NetCDF COMPONENTS C QUIET)
     endif()
-    
+
     if(netCDF_FOUND OR NetCDF_FOUND)
         set(AXIS_HAVE_NETCDF 1)
         add_library(axis_io STATIC
             src/io/esmf_weight_io.cpp
         )
         add_library(HELM::AXIS_IO ALIAS axis_io)
-        
+
         target_link_libraries(axis_io PUBLIC axis)
         if(TARGET netCDF::netcdf)
             target_link_libraries(axis_io PRIVATE netCDF::netcdf)
@@ -272,10 +272,10 @@ if(AXIS_ENABLE_NETCDF)
         else()
             target_link_libraries(axis_io PRIVATE ${netCDF_LIBRARIES} ${NetCDF_LIBRARIES})
         endif()
-        
+
         target_compile_definitions(axis_io PUBLIC AXIS_HAVE_NETCDF=1)
         target_compile_definitions(axis PUBLIC AXIS_HAVE_NETCDF=1)
-        
+
         message(STATUS "AXIS: NetCDF found — compiling optional axis_io target")
     else()
         message(STATUS "AXIS: NetCDF NOT found — optional axis_io target disabled")

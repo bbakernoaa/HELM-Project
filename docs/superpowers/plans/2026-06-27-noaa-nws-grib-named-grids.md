@@ -31,7 +31,7 @@ In `libs/axis/src/topology/named_grid_registry.cpp`, add case-insensitive `"grid
 ```cpp
     std::string lower_name = name;
     for (char& c : lower_name) c = std::tolower(c);
-    
+
     if (lower_name.rfind("grid", 0) == 0) {
         std::string num_str = name.substr(4);
         int grid_num = std::stoi(num_str);

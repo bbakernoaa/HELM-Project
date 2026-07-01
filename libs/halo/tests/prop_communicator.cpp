@@ -142,9 +142,7 @@ RC_GTEST_PROP(CommunicatorProperty3, DestructorSkipsPredefined, ()) {
     auto predefined_val = *rc::gen::element(reinterpret_cast<std::uintptr_t>(MPI_COMM_WORLD), reinterpret_cast<std::uintptr_t>(MPI_COMM_SELF));
     MPI_Comm predefined = toComm(predefined_val);
 
-    {
-        halo::Communicator communicator(predefined);
-    }
+    { halo::Communicator communicator(predefined); }
 
     // Verify MPI_Comm_free was NOT called
     auto comm_free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Comm_free);
@@ -157,9 +155,7 @@ RC_GTEST_PROP(CommunicatorProperty3, DestructorSkipsNull, ()) {
     auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
-    {
-        halo::Communicator communicator(MPI_COMM_NULL);
-    }
+    { halo::Communicator communicator(MPI_COMM_NULL); }
 
     // Verify MPI_Comm_free was NOT called
     auto comm_free_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Comm_free);
