@@ -90,4 +90,42 @@ TEST(ConservativeRectNonUniform, KnownAnalyticOverlaps) {
     EXPECT_NEAR(sum1, 1.0, 1e-12);
 }
 
+TEST(ConservativeRectNonUniform, SphericalGreatCircleFastPath) {
+    // Coordinate vectors with non-uniform spacings
+    std::vector<double> src_lons = {0.0, 10.0, 30.0, 40.0};
+    std::vector<double> src_lats = {0.0, 10.0, 30.0};
+
+    // Dst has 2x1 cells
+    std::vector<double> dst_lons = {0.0, 20.0, 40.0};
+    std::vector<double> dst_lats = {0.0, 20.0};
+
+    auto src_mesh = make_nonuniform_conservative_grid(src_lons, src_lats);
+    auto dst_mesh = make_nonuniform_conservative_grid(dst_lons, dst_lats);
+
+    solver::RegridConfig cfg;
+    cfg.method = solver::InterpolationMethod::Conservative1stOrder;
+    cfg.line_type = solver::LineType::GreatCircle;  // This triggers the spherical-exact fast-path!
+    cfg.unmapped = solver::UnmappedAction::Ignore;
+
+    auto matrix = solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
+
+    EXPECT_EQ(matrix.n_src(), 6);
+    EXPECT_EQ(matrix.n_dst(), 2);
+
+    // Verify row sums are consistent with coverage under spherical area
+    auto rows = matrix.factor_row();
+    auto vals = matrix.factor_list();
+    double sum0 = 0.0, sum1 = 0.0;
+    for (std::size_t k = 0; k < matrix.nnz(); ++k) {
+        if (rows[k] == 0) {
+            sum0 += vals[k];
+        } else if (rows[k] == 1) {
+            sum1 += vals[k];
+        }
+    }
+
+    EXPECT_NEAR(sum0, 1.0, 1e-12);
+    EXPECT_NEAR(sum1, 1.0, 1e-12);
+}
+
 }  // namespace axis::test

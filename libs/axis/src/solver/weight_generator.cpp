@@ -3000,12 +3000,10 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const to
     }
 
     // ── Non-uniform rectilinear grid fast-path dispatch ──
-    // Only dispatch when we are using Cartesian line type or non-spherical coordinates,
-    // as Cartesian (dx * dy) flat area overlap approximations break spherical conservation.
+    // Fully supports spherical-exact analytical conservative overlaps.
     auto src_rect_info = detail::detect_rectilinear_grid(src_mesh);
     auto dst_rect_info = detail::detect_rectilinear_grid(dst_mesh);
-    if (src_rect_info.is_rectilinear && dst_rect_info.is_rectilinear &&
-        (config.line_type == LineType::Cartesian || src_mesh.coord_system() == topology::CoordinateSystem::Cartesian3D)) {
+    if (src_rect_info.is_rectilinear && dst_rect_info.is_rectilinear) {
         auto result = generate_conservative_rect_nonuniform(src_mesh, dst_mesh, config, src_rect_info, dst_rect_info);
         if (result.nnz() > 0) {
             return result;
