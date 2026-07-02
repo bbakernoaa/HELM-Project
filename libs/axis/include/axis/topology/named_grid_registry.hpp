@@ -42,7 +42,7 @@ class NamedGridRegistry {
     ///
     /// For example, "O1280" parses into family 'O' and number 1280.
     struct ParsedName {
-        char family;  ///< Family prefix: 'O', 'F', or 'N' (standard weather grid families).
+        char family;  ///< Family prefix: 'O', 'F', 'N', or 'R' (standard weather grid families).
         int number;   ///< Grid number (a positive integer, typically representing the Gaussian number N).
     };
 
@@ -78,7 +78,7 @@ class NamedGridRegistry {
 
     /// @brief Enumerate all registered family prefixes.
     ///
-    /// @return std::vector<char> A sorted vector of registered grid family characters (currently {'F', 'N', 'O'}).
+    /// @return std::vector<char> A sorted vector of registered grid family characters (currently {'F', 'N', 'O', 'R'}).
     [[nodiscard]] static std::vector<char> registered_families();
 };
 

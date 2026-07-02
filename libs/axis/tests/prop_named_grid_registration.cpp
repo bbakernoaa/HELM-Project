@@ -31,9 +31,9 @@ using axis::topology::NamedGridRegistry;
 
 // ─── RapidCheck Generators ───────────────────────────────────────────────────
 
-/// Generate a valid family prefix character: one of 'O', 'F', 'N'.
+/// Generate a valid family prefix character: one of 'O', 'F', 'N', 'R'.
 rc::Gen<char> genValidFamily() {
-    return rc::gen::element('O', 'F', 'N');
+    return rc::gen::element('O', 'F', 'N', 'R');
 }
 
 /// Generate a positive integer suitable as a grid number.
@@ -48,13 +48,13 @@ rc::Gen<std::string> genValidName() {
                           genPositiveNumber());
 }
 
-/// Generate an invalid family prefix character: NOT one of 'O', 'F', 'N',
-/// 'o', 'f', 'n' — actually parse uppercases, so any char NOT in {O, F, N}
+/// Generate an invalid family prefix character: NOT one of 'O', 'F', 'N', 'R',
+/// 'o', 'f', 'n', 'r' — actually parse uppercases, so any char NOT in {O, F, N, R}
 /// after toupper will be invalid. We pick from characters that are definitely
 /// not valid families.
 rc::Gen<char> genInvalidFamily() {
     return rc::gen::suchThat(rc::gen::inRange<char>('A', '['),  // 'A'..'Z'
-                             [](char c) { return c != 'O' && c != 'F' && c != 'N'; });
+                             [](char c) { return c != 'O' && c != 'F' && c != 'N' && c != 'R'; });
 }
 
 /// Generate a non-positive number (0 or negative).
@@ -195,14 +195,14 @@ RC_GTEST_PROP(PropNamedGridRegistration, FamilyOnlyThrows, ()) {
 //
 // **Validates: Requirements 6.3**
 
-RC_GTEST_PROP(PropNamedGridRegistration, RegisteredFamiliesAreFNO, ()) {
+RC_GTEST_PROP(PropNamedGridRegistration, RegisteredFamiliesAreFNOR, ()) {
     auto families = NamedGridRegistry::registered_families();
 
     // Must be sorted
     RC_ASSERT(std::is_sorted(families.begin(), families.end()));
 
-    // Must contain exactly F, N, O
-    const std::vector<char> expected = {'F', 'N', 'O'};
+    // Must contain exactly F, N, O, R
+    const std::vector<char> expected = {'F', 'N', 'O', 'R'};
     RC_ASSERT(families == expected);
 }
 

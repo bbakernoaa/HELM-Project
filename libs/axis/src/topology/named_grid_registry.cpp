@@ -665,9 +665,9 @@ NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string &name) 
     char family = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
 
     // Validate family
-    if (family != 'O' && family != 'F' && family != 'N') {
+    if (family != 'O' && family != 'F' && family != 'N' && family != 'R') {
         throw std::invalid_argument("NamedGridRegistry::parse: unknown grid family '" + std::string(1, name[0]) + "' in name \"" + name +
-                                    "\"; registered families are O, F, N, and grid<num>");
+                                    "\"; registered families are O, F, N, R, and grid<num>");
     }
 
     // Parse number
@@ -710,7 +710,7 @@ bool NamedGridRegistry::is_registered(const std::string &name) noexcept {
 }
 
 std::vector<char> NamedGridRegistry::registered_families() {
-    return {'F', 'N', 'O'};
+    return {'F', 'N', 'O', 'R'};
 }
 
 // Explicit instantiation of generate for HostSpace
