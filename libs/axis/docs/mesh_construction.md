@@ -67,6 +67,7 @@ auto mesh = axis::topology::NamedGridRegistry::generate("N128");
 | `O<N>` | Octahedral reduced Gaussian | O48, O96, O320 |
 | `N<N>` | Regular Gaussian | N48, N128, N256 |
 | `F<N>` | Full (regular lat-lon) | F90, F180 |
+| `R<N>` | Global Rectilinear Normal Lat-Lon | R90, R360 |
 
 ## Rule-Based Generation
 
