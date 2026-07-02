@@ -384,6 +384,10 @@ struct NoaaGribDefinition {
 /// @brief Global declarative registry of supported NOAA GRIB grids.
 /// @details Adding a new grid to AXIS is a simple, single-line addition here!
 static const NoaaGribDefinition NOAA_GRIB_GRIDS[] = {
+    // grid3: GFS 1.0 degree global grid
+    {3, 360, 181, -180.0, -90.0, 1.0, 1.0, nullptr},
+    // grid4: GFS 0.5 degree global grid
+    {4, 720, 361, -180.0, -90.0, 0.5, 0.5, nullptr},
     // grid87: U.S. Area; used in MAPS/RUC (60km at 40N) (N. Hem. Polar Stereographic)
     {87, 81, 62, 0.0, 0.0, 0.0, 0.0, "+proj=stere +lat_ts=60 +lat_0=90 +lon_0=255.0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"},
     // grid88: North American Area; used in RSAS (Polar Stereographic)
@@ -728,6 +732,14 @@ UnstructuredMesh<Kokkos::HostSpace> NamedGridRegistry::generate<Kokkos::HostSpac
             return generate_octahedral_gaussian<Kokkos::HostSpace>(parsed.number);
         case 'F':
             return generate_regular_gaussian<Kokkos::HostSpace>(parsed.number);
+        case 'R': {
+            const int N = parsed.number;
+            const std::size_t ni = static_cast<std::size_t>(4 * N);
+            const std::size_t nj = static_cast<std::size_t>(2 * N);
+            const double dlon = 360.0 / static_cast<double>(ni);
+            const double dlat = 180.0 / static_cast<double>(nj);
+            return generate_regular_grid<Kokkos::HostSpace>(ni, nj, -180.0, -90.0, dlon, dlat);
+        }
         default:
             // Should not reach here due to parse() validation
             throw std::invalid_argument("NamedGridRegistry::generate: unknown family '" + std::string(1, parsed.family) + "'");

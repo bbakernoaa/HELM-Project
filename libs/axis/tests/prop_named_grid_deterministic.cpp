@@ -28,9 +28,9 @@ namespace {
 
 // ─── RapidCheck Generators ───────────────────────────────────────────────────
 
-/// Generate a valid grid family character: 'O', 'F', or 'N'.
+/// Generate a valid grid family character: 'O', 'F', 'N', or 'R'.
 rc::Gen<char> genFamily() {
-    return rc::gen::element('O', 'F', 'N');
+    return rc::gen::element('O', 'F', 'N', 'R');
 }
 
 /// Generate a small N value in [2, 8] to keep tests fast while exercising

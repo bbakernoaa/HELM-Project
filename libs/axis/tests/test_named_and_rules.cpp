@@ -96,4 +96,32 @@ TEST(NamedAndRules, ZeroResolutionThrows) {
     EXPECT_THROW(topology::RuleGenerator::generate<MemSpace>(rules), std::invalid_argument);
 }
 
+// Test: generate("R4") produces a rectilinear normal lat-lon grid with 16x8 cells
+TEST(NamedAndRules, R4GeneratesCorrectMesh) {
+    auto mesh = topology::NamedGridRegistry::generate<MemSpace>("R4");
+
+    // ni = 16, nj = 8
+    // n_cells = 16 * 8 = 128
+    // n_nodes = 17 * 9 = 153
+    EXPECT_EQ(mesh.n_cells(), std::size_t(128));
+    EXPECT_EQ(mesh.n_nodes(), std::size_t(153));
+
+    // Verify coordinate range spans [-180, 180] in x and [-90, 90] in y
+    auto coords = mesh.node_coords();
+    double min_x = 999.0, max_x = -999.0;
+    double min_y = 999.0, max_y = -999.0;
+    for (std::size_t i = 0; i < mesh.n_nodes(); ++i) {
+        double x = coords(i, 0);
+        double y = coords(i, 1);
+        if (x < min_x) min_x = x;
+        if (x > max_x) max_x = x;
+        if (y < min_y) min_y = y;
+        if (y > max_y) max_y = y;
+    }
+    EXPECT_NEAR(min_x, -180.0, 1e-7);
+    EXPECT_NEAR(max_x, 180.0, 1e-7);
+    EXPECT_NEAR(min_y, -90.0, 1e-7);
+    EXPECT_NEAR(max_y, 90.0, 1e-7);
+}
+
 }  // namespace axis::test
