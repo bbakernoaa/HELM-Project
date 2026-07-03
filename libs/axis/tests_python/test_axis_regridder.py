@@ -212,6 +212,44 @@ def test_regridder_unstructured_mpas():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 1.0, rtol=1e-12)
 
+def test_regridder_mpas_hex():
+    """Verify that MPAS meshes with hexagons and pentagons regrid correctly with cell-centered remapping."""
+    n_cells = 2
+    n_vertices = 7
+
+    # 7 vertices
+    lat_vertex = np.array([10.0, 10.0, 15.0, 20.0, 20.0, 15.0, 12.0])
+    lon_vertex = np.array([10.0, 20.0, 25.0, 20.0, 10.0, 5.0, 15.0])
+
+    # 2 cells (hexagon and pentagon)
+    vertices_on_cell = np.array([
+        [1, 2, 3, 4, 5, 6],     # Hexagon (6 edges)
+        [1, 2, 4, 7, 6, 0]      # Pentagon (5 edges, padded with 0)
+    ])
+
+    ds_in = xr.Dataset({
+        "latVertex": (["nVertices"], lat_vertex),
+        "lonVertex": (["nVertices"], lon_vertex),
+        "verticesOnCell": (["nCells", "maxVertices"], vertices_on_cell),
+        "latCell": (["nCells"], [15.0, 14.0]),
+        "lonCell": (["nCells"], [15.0, 13.0]),
+        "nEdgesOnCell": (["nCells"], [6, 5]),
+        "temperature": (["nCells"], np.array([25.0, 30.0]))
+    })
+
+    # Destination regular grid
+    ds_out = xr.Dataset({
+        "lon": (["lon"], [15.0]),
+        "lat": (["lat"], [15.0]),
+    })
+
+    regridder = axis.Regridder(ds_in, ds_out, method="nearest")
+    da_out = regridder(ds_in["temperature"])
+
+    assert da_out.dims == ("lat", "lon")
+    assert da_out.shape == (1, 1)
+    np.testing.assert_allclose(da_out.values, 25.0, rtol=1e-12)
+
 def test_regridder_projected_lcc():
     """Verify that regional Lambert Conformal projected datasets parse and regrid correctly."""
     # Build 2D curvilinear coordinates with standard grid_mapping metadata

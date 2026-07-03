@@ -60,5 +60,9 @@ lcov.info
 *.bak
 *.orig
 *.rej
-core
-core.*
+# Ignore system core dumps specifically in root or build trees, avoiding python files like core.py
+/core
+/core.*
+**/core
+**/core.*
+!**/core.py

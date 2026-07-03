@@ -253,13 +253,56 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
     lon, lat, shape, dims, is_unstructured = _get_mesh_info(ds, method)
 
     if is_unstructured:
-        # 1. Triangulated MPAS
+        # 1. MPAS (Arbitrary polygonal cells)
         if "verticesOnCell" in ds and "latVertex" in ds:
-            node_lon, node_lat, element_conn = _triangulate_mpas_mesh(ds)
+            # Check if method is cell-centered (nearest/conservative/conservative2nd)
+            cell_centered = (method is not None) and (method.lower() in ["nearest", "conservative", "conservative2nd"])
+            
+            # Normalize and wrap coordinates
+            v_lat = ds["latVertex"]
+            v_lon = ds["lonVertex"]
+            non_spatial_dims = _get_non_spatial_dims(ds)
+            isel_lat = {d: 0 for d in non_spatial_dims if d in v_lat.dims}
+            if isel_lat:
+                v_lat = v_lat.isel(isel_lat, drop=True)
+            isel_lon = {d: 0 for d in non_spatial_dims if d in v_lon.dims}
+            if isel_lon:
+                v_lon = v_lon.isel(isel_lon, drop=True)
+
+            node_lat = v_lat.values
+            node_lon = v_lon.values
+            if not np.any(np.abs(node_lat) > 2.0 * np.pi):
+                 node_lat = np.degrees(node_lat)
+                 node_lon = np.degrees(node_lon)
+            node_lon = np.mod(node_lon, 360.0)
             node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
-            conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
-            conn_indices = element_conn.astype(np.int32)
-            return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+
+            if cell_centered:
+                # Raw polygonal MPAS mesh directly (no triangulation!)
+                v_conn = ds["verticesOnCell"]
+                isel_conn = {d: 0 for d in non_spatial_dims if d in v_conn.dims}
+                if isel_conn:
+                    v_conn = v_conn.isel(isel_conn, drop=True)
+                
+                conn_raw = v_conn.values
+                n_edges = ds["nEdgesOnCell"].values if "nEdgesOnCell" in ds else np.full(conn_raw.shape[0], conn_raw.shape[1])
+                
+                conn_offsets = np.zeros(len(n_edges) + 1, dtype=np.int32)
+                conn_offsets[1:] = np.cumsum(n_edges)
+                
+                n_cells, max_edges = conn_raw.shape
+                row_indices = np.arange(max_edges)
+                mask = row_indices[None, :] < n_edges[:, None]
+                conn_indices = (conn_raw[mask] - 1).astype(np.int32)
+                
+                return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+            else:
+                # Triangulated MPAS (for bilinear/bicubic/patch)
+                node_lon, node_lat, element_conn = _triangulate_mpas_mesh(ds)
+                node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
+                conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
+                conn_indices = element_conn.astype(np.int32)
+                return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
         # 2. SCRIP 2D Bounds format
         elif "lat_bnds" in ds or any("bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon"]):
             node_lon, node_lat, conn_offsets, conn_indices = _parse_scrip_bounds(ds)
