@@ -13,7 +13,7 @@ UNSTRUCTURED_DIMS = {
 
 def _get_non_spatial_dims(ds: xr.Dataset) -> set[str]:
     """Identify and filter out non-spatial dimensions (Time, Z, Member)."""
-    spatial_keywords = {"lat", "lon", "x", "y", "node", "face", "element", "cell", "n_pts", "ncol", "ncells", "grid_size", "vert", "vertex", "vertices"}
+    spatial_keywords = {"lat", "lon", "x", "y", "node", "face", "element", "cell", "n_pts", "ncol", "ncells", "grid_size", "vert", "vertex", "vertices", "tile"}
     non_spatial = set()
     for d in ds.dims:
         d_lower = str(d).lower()
@@ -89,6 +89,19 @@ def _get_mesh_info(
                 is_unstructured = True
                 break
 
+    if not is_unstructured:
+        if lat.ndim == 3:
+            is_unstructured = True
+        elif lat.ndim == 2:
+            # If 2D curvilinear with NO lambert conformal conic mapping, treat as unstructured quad mesh
+            has_lcc = False
+            for v in ds.variables:
+                if ds[v].attrs.get("grid_mapping_name") == "lambert_conformal_conic":
+                    has_lcc = True
+                    break
+            if not has_lcc:
+                is_unstructured = True
+
     if is_unstructured:
         return lon, lat, lat.shape, lat.dims, True
     else:
@@ -102,6 +115,26 @@ def _get_mesh_info(
         else:
             # Curvilinear grid with 2D lat and 2D lon
             return lon, lat, lat.shape, lat.dims, False
+
+def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Synthesize (ny+1, nx+1) corner coordinates from (ny, nx) cell centers via fast 2D slicing."""
+    ny, nx = lon.shape
+    pad_lon = np.pad(lon, 1, mode="edge")
+    pad_lat = np.pad(lat, 1, mode="edge")
+    
+    # Sum the 4 surrounding padded elements
+    sum_lon = (
+        pad_lon[:-1, :-1] + pad_lon[:-1, 1:] +
+        pad_lon[1:, :-1] + pad_lon[1:, 1:]
+    )
+    sum_lat = (
+        pad_lat[:-1, :-1] + pad_lat[:-1, 1:] +
+        pad_lat[1:, :-1] + pad_lat[1:, 1:]
+    )
+    
+    clon = sum_lon / 4.0
+    clat = sum_lat / 4.0
+    return clon, clat
 
 def _triangulate_mpas_mesh(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Triangulate arbitrary polygon cells (like MPAS Voronoi cells) into triangles."""
@@ -308,7 +341,57 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
             node_lon, node_lat, conn_offsets, conn_indices = _parse_scrip_bounds(ds)
             node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
             return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
-        # 3. CF-UGRID standard
+        # 3. Curvilinear (2D) or Cubed-Sphere (3D) coordinate arrays fallback
+        elif lat.ndim in [2, 3]:
+            if lat.ndim == 2:
+                # 2D Curvilinear grid
+                clon, clat = _synthesize_curvilinear_corners(lon.values, lat.values)
+                node_coords = np.asfortranarray(np.column_stack([clon.ravel(), clat.ravel()]))
+                
+                ni, nj = lon.shape[1], lon.shape[0]
+                nip1 = ni + 1
+                n_cells = ni * nj
+                conn_offsets = np.arange(0, n_cells * 4 + 1, 4, dtype=np.int32)
+                
+                i_grid, j_grid = np.meshgrid(np.arange(ni), np.arange(nj))
+                bl = (i_grid + j_grid * nip1).ravel()
+                br = ((i_grid + 1) + j_grid * nip1).ravel()
+                tr = ((i_grid + 1) + (j_grid + 1) * nip1).ravel()
+                tl = (i_grid + (j_grid + 1) * nip1).ravel()
+                
+                conn_indices = np.column_stack([bl, br, tr, tl]).astype(np.int32).ravel()
+                return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+            else:
+                # 3D Cubed-Sphere grid (ntiles, ny, nx)
+                ntiles, ny, nx = lon.shape
+                node_coords_list = []
+                conn_indices_list = []
+                node_offset = 0
+                
+                for t in range(ntiles):
+                    clon_t, clat_t = _synthesize_curvilinear_corners(lon[t].values, lat[t].values)
+                    coords_t = np.column_stack([clon_t.ravel(), clat_t.ravel()])
+                    node_coords_list.append(coords_t)
+                    
+                    ni, nj = nx, ny
+                    nip1 = ni + 1
+                    i_grid, j_grid = np.meshgrid(np.arange(ni), np.arange(nj))
+                    bl = (i_grid + j_grid * nip1 + node_offset).ravel()
+                    br = ((i_grid + 1) + j_grid * nip1 + node_offset).ravel()
+                    tr = ((i_grid + 1) + (j_grid + 1) * nip1 + node_offset).ravel()
+                    tl = (i_grid + (j_grid + 1) * nip1 + node_offset).ravel()
+                    
+                    indices_t = np.column_stack([bl, br, tr, tl]).astype(np.int32).ravel()
+                    conn_indices_list.append(indices_t)
+                    
+                    node_offset += len(coords_t)
+                    
+                node_coords = np.asfortranarray(np.concatenate(node_coords_list))
+                conn_indices = np.concatenate(conn_indices_list)
+                conn_offsets = np.arange(0, len(conn_indices) + 1, 4, dtype=np.int32)
+                
+                return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+        # 4. CF-UGRID standard
         else:
             node_lon, node_lat, element_conn = _get_ugrid_info(ds)
             node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))

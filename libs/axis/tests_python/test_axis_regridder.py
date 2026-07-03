@@ -250,6 +250,62 @@ def test_regridder_mpas_hex():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 25.0, rtol=1e-12)
 
+def test_regridder_curvilinear_2d():
+    """Verify that general 2D curvilinear grids (without LCC) parse and regrid correctly."""
+    # Build 2D curvilinear coordinates
+    lons = np.array([[10.0, 20.0], [10.0, 20.0]])
+    lats = np.array([[10.0, 10.0], [20.0, 20.0]])
+
+    ds_in = xr.Dataset({
+        "lon": (["y", "x"], lons),
+        "lat": (["y", "x"], lats),
+        "temperature": (["y", "x"], np.array([[10.0, 20.0], [30.0, 40.0]])),
+    })
+
+    # Destination regular grid
+    ds_out = xr.Dataset({
+        "lon": (["lon"], [11.0]),
+        "lat": (["lat"], [11.0]),
+    })
+
+    regridder = axis.Regridder(ds_in, ds_out, method="nearest")
+    da_out = regridder(ds_in["temperature"])
+
+    assert da_out.dims == ("lat", "lon")
+    assert da_out.shape == (1, 1)
+    np.testing.assert_allclose(da_out.values, 10.0, rtol=1e-12)
+
+def test_regridder_cubed_sphere_3d():
+    """Verify that 3D cubed-sphere grids (ntiles, ny, nx) parse and regrid correctly."""
+    # Build 3D coordinates representing 6 tiles of size 2x2
+    ntiles = 6
+    ny, nx = 2, 2
+    lons = np.zeros((ntiles, ny, nx))
+    lats = np.zeros((ntiles, ny, nx))
+    
+    for t in range(ntiles):
+        lons[t] = np.array([[10.0, 20.0], [10.0, 20.0]]) + t * 40.0
+        lats[t] = np.array([[10.0, 10.0], [20.0, 20.0]])
+
+    ds_in = xr.Dataset({
+        "lon": (["tile", "y", "x"], lons),
+        "lat": (["tile", "y", "x"], lats),
+        "temperature": (["tile", "y", "x"], np.ones((ntiles, ny, nx)) * 42.0),
+    })
+
+    # Destination regular grid
+    ds_out = xr.Dataset({
+        "lon": (["lon"], [55.0]),
+        "lat": (["lat"], [15.0]),
+    })
+
+    regridder = axis.Regridder(ds_in, ds_out, method="nearest")
+    da_out = regridder(ds_in["temperature"])
+
+    assert da_out.dims == ("lat", "lon")
+    assert da_out.shape == (1, 1)
+    np.testing.assert_allclose(da_out.values, 42.0, rtol=1e-12)
+
 def test_regridder_projected_lcc():
     """Verify that regional Lambert Conformal projected datasets parse and regrid correctly."""
     # Build 2D curvilinear coordinates with standard grid_mapping metadata
