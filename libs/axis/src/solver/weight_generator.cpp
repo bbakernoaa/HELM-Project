@@ -534,6 +534,15 @@ inline bool point_in_polygon(double px, double py, const std::vector<Vec2> &poly
     return winding != 0;
 }
 
+/// Project coordinate (lon, lat) gnomonically onto a tangent plane centered at (lon0, lat0).
+/// Coordinates are assumed to be in radians.
+inline void project_gnomonic(double lon0, double lat0, double lon, double lat, double &u, double &v) {
+    double cos_c = std::sin(lat0) * std::sin(lat) + std::cos(lat0) * std::cos(lat) * std::cos(lon - lon0);
+    if (cos_c <= 0.0) cos_c = 1e-15;
+    u = (std::cos(lat) * std::sin(lon - lon0)) / cos_c;
+    v = (std::sin(lat) * std::cos(lat0) - std::cos(lat) * std::sin(lat0) * std::cos(lon - lon0)) / cos_c;
+}
+
 // ──────────── Bilinear shape functions for quads (Newton iteration) ──────────
 
 /// Map physical point (px, py) to reference coordinates (xi, eta) in [-1,1]^2
@@ -2256,6 +2265,7 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
 
     const std::size_t n_src = src_mesh.n_cells();
     const std::size_t n_dst = dst_mesh.n_cells();
+    const auto csys = src_mesh.coord_system();
 
     // Number of neighbors for IDW fallback
     const int k_fallback = static_cast<int>(std::min(static_cast<std::size_t>(4), n_src));
@@ -2312,6 +2322,15 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
         double px = dst_cx(j);
         double py = dst_cy(j);
 
+        bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
+        double lon0 = px;
+        double lat0 = py;
+        if (csys == topology::CoordinateSystem::SphericalDeg) {
+            const double pi = 3.14159265358979323846;
+            lon0 = lon0 * pi / 180.0;
+            lat0 = lat0 * pi / 180.0;
+        }
+
         // Try point-in-cell on the nearest source cell
         auto nearest_src = static_cast<std::size_t>(values(begin).index);
 
@@ -2321,14 +2340,38 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
 
         bool used_shape_functions = false;
 
-        if (point_in_polygon(px, py, poly)) {
+        // Convert polygon vertices to local tangent plane if spherical
+        std::vector<Vec2> local_poly(n_verts);
+        double test_px = px;
+        double test_py = py;
+
+        if (is_spherical) {
+            test_px = 0.0;
+            test_py = 0.0;
+            for (std::size_t i = 0; i < n_verts; ++i) {
+                double v_lon = poly[i].x;
+                double v_lat = poly[i].y;
+                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                    const double pi = 3.14159265358979323846;
+                    v_lon = v_lon * pi / 180.0;
+                    v_lat = v_lat * pi / 180.0;
+                }
+                project_gnomonic(lon0, lat0, v_lon, v_lat, local_poly[i].x, local_poly[i].y);
+            }
+        } else {
+            for (std::size_t i = 0; i < n_verts; ++i) {
+                local_poly[i] = poly[i];
+            }
+        }
+
+        if (point_in_polygon(test_px, test_py, local_poly)) {
             // Point is inside the nearest cell — use shape functions
             auto cell_start = static_cast<std::size_t>(conn_off[nearest_src]);
 
             if (n_verts == 4) {
                 // Quad cell: bilinear shape functions via Newton iteration
                 double xi = 0.0, eta = 0.0;
-                if (map_to_reference_quad(px, py, poly[0], poly[1], poly[2], poly[3], xi, eta)) {
+                if (map_to_reference_quad(test_px, test_py, local_poly[0], local_poly[1], local_poly[2], local_poly[3], xi, eta)) {
                     // Clamp to [-1, 1] for safety
                     xi = std::max(-1.0, std::min(1.0, xi));
                     eta = std::max(-1.0, std::min(1.0, eta));
@@ -2338,76 +2381,6 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
                     double w2 = 0.25 * (1.0 + xi) * (1.0 + eta);
                     double w3 = 0.25 * (1.0 - xi) * (1.0 + eta);
 
-                    // Get the node indices for this cell (these are the vertices
-                    // that form the quad — we store weights keyed by cell index,
-                    // but ESMF convention is cell-centroid based weights. We store
-                    // the weight as if interpolating from the containing cell
-                    // using its vertex values. However, the matrix maps
-                    // src_cell → dst_cell. For bilinear on cell centroids, we
-                    // contribute the single source cell with weight=1 if it's a
-                    // coincident point, or distribute among the 4 neighbor cells.
-                    //
-                    // Actually, for proper bilinear interpolation in an
-                    // unstructured cell-centered scheme, the weights w0..w3 apply
-                    // to the VERTICES of the source cell. But our matrix is
-                    // cell-to-cell. The standard ESMF approach for bilinear on
-                    // unstructured meshes is: the destination point is inside a
-                    // source cell, and the weights are the shape function values
-                    // at the vertices of that cell. The "source" entries in the
-                    // matrix are the NODE-based values. But our system is
-                    // cell-based. So we use the 4 neighbor cells as sources.
-                    //
-                    // For cell-centroid data: the containing cell gets weight 1
-                    // if the point is at the centroid, or we can use the shape
-                    // functions with the 4 surrounding cell centroids as a
-                    // higher-order stencil. The simplest correct approach for
-                    // cell-centered data on an unstructured mesh: the nearest
-                    // cell contributes the value. But ESMF bilinear actually
-                    // works on NODAL meshes. For cell-centered bilinear:
-                    // find the containing cell, use its vertices' owning cells.
-                    //
-                    // Since this library operates on cell centroids (like CDO),
-                    // and the ArborX query returns the k=4 nearest cell centroids,
-                    // we use the shape function weights applied to those 4 cell
-                    // centroids as sources. This is the standard cell-centered
-                    // bilinear approach used in CDO/SCRIP.
-
-                    // We use the 4 nearest cell centroids as the "quad vertices"
-                    // and compute bilinear weights in that local coordinate system.
-                    // But first check: did we enter this branch because the dst
-                    // point is inside the nearest cell's polygon? If so, the
-                    // correct cell-centered bilinear approach is to use the
-                    // containing cell with weight 1.0 (nearest-neighbor on cells).
-                    //
-                    // CORRECTION: For true bilinear on cell-centered data, ESMF
-                    // finds the containing source ELEMENT and uses shape function
-                    // weights on its CORNER nodes. Our nodes ARE the cell corners.
-                    // So the weight for each corner node of the containing cell
-                    // is the shape function value. But our factor_col refers to
-                    // CELL indices, not NODE indices.
-                    //
-                    // Resolution: Store weights for the containing source cell's
-                    // CORNER NODES treated as cell indices won't work. Instead,
-                    // the standard approach for cell-centered bilinear:
-                    // - Use the 4 nearest CELL centroids as interpolation points
-                    // - The containing cell test validates we have a good stencil
-                    // - Apply bilinear weights computed from the reference mapping
-                    //   to those 4 cells' centroids.
-                    //
-                    // FINAL APPROACH: Since the point IS inside this cell, we know
-                    // the cell contains it. The bilinear weights w0..w3 apply to
-                    // the 4 vertex positions of THIS cell. The source cell itself
-                    // provides the value. For cell-centered fields, the correct
-                    // bilinear uses the shape functions with vertex NODES to
-                    // identify which source cells own those nodes. But in our
-                    // simplified model, we store the containing cell with weight 1
-                    // if it's a single cell, OR we use the shape-function weights
-                    // distributed to the 4 nearest cell centroids.
-                    //
-                    // We go with: shape function weights on the k=4 nearest cells.
-
-                    // Map dst point in the reference frame of the 4 nearest centroids
-                    // Get the 4 nearest source cell indices
                     int n_avail = end - begin;
                     if (n_avail >= 4) {
                         std::size_t c0 = static_cast<std::size_t>(values(begin).index);
@@ -2420,15 +2393,35 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
                         Vec2 q2{src_cx(c2), src_cy(c2)};
                         Vec2 q3{src_cx(c3), src_cy(c3)};
 
-                        double xi2 = 0.0, eta2 = 0.0;
-                        if (map_to_reference_quad(px, py, q0, q1, q2, q3, xi2, eta2)) {
-                            xi2 = std::max(-1.0, std::min(1.0, xi2));
-                            eta2 = std::max(-1.0, std::min(1.0, eta2));
+                        if (is_spherical) {
+                            const double pi = 3.14159265358979323846;
+                            auto to_rad = [&](double deg) { return deg * pi / 180.0; };
+                            auto proj = [&](Vec2 q) {
+                                double u, v;
+                                double q_lon = q.x;
+                                double q_lat = q.y;
+                                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                                    q_lon = to_rad(q_lon);
+                                    q_lat = to_rad(q_lat);
+                                }
+                                project_gnomonic(lon0, lat0, q_lon, q_lat, u, v);
+                                return Vec2{u, v};
+                            };
+                            q0 = proj(q0);
+                            q1 = proj(q1);
+                            q2 = proj(q2);
+                            q3 = proj(q3);
+                        }
 
-                            double ww0 = 0.25 * (1.0 - xi2) * (1.0 - eta2);
-                            double ww1 = 0.25 * (1.0 + xi2) * (1.0 - eta2);
-                            double ww2 = 0.25 * (1.0 + xi2) * (1.0 + eta2);
-                            double ww3 = 0.25 * (1.0 - xi2) * (1.0 + eta2);
+                        double xi_centroids = 0.0, eta_centroids = 0.0;
+                        if (map_to_reference_quad(test_px, test_py, q0, q1, q2, q3, xi_centroids, eta_centroids)) {
+                            xi_centroids = std::max(-1.0, std::min(1.0, xi_centroids));
+                            eta_centroids = std::max(-1.0, std::min(1.0, eta_centroids));
+
+                            double ww0 = 0.25 * (1.0 - xi_centroids) * (1.0 - eta_centroids);
+                            double ww1 = 0.25 * (1.0 + xi_centroids) * (1.0 - eta_centroids);
+                            double ww2 = 0.25 * (1.0 + xi_centroids) * (1.0 + eta_centroids);
+                            double ww3 = 0.25 * (1.0 - xi_centroids) * (1.0 + eta_centroids);
 
                             weights_vec.push_back(ww0);
                             rows_vec.push_back(static_cast<index_t>(j));
@@ -2462,9 +2455,27 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
                     Vec2 q1{src_cx(c1), src_cy(c1)};
                     Vec2 q2{src_cx(c2), src_cy(c2)};
 
+                    if (is_spherical) {
+                        const double pi = 3.14159265358979323846;
+                        auto to_rad = [&](double deg) { return deg * pi / 180.0; };
+                        auto proj = [&](Vec2 q) {
+                            double u, v;
+                            double q_lon = q.x;
+                            double q_lat = q.y;
+                            if (csys == topology::CoordinateSystem::SphericalDeg) {
+                                q_lon = to_rad(q_lon);
+                                q_lat = to_rad(q_lat);
+                            }
+                            project_gnomonic(lon0, lat0, q_lon, q_lat, u, v);
+                            return Vec2{u, v};
+                        };
+                        q0 = proj(q0);
+                        q1 = proj(q1);
+                        q2 = proj(q2);
+                    }
+
                     double l0 = 0.0, l1 = 0.0, l2 = 0.0;
-                    if (barycentric_triangle(px, py, q0, q1, q2, l0, l1, l2)) {
-                        // Clamp weights to [0, 1] and renormalize
+                    if (barycentric_triangle(test_px, test_py, q0, q1, q2, l0, l1, l2)) {
                         l0 = std::max(0.0, l0);
                         l1 = std::max(0.0, l1);
                         l2 = std::max(0.0, l2);
