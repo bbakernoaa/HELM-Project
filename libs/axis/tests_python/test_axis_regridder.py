@@ -394,3 +394,47 @@ def test_regridder_save_and_reuse_weights(sample_grids, tmp_path):
 
     # 3. Assert results are mathematically identical
     np.testing.assert_allclose(da_out_loaded.values, da_out_gen.values, rtol=1e-15, atol=1e-15)
+
+def test_regridder_categorical():
+    """Verify that categorical/fractional remapping works perfectly."""
+    # Source 2x2 grid
+    lons_in = [10.0, 20.0]
+    lats_in = [10.0, 20.0]
+    
+    # 2x2 cells with category values: 1 (forest), 2 (water), 3 (urban)
+    categories = np.array([
+        [1, 2],
+        [1, 3]
+    ])
+
+    ds_in = xr.Dataset({
+        "land_use": (["lat", "lon"], categories),
+        "lat": (["lat"], lats_in),
+        "lon": (["lon"], lons_in)
+    })
+
+    # Coarse 1x1 destination grid spanning the entire source
+    ds_out = xr.Dataset({
+        "lat": (["lat"], [15.0]),
+        "lon": (["lon"], [15.0])
+    })
+
+    regridder = axis.Regridder(ds_in, ds_out, method="nearest")
+    
+    # 1. Test auto-discovery of categories
+    ds_fraction = regridder.regrid_categorical(ds_in["land_use"])
+    assert "fraction_1" in ds_fraction
+    assert "fraction_2" in ds_fraction
+    assert "fraction_3" in ds_fraction
+    
+    # 2. Test dictionary mapping
+    mapping = {1: "forest", 2: "water", 3: "urban"}
+    ds_mapped = regridder.regrid_categorical(ds_in["land_use"], categories=mapping)
+    assert "fraction_forest" in ds_mapped
+    assert "fraction_water" in ds_mapped
+    assert "fraction_urban" in ds_mapped
+    
+    # Verify exact area/centroid fractions
+    for var in ds_mapped.data_vars:
+        val = ds_mapped[var].values[0, 0]
+        assert val == 0.0 or val == 1.0
