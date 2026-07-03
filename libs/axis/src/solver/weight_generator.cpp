@@ -2343,8 +2343,8 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
     const std::size_t n_dst = dst_mesh.n_cells();
     const auto csys = src_mesh.coord_system();
 
-    // Number of neighbors for IDW fallback
-    const int k_fallback = static_cast<int>(std::min(static_cast<std::size_t>(4), n_src));
+    // Number of neighbors for stencil search query (up to 8)
+    const int k_query = static_cast<int>(std::min(static_cast<std::size_t>(8), n_src));
 
     // ── Compute source centroids and build ArborX BVH ──
     Kokkos::View<double *, HostSpace> src_cx, src_cy;
@@ -2362,11 +2362,10 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
     Kokkos::View<double *, HostSpace> dst_cx, dst_cy;
     compute_cell_centroids_xy(dst_mesh, dst_cx, dst_cy);
 
-    // ── Build nearest(point, k_fallback) queries for IDW fallback ──
-    // We query k_fallback neighbors; the first is used for point-in-cell test
+    // ── Build nearest(point, k_query) queries for stencil search ──
     Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> queries("queries", n_dst);
     for (std::size_t j = 0; j < n_dst; ++j) {
-        queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, k_fallback);
+        queries(j) = ArborX::nearest(Point2{static_cast<float>(dst_cx(j)), static_cast<float>(dst_cy(j))}, k_query);
     }
 
     // ── Execute query ──
@@ -2407,67 +2406,98 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
             lat0 = lat0 * pi / 180.0;
         }
 
-        // Try point-in-cell on the nearest source cell
-        auto nearest_src = static_cast<std::size_t>(values(begin).index);
-
-        // Get the vertex ring of the nearest source cell
-        auto poly = extract_cell_polygon(src_mesh, nearest_src);
-        std::size_t n_verts = poly.size();
-
-        bool used_shape_functions = false;
-
-        // Convert polygon vertices to local tangent plane if spherical
-        std::vector<Vec2> local_poly(n_verts);
         double test_px = px;
         double test_py = py;
-
         if (is_spherical) {
             test_px = 0.0;
             test_py = 0.0;
-            for (std::size_t i = 0; i < n_verts; ++i) {
-                double v_lon = poly[i].x;
-                double v_lat = poly[i].y;
-                if (csys == topology::CoordinateSystem::SphericalDeg) {
-                    const double pi = 3.14159265358979323846;
-                    v_lon = v_lon * pi / 180.0;
-                    v_lat = v_lat * pi / 180.0;
+        }
+
+        int n_avail = end - begin;
+        bool used_shape_functions = false;
+
+        // Phase A: Search for containing Quad
+        if (n_avail >= 4 && !used_shape_functions) {
+            for (int a = 0; a < n_avail - 3 && !used_shape_functions; ++a) {
+                for (int b = a + 1; b < n_avail - 2 && !used_shape_functions; ++b) {
+                    for (int c = b + 1; c < n_avail - 1 && !used_shape_functions; ++c) {
+                        for (int d = c + 1; d < n_avail && !used_shape_functions; ++d) {
+                            std::size_t c0 = static_cast<std::size_t>(values(begin + a).index);
+                            std::size_t c1 = static_cast<std::size_t>(values(begin + b).index);
+                            std::size_t c2 = static_cast<std::size_t>(values(begin + c).index);
+                            std::size_t c3 = static_cast<std::size_t>(values(begin + d).index);
+
+                            Vec2 q0{src_cx(c0), src_cy(c0)};
+                            Vec2 q1{src_cx(c1), src_cy(c1)};
+                            Vec2 q2{src_cx(c2), src_cy(c2)};
+                            Vec2 q3{src_cx(c3), src_cy(c3)};
+
+                            if (is_spherical) {
+                                const double pi = 3.14159265358979323846;
+                                auto to_rad = [&](double deg) { return deg * pi / 180.0; };
+                                auto proj = [&](Vec2 q) {
+                                    double u, v;
+                                    double q_lon = q.x;
+                                    double q_lat = q.y;
+                                    if (csys == topology::CoordinateSystem::SphericalDeg) {
+                                        q_lon = to_rad(q_lon);
+                                        q_lat = to_rad(q_lat);
+                                    }
+                                    project_gnomonic(lon0, lat0, q_lon, q_lat, u, v);
+                                    return Vec2{u, v};
+                                };
+                                q0 = proj(q0);
+                                q1 = proj(q1);
+                                q2 = proj(q2);
+                                q3 = proj(q3);
+                            }
+
+                            double xi_centroids = 0.0, eta_centroids = 0.0;
+                            if (map_to_reference_quad(test_px, test_py, q0, q1, q2, q3, xi_centroids, eta_centroids)) {
+                                xi_centroids = std::max(-1.0, std::min(1.0, xi_centroids));
+                                eta_centroids = std::max(-1.0, std::min(1.0, eta_centroids));
+
+                                double ww0 = 0.25 * (1.0 - xi_centroids) * (1.0 - eta_centroids);
+                                double ww1 = 0.25 * (1.0 + xi_centroids) * (1.0 - eta_centroids);
+                                double ww2 = 0.25 * (1.0 + xi_centroids) * (1.0 + eta_centroids);
+                                double ww3 = 0.25 * (1.0 - xi_centroids) * (1.0 + eta_centroids);
+
+                                weights_vec.push_back(ww0);
+                                rows_vec.push_back(static_cast<index_t>(j));
+                                cols_vec.push_back(static_cast<index_t>(c0));
+
+                                weights_vec.push_back(ww1);
+                                rows_vec.push_back(static_cast<index_t>(j));
+                                cols_vec.push_back(static_cast<index_t>(c1));
+
+                                weights_vec.push_back(ww2);
+                                rows_vec.push_back(static_cast<index_t>(j));
+                                cols_vec.push_back(static_cast<index_t>(c2));
+
+                                weights_vec.push_back(ww3);
+                                rows_vec.push_back(static_cast<index_t>(j));
+                                cols_vec.push_back(static_cast<index_t>(c3));
+
+                                used_shape_functions = true;
+                            }
+                        }
+                    }
                 }
-                project_gnomonic(lon0, lat0, v_lon, v_lat, local_poly[i].x, local_poly[i].y);
-            }
-        } else {
-            for (std::size_t i = 0; i < n_verts; ++i) {
-                local_poly[i] = poly[i];
             }
         }
 
-        if (point_in_polygon(test_px, test_py, local_poly)) {
-            // Point is inside the nearest cell — use shape functions
-            auto cell_start = static_cast<std::size_t>(conn_off[nearest_src]);
-
-            if (n_verts == 4) {
-                // Quad cell: bilinear shape functions via Newton iteration
-                double xi = 0.0, eta = 0.0;
-                if (map_to_reference_quad(test_px, test_py, local_poly[0], local_poly[1], local_poly[2], local_poly[3], xi, eta)) {
-                    // Clamp to [-1, 1] for safety
-                    xi = std::max(-1.0, std::min(1.0, xi));
-                    eta = std::max(-1.0, std::min(1.0, eta));
-
-                    double w0 = 0.25 * (1.0 - xi) * (1.0 - eta);
-                    double w1 = 0.25 * (1.0 + xi) * (1.0 - eta);
-                    double w2 = 0.25 * (1.0 + xi) * (1.0 + eta);
-                    double w3 = 0.25 * (1.0 - xi) * (1.0 + eta);
-
-                    int n_avail = end - begin;
-                    if (n_avail >= 4) {
-                        std::size_t c0 = static_cast<std::size_t>(values(begin).index);
-                        std::size_t c1 = static_cast<std::size_t>(values(begin + 1).index);
-                        std::size_t c2 = static_cast<std::size_t>(values(begin + 2).index);
-                        std::size_t c3 = static_cast<std::size_t>(values(begin + 3).index);
+        // Phase B: Search for containing Triangle
+        if (n_avail >= 3 && !used_shape_functions) {
+            for (int a = 0; a < n_avail - 2 && !used_shape_functions; ++a) {
+                for (int b = a + 1; b < n_avail - 1 && !used_shape_functions; ++b) {
+                    for (int c = b + 1; c < n_avail && !used_shape_functions; ++c) {
+                        std::size_t c0 = static_cast<std::size_t>(values(begin + a).index);
+                        std::size_t c1 = static_cast<std::size_t>(values(begin + b).index);
+                        std::size_t c2 = static_cast<std::size_t>(values(begin + c).index);
 
                         Vec2 q0{src_cx(c0), src_cy(c0)};
                         Vec2 q1{src_cx(c1), src_cy(c1)};
                         Vec2 q2{src_cx(c2), src_cy(c2)};
-                        Vec2 q3{src_cx(c3), src_cy(c3)};
 
                         if (is_spherical) {
                             const double pi = 3.14159265358979323846;
@@ -2486,142 +2516,98 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_bilinear(const topolo
                             q0 = proj(q0);
                             q1 = proj(q1);
                             q2 = proj(q2);
-                            q3 = proj(q3);
                         }
 
-                        double xi_centroids = 0.0, eta_centroids = 0.0;
-                        if (map_to_reference_quad(test_px, test_py, q0, q1, q2, q3, xi_centroids, eta_centroids)) {
-                            xi_centroids = std::max(-1.0, std::min(1.0, xi_centroids));
-                            eta_centroids = std::max(-1.0, std::min(1.0, eta_centroids));
+                        double l0 = 0.0, l1 = 0.0, l2 = 0.0;
+                        if (barycentric_triangle(test_px, test_py, q0, q1, q2, l0, l1, l2)) {
+                            l0 = std::max(0.0, l0);
+                            l1 = std::max(0.0, l1);
+                            l2 = std::max(0.0, l2);
+                            double sum = l0 + l1 + l2;
+                            if (sum > 0.0) {
+                                l0 /= sum;
+                                l1 /= sum;
+                                l2 /= sum;
+                            } else {
+                                l0 = l1 = l2 = 1.0 / 3.0;
+                            }
 
-                            double ww0 = 0.25 * (1.0 - xi_centroids) * (1.0 - eta_centroids);
-                            double ww1 = 0.25 * (1.0 + xi_centroids) * (1.0 - eta_centroids);
-                            double ww2 = 0.25 * (1.0 + xi_centroids) * (1.0 + eta_centroids);
-                            double ww3 = 0.25 * (1.0 - xi_centroids) * (1.0 + eta_centroids);
-
-                            weights_vec.push_back(ww0);
+                            weights_vec.push_back(l0);
                             rows_vec.push_back(static_cast<index_t>(j));
                             cols_vec.push_back(static_cast<index_t>(c0));
 
-                            weights_vec.push_back(ww1);
+                            weights_vec.push_back(l1);
                             rows_vec.push_back(static_cast<index_t>(j));
                             cols_vec.push_back(static_cast<index_t>(c1));
 
-                            weights_vec.push_back(ww2);
+                            weights_vec.push_back(l2);
                             rows_vec.push_back(static_cast<index_t>(j));
                             cols_vec.push_back(static_cast<index_t>(c2));
-
-                            weights_vec.push_back(ww3);
-                            rows_vec.push_back(static_cast<index_t>(j));
-                            cols_vec.push_back(static_cast<index_t>(c3));
 
                             used_shape_functions = true;
                         }
                     }
                 }
-            } else if (n_verts == 3) {
-                // Triangle: barycentric coordinates on the 3 nearest cell centroids
-                int n_avail = end - begin;
-                if (n_avail >= 3) {
-                    std::size_t c0 = static_cast<std::size_t>(values(begin).index);
-                    std::size_t c1 = static_cast<std::size_t>(values(begin + 1).index);
-                    std::size_t c2 = static_cast<std::size_t>(values(begin + 2).index);
-
-                    Vec2 q0{src_cx(c0), src_cy(c0)};
-                    Vec2 q1{src_cx(c1), src_cy(c1)};
-                    Vec2 q2{src_cx(c2), src_cy(c2)};
-
-                    if (is_spherical) {
-                        const double pi = 3.14159265358979323846;
-                        auto to_rad = [&](double deg) { return deg * pi / 180.0; };
-                        auto proj = [&](Vec2 q) {
-                            double u, v;
-                            double q_lon = q.x;
-                            double q_lat = q.y;
-                            if (csys == topology::CoordinateSystem::SphericalDeg) {
-                                q_lon = to_rad(q_lon);
-                                q_lat = to_rad(q_lat);
-                            }
-                            project_gnomonic(lon0, lat0, q_lon, q_lat, u, v);
-                            return Vec2{u, v};
-                        };
-                        q0 = proj(q0);
-                        q1 = proj(q1);
-                        q2 = proj(q2);
-                    }
-
-                    double l0 = 0.0, l1 = 0.0, l2 = 0.0;
-                    if (barycentric_triangle(test_px, test_py, q0, q1, q2, l0, l1, l2)) {
-                        l0 = std::max(0.0, l0);
-                        l1 = std::max(0.0, l1);
-                        l2 = std::max(0.0, l2);
-                        double sum = l0 + l1 + l2;
-                        if (sum > 0.0) {
-                            l0 /= sum;
-                            l1 /= sum;
-                            l2 /= sum;
-                        } else {
-                            l0 = l1 = l2 = 1.0 / 3.0;
-                        }
-
-                        weights_vec.push_back(l0);
-                        rows_vec.push_back(static_cast<index_t>(j));
-                        cols_vec.push_back(static_cast<index_t>(c0));
-
-                        weights_vec.push_back(l1);
-                        rows_vec.push_back(static_cast<index_t>(j));
-                        cols_vec.push_back(static_cast<index_t>(c1));
-
-                        weights_vec.push_back(l2);
-                        rows_vec.push_back(static_cast<index_t>(j));
-                        cols_vec.push_back(static_cast<index_t>(c2));
-
-                        used_shape_functions = true;
-                    }
-                }
             }
         }
 
+        // Phase C: IDW Fallback (uses up to 4 closest neighbors)
         if (!used_shape_functions) {
-            // Fallback: inverse-distance weighting on k nearest cell centroids
-            bool has_zero_dist = false;
-            int zero_val_idx = -1;
+            double sum_inv_dist = 0.0;
+            int n_idw = std::min(4, n_avail);
+            std::vector<double> distances(n_idw);
+            bool has_zero = false;
+            int zero_idx = -1;
 
-            struct NeighborInfo {
-                std::size_t src_idx;
-                double dist;
-            };
-            std::vector<NeighborInfo> neighbors;
-            neighbors.reserve(end - begin);
-
-            for (int vi = begin; vi < end; ++vi) {
-                auto src_idx = static_cast<std::size_t>(values(vi).index);
-                double dx = px - src_cx(src_idx);
-                double dy = py - src_cy(src_idx);
-                double dist = std::sqrt(dx * dx + dy * dy);
+            for (int k = 0; k < n_idw; ++k) {
+                std::size_t src_idx = static_cast<std::size_t>(values(begin + k).index);
+                double dist = 0.0;
+                if (is_spherical) {
+                    double lon_s = src_cx(src_idx);
+                    double lat_s = src_cy(src_idx);
+                    double lon_d = dst_cx(j);
+                    double lat_d = dst_cy(j);
+                    if (csys == topology::CoordinateSystem::SphericalDeg) {
+                        const double pi = 3.14159265358979323846;
+                        lon_s = lon_s * pi / 180.0;
+                        lat_s = lat_s * pi / 180.0;
+                        lon_d = lon_d * pi / 180.0;
+                        lat_d = lat_d * pi / 180.0;
+                    }
+                    double sx = std::cos(lat_s) * std::cos(lon_s);
+                    double sy = std::cos(lat_s) * std::sin(lon_s);
+                    double sz = std::sin(lat_s);
+                    double dx = std::cos(lat_d) * std::cos(lon_d) - sx;
+                    double dy = std::cos(lat_d) * std::sin(lon_d) - sy;
+                    double dz = std::sin(lat_d) - sz;
+                    dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+                } else {
+                    double dx = px - src_cx(src_idx);
+                    double dy = py - src_cy(src_idx);
+                    dist = std::sqrt(dx * dx + dy * dy);
+                }
 
                 if (dist <= 0.0) {
-                    has_zero_dist = true;
-                    zero_val_idx = vi;
+                    has_zero = true;
+                    zero_idx = k;
+                    break;
                 }
-                neighbors.push_back({src_idx, dist});
+                distances[k] = dist;
+                sum_inv_dist += 1.0 / dist;
             }
 
-            if (has_zero_dist) {
-                auto src_idx = static_cast<std::size_t>(values(zero_val_idx).index);
+            if (has_zero) {
+                std::size_t src_idx = static_cast<std::size_t>(values(begin + zero_idx).index);
                 weights_vec.push_back(1.0);
                 rows_vec.push_back(static_cast<index_t>(j));
                 cols_vec.push_back(static_cast<index_t>(src_idx));
             } else {
-                double sum_inv_dist = 0.0;
-                for (auto &nb : neighbors) {
-                    sum_inv_dist += 1.0 / nb.dist;
-                }
-                for (auto &nb : neighbors) {
-                    double w = (1.0 / nb.dist) / sum_inv_dist;
+                for (int k = 0; k < n_idw; ++k) {
+                    std::size_t src_idx = static_cast<std::size_t>(values(begin + k).index);
+                    double w = (1.0 / distances[k]) / sum_inv_dist;
                     weights_vec.push_back(w);
                     rows_vec.push_back(static_cast<index_t>(j));
-                    cols_vec.push_back(static_cast<index_t>(nb.src_idx));
+                    cols_vec.push_back(static_cast<index_t>(src_idx));
                 }
             }
         }
