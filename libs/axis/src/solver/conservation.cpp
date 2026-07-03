@@ -137,4 +137,28 @@ template ConservationReport check_conservation<Kokkos::HostSpace>(field_view<con
 
 template void adjust_by_fraction<Kokkos::HostSpace>(field_view<double, 1>, field_view<const double, 1>);
 
+#ifdef KOKKOS_ENABLE_CUDA
+template double source_integral<Kokkos::CudaSpace>(field_view<const double, 1>, field_view<const double, 1>, field_view<const double, 1>);
+
+template double destination_integral<Kokkos::CudaSpace>(field_view<const double, 1>, field_view<const double, 1>, field_view<const double, 1>,
+                                                        NormType);
+
+template ConservationReport check_conservation<Kokkos::CudaSpace>(field_view<const double, 1>, field_view<const double, 1>,
+                                                                  const InterpolationMatrix<Kokkos::CudaSpace> &, NormType);
+
+template void adjust_by_fraction<Kokkos::CudaSpace>(field_view<double, 1>, field_view<const double, 1>);
+#endif
+
+#ifdef KOKKOS_ENABLE_HIP
+template double source_integral<Kokkos::HIPSpace>(field_view<const double, 1>, field_view<const double, 1>, field_view<const double, 1>);
+
+template double destination_integral<Kokkos::HIPSpace>(field_view<const double, 1>, field_view<const double, 1>, field_view<const double, 1>,
+                                                        NormType);
+
+template ConservationReport check_conservation<Kokkos::HIPSpace>(field_view<const double, 1>, field_view<const double, 1>,
+                                                                  const InterpolationMatrix<Kokkos::HIPSpace> &, NormType);
+
+template void adjust_by_fraction<Kokkos::HIPSpace>(field_view<double, 1>, field_view<const double, 1>);
+#endif
+
 }  // namespace axis::solver

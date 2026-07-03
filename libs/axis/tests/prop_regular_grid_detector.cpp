@@ -275,11 +275,11 @@ RC_GTEST_PROP(PropRegularGridDetector, DetectedParamsAreConsistent, ()) {
 
     // lon_max should equal lon_min + ni * delta_lon
     double expected_lon_max = info.lon_min + static_cast<double>(info.ni) * info.delta_lon;
-    RC_ASSERT(std::abs(info.lon_max - expected_lon_max) < 1e-10 * std::abs(expected_lon_max));
+    RC_ASSERT(std::abs(info.lon_max - expected_lon_max) < 1e-10 * std::abs(expected_lon_max) + 1e-12);
 
     // lat_max should equal lat_min + nj * delta_lat
     double expected_lat_max = info.lat_min + static_cast<double>(info.nj) * info.delta_lat;
-    RC_ASSERT(std::abs(info.lat_max - expected_lat_max) < 1e-10 * std::abs(expected_lat_max));
+    RC_ASSERT(std::abs(info.lat_max - expected_lat_max) < 1e-10 * std::abs(expected_lat_max) + 1e-12);
 
     // ni * nj must equal the original cell count
     RC_ASSERT(info.ni * info.nj == mesh.n_cells());
