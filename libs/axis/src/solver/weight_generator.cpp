@@ -1969,8 +1969,10 @@ InterpolationMatrix<MemorySpace> generate_nearest_rect(const topology::Unstructu
             while (relative_lon >= 360.0) relative_lon -= 360.0;
 
             // Rounding to nearest source coordinate index
-            index_t s_i = static_cast<index_t>(Kokkos::round(relative_lon / src_dlon));
-            if (s_i >= src_ni) s_i -= src_ni;
+            index_t s_i = static_cast<index_t>(Kokkos::round((lon - src_lon_start) / src_dlon));
+
+            // Wrap longitude periodically
+            s_i = s_i % src_ni;
             if (s_i < 0) s_i += src_ni;
 
             index_t s_j = static_cast<index_t>(Kokkos::round((lat - src_lat_start) / src_dlat));
