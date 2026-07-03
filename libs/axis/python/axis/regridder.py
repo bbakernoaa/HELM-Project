@@ -271,3 +271,65 @@ class Regridder:
 
         out = out.assign_coords(target_coords)
         return out
+
+    def regrid_categorical(
+        self,
+        da_in: xr.DataArray,
+        categories: Optional[Union[list, dict]] = None,
+        prefix: str = "fraction_",
+    ) -> xr.Dataset:
+        """
+        Remap high-resolution categorical data (e.g., land-use classes) to coarse grid fractions.
+
+        Parameters
+        ----------
+        da_in : xr.DataArray
+            Categorical input DataArray containing integer class codes or IDs.
+        categories : list or dict, optional
+            If a list, computes fractions only for the specified category IDs.
+            If a dict, maps category ID (key) to its corresponding string name (value)
+            for the output variables.
+            If None (default), automatically discovers all unique non-NaN category IDs.
+        prefix : str, default "fraction_"
+            Prefix to prepend to the output variable names (e.g. "fraction_forest").
+
+        Returns
+        -------
+        xr.Dataset
+            A dataset containing the fractional coverage for each category as separate variables.
+        """
+        import numpy as np
+
+        if not isinstance(da_in, xr.DataArray):
+            raise TypeError("Input categorical object must be an xarray.DataArray")
+
+        # 1. Identify category values to extract
+        if categories is None:
+            # Drop NaNs and extract unique values
+            flat_vals = da_in.values.ravel()
+            unique_vals = np.unique(flat_vals[~np.isnan(flat_vals)])
+            category_mapping = {int(val): str(int(val)) for val in unique_vals}
+        elif isinstance(categories, dict):
+            category_mapping = categories
+        elif isinstance(categories, (list, tuple, np.ndarray)):
+            category_mapping = {int(val): str(int(val)) for val in categories}
+        else:
+            raise TypeError("categories must be a list, dict, or None")
+
+        # 2. Iterate and remap each category
+        regridded_vars = {}
+        for cat_id, cat_name in category_mapping.items():
+            # Build binary indicator mask
+            indicator = (da_in == cat_id).astype(float)
+            
+            # Carry over coordinates and metadata for exact spatial mapping
+            indicator = indicator.copy(deep=True)
+            
+            # Remap via self
+            fraction_da = self(indicator, keep_attrs=False)
+            
+            # Form clean variable name
+            var_name = f"{prefix}{cat_name}"
+            regridded_vars[var_name] = fraction_da
+
+        return xr.Dataset(regridded_vars)
