@@ -58,6 +58,15 @@ struct Vec2 {
     double y{0.0};
 };
 
+struct OverlapEntry {
+    index_t row;      // dst cell index
+    index_t col;      // src cell index
+    double area;      // overlap area
+    double offset_x;  // overlap centroid - src centroid (x)
+    double offset_y;  // overlap centroid - src centroid (y)
+    double offset_z;  // overlap centroid - src centroid (z)
+};
+
 // ────────────────────── compute_cell_centroids_xy ────────────────────────────
 
 /// Extract (x, y) centroids for all cells into separate Kokkos host Views.
@@ -4064,14 +4073,6 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
     std::vector<double> frac_b_acc(n_dst, 0.0);
 
     // Raw weight data (before normalization)
-    struct OverlapEntry {
-        index_t row;      // dst cell index
-        index_t col;      // src cell index
-        double area;      // overlap area
-        double offset_x;  // overlap centroid - src centroid (x)
-        double offset_y;  // overlap centroid - src centroid (y)
-        double offset_z;  // overlap centroid - src centroid (z)
-    };
     std::vector<OverlapEntry> overlap_entries;
 
     for (std::size_t j = 0; j < n_dst; ++j) {
@@ -4197,6 +4198,131 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
         field_x(i) = src_centroids(i, 0);
         field_y(i) = src_centroids(i, 1);
         field_z(i) = src_centroids(i, 2);
+    }
+
+    if constexpr (is_device_space_v<MemorySpace>) {
+        using exec_space = typename MemorySpace::execution_space;
+
+        // Copy centroids and adjacency CSR structures to device
+        Kokkos::View<double *[3], MemorySpace> d_centroids("d_centroids", n_src);
+        Kokkos::View<index_t *, MemorySpace> d_adj_offsets("d_adj_offsets", adj_offsets_kv.extent(0));
+        Kokkos::View<index_t *, MemorySpace> d_adj_indices("d_adj_indices", adj_indices_kv.extent(0));
+        Kokkos::View<double *, MemorySpace> d_field_x("d_field_x", n_src);
+        Kokkos::View<double *, MemorySpace> d_field_y("d_field_y", n_src);
+        Kokkos::View<double *, MemorySpace> d_field_z("d_field_z", n_src);
+
+        Kokkos::deep_copy(d_centroids, src_centroids);
+        Kokkos::deep_copy(d_adj_offsets, adj_offsets_kv);
+        Kokkos::deep_copy(d_adj_indices, adj_indices_kv);
+        Kokkos::deep_copy(d_field_x, field_x);
+        Kokkos::deep_copy(d_field_y, field_y);
+        Kokkos::deep_copy(d_field_z, field_z);
+
+        // Compute gradients natively on device
+        Kokkos::View<double *[3], MemorySpace> d_grad_x("d_grad_x", n_src);
+        Kokkos::View<double *[3], MemorySpace> d_grad_y("d_grad_y", n_src);
+        Kokkos::View<double *[3], MemorySpace> d_grad_z("d_grad_z", n_src);
+
+        GradientReconstructor<MemorySpace>::compute(d_field_x, d_centroids, d_adj_offsets, d_adj_indices, d_grad_x, config.use_limiter);
+        GradientReconstructor<MemorySpace>::compute(d_field_y, d_centroids, d_adj_offsets, d_adj_indices, d_grad_y, config.use_limiter);
+        GradientReconstructor<MemorySpace>::compute(d_field_z, d_centroids, d_adj_offsets, d_adj_indices, d_grad_z, config.use_limiter);
+
+        // Copy overlap entries and areas to device
+        const std::size_t nnz = overlap_entries.size();
+        Kokkos::View<OverlapEntry *, MemorySpace> d_overlap_entries("d_overlap_entries", nnz);
+        auto h_overlap_entries = Kokkos::create_mirror_view(d_overlap_entries);
+        for (std::size_t idx = 0; idx < nnz; ++idx) {
+            h_overlap_entries(idx) = overlap_entries[idx];
+        }
+        Kokkos::deep_copy(d_overlap_entries, h_overlap_entries);
+
+        Kokkos::View<double *, MemorySpace> d_src_areas("d_src_areas", n_src);
+        Kokkos::View<double *, MemorySpace> d_dst_areas("d_dst_areas", n_dst);
+        auto h_src_areas = Kokkos::create_mirror_view(d_src_areas);
+        auto h_dst_areas = Kokkos::create_mirror_view(d_dst_areas);
+        for (std::size_t i = 0; i < n_src; ++i) h_src_areas(i) = src_areas[i];
+        for (std::size_t j = 0; j < n_dst; ++j) h_dst_areas(j) = dst_areas[j];
+        Kokkos::deep_copy(d_src_areas, h_src_areas);
+        Kokkos::deep_copy(d_dst_areas, h_dst_areas);
+
+        // Allocate device output Views
+        Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+        Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+        Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+        Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+        Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+        Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+        Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
+
+        // Initialize accumulators for normalization
+        Kokkos::View<double *, MemorySpace> d_corrections("d_corrections", nnz);
+        Kokkos::View<double *, MemorySpace> d_dst_total_weight("d_dst_total_weight", n_dst);
+        Kokkos::View<double *, MemorySpace> d_frac_a_acc("d_frac_a_acc", n_src);
+        Kokkos::View<double *, MemorySpace> d_frac_b_acc("d_frac_b_acc", n_dst);
+
+        Kokkos::parallel_for(
+            "ComputeCorrectionFactorsDevice", Kokkos::RangePolicy<exec_space>(0, nnz), KOKKOS_LAMBDA(const std::size_t e) {
+                const auto &entry = d_overlap_entries(e);
+                auto src_i = entry.col;
+
+                double corr = d_grad_x(src_i, 0) * entry.offset_x + d_grad_x(src_i, 1) * entry.offset_y + d_grad_x(src_i, 2) * entry.offset_z +
+                              d_grad_y(src_i, 0) * entry.offset_x + d_grad_y(src_i, 1) * entry.offset_y + d_grad_y(src_i, 2) * entry.offset_z +
+                              d_grad_z(src_i, 0) * entry.offset_x + d_grad_z(src_i, 1) * entry.offset_y + d_grad_z(src_i, 2) * entry.offset_z;
+
+                d_corrections(e) = Kokkos::fmax(1.0 + corr, 0.0);
+            });
+
+        Kokkos::parallel_for(
+            "AccumulateDstTotalWeightDevice", Kokkos::RangePolicy<exec_space>(0, nnz), KOKKOS_LAMBDA(const std::size_t e) {
+                const auto &entry = d_overlap_entries(e);
+                auto j = entry.row;
+                Kokkos::atomic_add(&d_dst_total_weight(j), entry.area * d_corrections(e));
+            });
+
+        const auto norm_type = config.norm_type;
+        Kokkos::parallel_for(
+            "BuildFinalWeightsDevice", Kokkos::RangePolicy<exec_space>(0, nnz), KOKKOS_LAMBDA(const std::size_t e) {
+                const auto &entry = d_overlap_entries(e);
+                auto j = entry.row;
+                auto src_i = entry.col;
+                double a_dst = d_dst_areas(j);
+
+                double w_ij = 0.0;
+                if (norm_type == NormType::FracArea) {
+                    double total = d_dst_total_weight(j);
+                    w_ij = (total > 0.0) ? (entry.area * d_corrections(e)) / total : 0.0;
+                } else {
+                    w_ij = (a_dst > 0.0) ? (entry.area * d_corrections(e)) / a_dst : 0.0;
+                }
+
+                w_ij = Kokkos::fmax(w_ij, 0.0);
+                factor_list(e) = w_ij;
+                factor_row(e) = j;
+                factor_col(e) = src_i;
+
+                double a_src = d_src_areas(src_i);
+                if (a_src > 0.0) {
+                    Kokkos::atomic_add(&d_frac_a_acc(src_i), entry.area / a_src);
+                }
+                if (a_dst > 0.0) {
+                    Kokkos::atomic_add(&d_frac_b_acc(j), entry.area / a_dst);
+                }
+            });
+
+        Kokkos::parallel_for(
+            "ClampFractionsDevice", Kokkos::RangePolicy<exec_space>(0, n_src), KOKKOS_LAMBDA(const std::size_t i) {
+                frac_a(i) = Kokkos::fmin(d_frac_a_acc(i), 1.0);
+            });
+        Kokkos::parallel_for(
+            "ClampFractionsBDevice", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) {
+                frac_b(j) = Kokkos::fmin(d_frac_b_acc(j), 1.0);
+            });
+
+        Kokkos::deep_copy(area_a, d_src_areas);
+        Kokkos::deep_copy(area_b, d_dst_areas);
+
+        return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                                std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
     }
 
     // Cast centroids to const view for GradientReconstructor
