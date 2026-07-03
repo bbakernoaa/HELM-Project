@@ -1822,6 +1822,17 @@ InterpolationMatrix<MemorySpace> generate_nearest_rect(const topology::Unstructu
                                             std::move(frac_b), std::move(area_a), std::move(area_b), src_mesh.n_cells(), n_dst);
 }
 
+// Forward declaration: nearest-neighbor device pipeline
+template <int Dimension, class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_nearest_device_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                              const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                              const RegridConfig &config);
+
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_nearest_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                         const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                         const RegridConfig &config);
+
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                        const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
@@ -1830,6 +1841,11 @@ template <class MemorySpace>
 InterpolationMatrix<MemorySpace> WeightGenerator::generate_nearest(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                                    const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
                                                                    const RegridConfig &config) {
+    // ── Device-space dispatch ──
+    if constexpr (is_device_space_v<MemorySpace>) {
+        return generate_nearest_device(src_mesh, dst_mesh, config);
+    }
+
     auto src_reg = detail::detect_regular_grid(src_mesh);
     auto dst_reg = detail::detect_regular_grid(dst_mesh);
     if (src_reg.is_regular && dst_reg.is_regular) {
