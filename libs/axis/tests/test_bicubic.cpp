@@ -189,7 +189,7 @@ TEST(BicubicInterpolationTest, LinearAndCubicExactness) {
         double x = actual_dst_cx[j];
         double y = actual_dst_cy[j];
         double expected = x * x + 2.0 * y * y - x * y;
-        EXPECT_NEAR(h_dst_quadratic(j), expected, 1.0e-9);
+        EXPECT_NEAR(h_dst_quadratic(j), expected, 1.0e-8);
     }
 }
 

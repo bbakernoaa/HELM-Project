@@ -69,6 +69,8 @@ void compute_cell_centroids_xy(const topology::UnstructuredMesh<MemorySpace> &me
     const auto coords = mesh.node_coords();    // [n_nodes, ndim]
     const auto offsets = mesh.conn_offsets();  // [n_cells + 1]
     const auto indices = mesh.conn_indices();  // [nnz]
+    const auto csys = mesh.coord_system();
+    const bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
 
     cx_out = Kokkos::View<double *, Kokkos::HostSpace>("cx", n_cells);
     cy_out = Kokkos::View<double *, Kokkos::HostSpace>("cy", n_cells);
@@ -78,16 +80,52 @@ void compute_cell_centroids_xy(const topology::UnstructuredMesh<MemorySpace> &me
         auto end = static_cast<std::size_t>(offsets[c + 1]);
         auto n_verts = end - start;
 
-        double sx = 0.0, sy = 0.0;
-        for (std::size_t i = start; i < end; ++i) {
-            auto ni = static_cast<std::size_t>(indices[i]);
-            sx += coords(ni, 0);
-            sy += coords(ni, 1);
-        }
+        if (is_spherical) {
+            double sum_x = 0.0, sum_y = 0.0, sum_z = 0.0;
+            for (std::size_t i = start; i < end; ++i) {
+                auto ni = static_cast<std::size_t>(indices[i]);
+                double lon = coords(ni, 0);
+                double lat = coords(ni, 1);
+                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                    const double pi = 3.14159265358979323846;
+                    lon = lon * pi / 180.0;
+                    lat = lat * pi / 180.0;
+                }
+                sum_x += std::cos(lat) * std::cos(lon);
+                sum_y += std::cos(lat) * std::sin(lon);
+                sum_z += std::sin(lat);
+            }
+            double inv = (n_verts > 0) ? 1.0 / static_cast<double>(n_verts) : 0.0;
+            double avg_x = sum_x * inv;
+            double avg_y = sum_y * inv;
+            double avg_z = sum_z * inv;
 
-        double inv = (n_verts > 0) ? 1.0 / static_cast<double>(n_verts) : 0.0;
-        cx_out(c) = sx * inv;
-        cy_out(c) = sy * inv;
+            double lat_avg = std::asin(avg_z);
+            double lon_avg = std::atan2(avg_y, avg_x);
+            if (lon_avg < 0.0) {
+                const double pi = 3.14159265358979323846;
+                lon_avg += 2.0 * pi;
+            }
+
+            if (csys == topology::CoordinateSystem::SphericalDeg) {
+                const double pi = 3.14159265358979323846;
+                lon_avg = lon_avg * 180.0 / pi;
+                lat_avg = lat_avg * 180.0 / pi;
+            }
+            cx_out(c) = lon_avg;
+            cy_out(c) = lat_avg;
+        } else {
+            double sx = 0.0, sy = 0.0;
+            for (std::size_t i = start; i < end; ++i) {
+                auto ni = static_cast<std::size_t>(indices[i]);
+                sx += coords(ni, 0);
+                sy += coords(ni, 1);
+            }
+
+            double inv = (n_verts > 0) ? 1.0 / static_cast<double>(n_verts) : 0.0;
+            cx_out(c) = sx * inv;
+            cy_out(c) = sy * inv;
+        }
     }
 }
 
@@ -760,6 +798,8 @@ Kokkos::View<double *[2], MemorySpace> compute_cell_centroids_device(const topol
     const auto coords = mesh.node_coords();
     const auto offsets = mesh.conn_offsets();
     const auto indices = mesh.conn_indices();
+    const auto csys = mesh.coord_system();
+    const bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
 
     Kokkos::View<double *[2], MemorySpace> centroids("centroids_device", n_cells);
 
@@ -769,16 +809,52 @@ Kokkos::View<double *[2], MemorySpace> compute_cell_centroids_device(const topol
             auto end = static_cast<std::size_t>(offsets[c + 1]);
             auto n_verts = end - start;
 
-            double sx = 0.0, sy = 0.0;
-            for (std::size_t i = start; i < end; ++i) {
-                auto ni = static_cast<std::size_t>(indices[i]);
-                sx += coords(ni, 0);
-                sy += coords(ni, 1);
-            }
+            if (is_spherical) {
+                double sum_x = 0.0, sum_y = 0.0, sum_z = 0.0;
+                for (std::size_t i = start; i < end; ++i) {
+                    auto ni = static_cast<std::size_t>(indices[i]);
+                    double lon = coords(ni, 0);
+                    double lat = coords(ni, 1);
+                    if (csys == topology::CoordinateSystem::SphericalDeg) {
+                          const double pi = 3.14159265358979323846;
+                          lon = lon * pi / 180.0;
+                          lat = lat * pi / 180.0;
+                    }
+                    sum_x += Kokkos::cos(lat) * Kokkos::cos(lon);
+                    sum_y += Kokkos::cos(lat) * Kokkos::sin(lon);
+                    sum_z += Kokkos::sin(lat);
+                }
+                double inv = (n_verts > 0) ? 1.0 / static_cast<double>(n_verts) : 0.0;
+                double avg_x = sum_x * inv;
+                double avg_y = sum_y * inv;
+                double avg_z = sum_z * inv;
 
-            double inv = (n_verts > 0) ? 1.0 / static_cast<double>(n_verts) : 0.0;
-            centroids(c, 0) = sx * inv;
-            centroids(c, 1) = sy * inv;
+                double lat_avg = Kokkos::asin(avg_z);
+                double lon_avg = Kokkos::atan2(avg_y, avg_x);
+                if (lon_avg < 0.0) {
+                    const double pi = 3.14159265358979323846;
+                    lon_avg += 2.0 * pi;
+                }
+
+                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                    const double pi = 3.14159265358979323846;
+                    lon_avg = lon_avg * 180.0 / pi;
+                    lat_avg = lat_avg * 180.0 / pi;
+                }
+                centroids(c, 0) = lon_avg;
+                centroids(c, 1) = lat_avg;
+            } else {
+                double sx = 0.0, sy = 0.0;
+                for (std::size_t i = start; i < end; ++i) {
+                    auto ni = static_cast<std::size_t>(indices[i]);
+                    sx += coords(ni, 0);
+                    sy += coords(ni, 1);
+                }
+
+                double inv = (n_verts > 0) ? 1.0 / static_cast<double>(n_verts) : 0.0;
+                centroids(c, 0) = sx * inv;
+                centroids(c, 1) = sy * inv;
+            }
         });
 
     return centroids;
