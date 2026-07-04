@@ -137,6 +137,78 @@ class Regridder:
         with open(filename, "wb") as f:
             f.write(self._serialized_weights)
 
+    def to_esmf(self, filename: str) -> None:
+        """
+        Save the compiled sparse regridding weights to an ESMF/SCRIP-compliant NetCDF file.
+
+        Parameters
+        ----------
+        filename : str
+            Path where the ESMF weight netCDF file will be saved.
+        """
+        if not hasattr(axis_py, "write_esmf"):
+            raise RuntimeError(
+                "ESMF weight export is unavailable. AXIS was compiled without NetCDF support."
+            )
+        axis_py.write_esmf(filename, self._weights_matrix)
+
+    @classmethod
+    def from_esmf(cls, filename: str, src_grid: xr.Dataset, dst_grid: xr.Dataset, skipna: bool = False) -> "Regridder":
+        """
+        Load a Regridder instance from an ESMF-compliant NetCDF weight file.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the ESMF weight NetCDF file.
+        src_grid : xr.Dataset
+            Source grid dataset (required for geometry context).
+        dst_grid : xr.Dataset
+            Target/destination grid dataset (required for geometry context).
+        skipna : bool, default False
+            Whether to skip NaNs during weight application.
+
+        Returns
+        -------
+        Regridder
+            A Regridder instance initialized with the deserialized weights.
+        """
+        if not hasattr(axis_py, "read_esmf"):
+            raise RuntimeError(
+                "ESMF weight import is unavailable. AXIS was compiled without NetCDF support."
+            )
+
+        regridder = cls.__new__(cls)
+        regridder.method = "esmf"
+        regridder.periodic = False
+        regridder.unmapped = "ignore"
+        regridder.line_type = "great_circle"
+        regridder.skipna = skipna
+        regridder.na_thres = 1.0
+        import uuid
+        regridder._uid = str(uuid.uuid4())
+
+        regridder._weights_matrix = axis_py.read_esmf(filename)
+        regridder._serialized_weights = None
+
+        # Extract coordinate information and dimensions
+        from .grid import _get_mesh_info
+        _, _, regridder._shape_source, regridder._dims_source, regridder._is_unstructured_src = _get_mesh_info(src_grid)
+        _, _, regridder._shape_target, regridder._dims_target, _ = _get_mesh_info(dst_grid)
+
+        # Save original datasets for coordinate matching
+        regridder.source_grid_ds = src_grid
+        regridder.target_grid_ds = dst_grid
+
+        # Compute total weights sum for NaN-aware re-normalization
+        if skipna:
+            import numpy as np
+            regridder._total_weights = np.array(axis_py.apply_weights(regridder._weights_matrix, np.ones(regridder._weights_matrix.n_src))).flatten()
+        else:
+            regridder._total_weights = None
+
+        return regridder
+
     def __call__(
         self,
         obj: Union[xr.DataArray, xr.Dataset],
@@ -321,13 +393,13 @@ class Regridder:
         for cat_id, cat_name in category_mapping.items():
             # Build binary indicator mask
             indicator = (da_in == cat_id).astype(float)
-            
+
             # Carry over coordinates and metadata for exact spatial mapping
             indicator = indicator.copy(deep=True)
-            
+
             # Remap via self
             fraction_da = self(indicator, keep_attrs=False)
-            
+
             # Form clean variable name
             var_name = f"{prefix}{cat_name}"
             regridded_vars[var_name] = fraction_da

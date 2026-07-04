@@ -282,7 +282,7 @@ def test_regridder_cubed_sphere_3d():
     ny, nx = 2, 2
     lons = np.zeros((ntiles, ny, nx))
     lats = np.zeros((ntiles, ny, nx))
-    
+
     for t in range(ntiles):
         lons[t] = np.array([[10.0, 20.0], [10.0, 20.0]]) + t * 40.0
         lats[t] = np.array([[10.0, 10.0], [20.0, 20.0]])
@@ -395,12 +395,34 @@ def test_regridder_save_and_reuse_weights(sample_grids, tmp_path):
     # 3. Assert results are mathematically identical
     np.testing.assert_allclose(da_out_loaded.values, da_out_gen.values, rtol=1e-15, atol=1e-15)
 
+def test_regridder_esmf_weights_roundtrip(sample_grids, tmp_path):
+    """Verify that regridding weights can be written as an ESMF netCDF file and re-loaded successfully."""
+    ds_in, ds_out = sample_grids
+    da_in = xr.DataArray(
+        np.ones((len(ds_in["lat"]), len(ds_in["lon"]))),
+        coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
+        dims=["lat", "lon"]
+    )
+
+    regridder_gen = axis.Regridder(ds_in, ds_out, method="bilinear")
+    da_out_gen = regridder_gen(da_in)
+
+    esmf_path = tmp_path / "esmf_weights.nc"
+    regridder_gen.to_esmf(str(esmf_path))
+    assert esmf_path.exists()
+
+    # Re-load from ESMF weight file
+    regridder_loaded = axis.Regridder.from_esmf(str(esmf_path), ds_in, ds_out)
+    da_out_loaded = regridder_loaded(da_in)
+
+    np.testing.assert_allclose(da_out_loaded.values, da_out_gen.values, rtol=1e-15, atol=1e-15)
+
 def test_regridder_categorical():
     """Verify that categorical/fractional remapping works perfectly."""
     # Source 2x2 grid
     lons_in = [10.0, 20.0]
     lats_in = [10.0, 20.0]
-    
+
     # 2x2 cells with category values: 1 (forest), 2 (water), 3 (urban)
     categories = np.array([
         [1, 2],
@@ -420,20 +442,20 @@ def test_regridder_categorical():
     })
 
     regridder = axis.Regridder(ds_in, ds_out, method="nearest")
-    
+
     # 1. Test auto-discovery of categories
     ds_fraction = regridder.regrid_categorical(ds_in["land_use"])
     assert "fraction_1" in ds_fraction
     assert "fraction_2" in ds_fraction
     assert "fraction_3" in ds_fraction
-    
+
     # 2. Test dictionary mapping
     mapping = {1: "forest", 2: "water", 3: "urban"}
     ds_mapped = regridder.regrid_categorical(ds_in["land_use"], categories=mapping)
     assert "fraction_forest" in ds_mapped
     assert "fraction_water" in ds_mapped
     assert "fraction_urban" in ds_mapped
-    
+
     # Verify exact area/centroid fractions
     for var in ds_mapped.data_vars:
         val = ds_mapped[var].values[0, 0]

@@ -7,6 +7,9 @@ find_package(nanobind CONFIG REQUIRED)
 nanobind_add_module(axis_py axis_py.cpp)
 
 target_link_libraries(axis_py PRIVATE axis)
+if(AXIS_HAVE_NETCDF)
+    target_link_libraries(axis_py PRIVATE axis_io)
+endif()
 target_include_directories(axis_py PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/third_party/ArborX/src

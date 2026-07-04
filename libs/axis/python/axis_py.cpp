@@ -40,6 +40,10 @@
 #include <string>
 #include <vector>
 
+#ifdef AXIS_HAVE_NETCDF
+#include <axis/io/esmf_weight_io.hpp>
+#endif
+
 namespace nb = nanobind;
 using namespace nb::literals;
 
@@ -487,4 +491,19 @@ NB_MODULE(axis_py, m) {
         },
         "src_mesh"_a, "dst_mesh"_a, "src_alpha"_a, "dst_alpha"_a, "config"_a,
         "Generate coupled vector interpolation weights for U and V wind components");
+
+#ifdef AXIS_HAVE_NETCDF
+    m.def(
+        "write_esmf",
+        [](const std::string &filepath, const HostMatrix &matrix) { axis::io::EsmfWeightIO<Kokkos::HostSpace>::write_esmf(filepath, matrix); },
+        "filepath"_a, "matrix"_a, "Write the interpolation weights matrix to an ESMF netCDF file");
+
+    m.def(
+        "read_esmf",
+        [](const std::string &filepath) -> HostMatrix {
+            ensure_kokkos();
+            return axis::io::EsmfWeightIO<Kokkos::HostSpace>::read_esmf(filepath);
+        },
+        "filepath"_a, "Read the interpolation weights matrix from an ESMF netCDF file");
+#endif
 }
