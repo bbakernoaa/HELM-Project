@@ -81,14 +81,14 @@ class FieldView {
 
     template <typename IndexType, std::size_t R>
     using my_dextents = std::conditional_t<
-        R == 1, Kokkos::extents<IndexType, std::dynamic_extent>,
+        R == 1, std::extents<IndexType, std::dynamic_extent>,
         std::conditional_t<
-            R == 2, Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent>,
-            std::conditional_t<R == 3, Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>,
-                               Kokkos::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>>>>;
+            R == 2, std::extents<IndexType, std::dynamic_extent, std::dynamic_extent>,
+            std::conditional_t<R == 3, std::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>,
+                               std::extents<IndexType, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent, std::dynamic_extent>>>>;
 
     /// The mdspan type for host-side access (column-major, non-owning).
-    using mdspan_type = Kokkos::mdspan<T, my_dextents<std::size_t, Rank>, Kokkos::layout_left>;
+    using mdspan_type = std::mdspan<T, my_dextents<std::size_t, Rank>, std::layout_left>;
 
     /// Extent array type (fixed-size array matching Rank).
     using extents_type = std::array<std::size_t, Rank>;
