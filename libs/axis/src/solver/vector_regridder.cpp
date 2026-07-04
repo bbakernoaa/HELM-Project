@@ -2,9 +2,9 @@
 // AXIS — Arbitrary eXgrid Interpolation Solver
 // Copyright (c) HELM Project Contributors
 
+#include <axis/detail/memory_traits.hpp>
 #include <axis/solver/vector_regridder.hpp>
 #include <axis/solver/weight_generator.hpp>
-#include <axis/detail/memory_traits.hpp>
 #include <cmath>
 #include <vector>
 

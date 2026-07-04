@@ -47,7 +47,8 @@ void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, M
         "VerticalInterpolate1D", policy, KOKKOS_LAMBDA(const member_type &team) {
             const std::size_t c = team.league_rank();
 
-            Kokkos::View<double*, typename execution_space::scratch_memory_space, Kokkos::MemoryUnmanaged> scratch_view(team.team_scratch(0), 4 * n_src);
+            Kokkos::View<double *, typename execution_space::scratch_memory_space, Kokkos::MemoryUnmanaged> scratch_view(team.team_scratch(0),
+                                                                                                                         4 * n_src);
             double *src_x = scratch_view.data();
             double *src_y = src_x + n_src;
             double *d = src_y + n_src;
@@ -119,7 +120,8 @@ void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, M
         "VerticalInterpolate2D", policy, KOKKOS_LAMBDA(const member_type &team) {
             const std::size_t c = team.league_rank();
 
-            Kokkos::View<double*, typename execution_space::scratch_memory_space, Kokkos::MemoryUnmanaged> scratch_view(team.team_scratch(0), 4 * n_src);
+            Kokkos::View<double *, typename execution_space::scratch_memory_space, Kokkos::MemoryUnmanaged> scratch_view(team.team_scratch(0),
+                                                                                                                         4 * n_src);
             double *src_x = scratch_view.data();
             double *src_y = src_x + n_src;
             double *d = src_y + n_src;

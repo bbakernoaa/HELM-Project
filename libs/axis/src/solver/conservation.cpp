@@ -153,10 +153,10 @@ template void adjust_by_fraction<Kokkos::CudaSpace>(field_view<double, 1>, field
 template double source_integral<Kokkos::HIPSpace>(field_view<const double, 1>, field_view<const double, 1>, field_view<const double, 1>);
 
 template double destination_integral<Kokkos::HIPSpace>(field_view<const double, 1>, field_view<const double, 1>, field_view<const double, 1>,
-                                                        NormType);
+                                                       NormType);
 
 template ConservationReport check_conservation<Kokkos::HIPSpace>(field_view<const double, 1>, field_view<const double, 1>,
-                                                                  const InterpolationMatrix<Kokkos::HIPSpace> &, NormType);
+                                                                 const InterpolationMatrix<Kokkos::HIPSpace> &, NormType);
 
 template void adjust_by_fraction<Kokkos::HIPSpace>(field_view<double, 1>, field_view<const double, 1>);
 #endif
