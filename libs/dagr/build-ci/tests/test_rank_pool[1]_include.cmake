@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/dagr/build-ci/tests/test_rank_pool[1]_tests.cmake")
+  include("/workspace/helm-project/libs/dagr/build-ci/tests/test_rank_pool[1]_tests.cmake")
+else()
+  add_test(test_rank_pool_NOT_BUILT test_rank_pool_NOT_BUILT)
+endif()

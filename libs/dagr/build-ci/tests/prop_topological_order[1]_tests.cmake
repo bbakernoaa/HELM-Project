@@ -1,0 +1,3 @@
+add_test([=[TopologicalOrder.CompletionSequenceRespectsDAGOrder]=]  /workspace/helm-project/libs/dagr/build-ci/tests/prop_topological_order [==[--gtest_filter=TopologicalOrder.CompletionSequenceRespectsDAGOrder]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[TopologicalOrder.CompletionSequenceRespectsDAGOrder]=]  PROPERTIES WORKING_DIRECTORY /workspace/helm-project/libs/dagr/build-ci/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==] ENVIRONMENT [==[RC_PARAMS=max_success=1000]==] TIMEOUT 120)
+set(  prop_topological_order_TESTS TopologicalOrder.CompletionSequenceRespectsDAGOrder)

@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/tick/build-ci/tests/test_aliasing_engine[1]_tests.cmake")
+  include("/workspace/helm-project/libs/tick/build-ci/tests/test_aliasing_engine[1]_tests.cmake")
+else()
+  add_test(test_aliasing_engine_NOT_BUILT test_aliasing_engine_NOT_BUILT)
+endif()

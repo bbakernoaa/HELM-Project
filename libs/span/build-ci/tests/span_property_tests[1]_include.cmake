@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/span/build-ci/tests/span_property_tests[1]_tests.cmake")
+  include("/workspace/helm-project/libs/span/build-ci/tests/span_property_tests[1]_tests.cmake")
+else()
+  add_test(span_property_tests_NOT_BUILT span_property_tests_NOT_BUILT)
+endif()

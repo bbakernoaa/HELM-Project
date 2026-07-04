@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/dagr/build-ci/tests/test_yaml_parser[1]_tests.cmake")
+  include("/workspace/helm-project/libs/dagr/build-ci/tests/test_yaml_parser[1]_tests.cmake")
+else()
+  add_test(test_yaml_parser_NOT_BUILT test_yaml_parser_NOT_BUILT)
+endif()

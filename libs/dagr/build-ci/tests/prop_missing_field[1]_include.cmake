@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/dagr/build-ci/tests/prop_missing_field[1]_tests.cmake")
+  include("/workspace/helm-project/libs/dagr/build-ci/tests/prop_missing_field[1]_tests.cmake")
+else()
+  add_test(prop_missing_field_NOT_BUILT prop_missing_field_NOT_BUILT)
+endif()

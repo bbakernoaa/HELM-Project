@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/tick/build-ci/tests/test_cal360[1]_tests.cmake")
+  include("/workspace/helm-project/libs/tick/build-ci/tests/test_cal360[1]_tests.cmake")
+else()
+  add_test(test_cal360_NOT_BUILT test_cal360_NOT_BUILT)
+endif()

@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/dagr/build-ci/tests/prop_rank_conservation[1]_tests.cmake")
+  include("/workspace/helm-project/libs/dagr/build-ci/tests/prop_rank_conservation[1]_tests.cmake")
+else()
+  add_test(prop_rank_conservation_NOT_BUILT prop_rank_conservation_NOT_BUILT)
+endif()

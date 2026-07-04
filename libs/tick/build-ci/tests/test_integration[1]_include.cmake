@@ -1,0 +1,5 @@
+if(EXISTS "/workspace/helm-project/libs/tick/build-ci/tests/test_integration[1]_tests.cmake")
+  include("/workspace/helm-project/libs/tick/build-ci/tests/test_integration[1]_tests.cmake")
+else()
+  add_test(test_integration_NOT_BUILT test_integration_NOT_BUILT)
+endif()
