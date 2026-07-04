@@ -82,4 +82,12 @@ solver::InterpolationMatrix<MemorySpace> DistributedWeightGenerator<MemorySpace>
 
 template class DistributedWeightGenerator<Kokkos::HostSpace>;
 
+#ifdef KOKKOS_ENABLE_CUDA
+template class DistributedWeightGenerator<Kokkos::CudaSpace>;
+#endif
+
+#ifdef KOKKOS_ENABLE_HIP
+template class DistributedWeightGenerator<Kokkos::HIPSpace>;
+#endif
+
 }  // namespace axis::distributed

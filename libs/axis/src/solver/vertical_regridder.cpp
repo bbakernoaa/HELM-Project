@@ -156,4 +156,12 @@ void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, M
 // Explicit template instantiations
 template class VerticalRegridder<Kokkos::HostSpace>;
 
+#ifdef KOKKOS_ENABLE_CUDA
+template class VerticalRegridder<Kokkos::CudaSpace>;
+#endif
+
+#ifdef KOKKOS_ENABLE_HIP
+template class VerticalRegridder<Kokkos::HIPSpace>;
+#endif
+
 }  // namespace axis::solver

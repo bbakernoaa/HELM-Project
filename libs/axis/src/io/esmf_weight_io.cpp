@@ -180,4 +180,12 @@ solver::InterpolationMatrix<MemorySpace> EsmfWeightIO<MemorySpace>::read_esmf(co
 
 template class EsmfWeightIO<Kokkos::HostSpace>;
 
+#ifdef KOKKOS_ENABLE_CUDA
+template class EsmfWeightIO<Kokkos::CudaSpace>;
+#endif
+
+#ifdef KOKKOS_ENABLE_HIP
+template class EsmfWeightIO<Kokkos::HIPSpace>;
+#endif
+
 }  // namespace axis::io
