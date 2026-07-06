@@ -254,20 +254,31 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
             const double d_lo_y = dst_lat_min + static_cast<double>(jd) * dst_delta_lat;
             const double d_hi_y = d_lo_y + dst_delta_lat;
 
+            // Normalize destination bounds when mapping a global periodic grid
+            double d_lo_x_norm = d_lo_x;
+            double d_hi_x_norm = d_hi_x;
+            if (src_is_global) {
+                double shift = 360.0 * std::floor((d_lo_x - src_lon_min) / 360.0);
+                d_lo_x_norm = d_lo_x - shift;
+                d_hi_x_norm = d_hi_x - shift;
+            }
+
             // Area of destination cell
             const double area_dst = dst_areas[dst_cell_idx];
             if (area_dst <= 0.0) continue;
 
             // ── Determine overlapping source cell index range ──
             // Map destination cell bounds into source grid index space.
-            int is_lo = static_cast<int>(std::floor((d_lo_x - src_lon_min) / src_delta_lon));
-            int is_hi = static_cast<int>(std::floor((d_hi_x - src_lon_min) / src_delta_lon));
+            int is_lo = static_cast<int>(std::floor((d_lo_x_norm - src_lon_min) / src_delta_lon));
+            int is_hi = static_cast<int>(std::floor((d_hi_x_norm - src_lon_min) / src_delta_lon));
             int js_lo = static_cast<int>(std::floor((d_lo_y - src_lat_min) / src_delta_lat));
             int js_hi = static_cast<int>(std::floor((d_hi_y - src_lat_min) / src_delta_lat));
 
             // Clamp to valid source grid range [0, ni-1] × [0, nj-1]
-            is_lo = std::max(0, is_lo);
-            is_hi = std::min(static_cast<int>(src_ni) - 1, is_hi);
+            if (!src_is_global) {
+                is_lo = std::max(0, is_lo);
+                is_hi = std::min(static_cast<int>(src_ni) - 1, is_hi);
+            }
             js_lo = std::max(0, js_lo);
             js_hi = std::min(static_cast<int>(src_nj) - 1, js_hi);
 
@@ -312,9 +323,9 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
                     // Compute rectangle overlap area
                     double overlap_area = 0.0;
                     if (is_spherical) {
-                        overlap_area = rect_overlap_spherical(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y, is_degrees);
+                        overlap_area = rect_overlap_spherical(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x_norm, d_hi_x_norm, d_lo_y, d_hi_y, is_degrees);
                     } else {
-                        overlap_area = rect_overlap(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                        overlap_area = rect_overlap(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x_norm, d_hi_x_norm, d_lo_y, d_hi_y);
                     }
 
                     if (overlap_area <= 0.0) continue;
