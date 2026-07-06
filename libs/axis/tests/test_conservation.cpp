@@ -198,4 +198,63 @@ TEST(Conservation, GlobalPeriodicLongitudeMapping0To360ToMinus180To180) {
     }
 }
 
+static topology::UnstructuredMesh<MemSpace> make_regular_spherical_grid_synthesized(std::size_t ni, std::size_t nj, double lon_min, double lon_max, double lat_min, double lat_max) {
+    const double delta_lon = (lon_max - lon_min) / static_cast<double>(ni);
+    const double delta_lat = (lat_max - lat_min) / static_cast<double>(nj);
+
+    Kokkos::View<double *, MemSpace> cx("cx", ni * nj);
+    Kokkos::View<double *, MemSpace> cy("cy", ni * nj);
+    for (std::size_t j = 0; j < nj; ++j) {
+        for (std::size_t i = 0; i < ni; ++i) {
+            cx(i + j * ni) = lon_min + (static_cast<double>(i) + 0.5) * delta_lon;
+            cy(i + j * ni) = lat_min + (static_cast<double>(j) + 0.5) * delta_lat;
+        }
+    }
+
+    topology::StructuredGrid<MemSpace> grid(ni, nj, std::move(cx), std::move(cy), topology::CoordinateSystem::SphericalDeg);
+    // Do NOT call set_corners, let them synthesize.
+    return grid.to_unstructured();
+}
+
+TEST(Conservation, GlobalPeriodicLongitudeMappingWithSynthesizedCorners) {
+    // 0->360 source mesh (global) with synthesized corners
+    auto src_mesh = make_regular_spherical_grid_synthesized(72, 46, 0.0, 360.0, -90.0, 90.0);
+    // -180->180 destination mesh with synthesized corners
+    auto dst_mesh = make_regular_spherical_grid_synthesized(72, 46, -180.0, 180.0, -90.0, 90.0);
+
+    solver::RegridConfig cfg;
+    cfg.method = solver::InterpolationMethod::Conservative1stOrder;
+    cfg.norm_type = solver::NormType::DstArea;
+    cfg.line_type = solver::LineType::GreatCircle;
+    cfg.unmapped = solver::UnmappedAction::Ignore;
+
+    auto matrix = solver::WeightGenerator::generate<MemSpace>(src_mesh, dst_mesh, cfg);
+
+    const std::size_t n_dst = matrix.n_dst();
+    EXPECT_EQ(n_dst, 72 * 46);
+
+    // Compute row sums
+    std::vector<double> row_sums(n_dst, 0.0);
+    auto rows = matrix.factor_row();
+    auto vals = matrix.factor_list();
+    for (std::size_t k = 0; k < matrix.nnz(); ++k) {
+        row_sums[rows[k]] += vals[k];
+    }
+
+    // Every destination cell should be fully covered and have row sum of approximately 1.0,
+    // except for the boundary columns i=35 and i=36 which only have 0.5 coverage due to the
+    // physical 5.0 degree gap across the dateline in the synthesized corners grid.
+    for (std::size_t j = 0; j < 46; ++j) {
+        for (std::size_t i = 0; i < 72; ++i) {
+            std::size_t idx = j * 72 + i;
+            double expected = (i == 35 || i == 36) ? 0.5 : 1.0;
+            if (i < 36) {
+                EXPECT_NEAR(row_sums[idx], expected, 1e-12) << "Western hemisphere cell at i=" << i << ", j=" << j << " (index " << idx << ") has incorrect coverage!";
+            } else {
+                EXPECT_NEAR(row_sums[idx], expected, 1e-12) << "Eastern hemisphere cell at i=" << i << ", j=" << j << " (index " << idx << ") has incorrect coverage!";
+            }
+        }
+    }
+}
+
 }  // namespace axis::test

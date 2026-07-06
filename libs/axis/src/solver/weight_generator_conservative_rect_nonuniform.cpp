@@ -71,6 +71,12 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
     auto dst_lons = dst_rect_info.unique_lons;
     auto dst_lats = dst_rect_info.unique_lats;
 
+    const double src_lon_min = src_lons(0);
+    const double src_lon_max = src_lons(src_ni);
+    const double src_full_range = src_lon_max - src_lon_min;
+    const double wrap_threshold = is_degrees ? 350.0 : 6.0;
+    const bool src_is_global = (src_full_range > wrap_threshold);
+
     auto mesh_src_areas = src_mesh.cell_areas();
     auto mesh_dst_areas = dst_mesh.cell_areas();
 
@@ -100,12 +106,20 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
             double d_lo_y = dst_lats(jd);
             double d_hi_y = dst_lats(jd + 1);
 
+            double d_lo_x_norm = d_lo_x;
+            double d_hi_x_norm = d_hi_x;
+            if (src_is_global) {
+                double shift = 360.0 * std::floor((d_lo_x - src_lon_min) / 360.0);
+                d_lo_x_norm = d_lo_x - shift;
+                d_hi_x_norm = d_hi_x - shift;
+            }
+
             double area_dst = 0.0;
             if (has_dst_areas) {
                 area_dst = mesh_dst_areas(c_dst);
             } else {
                 if (is_spherical) {
-                    double dlon = d_hi_x - d_lo_x;
+                    double dlon = d_hi_x_norm - d_lo_x_norm;
                     double d_lo_y_r = d_lo_y;
                     double d_hi_y_r = d_hi_y;
                     if (is_degrees) {
@@ -116,17 +130,25 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
                     }
                     area_dst = dlon * (std::sin(d_hi_y_r) - std::sin(d_lo_y_r));
                 } else {
-                    area_dst = (d_hi_x - d_lo_x) * (d_hi_y - d_lo_y);
+                    area_dst = (d_hi_x_norm - d_lo_x_norm) * (d_hi_y - d_lo_y);
                 }
             }
             if (area_dst <= 0.0) continue;
 
             // Find overlapping source cell index ranges using binary search
-            auto src_lon_start_it = std::lower_bound(src_lons.data(), src_lons.data() + src_lons.extent(0), d_lo_x);
-            auto src_lon_end_it = std::upper_bound(src_lons.data(), src_lons.data() + src_lons.extent(0), d_hi_x);
+            auto src_lon_start_it = std::lower_bound(src_lons.data(), src_lons.data() + src_lons.extent(0), d_lo_x_norm);
+            auto src_lon_end_it = std::upper_bound(src_lons.data(), src_lons.data() + src_lons.extent(0), d_hi_x_norm);
 
             int is_start = std::max(0, static_cast<int>(std::distance(src_lons.data(), src_lon_start_it) - 1));
-            int is_end = std::min(static_cast<int>(src_ni) - 1, static_cast<int>(std::distance(src_lons.data(), src_lon_end_it)));
+            int is_end = static_cast<int>(std::distance(src_lons.data(), src_lon_end_it));
+
+            if (src_is_global) {
+                if (d_hi_x_norm <= src_lon_max) {
+                    is_end = std::min(static_cast<int>(src_ni) - 1, is_end);
+                }
+            } else {
+                is_end = std::min(static_cast<int>(src_ni) - 1, is_end);
+            }
 
             auto src_lat_start_it = std::lower_bound(src_lats.data(), src_lats.data() + src_lats.extent(0), d_lo_y);
             auto src_lat_end_it = std::upper_bound(src_lats.data(), src_lats.data() + src_lats.extent(0), d_hi_y);
@@ -136,20 +158,28 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
 
             for (int js = js_start; js <= js_end; ++js) {
                 for (int is = is_start; is <= is_end; ++is) {
-                    const std::size_t c_src = is + js * src_ni;
+                    int is_actual = is;
+                    if (src_is_global) {
+                        is_actual = ((is % static_cast<int>(src_ni)) + static_cast<int>(src_ni)) % static_cast<int>(src_ni);
+                    }
+                    const std::size_t c_src = is_actual + js * src_ni;
 
                     if (has_src_mask && src_mask(c_src) == 0) continue;
 
-                    double s_lo_x = src_lons(is);
-                    double s_hi_x = src_lons(is + 1);
+                    double s_lo_x = src_lons(is_actual);
+                    double s_hi_x = src_lons(is_actual + 1);
+                    if (src_is_global && is >= static_cast<int>(src_ni)) {
+                        s_lo_x += 360.0;
+                        s_hi_x += 360.0;
+                    }
                     double s_lo_y = src_lats(js);
                     double s_hi_y = src_lats(js + 1);
 
                     double overlap_area = 0.0;
                     if (is_spherical) {
-                        overlap_area = rect_overlap_spherical_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y, is_degrees);
+                        overlap_area = rect_overlap_spherical_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x_norm, d_hi_x_norm, d_lo_y, d_hi_y, is_degrees);
                     } else {
-                        overlap_area = rect_overlap_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x, d_hi_x, d_lo_y, d_hi_y);
+                        overlap_area = rect_overlap_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x_norm, d_hi_x_norm, d_lo_y, d_hi_y);
                     }
 
                     if (overlap_area > 1e-12) {

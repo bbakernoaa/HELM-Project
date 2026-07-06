@@ -114,14 +114,18 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
     // destination cells extend beyond source bounds), we fall back to the
     // standard BVH path. For now, detect and handle the simple case where
     // both grids cover the same longitude domain.
-    constexpr double wrap_threshold = 359.0;  // degrees
-    const double src_lon_range = src_grid_info.lon_max - src_grid_info.lon_min;
-    const double dst_lon_range = dst_grid_info.lon_max - dst_grid_info.lon_min;
+    const auto csys = src_mesh.coord_system();
+    const bool is_degrees = (csys == topology::CoordinateSystem::SphericalDeg);
+    const double wrap_threshold = is_degrees ? 350.0 : 6.0;
+
+    // Compute full periodic ranges as ni * delta_lon (accounts for synthesized corners)
+    const double src_full_range = static_cast<double>(src_ni) * src_delta_lon;
+    const double dst_full_range = static_cast<double>(dst_ni) * dst_delta_lon;
 
     // Check if either grid wraps around the dateline
-    // A grid is "global" if it spans nearly 360 degrees
-    const bool src_is_global = (src_lon_range > wrap_threshold);
-    const bool dst_is_global = (dst_lon_range > wrap_threshold);
+    // A grid is "global" if it spans nearly 360 degrees (or 2*pi radians)
+    const bool src_is_global = (src_full_range > wrap_threshold);
+    const bool dst_is_global = (dst_full_range > wrap_threshold);
 
     // If destination extends beyond source longitude bounds and neither is
     // global, fall back — caller should use the BVH path.
@@ -178,9 +182,7 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect(const topology::Unst
     rows_vec.reserve(std::min(est_nnz, n_src * n_dst));
     cols_vec.reserve(std::min(est_nnz, n_src * n_dst));
 
-    const auto csys = src_mesh.coord_system();
     const bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
-    const bool is_degrees = (csys == topology::CoordinateSystem::SphericalDeg);
 
     // ── Conservation bookkeeping arrays ──
     std::vector<double> frac_a_acc(n_src, 0.0);
