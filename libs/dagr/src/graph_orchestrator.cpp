@@ -24,17 +24,17 @@
 #include "dagr/pipeline_config.hpp"
 #include "halo/communicator.hpp"
 #include "logs/logs.hpp"
+#include "shared_logger.hpp"
 
 namespace dagr {
 
 namespace {
 
-/// Module-local logger for GraphOrchestrator diagnostics.
-/// In the full HELM build this would be the shared Logger; for now we
-/// instantiate a local one so the code compiles standalone.
+/// GraphOrchestrator diagnostics route through DAGR's single shared LOGS
+/// logger (configured once via dagr::configure_logging), so rank stamping and
+/// severity thresholds apply uniformly across all DAGR translation units.
 logs::Logger &logger() {
-    static logs::Logger instance;
-    return instance;
+    return detail::shared_logger();
 }
 
 /// Format a set of integers as a comma-separated bracket-enclosed string.
@@ -422,11 +422,16 @@ void GraphOrchestrator::shutdown() {
     while (impl_->event_loop.in_flight_count() > 0) {
         auto elapsed = std::chrono::steady_clock::now() - start;
         if (elapsed >= timeout) {
-            // Timeout expired with ranks still allocated (Req 5.7)
-            logger().log(logs::Severity_Level::FATAL,
-                         "GraphOrchestrator: shutdown timeout expired (" + std::to_string(impl_->config.shutdown_timeout_s) + "s) with " +
-                             std::to_string(impl_->event_loop.in_flight_count()) + " tasks still in-flight; " +
-                             std::to_string(impl_->rank_pool.allocated_ranks()) + " ranks unreturned; proceeding with forced shutdown");
+            // Drain timeout expired with tasks still in-flight (Req 5.7). This is
+            // a *forced* shutdown: cancel the remaining tasks and proceed rather
+            // than aborting the whole job. (Logging at FATAL here would trigger
+            // LOGS' Synchronized_Abort / MPI_Abort, which contradicts the intent
+            // to proceed and would take down every rank.)
+            logger().log(logs::Severity_Level::WARNING,
+                         "GraphOrchestrator: shutdown drain timeout expired (" + std::to_string(impl_->config.shutdown_timeout_s) + "s) with " +
+                             std::to_string(impl_->event_loop.in_flight_count()) + " task(s) still in-flight; " +
+                             std::to_string(impl_->rank_pool.allocated_ranks()) + " rank(s) unreturned; forcing cancellation");
+            impl_->event_loop.force_cancel_in_flight();
             break;
         }
 

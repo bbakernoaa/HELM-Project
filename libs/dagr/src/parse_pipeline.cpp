@@ -17,17 +17,16 @@
 #include "conf/conf.hpp"
 #include "dagr/pipeline_config.hpp"
 #include "logs/logs.hpp"
+#include "shared_logger.hpp"
 
 namespace dagr {
 
 namespace {
 
-/// Thread-local logger instance for parse_pipeline diagnostics.
-/// In the full HELM build this would be the shared Logger; for now we
-/// instantiate a local one so the code compiles standalone.
+/// parse_pipeline diagnostics route through DAGR's single shared LOGS logger
+/// (configured once via dagr::configure_logging).
 logs::Logger &logger() {
-    static logs::Logger instance;
-    return instance;
+    return detail::shared_logger();
 }
 
 /// Parse a snapshot_interval string like "86400s", "3600s", "100s" into a

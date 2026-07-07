@@ -11,15 +11,16 @@
 #include <string>
 
 #include "logs/logs.hpp"
+#include "shared_logger.hpp"
 
 namespace dagr::detail {
 
 namespace {
 
-/// Thread-local logger instance for Event_Loop diagnostics.
+/// Event_Loop diagnostics route through DAGR's single shared LOGS logger
+/// (configured once via dagr::configure_logging).
 logs::Logger &logger() {
-    static logs::Logger instance;
-    return instance;
+    return shared_logger();
 }
 
 /// Check if a Task_Status is terminal (no further transitions possible).
@@ -88,6 +89,31 @@ bool Event_Loop::all_complete() const noexcept {
 
 std::uint32_t Event_Loop::in_flight_count() const noexcept {
     return in_flight_;
+}
+
+void Event_Loop::force_cancel_in_flight() {
+    logs::Scoped_Context ctx("force_cancel");
+
+    std::uint32_t cancelled = 0;
+    for (auto &node : nodes_) {
+        if (node.status == Task_Status::running) {
+            // Release any ranks this task was holding.
+            if (node.id < allocated_ranks_.size() && !allocated_ranks_[node.id].empty()) {
+                rank_pool_.release(allocated_ranks_[node.id]);
+                allocated_ranks_[node.id].clear();
+            }
+            node.status = Task_Status::cancelled;
+            ++cancelled;
+        }
+    }
+
+    in_flight_ = 0;
+    record_progress();
+
+    if (cancelled > 0) {
+        logger().log(logs::Severity_Level::WARNING,
+                     "Event_Loop: force-cancelled " + std::to_string(cancelled) + " in-flight task(s) during shutdown");
+    }
 }
 
 // ─── Phase 1: Poll (Req 3.4, 3.6) ───────────────────────────────────────────

@@ -71,6 +71,14 @@ class Event_Loop {
     /// Current count of dispatched-but-not-completed tasks.
     [[nodiscard]] std::uint32_t in_flight_count() const noexcept;
 
+    /// Forcibly cancel every still-running task: transition it to the cancelled
+    /// terminal state, release its allocated ranks back to the pool, and reset
+    /// the in-flight counter to zero. Used by GraphOrchestrator::shutdown() when
+    /// the drain timeout expires so teardown can proceed cleanly instead of
+    /// leaving phantom in-flight tasks. Safe because dispatch/completion run
+    /// synchronously — there are no detached worker threads to join.
+    void force_cancel_in_flight();
+
    private:
     /// Phase 1: Poll for newly ready nodes (Req 3.4, 3.6)
     void poll_ready_nodes();

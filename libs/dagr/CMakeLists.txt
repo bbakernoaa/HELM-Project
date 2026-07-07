@@ -37,6 +37,7 @@ add_library(dagr STATIC
     src/event_loop.cpp
     src/rank_pool.cpp
     src/transform_node.cpp
+    src/logging.cpp
 )
 add_library(HELM::DAGR ALIAS dagr)
 
