@@ -32,6 +32,7 @@ mkdir build && cd build
 cmake ..
 make -j4
 ctest --output-on-failure
+```
 
 ## License
 
