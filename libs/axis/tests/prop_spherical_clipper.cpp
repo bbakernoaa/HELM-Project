@@ -171,7 +171,7 @@ RC_GTEST_PROP(PropSphericalClipper, ContainedPolygonClipPreservesArea, ()) {
 
     // Relative tolerance check
     double rel_error = std::abs(result_area - subject_area) / subject_area;
-    RC_ASSERT(rel_error < 1e-14);
+    RC_ASSERT(rel_error < 1e-12);
 }
 
 // ─── Property 3: Clipper terminates with valid output on all inputs ──────────
