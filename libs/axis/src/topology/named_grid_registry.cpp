@@ -714,7 +714,7 @@ bool NamedGridRegistry::is_registered(const std::string &name) noexcept {
 }
 
 std::vector<char> NamedGridRegistry::registered_families() {
-    return {'F', 'N', 'O', 'R'};
+    return {'F', 'G', 'N', 'O', 'R'};  // sorted
 }
 
 // Explicit instantiation of generate for HostSpace

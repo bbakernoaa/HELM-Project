@@ -78,7 +78,7 @@ class NamedGridRegistry {
 
     /// @brief Enumerate all registered family prefixes.
     ///
-    /// @return std::vector<char> A sorted vector of registered grid family characters (currently {'F', 'N', 'O', 'R'}).
+    /// @return std::vector<char> A sorted vector of registered grid family characters (currently {'F', 'G', 'N', 'O', 'R'}).
     [[nodiscard]] static std::vector<char> registered_families();
 };
 
