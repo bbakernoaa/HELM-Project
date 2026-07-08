@@ -30,7 +30,7 @@ Add support for the `'R'` family character prefix in `NamedGridRegistry` parsing
 
 - [ ] **Step 1: Write failing tests in property-based suite**
   Modify `libs/axis/tests/prop_named_grid_registration.cpp` to include `'R'` in the valid families list and verify failure of the families enumeration assertion.
-  
+
   In `libs/axis/tests/prop_named_grid_registration.cpp` at `genValidFamily()`:
   ```cpp
   /// Generate a valid family prefix character: one of 'O', 'F', 'N', or 'R'.

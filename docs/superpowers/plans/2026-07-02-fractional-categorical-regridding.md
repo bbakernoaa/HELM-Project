@@ -78,13 +78,13 @@ Add the implementation of `regrid_categorical` to the `Regridder` class in `regr
         for cat_id, cat_name in category_mapping.items():
             # Build binary indicator mask
             indicator = (da_in == cat_id).astype(float)
-            
+
             # Carry over coordinates and metadata for exact spatial mapping
             indicator = indicator.copy(deep=True)
-            
+
             # Remap via self
             fraction_da = self(indicator, keep_attrs=False)
-            
+
             # Form clean variable name
             var_name = f"{prefix}{cat_name}"
             regridded_vars[var_name] = fraction_da
@@ -121,7 +121,7 @@ Add a Python-level unit test to verify the correctness of the new fractional cat
       # Source 2x2 grid
       lons_in = [10.0, 20.0]
       lats_in = [10.0, 20.0]
-      
+
       # 2x2 cells with category values: 1 (forest), 2 (water), 3 (urban)
       categories = np.array([
           [1, 2],
@@ -141,20 +141,20 @@ Add a Python-level unit test to verify the correctness of the new fractional cat
       })
 
       regridder = axis.Regridder(ds_in, ds_out, method="nearest")
-      
+
       # 1. Test auto-discovery of categories
       ds_fraction = regridder.regrid_categorical(ds_in["land_use"])
       assert "fraction_1" in ds_fraction
       assert "fraction_2" in ds_fraction
       assert "fraction_3" in ds_fraction
-      
+
       # 2. Test dictionary mapping
       mapping = {1: "forest", 2: "water", 3: "urban"}
       ds_mapped = regridder.regrid_categorical(ds_in["land_use"], categories=mapping)
       assert "fraction_forest" in ds_mapped
       assert "fraction_water" in ds_mapped
       assert "fraction_urban" in ds_mapped
-      
+
       # Verify exact area/centroid fractions
       # Since nearest neighbor maps all 4 equidistant cells to the 1x1 destination,
       # let's use bilinear to test exact interpolation weights or verify sum of fractions.
