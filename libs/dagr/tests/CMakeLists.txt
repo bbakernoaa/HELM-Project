@@ -19,8 +19,19 @@ find_package(rapidcheck REQUIRED)
 
 # conf (static) + yaml-cpp dependency
 set(CONF_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../../conf/build/libconf.a")
+if(NOT EXISTS ${CONF_LIB})
+    set(CONF_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../../conf/build-ci/libconf.a")
+endif()
+
 set(YAMLCPP_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../../conf/build/_deps/yaml-cpp-build/libyaml-cppd.a")
+if(NOT EXISTS ${YAMLCPP_LIB})
+    set(YAMLCPP_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../../conf/build-ci/_deps/yaml-cpp-build/libyaml-cppd.a")
+endif()
+
 set(LOGS_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../../logs/build/liblogs.so")
+if(NOT EXISTS ${LOGS_LIB})
+    set(LOGS_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../../logs/build-ci/liblogs.so")
+endif()
 
 # Create imported targets for sibling libraries
 if(EXISTS ${CONF_LIB})
