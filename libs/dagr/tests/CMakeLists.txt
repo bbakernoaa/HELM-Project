@@ -72,10 +72,10 @@ foreach(test_name IN LISTS DAGR_UNIT_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/../../tick/include
             ${CMAKE_CURRENT_SOURCE_DIR}/../../conf/include
             ${CMAKE_CURRENT_SOURCE_DIR}/../../logs/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../SPAN/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../HALO/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../BLEND/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../AMIO/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../span/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../halo/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../blend/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../amio/include
     )
     gtest_discover_tests(${test_name})
 endforeach()
@@ -114,10 +114,10 @@ foreach(test_name IN LISTS DAGR_PROPERTY_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/../../tick/include
             ${CMAKE_CURRENT_SOURCE_DIR}/../../conf/include
             ${CMAKE_CURRENT_SOURCE_DIR}/../../logs/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../SPAN/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../HALO/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../BLEND/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../AMIO/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../span/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../halo/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../blend/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../amio/include
     )
     gtest_discover_tests(${test_name}
         PROPERTIES
