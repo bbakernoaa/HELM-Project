@@ -261,13 +261,15 @@ RC_GTEST_PROP(PropConservative2ndOrder, IntegralPreservation, ()) {
 
     if (max_magnitude > 1e-15) {
         double rel_error = abs_error / max_magnitude;
-        // The 2nd-order geometric correction modifies individual weights
-        // but preserves the per-row integral when normalization is applied.
-        // Tolerance accounts for spherical clipping precision + correction roundoff.
         // The 2nd-order geometric correction trades strict conservation for
-        // improved spatial accuracy. On spherical grids with varying cell sizes,
-        // the correction-factor normalization introduces O(h²) conservation error.
-        RC_ASSERT(rel_error < 0.10);
+        // improved spatial accuracy. Use an adaptive tolerance based on grid size:
+        // tiny grids are prone to local least-squares discretization fitting errors,
+        // while larger grids must satisfy extremely tight high-precision bounds.
+        double tol = 1e-8;
+        if (n_src < 25 || n_dst < 25) {
+            tol = 3e-4; // Slightly relaxed for tiny grids (e.g., 3x3)
+        }
+        RC_ASSERT(rel_error < tol);
     } else {
         RC_ASSERT(abs_error < 1e-12);
     }

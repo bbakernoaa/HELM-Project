@@ -136,9 +136,14 @@ RC_GTEST_PROP(PropSphericalClipper, ContainedPolygonClipPreservesArea, ()) {
     // Small polygon radius: 0.05 to 0.15 radians (~3-9 degrees)
     double radius_small = *rc::gen::map(rc::gen::inRange(50, 151), [](int v) { return v * 0.001; });
 
+    int nverts_large = *rc::gen::inRange(6, 12);
+    int nverts_small = *rc::gen::inRange(4, 9);
+
     // Offset the small polygon center slightly from the large polygon center,
-    // but ensure it's still fully contained: offset + radius_small < radius_large
-    double max_offset = radius_large - radius_small - 0.02;
+    // but ensure it's still fully contained. Because polygons have flat edges,
+    // the in-radius of the large polygon is radius_large * cos(pi/nverts_large),
+    // and the small polygon out-radius is radius_small.
+    double max_offset = radius_large * std::cos(M_PI / nverts_large) - radius_small - 0.02;
     RC_PRE(max_offset > 0.01);
 
     double offset_frac = *rc::gen::map(rc::gen::inRange(0, 100), [](int v) { return v * 0.01; });
@@ -156,9 +161,6 @@ RC_GTEST_PROP(PropSphericalClipper, ContainedPolygonClipPreservesArea, ()) {
              center.y * std::cos(offset) + u.y * std::sin(offset) * std::cos(offset_angle) + v_dir.y * std::sin(offset) * std::sin(offset_angle),
              center.z * std::cos(offset) + u.z * std::sin(offset) * std::cos(offset_angle) + v_dir.z * std::sin(offset) * std::sin(offset_angle)});
 
-    int nverts_large = *rc::gen::inRange(6, 12);
-    int nverts_small = *rc::gen::inRange(4, 9);
-
     auto poly_large = make_spherical_cap<32>(center, radius_large, nverts_large);
     auto poly_small = make_spherical_cap<32>(small_center, radius_small, nverts_small);
 
@@ -171,7 +173,7 @@ RC_GTEST_PROP(PropSphericalClipper, ContainedPolygonClipPreservesArea, ()) {
 
     // Relative tolerance check
     double rel_error = std::abs(result_area - subject_area) / subject_area;
-    RC_ASSERT(rel_error < 1e-12);
+    RC_ASSERT(rel_error < 1e-14);
 }
 
 // ─── Property 3: Clipper terminates with valid output on all inputs ──────────
