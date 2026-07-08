@@ -3,7 +3,7 @@
 #
 # Executable encoding of the DAGR zero-computation enforcement and build/test
 # pipeline. Every stage runs INSIDE the HELM project Docker container (built
-# from ./DockerFile via docker compose), so the toolchain matches local
+# from ./Dockerfile via docker compose), so the toolchain matches local
 # development exactly.
 #
 # Stages:
@@ -25,18 +25,19 @@ name: DAGR CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/dagr/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/dagr-ci.yml"
   pull_request:
     paths:
       - "libs/dagr/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/dagr-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
@@ -127,7 +128,20 @@ jobs:
         run: |
           docker compose exec -T helm-dev bash -lc '
             set -e
-            cd libs/dagr
+
+            # Compile sibling dependencies conf and logs
+            cd /workspace/helm-project/libs/conf
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF
+            cmake --build build-ci --parallel $(nproc)
+
+            cd /workspace/helm-project/libs/logs
+            rm -rf build-ci
+            cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF
+            cmake --build build-ci --parallel $(nproc)
+
+            # Build DAGR
+            cd /workspace/helm-project/libs/dagr
             rm -rf build-ci
             cmake -B build-ci -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
@@ -154,7 +168,22 @@ jobs:
         run: |
           docker compose exec -T helm-dev bash -lc '
             set -e
-            cd libs/dagr
+
+            # Compile sibling dependencies conf and logs with Sanitizers
+            cd /workspace/helm-project/libs/conf
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+
+            cd /workspace/helm-project/libs/logs
+            rm -rf build-asan
+            cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF \
+              -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            cmake --build build-asan --parallel $(nproc)
+
+            # Build DAGR with Sanitizers
+            cd /workspace/helm-project/libs/dagr
             rm -rf build-asan
             cmake -B build-asan -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
@@ -171,7 +200,9 @@ jobs:
         if: always()
         run: |
           docker compose exec -T helm-dev bash -lc '
-            cd libs/dagr && rm -rf build-ci build-asan
+            cd libs/dagr && rm -rf build-ci build-asan || true
+            cd libs/conf && rm -rf build-ci build-asan || true
+            cd libs/logs && rm -rf build-ci build-asan || true
           ' || true
 
       - name: Tear down container

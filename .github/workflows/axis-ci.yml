@@ -3,7 +3,7 @@
 #
 # Full staged pipeline for the AXIS Tier 1 spatial interpolation library.
 # Every stage runs INSIDE the HELM project Docker container (built from
-# ./DockerFile via docker compose), so the toolchain matches local development.
+# ./Dockerfile via docker compose), so the toolchain matches local development.
 #
 # Stages:
 #   1. Tier isolation scan .................... Requirements 5.5
@@ -17,18 +17,19 @@ name: AXIS CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/axis/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/axis-ci.yml"
   pull_request:
     paths:
       - "libs/axis/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/axis-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   axis:

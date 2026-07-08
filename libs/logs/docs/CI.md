@@ -12,7 +12,7 @@ the toolchain matches local development exactly.
 
 The pipeline runs on:
 
-- Pushes modifying `libs/logs/**`, `DockerFile`, `docker-compose.yml`, or
+- Pushes modifying `libs/logs/**`, `Dockerfile`, `docker-compose.yml`, or
   the workflow file itself.
 - Pull requests touching the same paths.
 - Manual dispatch (`workflow_dispatch`).
@@ -190,7 +190,7 @@ Requirements: 15.2, 15.3
 ## Docker Container
 
 All stages execute inside the `helm-dev` Docker container (defined by the
-project-root `DockerFile` and `docker-compose.yml`). The container provides:
+project-root `Dockerfile` and `docker-compose.yml`). The container provides:
 
 - GCC 13+ / Clang 16+ with full C++20 support
 - OpenMPI with `OMPI_ALLOW_RUN_AS_ROOT` for CI execution

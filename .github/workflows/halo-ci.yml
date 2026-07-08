@@ -2,7 +2,7 @@
 # HALO CI Pipeline (GitHub Actions)
 #
 # Executable encoding of libs/halo/docs/CI_PIPELINE.md. Every stage runs INSIDE
-# the HELM project Docker container (built from ./DockerFile via docker compose),
+# the HELM project Docker container (built from ./Dockerfile via docker compose),
 # so the toolchain matches local development exactly (Requirement 12.2).
 #
 # Stages:
@@ -25,18 +25,19 @@ name: HALO CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/halo/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/halo-ci.yml"
   pull_request:
     paths:
       - "libs/halo/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/halo-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 # A single job: the stages share one container instance, so we bring the
 # container up once and exec each stage into it (cheaper than rebuilding the
@@ -52,7 +53,7 @@ jobs:
         with:
           submodules: recursive
 
-      # Requirement 12.2: build + start the HELM container from ./DockerFile.
+      # Requirement 12.2: build + start the HELM container from ./Dockerfile.
       # The compose service is `helm-dev`; it sets OMPI_ALLOW_RUN_AS_ROOT so
       # mpirun-launched tests run under the root CI user.
       - name: Bring up HELM container

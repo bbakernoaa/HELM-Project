@@ -21,7 +21,7 @@ name: AXIS Benchmark
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
     paths:
       - "libs/axis/**"
       - ".github/workflows/axis-benchmark.yml"

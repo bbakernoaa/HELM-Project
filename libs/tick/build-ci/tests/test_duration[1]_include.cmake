@@ -1,5 +1,0 @@
-if(EXISTS "/workspace/helm-project/libs/tick/build-ci/tests/test_duration[1]_tests.cmake")
-  include("/workspace/helm-project/libs/tick/build-ci/tests/test_duration[1]_tests.cmake")
-else()
-  add_test(test_duration_NOT_BUILT test_duration_NOT_BUILT)
-endif()

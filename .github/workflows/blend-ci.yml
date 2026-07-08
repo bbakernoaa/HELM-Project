@@ -3,7 +3,7 @@
 #
 # Full staged pipeline for the BLEND Tier 1 header-only math kernels library.
 # Every stage runs INSIDE the HELM project Docker container (built from
-# ./DockerFile via docker compose), so the toolchain matches local development.
+# ./Dockerfile via docker compose), so the toolchain matches local development.
 #
 # Stages:
 #   1. Tier isolation scan .................... Requirements 2.5, 2.11
@@ -17,18 +17,19 @@ name: BLEND CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/blend/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/blend-ci.yml"
   pull_request:
     paths:
       - "libs/blend/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/blend-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   blend:

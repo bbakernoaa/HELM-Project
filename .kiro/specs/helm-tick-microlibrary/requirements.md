@@ -222,7 +222,7 @@ TICK (Time Integration & Chronology Kernel) is a Tier 1 C++20 micro-library with
 #### Acceptance Criteria
 
 1. THE TICK source code SHALL reside in a dedicated Git repository that is added as a Git submodule at the path `libs/tick` within the HELM project workspace root.
-2. THE TICK build and test workflow SHALL use the Docker image built from the HELM project DockerFile as its development and CI container environment, launched via the `helm-dev` service defined in the HELM project `docker-compose.yml`.
+2. THE TICK build and test workflow SHALL use the Docker image built from the HELM project Dockerfile as its development and CI container environment, launched via the `helm-dev` service defined in the HELM project `docker-compose.yml`.
 3. WHEN the TICK repository CMakeLists.txt is configured and built inside the helm-project Docker container with only the TICK source tree present and BUILD_TESTING set to ON, THE build system SHALL produce the HELM::TICK library target and all test executables without errors using only the compilers and libraries pre-installed in the container (GCC-13, CMake, Google Test).
 4. THE TICK repository SHALL include a README.md at its root containing at minimum: a prerequisites section listing the Docker container requirement, the exact `docker compose` command to launch the development container, the exact CMake configure and build commands to compile the library, and the exact CTest or test-runner command to execute the test suite.
 5. WHEN the HELM project workspace is cloned with `--recurse-submodules`, THE TICK submodule SHALL be checked out at a pinned commit recorded in the HELM project `.gitmodules` and Git index so that the HELM project build is reproducible without additional manual steps.

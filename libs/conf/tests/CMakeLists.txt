@@ -8,7 +8,7 @@
 find_package(GTest REQUIRED)
 
 # ─── Locate RapidCheck (property-based testing) ──────────────────────────────
-# RapidCheck is installed globally in the HELM Docker container (see DockerFile),
+# RapidCheck is installed globally in the HELM Docker container (see Dockerfile),
 # which provides both the `rapidcheck` and `rapidcheck_gtest` targets.
 find_package(rapidcheck QUIET)
 if(NOT rapidcheck_FOUND)

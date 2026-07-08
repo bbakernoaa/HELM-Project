@@ -20,7 +20,7 @@ This stage **fails the build** if any violation is found.
 
 ### 2. Standalone CMake Build (Docker)
 
-**Container:** `helm-dev-env` (Docker image from project `DockerFile`)
+**Container:** `helm-dev-env` (Docker image from project `Dockerfile`)
 
 Verifies that AXIS builds as a standalone library using only its declared dependencies (Kokkos + optional PROJ), without requiring other HELM source trees present in the workspace.
 

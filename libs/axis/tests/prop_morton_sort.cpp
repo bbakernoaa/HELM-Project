@@ -256,13 +256,14 @@ RC_GTEST_PROP(PropMortonSort, SpatialLocality, ()) {
     // Morton order should improve locality (lower mean distance)
     // For regular grids, row-major has jumps at row boundaries while Morton
     // maintains 2D locality. Use an adaptive tolerance based on grid size:
-    // tiny grids are prone to edge noise, while larger grids should strictly
-    // demonstrate Morton's spatial locality benefit.
+    // tiny grids or skinny strips are prone to edge noise, while larger grids
+    // should strictly demonstrate Morton's spatial locality benefit.
     double tol = 1.01;
-    if (n < 25) {
-        tol = 1.15; // Relaxed for tiny grids (e.g. 4x4) to accommodate edge effects
+    if (n < 25 || std::min(ni, nj) < 6) {
+        tol = 1.15; // Relaxed for tiny grids or thin strips to accommodate edge effects
     } else if (n >= 100) {
-        tol = 0.95; // Stronger bound for larger grids (e.g. >= 10x10) where Morton must be superior
+        tol = 0.95; // Stronger bound for larger symmetric grids where Morton must be superior
+
     }
     RC_ASSERT(morton_mean_dist <= natural_mean_dist * tol);
 }

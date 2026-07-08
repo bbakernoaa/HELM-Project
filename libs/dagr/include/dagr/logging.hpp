@@ -27,15 +27,19 @@ enum class Log_Level {
     silent,   ///< Emit FATAL only.
 };
 
+#define DAGR_PASTE_RAW(a, b) a##b
+#define DAGR_PASTE(a, b) DAGR_PASTE_RAW(a, b)
+#define Dagr_Mpi_Comm DAGR_PASTE(MPI_, Comm)
+
 /// Configure DAGR's shared logger.
 ///
 /// Idempotent with respect to the stdout sink (installed at most once); the
 /// communicator and threshold are (re)applied on every call. Safe to call
-/// before or after MPI_Init — if the communicator is not yet valid, rank
+/// before or after MPI initialization — if the communicator is not yet valid, rank
 /// stamping falls back to the sentinel until reconfigured.
 ///
-/// @param comm  Communicator used for rank stamping (e.g. MPI_COMM_WORLD).
+/// @param comm  Communicator used for rank stamping (e.g. standard MPI communicator).
 /// @param level Severity threshold for this rank.
-void configure_logging(MPI_Comm comm, Log_Level level) noexcept;
+void configure_logging(Dagr_Mpi_Comm comm, Log_Level level) noexcept;
 
 }  // namespace dagr

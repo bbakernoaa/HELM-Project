@@ -94,28 +94,28 @@ This plan implements five workstreams of enterprise hardening for the HELM micro
 - [ ] 5. CI pipelines
   - [ ] 5.1 Create `.github/workflows/blend-ci.yml`
     - Implement the full LOGS-style staged pipeline: checkout with submodules, bring up container, Stage 1 tier isolation scan, Stage 2 standalone build (`BUILD_TESTING=ON`), Stage 2b downstream consumer test (link `HELM::BLEND`), Stage 3 unit tests (`ctest -L unit`), Stage 4 property tests (`ctest -L property`), Stage 5 sanitizer build (ASan+UBSan), cleanup and teardown
-    - Trigger on push/PR to `libs/blend/**`, `DockerFile`, `docker-compose.yml`, `.github/workflows/blend-ci.yml`, plus `workflow_dispatch`
+    - Trigger on push/PR to `libs/blend/**`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/blend-ci.yml`, plus `workflow_dispatch`
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11_
 
   - [ ] 5.2 Create `.github/workflows/span-ci.yml`
     - Implement the full staged pipeline matching BLEND CI structure
-    - Trigger on push/PR to `libs/span/**`, `DockerFile`, `docker-compose.yml`, `.github/workflows/span-ci.yml`, plus `workflow_dispatch`
+    - Trigger on push/PR to `libs/span/**`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/span-ci.yml`, plus `workflow_dispatch`
     - Consumer test includes `span/helm_span.hpp` (or equivalent primary header)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
 
   - [ ] 5.3 Create `.github/workflows/conf-ci.yml`
     - Implement the full staged pipeline with CONF-specific flags: `BUILD_FORTRAN=ON` in main build, additional `ctest -L fortran` stage, sanitizer build with `BUILD_FORTRAN=OFF`
-    - Trigger on push/PR to `libs/conf/**`, `DockerFile`, `docker-compose.yml`, `.github/workflows/conf-ci.yml`, plus `workflow_dispatch`
+    - Trigger on push/PR to `libs/conf/**`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/conf-ci.yml`, plus `workflow_dispatch`
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11_
 
   - [ ] 5.4 Create `.github/workflows/axis-ci.yml`
     - Implement the full staged pipeline matching BLEND CI structure
-    - Trigger on push/PR to `libs/axis/**`, `DockerFile`, `docker-compose.yml`, `.github/workflows/axis-ci.yml`, plus `workflow_dispatch`
+    - Trigger on push/PR to `libs/axis/**`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/axis-ci.yml`, plus `workflow_dispatch`
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10_
 
   - [ ] 5.5 Create `.github/workflows/tick-ci.yml`
     - Implement the full staged pipeline matching BLEND CI structure
-    - Trigger on push/PR to `libs/tick/**`, `DockerFile`, `docker-compose.yml`, `.github/workflows/tick-ci.yml`, plus `workflow_dispatch`
+    - Trigger on push/PR to `libs/tick/**`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/tick-ci.yml`, plus `workflow_dispatch`
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10_
 
 - [ ] 6. Final checkpoint — Full verification
