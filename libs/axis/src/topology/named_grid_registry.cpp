@@ -733,12 +733,13 @@ UnstructuredMesh<Kokkos::HostSpace> NamedGridRegistry::generate<Kokkos::HostSpac
         case 'F':
             return generate_regular_gaussian<Kokkos::HostSpace>(parsed.number);
         case 'R': {
+            // R: like F but regular lat spacing
             const int N = parsed.number;
-            const std::size_t ni = static_cast<std::size_t>(4 * N);
-            const std::size_t nj = static_cast<std::size_t>(2 * N);
-            const double dlon = 360.0 / static_cast<double>(ni);
-            const double dlat = 180.0 / static_cast<double>(nj);
-            return generate_regular_grid<Kokkos::HostSpace>(ni, nj, -180.0, -90.0, dlon, dlat);
+            const std::size_t ni = static_cast<std::size_t>(4 * N - 1);
+            const std::size_t nj = static_cast<std::size_t>(2 * N - 1);
+            const double dlon = 360.0 / static_cast<double>(ni + 1);
+            const double dlat = 180.0 / static_cast<double>(nj + 1);
+            return generate_regular_grid<Kokkos::HostSpace>(ni, nj, -180.0, -90.0 + 0.5 * dlat, dlon, dlat);
         }
         default:
             // Should not reach here due to parse() validation
