@@ -1,5 +1,0 @@
-add_test([=[InvalidEnumRejection.InvalidTemporalProfile]=]  /workspace/helm-project/libs/dagr/build-ci/tests/prop_invalid_enum [==[--gtest_filter=InvalidEnumRejection.InvalidTemporalProfile]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[InvalidEnumRejection.InvalidTemporalProfile]=]  PROPERTIES WORKING_DIRECTORY /workspace/helm-project/libs/dagr/build-ci/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==] ENVIRONMENT [==[RC_PARAMS=max_success=1000]==] TIMEOUT 120)
-add_test([=[InvalidEnumRejection.InvalidOutOfBoundsPolicy]=]  /workspace/helm-project/libs/dagr/build-ci/tests/prop_invalid_enum [==[--gtest_filter=InvalidEnumRejection.InvalidOutOfBoundsPolicy]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[InvalidEnumRejection.InvalidOutOfBoundsPolicy]=]  PROPERTIES WORKING_DIRECTORY /workspace/helm-project/libs/dagr/build-ci/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==] ENVIRONMENT [==[RC_PARAMS=max_success=1000]==] TIMEOUT 120)
-set(  prop_invalid_enum_TESTS InvalidEnumRejection.InvalidTemporalProfile InvalidEnumRejection.InvalidOutOfBoundsPolicy)
