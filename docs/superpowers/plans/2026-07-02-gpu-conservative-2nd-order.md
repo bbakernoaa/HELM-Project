@@ -102,7 +102,7 @@ Refactor second-order conservative weight generation to support GPU execution vi
 
               // 2nd order correction factor: 1.0 + grad * offset
               double correction = 1.0 + (gx_x * off_x + gy_x * off_y + gz_x * off_z);
-              
+
               // Apply correction to the base area fraction
               double w = (overlap_area / dst_areas_dev(j)) * correction;
 

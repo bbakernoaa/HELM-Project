@@ -41,7 +41,7 @@ Implement the `project_gnomonic` projection helper and update `WeightGenerator::
 
 - [ ] **Step 2: Apply projection locally for spherical coordinates**
   Inside `WeightGenerator::generate_bilinear` (around line 2300), if the coordinate system is spherical, convert `px` and `py` to radians `lon0` and `lat0`, and project all cell vertices and nearest centroids to the local tangent plane centered at `(lon0, lat0)` before evaluating shape functions.
-  
+
   Let's see: we convert to radians if `csys == SphericalDeg` or `SphericalRad`.
   ```cpp
           double px = dst_cx(j);

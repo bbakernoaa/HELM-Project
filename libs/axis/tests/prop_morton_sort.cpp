@@ -263,6 +263,7 @@ RC_GTEST_PROP(PropMortonSort, SpatialLocality, ()) {
         tol = 1.15; // Relaxed for tiny grids or thin strips to accommodate edge effects
     } else if (n >= 100) {
         tol = 0.95; // Stronger bound for larger symmetric grids where Morton must be superior
+
     }
     RC_ASSERT(morton_mean_dist <= natural_mean_dist * tol);
 }

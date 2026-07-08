@@ -3,14 +3,17 @@ import numpy as np
 import xarray as xr
 import uuid
 import warnings
+import logging
+import time
 from typing import Union, Optional, Tuple, Any
 
 from . import axis_py
-from .grid import create_axis_mesh, _get_mesh_info, _get_non_spatial_dims
+from .grid import create_axis_mesh, _get_mesh_info, _get_non_spatial_dims, Geometry, RectilinearGrid, CurvilinearGrid
 from .core import _apply_weights_core, _setup_worker_cache, _sync_cache_from_worker_data
 
 # Client-side cache on the driver node to avoid redundant worker cache syncs
 _DRIVER_CACHE = {}
+logger = logging.getLogger("axis")
 
 class Regridder:
     """
@@ -22,8 +25,8 @@ class Regridder:
 
     def __init__(
         self,
-        ds_in: xr.Dataset,
-        ds_out: xr.Dataset,
+        ds_in: Optional[Union[Geometry, xr.Dataset, dict]] = None,
+        ds_out: Optional[Union[Geometry, xr.Dataset, dict]] = None,
         method: str = "bilinear",
         periodic: bool = False,
         unmapped: str = "ignore",
@@ -31,31 +34,13 @@ class Regridder:
         na_thres: float = 1.0,
         line_type: str = "great_circle",
         weights_file: Optional[str] = None,
+        src_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
+        dst_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
+        norm_type: str = "fracarea",
     ):
         """
         Initialize the regridder by generating spatial interpolation weights in C++,
         or by reloading pre-computed weights from a file.
-
-        Parameters
-        ----------
-        ds_in : xarray.Dataset
-            The source grid dataset.
-        ds_out : xarray.Dataset
-            The destination grid dataset.
-        method : str, default "bilinear"
-            Remapping method: "bilinear", "nearest", "bicubic", "patch", "conservative".
-        periodic : bool, default False
-            Whether the grid has periodic longitude boundaries wrapping 360 to 0.
-        unmapped : str, default "ignore"
-            Action on unmapped destination cells: "ignore" or "error".
-        skipna : bool, default False
-            If True, dynamically re-normalizes weights to handle NaNs.
-        na_thres : float, default 1.0
-            Minimum fraction of valid input contribution required to not mask output.
-        line_type : str, default "great_circle"
-            Line geometry: "great_circle" (spherical exact) or "cartesian" (Sutherland flat-clipping).
-        weights_file : str, optional
-            Path to a binary file containing pre-computed weights to reload.
         """
         self.method = method
         self.periodic = periodic
@@ -63,61 +48,160 @@ class Regridder:
         self.line_type = line_type
         self.skipna = skipna
         self.na_thres = na_thres
+        self.norm_type = norm_type
         self._uid = str(uuid.uuid4())
+        self._weights_matrix = None
+        self._serialized_weights = None
+        self._total_weights = None
 
-        # Extract coordinate information and dimensions
-        _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(ds_in, method)
-        _, _, self._shape_target, self._dims_target, _ = _get_mesh_info(ds_out, method)
+        self._method_map = {
+            "bilinear": axis_py.Method.Bilinear,
+            "nearest": axis_py.Method.NearestNeighbor,
+            "bicubic": axis_py.Method.Bicubic,
+            "patch": axis_py.Method.Patch,
+            "conservative": axis_py.Method.Conservative,
+            "conservative1storder": axis_py.Method.Conservative,
+            "conservative2nd": axis_py.Method.Conservative2ndOrder,
+            "conservative2ndorder": axis_py.Method.Conservative2ndOrder,
+        }
 
-        # Save original datasets for coordinate matching
-        self.source_grid_ds = ds_in
-        self.target_grid_ds = ds_out
+        self._line_type_map = {
+            "great_circle": axis_py.LineType.GreatCircle,
+            "cartesian": axis_py.LineType.Cartesian,
+        }
 
         if weights_file is not None:
             # Load pre-computed weights from file, completely bypassing weight generation
             with open(weights_file, "rb") as f:
                 self._serialized_weights = f.read()
             self._weights_matrix = axis_py.Matrix.from_bytes(self._serialized_weights)
+
+            if ds_in is not None and ds_out is not None:
+                self._src_geom = ds_in if isinstance(ds_in, Geometry) else None
+                self._dst_geom = ds_out if isinstance(ds_out, Geometry) else None
+                from .grid import _get_mesh_info
+                if isinstance(ds_in, (xr.Dataset, xr.DataArray)):
+                    _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(ds_in)
+                    self.source_grid_ds = ds_in
+                if isinstance(ds_out, (xr.Dataset, xr.DataArray)):
+                    _, _, self._shape_target, self._dims_target, _ = _get_mesh_info(ds_out)
+                    self.target_grid_ds = ds_out
         else:
-            # Map string method name to AXIS enum
-            method_map = {
-                "bilinear": axis_py.Method.Bilinear,
-                "nearest": axis_py.Method.NearestNeighbor,
-                "bicubic": axis_py.Method.Bicubic,
-                "patch": axis_py.Method.Patch,
-                "conservative": axis_py.Method.Conservative,
-                "conservative2nd": axis_py.Method.Conservative2ndOrder,
-            }
-            if method.lower() not in method_map:
-                raise ValueError(f"Unknown interpolation method: {method}. Choose from {list(method_map.keys())}")
+            if ds_in is not None and ds_out is not None:
+                self.fit(ds_in, ds_out, src_mask=src_mask, dst_mask=dst_mask)
 
-            self._axis_method = method_map[method.lower()]
+    def fit(
+        self,
+        src: Union[Geometry, xr.Dataset, dict],
+        dst: Union[Geometry, xr.Dataset, dict],
+        src_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
+        dst_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
+    ) -> "Regridder":
+        """
+        Generate spatial interpolation weights (SpMV matrices) from source to destination.
+        """
+        t0 = time.perf_counter()
+        logger.info("AXIS: Initiating high-performance weight matrix generation...")
 
-            # Map line_type to AXIS LineType enum
-            line_type_map = {
-                "great_circle": axis_py.LineType.GreatCircle,
-                "cartesian": axis_py.LineType.Cartesian,
-            }
-            if line_type.lower() not in line_type_map:
-                raise ValueError(f"Unknown line type: {line_type}. Choose from {list(line_type_map.keys())}")
-            self._axis_line_type = line_type_map[line_type.lower()]
+        from .grid import GridFactory, _get_mesh_info
 
-            # Generate on-device meshes and weights using C++ AXIS
-            self._src_mesh = create_axis_mesh(ds_in, method)
-            self._dst_mesh = create_axis_mesh(ds_out, method)
+        # 1. Normalize source and target geometries
+        if isinstance(src, Geometry):
+            self._src_geom = src
+        elif isinstance(src, (xr.Dataset, xr.DataArray)):
+            self._src_geom = GridFactory.from_xarray(src, method=self.method)
+        elif isinstance(src, dict):
+            lons = src.get("lon") if src.get("lon") is not None else src.get("lons")
+            lats = src.get("lat") if src.get("lat") is not None else src.get("lats")
+            if lons.ndim == 1:
+                self._src_geom = RectilinearGrid(lons, lats)
+            else:
+                self._src_geom = CurvilinearGrid(lons, lats)
+        else:
+            raise TypeError(f"Unsupported source geometry container: {type(src)}")
 
-            config = {
-                "method": self._axis_method,
-                "periodic": periodic,
-                "line_type": self._axis_line_type,
-                "unmapped": axis_py.UnmappedAction.Ignore if unmapped == "ignore" else axis_py.UnmappedAction.Error
-            }
+        if isinstance(dst, Geometry):
+            self._dst_geom = dst
+        elif isinstance(dst, (xr.Dataset, xr.DataArray)):
+            self._dst_geom = GridFactory.from_xarray(dst, method=self.method)
+        elif isinstance(dst, dict):
+            lons = dst.get("lon") if dst.get("lon") is not None else dst.get("lons")
+            lats = dst.get("lat") if dst.get("lat") is not None else dst.get("lats")
+            if lons.ndim == 1:
+                self._dst_geom = RectilinearGrid(lons, lats)
+            else:
+                self._dst_geom = CurvilinearGrid(lons, lats)
+        else:
+            raise TypeError(f"Unsupported target geometry container: {type(dst)}")
 
-            # Build sparse matrix weights
-            self._weights_matrix = axis_py.generate_weights(self._src_mesh, self._dst_mesh, config)
+        # 2. Re-extract dimensions and shapes
+        if isinstance(src, (xr.Dataset, xr.DataArray)):
+            _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(src, self.method)
+            self.source_grid_ds = src
+        else:
+            if isinstance(self._src_geom, RectilinearGrid):
+                self._shape_source = (len(self._src_geom.lats), len(self._src_geom.lons))
+                self._dims_source = ("lat", "lon")
+            elif isinstance(self._src_geom, CurvilinearGrid):
+                self._shape_source = self._src_geom.lons.shape
+                self._dims_source = ("y", "x")
+            else:
+                self._shape_source = (len(self._src_geom.coords),)
+                self._dims_source = ("ncol",)
+            self._is_unstructured_src = not hasattr(self._src_geom, "lons")
+            self.source_grid_ds = None
 
-            # Serialize C++ weights to bytes so they can be securely copied to remote Dask workers
-            self._serialized_weights = self._weights_matrix.to_bytes()
+        if isinstance(dst, (xr.Dataset, xr.DataArray)):
+            _, _, self._shape_target, self._dims_target, _ = _get_mesh_info(dst, self.method)
+            self.target_grid_ds = dst
+        else:
+            if isinstance(self._dst_geom, RectilinearGrid):
+                self._shape_target = (len(self._dst_geom.lats), len(self._dst_geom.lons))
+                self._dims_target = ("lat", "lon")
+            elif isinstance(self._dst_geom, CurvilinearGrid):
+                self._shape_target = self._dst_geom.lons.shape
+                self._dims_target = ("y", "x")
+            else:
+                self._shape_target = (len(self._dst_geom.coords),)
+                self._dims_target = ("ncol",)
+            self.target_grid_ds = None
+
+        # 3. Compile weight mapping
+        src_mesh = self._src_geom.to_mesh()
+        dst_mesh = self._dst_geom.to_mesh()
+
+        method_lower = self.method.lower()
+        if method_lower not in self._method_map:
+            raise ValueError(f"Unknown interpolation method: {self.method}. Choose from {list(self._method_map.keys())}")
+        self._axis_method = self._method_map[method_lower]
+
+        line_type_lower = self.line_type.lower()
+        if line_type_lower not in self._line_type_map:
+            raise ValueError(f"Unknown line type: {self.line_type}. Choose from {list(self._line_type_map.keys())}")
+        self._axis_line_type = self._line_type_map[line_type_lower]
+
+        norm_map = {
+            "dstarea": axis_py.NormType.DstArea,
+            "fracarea": axis_py.NormType.FracArea,
+        }
+        axis_norm = norm_map.get(self.norm_type.lower(), axis_py.NormType.FracArea)
+
+        config = {
+            "method": self._axis_method,
+            "periodic": self.periodic,
+            "line_type": self._axis_line_type,
+            "norm_type": axis_norm,
+            "unmapped": axis_py.UnmappedAction.Ignore if self.unmapped == "ignore" else axis_py.UnmappedAction.Error
+        }
+
+        # Inject masks if provided
+        if src_mask is not None:
+            config["src_mask"] = np.asarray(src_mask, dtype=np.int32)
+        if dst_mask is not None:
+            config["dst_mask"] = np.asarray(dst_mask, dtype=np.int32)
+
+        self._weights_matrix = axis_py.generate_weights(src_mesh, dst_mesh, config)
+        self._serialized_weights = self._weights_matrix.to_bytes()
 
         # Compute total weights sum for NaN-aware re-normalization
         if self.skipna:
@@ -125,27 +209,52 @@ class Regridder:
         else:
             self._total_weights = None
 
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            f"AXIS: Weight generation compiled successfully in {elapsed:.4f} seconds. "
+            f"Mapped: {self._weights_matrix.n_src} source nodes -> {self._weights_matrix.n_dst} target nodes. "
+            f"Weight database size: {len(self._serialized_weights) / (1024 * 1024):.3f} MB."
+        )
+
+        return self
+
+    def __repr__(self) -> str:
+        """
+        Return a rich textual summary of the Regridder's properties and compiled weights database.
+        """
+        if self._weights_matrix is None:
+            return f"<axis.Regridder (unfit, method={self.method})>"
+
+        n_src = self._weights_matrix.n_src
+        n_dst = self._weights_matrix.n_dst
+        serialized_size = len(self._serialized_weights) if self._serialized_weights else 0
+        size_mb = serialized_size / (1024 * 1024)
+
+        return (
+            f"axis.Regridder\n"
+            f"  Interpolation Method : {self.method}\n"
+            f"  Source Grid Shape    : {self._shape_source} ({n_src} elements)\n"
+            f"  Target Grid Shape    : {self._shape_target} ({n_dst} elements)\n"
+            f"  Periodic Boundaries  : {self.periodic}\n"
+            f"  Great Circle Lines   : {self.line_type == 'great_circle'}\n"
+            f"  Weight Database Size : {size_mb:.3f} MB"
+        )
+
     def to_file(self, filename: str) -> None:
         """
         Save the compiled sparse regridding weights to a binary file for future reuse.
-
-        Parameters
-        ----------
-        filename : str
-            Path where the weights binary file will be saved.
         """
+        if self._serialized_weights is None:
+            raise RuntimeError("Cannot save weights: Regridder has not been compiled or fit.")
         with open(filename, "wb") as f:
             f.write(self._serialized_weights)
 
     def to_esmf(self, filename: str) -> None:
         """
         Save the compiled sparse regridding weights to an ESMF/SCRIP-compliant NetCDF file.
-
-        Parameters
-        ----------
-        filename : str
-            Path where the ESMF weight netCDF file will be saved.
         """
+        if self._weights_matrix is None:
+            raise RuntimeError("Cannot save weights: Regridder has not been compiled or fit.")
         if not hasattr(axis_py, "write_esmf"):
             raise RuntimeError(
                 "ESMF weight export is unavailable. AXIS was compiled without NetCDF support."
@@ -156,22 +265,6 @@ class Regridder:
     def from_esmf(cls, filename: str, src_grid: xr.Dataset, dst_grid: xr.Dataset, skipna: bool = False) -> "Regridder":
         """
         Load a Regridder instance from an ESMF-compliant NetCDF weight file.
-
-        Parameters
-        ----------
-        filename : str
-            Path to the ESMF weight NetCDF file.
-        src_grid : xr.Dataset
-            Source grid dataset (required for geometry context).
-        dst_grid : xr.Dataset
-            Target/destination grid dataset (required for geometry context).
-        skipna : bool, default False
-            Whether to skip NaNs during weight application.
-
-        Returns
-        -------
-        Regridder
-            A Regridder instance initialized with the deserialized weights.
         """
         if not hasattr(axis_py, "read_esmf"):
             raise RuntimeError(
@@ -185,7 +278,7 @@ class Regridder:
         regridder.line_type = "great_circle"
         regridder.skipna = skipna
         regridder.na_thres = 1.0
-        import uuid
+        regridder.norm_type = "fracarea"
         regridder._uid = str(uuid.uuid4())
 
         regridder._weights_matrix = axis_py.read_esmf(filename)
@@ -209,26 +302,76 @@ class Regridder:
 
         return regridder
 
-    def __call__(
+    def transform(
         self,
-        obj: Union[xr.DataArray, xr.Dataset],
+        obj: Union[xr.DataArray, xr.Dataset, np.ndarray],
         keep_attrs: bool = True,
-    ) -> Union[xr.DataArray, xr.Dataset]:
+    ) -> Union[xr.DataArray, xr.Dataset, np.ndarray]:
         """
-        Apply spatial remapping to the input xarray object.
+        Apply spatial remapping to the input object (NumPy array, xarray.DataArray, or xarray.Dataset).
         """
-        if isinstance(obj, xr.Dataset):
-            res = self._regrid_dataset(obj)
-            if keep_attrs:
-                res.attrs = {**obj.attrs, **res.attrs}
-            return res
-        elif isinstance(obj, xr.DataArray):
-            res = self._regrid_dataarray(obj)
+        from .grid import RectilinearGrid, CurvilinearGrid
+
+        if not isinstance(obj, (xr.Dataset, xr.DataArray, np.ndarray)) and not hasattr(obj, "__array__"):
+            raise TypeError("Input object must be an xarray.DataArray, xarray.Dataset, or numpy.ndarray")
+
+        if self._weights_matrix is None:
+            raise RuntimeError("Regridder must be fit to grids before calling transform().")
+
+        if isinstance(obj, (xr.Dataset, xr.DataArray)):
+            if isinstance(obj, xr.Dataset):
+                res = self._regrid_dataset(obj)
+            else:
+                res = self._regrid_dataarray(obj)
             if keep_attrs:
                 res.attrs = {**obj.attrs, **res.attrs}
             return res
         else:
-            raise TypeError("Input object must be an xarray.DataArray or xarray.Dataset")
+            arr = np.asarray(obj)
+            original_shape = arr.shape
+
+            target_spatial_shape = self._shape_target
+
+            n_spatial = self._weights_matrix.n_src
+
+            # Case A: 1D flat spatial array
+            if arr.ndim == 1 and len(arr) == n_spatial:
+                res = np.array(axis_py.apply_weights(self._weights_matrix, arr))
+                if len(target_spatial_shape) > 1:
+                    return res.reshape(target_spatial_shape)
+                return res
+
+            # Case B: Standard 2D spatial grid matching source shape
+            if arr.ndim == len(self._shape_source) and arr.shape == self._shape_source:
+                res = np.array(axis_py.apply_weights(self._weights_matrix, arr.ravel()))
+                return res.reshape(target_spatial_shape)
+
+            # Case C: Multidimensional array (other_dims..., spatial_dims...)
+            n_spatial_dims = len(self._shape_source)
+            spatial_shape = original_shape[-n_spatial_dims:]
+            other_dims_shape = original_shape[:-n_spatial_dims]
+
+            assert int(np.prod(spatial_shape)) == n_spatial, f"Trailing dimensions {spatial_shape} must match source spatial size {n_spatial}"
+
+            n_other = int(np.prod(other_dims_shape)) if other_dims_shape else 1
+            flat_data = arr.reshape(n_other, n_spatial)
+            flat_data_t = np.asfortranarray(flat_data.T)
+
+            result_t = axis_py.batch_apply(self._weights_matrix, flat_data_t)
+            result = result_t.T
+
+            new_shape = other_dims_shape + target_spatial_shape
+            return result.reshape(new_shape).astype(arr.dtype, copy=False)
+
+    def __call__(
+        self,
+        obj: Union[xr.DataArray, xr.Dataset, np.ndarray],
+        keep_attrs: bool = True,
+    ) -> Union[xr.DataArray, xr.Dataset, np.ndarray]:
+        """
+        Apply spatial remapping. Transparently handles NumPy, xarray, and remote Dask blocks.
+        """
+        return self.transform(obj, keep_attrs=keep_attrs)
 
     def _regrid_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """Remap all spatial variables inside a Dataset."""
@@ -276,7 +419,8 @@ class Regridder:
                 if (client_id, weights_key_arg) not in _DRIVER_CACHE:
                     # Deserialize directly inside the worker node's memory space (zero copying)
                     def _deserialize_and_cache(bytes_data, key):
-                        from . import axis_py
+                        from axis import axis_py
+                        from axis.core import _setup_worker_cache
                         mat = axis_py.Matrix.from_bytes(bytes_data)
                         _setup_worker_cache(key, mat)
                         return True
@@ -336,12 +480,22 @@ class Regridder:
 
         # Assign coordinates from target grid
         target_coords = {}
-        for c in self.target_grid_ds.coords:
-            c_dims = set(self.target_grid_ds.coords[c].dims)
-            if c_dims.issubset(set(self._dims_target)):
-                target_coords[c] = self.target_grid_ds.coords[c]
+        if self.target_grid_ds is not None:
+            for c in self.target_grid_ds.coords:
+                c_dims = set(self.target_grid_ds.coords[c].dims)
+                if c_dims.issubset(set(self._dims_target)):
+                    target_coords[c] = self.target_grid_ds.coords[c]
+        else:
+            if hasattr(self._dst_geom, "lons"):
+                if self._dst_geom.lons.ndim == 1:
+                    target_coords["lat"] = self._dst_geom.lats
+                    target_coords["lon"] = self._dst_geom.lons
+                else:
+                    target_coords["lat"] = (("y", "x"), self._dst_geom.lats)
+                    target_coords["lon"] = (("y", "x"), self._dst_geom.lons)
 
-        out = out.assign_coords(target_coords)
+        if target_coords:
+            out = out.assign_coords(target_coords)
         return out
 
     def regrid_categorical(

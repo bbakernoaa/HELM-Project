@@ -177,7 +177,8 @@ InterpolationMatrix<MemorySpace> generate_conservative_rect_nonuniform(const top
 
                     double overlap_area = 0.0;
                     if (is_spherical) {
-                        overlap_area = rect_overlap_spherical_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x_norm, d_hi_x_norm, d_lo_y, d_hi_y, is_degrees);
+                        overlap_area =
+                            rect_overlap_spherical_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x_norm, d_hi_x_norm, d_lo_y, d_hi_y, is_degrees);
                     } else {
                         overlap_area = rect_overlap_nonuniform(s_lo_x, s_hi_x, s_lo_y, s_hi_y, d_lo_x_norm, d_hi_x_norm, d_lo_y, d_hi_y);
                     }

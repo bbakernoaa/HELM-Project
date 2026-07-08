@@ -1,7 +1,7 @@
 # Spec: AXIS Gnomonic Tangent-Plane Polar Projection for Bilinear Interpolation (Gap C)
 
 ## 1. Overview & Motivation
-In unstructured bilinear interpolation (`WeightGenerator::generate_bilinear`), physical coordinates $(lon, lat)$ are mapped to element reference coordinates $(\xi, \eta)$ using Newton iteration (`map_to_reference_quad`) or barycentric coordinates (`barycentric_triangle`). 
+In unstructured bilinear interpolation (`WeightGenerator::generate_bilinear`), physical coordinates $(lon, lat)$ are mapped to element reference coordinates $(\xi, \eta)$ using Newton iteration (`map_to_reference_quad`) or barycentric coordinates (`barycentric_triangle`).
 
 However, near the geographic poles ($\pm 90^\circ$ latitude), the extreme meridian convergence causes severe coordinate compression and singularities in longitude. This leads to Newton iteration divergence, dividing by zero, or failure to locate points inside cells.
 

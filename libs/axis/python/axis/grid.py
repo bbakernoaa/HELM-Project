@@ -436,3 +436,111 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
                 dlat = float(lat[1, 0] - lat[0, 0]) if nj > 1 else 1.0
 
                 return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
+
+
+# ==============================================================================
+# Low-Level Explicit Geometry API
+# ==============================================================================
+
+class Geometry:
+    """Base abstract class representing any physical coordinate layout in AXIS."""
+    def to_mesh(self, method: Optional[str] = None) -> axis_py.Mesh:
+        """Convert this geometry to a unified C++ UnstructuredMesh."""
+        raise NotImplementedError()
+
+class XarrayGeometry(Geometry):
+    """Wraps an xarray Dataset or DataArray to defer mesh construction."""
+    def __init__(self, ds: Union[xr.Dataset, xr.DataArray], method: Optional[str] = None):
+        self.ds = ds
+        self.method = method
+
+    def to_mesh(self, method: Optional[str] = None) -> axis_py.Mesh:
+        # Keep 100% of existing, verified auto-detection and triangulation/centering logic!
+        ds_normalized = self.ds.to_dataset(name="_tmp_data") if isinstance(self.ds, xr.DataArray) else self.ds
+        return create_axis_mesh(ds_normalized, method or self.method)
+
+class RectilinearGrid(Geometry):
+    """
+    Represent a standard 2D lat-lon grid with 1-D coordinate vectors.
+    """
+    def __init__(self, lons: np.ndarray, lats: np.ndarray):
+        self.lons = np.asarray(lons, dtype=np.float64)
+        self.lats = np.asarray(lats, dtype=np.float64)
+
+    def to_mesh(self, method: Optional[str] = None) -> axis_py.Mesh:
+        ni = len(self.lons)
+        nj = len(self.lats)
+        dlon = float((self.lons[-1] - self.lons[0]) / (ni - 1)) if ni > 1 else 1.0
+        dlat = float((self.lats[-1] - self.lats[0]) / (nj - 1)) if nj > 1 else 1.0
+        return axis_py.make_regular_mesh(ni, nj, float(self.lons[0]), float(self.lats[0]), dlon, dlat)
+
+class CurvilinearGrid(Geometry):
+    """
+    Represent a 2D curvilinear grid with 2-D coordinate matrices.
+    """
+    def __init__(self, lons: np.ndarray, lats: np.ndarray, proj_string: Optional[str] = None):
+        self.lons = np.asarray(lons, dtype=np.float64)
+        self.lats = np.asarray(lats, dtype=np.float64)
+        self.proj_string = proj_string
+
+    def to_mesh(self, method: Optional[str] = None) -> axis_py.Mesh:
+        if self.proj_string:
+            return axis_py.make_projected_mesh(
+                self.lons.shape[1], self.lons.shape[0],
+                self.proj_string, self.lons.ravel(), self.lats.ravel()
+            )
+        else:
+            clon, clat = _synthesize_curvilinear_corners(self.lons, self.lats)
+            ny, nx = self.lons.shape
+            n_cells = nx * ny
+
+            node_coords = np.asfortranarray(np.column_stack([clon.ravel(), clat.ravel()]))
+            conn_offsets = np.arange(0, (n_cells + 1) * 4, 4, dtype=np.int64)
+
+            conn_indices = np.zeros(n_cells * 4, dtype=np.int64)
+            cell_idx = 0
+            ncol = nx + 1
+            for j in range(ny):
+                for i in range(nx):
+                    bl = i + j * ncol
+                    br = (i + 1) + j * ncol
+                    tr = (i + 1) + (j + 1) * ncol
+                    tl = i + (j + 1) * ncol
+
+                    base = cell_idx * 4
+                    conn_indices[base + 0] = bl
+                    conn_indices[base + 1] = br
+                    conn_indices[base + 2] = tr
+                    conn_indices[base + 3] = tl
+                    cell_idx += 1
+
+            return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+
+class UnstructuredMesh(Geometry):
+    """
+    Represent an arbitrary unstructured polygon grid (e.g. MPAS, FVCOM, SCRIP).
+    """
+    def __init__(self, node_coords: np.ndarray, connectivity_offsets: np.ndarray, connectivity_indices: np.ndarray):
+        self.coords = np.asfortranarray(node_coords, dtype=np.float64)
+        self.offsets = np.asarray(connectivity_offsets, dtype=np.int64)
+        self.indices = np.asarray(connectivity_indices, dtype=np.int64)
+
+    def to_mesh(self, method: Optional[str] = None) -> axis_py.Mesh:
+        return axis_py.make_ugrid_mesh(self.coords, self.offsets, self.indices)
+
+class GridFactory:
+    """
+    Convenience factory to convert high-level containers to Geometry classes.
+    """
+    @staticmethod
+    def from_xarray(ds: Union[xr.Dataset, xr.DataArray], lon_var: Optional[str] = None, lat_var: Optional[str] = None, method: Optional[str] = None) -> Geometry:
+        """
+        Build an explicit AXIS geometry from an xarray container.
+        """
+        if lon_var and lat_var:
+            lons = ds[lon_var].values
+            lats = ds[lat_var].values
+            if lons.ndim == 1:
+                return RectilinearGrid(lons, lats)
+            return CurvilinearGrid(lons, lats)
+        return XarrayGeometry(ds, method=method)
