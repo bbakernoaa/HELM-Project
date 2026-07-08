@@ -18,6 +18,7 @@ name: TICK CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/tick/**"
       - "Dockerfile"
@@ -29,7 +30,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/tick-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   tick:

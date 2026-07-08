@@ -25,6 +25,7 @@ name: HALO CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/halo/**"
       - "Dockerfile"
@@ -36,7 +37,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/halo-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 # A single job: the stages share one container instance, so we bring the
 # container up once and exec each stage into it (cheaper than rebuilding the

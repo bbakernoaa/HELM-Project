@@ -17,6 +17,7 @@ name: BLEND CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/blend/**"
       - "Dockerfile"
@@ -28,7 +29,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/blend-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   blend:

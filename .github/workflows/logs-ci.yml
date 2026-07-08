@@ -21,6 +21,7 @@ name: LOGS CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/logs/**"
       - "Dockerfile"
@@ -32,7 +33,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/logs-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   logs:

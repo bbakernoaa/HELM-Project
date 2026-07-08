@@ -22,6 +22,7 @@ name: CONF CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/conf/**"
       - "Dockerfile"
@@ -33,7 +34,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/conf-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   conf:

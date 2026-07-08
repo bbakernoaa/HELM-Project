@@ -17,6 +17,7 @@ name: AXIS CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/axis/**"
       - "Dockerfile"
@@ -28,7 +29,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/axis-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   axis:

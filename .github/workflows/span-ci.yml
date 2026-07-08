@@ -17,6 +17,7 @@ name: SPAN CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/span/**"
       - "Dockerfile"
@@ -28,7 +29,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/span-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   span:

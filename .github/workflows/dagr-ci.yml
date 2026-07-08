@@ -25,6 +25,7 @@ name: DAGR CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/dagr/**"
       - "Dockerfile"
@@ -36,7 +37,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/dagr-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
