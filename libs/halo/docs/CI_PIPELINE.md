@@ -24,7 +24,7 @@ change one, change the others.
 
 Every stage runs **inside the HELM project Docker container**, never on the
 bare runner. This satisfies **Requirement 12.2** — the HALO build/test workflow
-uses the image built from the HELM project `DockerFile` as its development and
+uses the image built from the HELM project `Dockerfile` as its development and
 CI environment, so the toolchain (GCC-13, OpenMPI, Kokkos 4.3, GoogleTest,
 RapidCheck) is identical to what every developer runs locally.
 

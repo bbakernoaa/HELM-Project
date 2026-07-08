@@ -215,13 +215,13 @@ on:
   push:
     paths:
       - "libs/{lib}/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/{lib}-ci.yml"
   pull_request:
     paths:
       - "libs/{lib}/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/{lib}-ci.yml"
   workflow_dispatch: {}

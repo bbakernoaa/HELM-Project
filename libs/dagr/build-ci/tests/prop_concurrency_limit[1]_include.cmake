@@ -1,5 +1,0 @@
-if(EXISTS "/workspace/helm-project/libs/dagr/build-ci/tests/prop_concurrency_limit[1]_tests.cmake")
-  include("/workspace/helm-project/libs/dagr/build-ci/tests/prop_concurrency_limit[1]_tests.cmake")
-else()
-  add_test(prop_concurrency_limit_NOT_BUILT prop_concurrency_limit_NOT_BUILT)
-endif()

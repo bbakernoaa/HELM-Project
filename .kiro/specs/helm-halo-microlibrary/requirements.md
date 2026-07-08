@@ -197,7 +197,7 @@ HALO (Hardware-Abstracted Link Operations) is a Tier 1 C++20 micro-library withi
 #### Acceptance Criteria
 
 1. THE HALO source code SHALL reside in a dedicated Git repository that is added as a Git submodule at the path `libs/halo` within the HELM project workspace root.
-2. THE HALO build and test workflow SHALL use the Docker image built from the HELM project DockerFile as its development and CI container environment.
+2. THE HALO build and test workflow SHALL use the Docker image built from the HELM project Dockerfile as its development and CI container environment.
 3. THE HALO repository SHALL contain a standalone CMakeLists.txt at its root that, when configured and built inside the helm-project Docker container without any other HELM source trees present, produces the HELM::HALO library target without build errors.
 4. THE HALO repository SHALL include a README at its root that documents prerequisites, the Docker container launch command, the CMake configure and build commands, and the command to run the test suite.
 5. WHEN the HELM project workspace is cloned with `--recurse-submodules`, THE HALO submodule SHALL be checked out at a pinned commit so that the HELM project build is reproducible without additional manual steps.

@@ -3,7 +3,7 @@
 #
 # Full staged pipeline for the CONF Tier 1 RAII YAML parsing library.
 # Every stage runs INSIDE the HELM project Docker container (built from
-# ./DockerFile via docker compose), so the toolchain matches local development.
+# ./Dockerfile via docker compose), so the toolchain matches local development.
 #
 # Stages:
 #   1. Tier isolation scan .................... Requirements 4.5
@@ -22,18 +22,19 @@ name: CONF CI
 
 on:
   push:
+    branches: [develop]
     paths:
       - "libs/conf/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/conf-ci.yml"
   pull_request:
     paths:
       - "libs/conf/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/conf-ci.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   conf:

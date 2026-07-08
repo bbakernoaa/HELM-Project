@@ -263,9 +263,9 @@ This specification was authored without access to a live ESMF reference. The leg
 #### Acceptance Criteria
 
 1. THE LOGS source code SHALL reside in a dedicated Git repository that is distinct from the HELM superproject, maintains its own independent commit history, and is added as a Git submodule at the relative path `libs/logs` within the HELM project workspace root.
-2. THE LOGS build and test workflow SHALL use the Docker image built from the HELM project DockerFile as its development and CI container environment.
+2. THE LOGS build and test workflow SHALL use the Docker image built from the HELM project Dockerfile as its development and CI container environment.
 3. WHEN the standalone CMakeLists.txt at the LOGS repository root is configured and built inside the HELM project Docker container with no other HELM source trees present, THE LOGS build SHALL complete both the configure step and the build step with a zero process exit status, emit the HELM::LOGS library target artifact, and produce no error-level diagnostics.
 4. THE LOGS repository SHALL include a README at its root containing copy-runnable commands for the Docker container launch, the CMake configure and build, and the test suite execution, such that executing those commands in their documented sequence without manual modification reproduces a successful build (zero exit status) and a passing test run.
 5. WHEN the HELM project workspace is cloned with `--recurse-submodules`, THE LOGS submodule working-tree SHALL be checked out at the commit recorded by the HELM superproject for the `libs/logs` submodule, requiring no further fetch, checkout, or update operation.
 6. IF the LOGS submodule is uninitialized such that the `libs/logs` directory is empty, THEN THE HELM project build SHALL fail with a non-zero exit status and emit an indication that the `libs/logs` submodule must be initialized.
-7. THE LOGS CI pipeline SHALL build and test the LOGS repository inside the Docker image built from the HELM project DockerFile, independently of and without invoking the HELM superproject CI pipeline.
+7. THE LOGS CI pipeline SHALL build and test the LOGS repository inside the Docker image built from the HELM project Dockerfile, independently of and without invoking the HELM superproject CI pipeline.

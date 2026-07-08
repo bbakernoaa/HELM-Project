@@ -1,5 +1,0 @@
-add_test([=[DAGConstruction.ValidDAGProducesCorrectNodes]=]  /workspace/helm-project/libs/dagr/build-ci/tests/prop_dag_construction [==[--gtest_filter=DAGConstruction.ValidDAGProducesCorrectNodes]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[DAGConstruction.ValidDAGProducesCorrectNodes]=]  PROPERTIES WORKING_DIRECTORY /workspace/helm-project/libs/dagr/build-ci/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==] ENVIRONMENT [==[RC_PARAMS=max_success=1000]==] TIMEOUT 120)
-add_test([=[DAGConstruction.DanglingReferenceThrowsInvalidArgument]=]  /workspace/helm-project/libs/dagr/build-ci/tests/prop_dag_construction [==[--gtest_filter=DAGConstruction.DanglingReferenceThrowsInvalidArgument]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[DAGConstruction.DanglingReferenceThrowsInvalidArgument]=]  PROPERTIES WORKING_DIRECTORY /workspace/helm-project/libs/dagr/build-ci/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==] ENVIRONMENT [==[RC_PARAMS=max_success=1000]==] TIMEOUT 120)
-set(  prop_dag_construction_TESTS DAGConstruction.ValidDAGProducesCorrectNodes DAGConstruction.DanglingReferenceThrowsInvalidArgument)

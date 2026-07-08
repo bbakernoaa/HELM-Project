@@ -27,6 +27,7 @@
 build/
 _build/
 cmake-build-*/
+build-ci/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake

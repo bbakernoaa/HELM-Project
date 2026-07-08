@@ -1,5 +1,0 @@
-if(EXISTS "/workspace/helm-project/libs/blend/build-ci/tests/test_linear_blend[1]_tests.cmake")
-  include("/workspace/helm-project/libs/blend/build-ci/tests/test_linear_blend[1]_tests.cmake")
-else()
-  add_test(test_linear_blend_NOT_BUILT test_linear_blend_NOT_BUILT)
-endif()

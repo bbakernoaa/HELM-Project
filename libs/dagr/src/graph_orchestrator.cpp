@@ -425,7 +425,7 @@ void GraphOrchestrator::shutdown() {
             // Drain timeout expired with tasks still in-flight (Req 5.7). This is
             // a *forced* shutdown: cancel the remaining tasks and proceed rather
             // than aborting the whole job. (Logging at FATAL here would trigger
-            // LOGS' Synchronized_Abort / MPI_Abort, which contradicts the intent
+            // LOGS' Synchronized_Abort / MPI-Abort, which contradicts the intent
             // to proceed and would take down every rank.)
             logger().log(logs::Severity_Level::WARNING,
                          "GraphOrchestrator: shutdown drain timeout expired (" + std::to_string(impl_->config.shutdown_timeout_s) + "s) with " +

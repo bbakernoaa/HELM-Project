@@ -4257,6 +4257,7 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
         // Initialize accumulators for normalization
         Kokkos::View<double *, MemorySpace> d_corrections("d_corrections", nnz);
         Kokkos::View<double *, MemorySpace> d_dst_total_weight("d_dst_total_weight", n_dst);
+        Kokkos::View<double *, MemorySpace> d_dst_raw_overlap("d_dst_raw_overlap", n_dst);
         Kokkos::View<double *, MemorySpace> d_frac_a_acc("d_frac_a_acc", n_src);
         Kokkos::View<double *, MemorySpace> d_frac_b_acc("d_frac_b_acc", n_dst);
 
@@ -4277,6 +4278,7 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
                 const auto &entry = d_overlap_entries(e);
                 auto j = entry.row;
                 Kokkos::atomic_add(&d_dst_total_weight(j), entry.area * d_corrections(e));
+                Kokkos::atomic_add(&d_dst_raw_overlap(j), entry.area);
             });
 
         const auto norm_type = config.norm_type;
@@ -4288,11 +4290,16 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
                 double a_dst = d_dst_areas(j);
 
                 double w_ij = 0.0;
-                if (norm_type == NormType::FracArea) {
-                    double total = d_dst_total_weight(j);
-                    w_ij = (total > 0.0) ? (entry.area * d_corrections(e)) / total : 0.0;
-                } else {
-                    w_ij = (a_dst > 0.0) ? (entry.area * d_corrections(e)) / a_dst : 0.0;
+                double total_corrected = d_dst_total_weight(j);
+                double total_raw = d_dst_raw_overlap(j);
+
+                if (total_corrected > 0.0) {
+                    double norm_corr = (entry.area * d_corrections(e)) / total_corrected;
+                    if (norm_type == NormType::FracArea) {
+                        w_ij = norm_corr;
+                    } else {
+                        w_ij = (a_dst > 0.0) ? norm_corr * (total_raw / a_dst) : 0.0;
+                    }
                 }
 
                 w_ij = Kokkos::fmax(w_ij, 0.0);
@@ -4414,11 +4421,13 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
         corrections[e] = std::max(1.0 + corr, 0.0);
     }
 
-    // Compute per-destination normalization (sum of area * correction)
+    // Compute per-destination normalization (sum of area * correction and sum of raw area)
     std::unordered_map<std::size_t, double> dst_total_weight;
+    std::unordered_map<std::size_t, double> dst_raw_overlap;
     for (std::size_t e = 0; e < overlap_entries.size(); ++e) {
         auto j = static_cast<std::size_t>(overlap_entries[e].row);
         dst_total_weight[j] += overlap_entries[e].area * corrections[e];
+        dst_raw_overlap[j] += overlap_entries[e].area;
     }
 
     // Build final weights
@@ -4427,14 +4436,17 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
         auto j = static_cast<std::size_t>(entry.row);
         double area_dst = dst_areas[j];
 
-        double w_ij;
-        if (config.norm_type == NormType::FracArea) {
-            // FracArea: normalize by total coverage
-            double total = dst_total_weight[j];
-            w_ij = (total > 0.0) ? (entry.area * corrections[e]) / total : 0.0;
-        } else {
-            // DstArea: normalize by destination cell area
-            w_ij = (area_dst > 0.0) ? (entry.area * corrections[e]) / area_dst : 0.0;
+        double w_ij = 0.0;
+        double total_corrected = dst_total_weight[j];
+        double total_raw = dst_raw_overlap[j];
+
+        if (total_corrected > 0.0) {
+            double norm_corr = (entry.area * corrections[e]) / total_corrected;
+            if (config.norm_type == NormType::FracArea) {
+                w_ij = norm_corr;
+            } else {
+                w_ij = (area_dst > 0.0) ? norm_corr * (total_raw / area_dst) : 0.0;
+            }
         }
 
         w_ij = std::max(w_ij, 0.0);

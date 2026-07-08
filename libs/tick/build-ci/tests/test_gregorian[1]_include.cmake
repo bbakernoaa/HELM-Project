@@ -1,5 +1,0 @@
-if(EXISTS "/workspace/helm-project/libs/tick/build-ci/tests/test_gregorian[1]_tests.cmake")
-  include("/workspace/helm-project/libs/tick/build-ci/tests/test_gregorian[1]_tests.cmake")
-else()
-  add_test(test_gregorian_NOT_BUILT test_gregorian_NOT_BUILT)
-endif()

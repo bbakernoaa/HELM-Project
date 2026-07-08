@@ -27,11 +27,12 @@ docker compose up -d --build
 docker compose exec helm-dev bash
 
 # 3. Build a specific component (e.g., TICK)
-cd helm-tick
+cd libs/tick
 mkdir build && cd build
-cmake ..
+cmake .. -DBUILD_TESTING=ON
 make -j4
 ctest --output-on-failure
+```
 
 ## License
 
