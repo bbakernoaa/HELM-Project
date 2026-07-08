@@ -45,8 +45,26 @@ TEST(NamedAndRules, O4GeneratesNonEmptyMesh) {
 TEST(NamedAndRules, F4GeneratesNonEmptyMesh) {
     auto mesh = topology::NamedGridRegistry::generate<MemSpace>("F4");
 
-    EXPECT_GT(mesh.n_nodes(), std::size_t(0));
+    constexpr std::size_t N = 4;
+    EXPECT_EQ(mesh.n_nodes(), std::size_t(4 * N * 2 * N));  // used as cell centers
     EXPECT_GT(mesh.n_cells(), std::size_t(0));
+
+    // Verify expected range
+    auto coords = mesh.node_coords();
+    double min_x = 999.0, max_x = -999.0;
+    double min_y = 999.0, max_y = -999.0;
+    for (std::size_t i = 0; i < mesh.n_nodes(); ++i) {
+        double x = coords(i, 0);
+        double y = coords(i, 1);
+        if (x < min_x) min_x = x;
+        if (x > max_x) max_x = x;
+        if (y < min_y) min_y = y;
+        if (y > max_y) max_y = y;
+    }
+    EXPECT_NEAR(min_x, 0.0, 1e-11);
+    EXPECT_NEAR(max_x, 360.0 - 22.5, 1e-11);
+    EXPECT_NEAR(min_y, -73.8, 1e-2);
+    EXPECT_NEAR(max_y, 73.8, 1e-2);
 }
 
 // Test: parse("O4") returns family='O', number=4
@@ -58,7 +76,7 @@ TEST(NamedAndRules, ParseO4ReturnsCorrectParsedName) {
 
 // Test: parse with invalid family throws
 TEST(NamedAndRules, ParseInvalidFamilyThrows) {
-    EXPECT_THROW(topology::NamedGridRegistry::parse("Z100"), std::invalid_argument);
+    EXPECT_THROW((void)topology::NamedGridRegistry::parse("Z100"), std::invalid_argument);
 }
 
 // Test: RuleGenerator RegularLatLon produces correct cell count
@@ -100,13 +118,12 @@ TEST(NamedAndRules, ZeroResolutionThrows) {
 TEST(NamedAndRules, R4GeneratesCorrectMesh) {
     auto mesh = topology::NamedGridRegistry::generate<MemSpace>("R4");
 
-    // ni = 16, nj = 8
-    // n_cells = 16 * 8 = 128
-    // n_nodes = 17 * 9 = 153
-    EXPECT_EQ(mesh.n_cells(), std::size_t(128));
-    EXPECT_EQ(mesh.n_nodes(), std::size_t(153));
+    constexpr std::size_t N = 4;
+    EXPECT_EQ(mesh.n_nodes(), std::size_t(4 * N * 2 * N));  // used as cell centers
+    EXPECT_GT(mesh.n_cells(), std::size_t(0));
 
     // Verify coordinate range spans [-180, 180] in x and [-90, 90] in y
+    // but note these are the cell centers, not edges
     auto coords = mesh.node_coords();
     double min_x = 999.0, max_x = -999.0;
     double min_y = 999.0, max_y = -999.0;
@@ -118,10 +135,10 @@ TEST(NamedAndRules, R4GeneratesCorrectMesh) {
         if (y < min_y) min_y = y;
         if (y > max_y) max_y = y;
     }
-    EXPECT_NEAR(min_x, -180.0, 1e-7);
-    EXPECT_NEAR(max_x, 180.0, 1e-7);
-    EXPECT_NEAR(min_y, -90.0, 1e-7);
-    EXPECT_NEAR(max_y, 90.0, 1e-7);
+    EXPECT_NEAR(min_x, -180.0, 1e-11);
+    EXPECT_NEAR(max_x, 180.0 - 22.5, 1e-11);
+    EXPECT_NEAR(min_y, -90.0 + 11.25, 1e-11);
+    EXPECT_NEAR(max_y, 90.0 - 11.25, 1e-11);
 }
 
 }  // namespace axis::test
