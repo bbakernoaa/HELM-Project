@@ -48,7 +48,7 @@ This specification defines the enterprise hardening deliverables for the HELM mi
 #### Acceptance Criteria
 
 1. THE BLEND CI_Pipeline SHALL be defined in `.github/workflows/blend-ci.yml` at the repository root.
-2. THE BLEND CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/blend/**`, `DockerFile`, `docker-compose.yml`, or `.github/workflows/blend-ci.yml`.
+2. THE BLEND CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/blend/**`, `Dockerfile`, `docker-compose.yml`, or `.github/workflows/blend-ci.yml`.
 3. THE BLEND CI_Pipeline SHALL support manual dispatch via `workflow_dispatch`.
 4. THE BLEND CI_Pipeline SHALL execute all stages inside the HELM development container using the Docker_Exec_Pattern.
 5. THE BLEND CI_Pipeline SHALL include a tier isolation scan stage that verifies BLEND source files contain no forbidden cross-HELM includes (halo, logs, axis, amio, span, dagr, conf, tick).
@@ -66,7 +66,7 @@ This specification defines the enterprise hardening deliverables for the HELM mi
 #### Acceptance Criteria
 
 1. THE SPAN CI_Pipeline SHALL be defined in `.github/workflows/span-ci.yml` at the repository root.
-2. THE SPAN CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/span/**`, `DockerFile`, `docker-compose.yml`, or `.github/workflows/span-ci.yml`.
+2. THE SPAN CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/span/**`, `Dockerfile`, `docker-compose.yml`, or `.github/workflows/span-ci.yml`.
 3. THE SPAN CI_Pipeline SHALL support manual dispatch via `workflow_dispatch`.
 4. THE SPAN CI_Pipeline SHALL execute all stages inside the HELM development container using the Docker_Exec_Pattern.
 5. THE SPAN CI_Pipeline SHALL include a tier isolation scan stage verifying SPAN source files contain no forbidden cross-HELM includes (halo, logs, axis, amio, dagr, conf, tick, blend).
@@ -83,7 +83,7 @@ This specification defines the enterprise hardening deliverables for the HELM mi
 #### Acceptance Criteria
 
 1. THE CONF CI_Pipeline SHALL be defined in `.github/workflows/conf-ci.yml` at the repository root.
-2. THE CONF CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/conf/**`, `DockerFile`, `docker-compose.yml`, or `.github/workflows/conf-ci.yml`.
+2. THE CONF CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/conf/**`, `Dockerfile`, `docker-compose.yml`, or `.github/workflows/conf-ci.yml`.
 3. THE CONF CI_Pipeline SHALL support manual dispatch via `workflow_dispatch`.
 4. THE CONF CI_Pipeline SHALL execute all stages inside the HELM development container using the Docker_Exec_Pattern.
 5. THE CONF CI_Pipeline SHALL include a tier isolation scan stage verifying CONF source files contain no forbidden cross-HELM includes.
@@ -101,7 +101,7 @@ This specification defines the enterprise hardening deliverables for the HELM mi
 #### Acceptance Criteria
 
 1. THE AXIS CI_Pipeline SHALL be defined in `.github/workflows/axis-ci.yml` at the repository root.
-2. THE AXIS CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/axis/**`, `DockerFile`, `docker-compose.yml`, or `.github/workflows/axis-ci.yml`.
+2. THE AXIS CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/axis/**`, `Dockerfile`, `docker-compose.yml`, or `.github/workflows/axis-ci.yml`.
 3. THE AXIS CI_Pipeline SHALL support manual dispatch via `workflow_dispatch`.
 4. THE AXIS CI_Pipeline SHALL execute all stages inside the HELM development container using the Docker_Exec_Pattern.
 5. THE AXIS CI_Pipeline SHALL include a tier isolation scan stage verifying AXIS source files contain no forbidden cross-HELM includes.
@@ -118,7 +118,7 @@ This specification defines the enterprise hardening deliverables for the HELM mi
 #### Acceptance Criteria
 
 1. THE TICK CI_Pipeline SHALL be defined in `.github/workflows/tick-ci.yml` at the repository root.
-2. THE TICK CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/tick/**`, `DockerFile`, `docker-compose.yml`, or `.github/workflows/tick-ci.yml`.
+2. THE TICK CI_Pipeline SHALL trigger on push and pull_request events affecting `libs/tick/**`, `Dockerfile`, `docker-compose.yml`, or `.github/workflows/tick-ci.yml`.
 3. THE TICK CI_Pipeline SHALL support manual dispatch via `workflow_dispatch`.
 4. THE TICK CI_Pipeline SHALL execute all stages inside the HELM development container using the Docker_Exec_Pattern (`docker compose exec -T helm-dev bash -lc '...'`).
 5. THE TICK CI_Pipeline SHALL include a tier isolation scan stage verifying TICK source files contain no forbidden cross-HELM includes.

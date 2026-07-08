@@ -321,6 +321,6 @@ AXIS (Arbitrary eXgrid Interpolation Solver) is a Tier 1 C++20 micro-library wit
 #### Acceptance Criteria
 
 1. THE AXIS source code SHALL reside in a dedicated Git repository that is added as a Git submodule at the path `libs/axis` within the HELM project workspace root.
-2. THE AXIS build and test workflow SHALL use the Docker image built from the HELM project DockerFile as its development and CI container environment.
+2. THE AXIS build and test workflow SHALL use the Docker image built from the HELM project Dockerfile as its development and CI container environment.
 3. THE AXIS repository SHALL contain a standalone CMakeLists.txt at its root that, when configured and built inside the helm-project Docker container without any other HELM source trees present, produces the HELM::AXIS library target without build errors.
 4. THE AXIS repository SHALL include a README at its root documenting prerequisites, Docker launch command, CMake configure/build commands, and test execution.

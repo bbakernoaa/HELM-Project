@@ -3,7 +3,7 @@
 #
 # Executable encoding of the DAGR zero-computation enforcement and build/test
 # pipeline. Every stage runs INSIDE the HELM project Docker container (built
-# from ./DockerFile via docker compose), so the toolchain matches local
+# from ./Dockerfile via docker compose), so the toolchain matches local
 # development exactly.
 #
 # Stages:
@@ -27,13 +27,13 @@ on:
   push:
     paths:
       - "libs/dagr/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/dagr-ci.yml"
   pull_request:
     paths:
       - "libs/dagr/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/dagr-ci.yml"
   workflow_dispatch: {}

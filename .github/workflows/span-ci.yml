@@ -3,7 +3,7 @@
 #
 # Full staged pipeline for the SPAN Tier 2 zero-copy boundary views library.
 # Every stage runs INSIDE the HELM project Docker container (built from
-# ./DockerFile via docker compose), so the toolchain matches local development.
+# ./Dockerfile via docker compose), so the toolchain matches local development.
 #
 # Stages:
 #   1. Tier isolation scan .................... Requirements 3.5
@@ -19,13 +19,13 @@ on:
   push:
     paths:
       - "libs/span/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/span-ci.yml"
   pull_request:
     paths:
       - "libs/span/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/span-ci.yml"
   workflow_dispatch: {}

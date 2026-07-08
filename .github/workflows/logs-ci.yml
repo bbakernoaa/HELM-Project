@@ -2,7 +2,7 @@
 # LOGS CI Pipeline (GitHub Actions)
 #
 # Executable encoding of libs/logs/docs/CI.md. Every stage runs INSIDE the HELM
-# project Docker container (built from ./DockerFile via docker compose), so the
+# project Docker container (built from ./Dockerfile via docker compose), so the
 # toolchain matches local development exactly.
 #
 # Stages:
@@ -23,13 +23,13 @@ on:
   push:
     paths:
       - "libs/logs/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/logs-ci.yml"
   pull_request:
     paths:
       - "libs/logs/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/logs-ci.yml"
   workflow_dispatch: {}

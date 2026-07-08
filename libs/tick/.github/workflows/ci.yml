@@ -2,7 +2,7 @@
 # TICK CI Pipeline (GitHub Actions)
 #
 # Builds and tests the TICK micro-library INSIDE the HELM project Docker
-# container (built from the root DockerFile via docker compose), so the
+# container (built from the root Dockerfile via docker compose), so the
 # toolchain matches local development exactly (GCC-13, CMake, GTest,
 # RapidCheck).
 #
@@ -33,10 +33,10 @@ jobs:
         with:
           submodules: recursive
 
-      # Build the HELM dev container from the root DockerFile.
+      # Build the HELM dev container from the root Dockerfile.
       # The container provides GCC-13, CMake, Ninja, GTest, and RapidCheck.
       - name: Build HELM dev container
-        run: docker build -t helm-dev -f DockerFile .
+        run: docker build -t helm-dev .
 
       # Stage 1 — Tier 1 isolation scan (Requirements 13.6, 14.5).
       # Verify TICK includes ONLY C++20 standard library headers and its own

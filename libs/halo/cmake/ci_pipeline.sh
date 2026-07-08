@@ -4,7 +4,7 @@
 #
 # Executes the HALO CI pipeline stages in sequence and exits non-zero on the
 # FIRST failure, so it is suitable for use as a single CI entry point inside the
-# HELM Docker container (see DockerFile / docker-compose.yml). The stages match
+# HELM Docker container (see Dockerfile / docker-compose.yml). The stages match
 # docs/ci_pipeline.md:
 #
 #   Stage 1  Static analysis / Tier 1 isolation scan        (Requirement 13.5)

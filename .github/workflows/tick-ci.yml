@@ -3,7 +3,7 @@
 #
 # Full staged pipeline for the TICK Tier 1 fixed-point time arithmetic library.
 # Every stage runs INSIDE the HELM project Docker container (built from
-# ./DockerFile via docker compose), using the Docker_Exec_Pattern to match
+# ./Dockerfile via docker compose), using the Docker_Exec_Pattern to match
 # DAGR/HALO/LOGS CI pipelines exactly.
 #
 # Stages:
@@ -20,13 +20,13 @@ on:
   push:
     paths:
       - "libs/tick/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/tick-ci.yml"
   pull_request:
     paths:
       - "libs/tick/**"
-      - "DockerFile"
+      - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/tick-ci.yml"
   workflow_dispatch: {}
