@@ -3,12 +3,13 @@
 //          Round-Trip
 //
 // Uses RapidCheck to verify that:
-//   1. Valid name strings (O/F/N + positive integer) → parse succeeds,
-//      is_registered returns true, family and number match
+//   1. Valid one-letter name strings (O/F/N/R + positive integer) → parse
+//      succeeds, is_registered returns true, family and number match
 //   2. Invalid name strings (unknown prefix, non-positive numbers, empty string,
 //      non-numeric suffix) → parse throws std::invalid_argument,
 //      is_registered returns false
-//   3. registered_families() returns exactly {'F','N','O'} (sorted)
+//   3. registered_families() returns exactly {'F','G','N','O','R'} (sorted)
+//   4. G-family names use the separate grid<num> syntax and are covered below
 //
 // No Kokkos needed for parse/is_registered tests — these are pure string logic.
 //
@@ -31,7 +32,8 @@ using axis::topology::NamedGridRegistry;
 
 // ─── RapidCheck Generators ───────────────────────────────────────────────────
 
-/// Generate a valid family prefix character: one of 'O', 'F', 'N', 'R'.
+/// Generate a valid one-letter family prefix character: one of 'O', 'F', 'N', 'R'.
+/// G is intentionally excluded here because it uses the grid<num> syntax.
 rc::Gen<char> genValidFamily() {
     return rc::gen::element('O', 'F', 'N', 'R');
 }
@@ -82,8 +84,8 @@ rc::Gen<std::string> genNonNumericSuffix() {
 }
 
 // ─── Property 5a: Valid names parse successfully with correct family/number ──
-// Generate valid grid name strings (O/F/N + positive integer), verify parse
-// succeeds, returned family matches, returned number matches, and
+// Generate valid one-letter grid name strings (O/F/N/R + positive integer),
+// verify parse succeeds, returned family matches, returned number matches, and
 // is_registered returns true.
 //
 // **Validates: Requirements 6.3**
@@ -176,33 +178,33 @@ RC_GTEST_PROP(PropNamedGridRegistration, NonNumericSuffixThrows, ()) {
 }
 
 // ─── Property 5f: Family-only string (no number) throws ──────────────────────
-// A single character that is a valid family ('O', 'F', 'N') with no number
-// following is malformed.
+// A single character that is a valid one-letter family ('O', 'F', 'N', 'R')
+// with no number following is malformed.
 //
 // **Validates: Requirements 6.4**
 
 RC_GTEST_PROP(PropNamedGridRegistration, FamilyOnlyThrows, ()) {
     const char family = *genValidFamily();
-    const std::string name(1, family);  // e.g. "O", "F", "N"
+    const std::string name(1, family);  // e.g. "O", "F", "N", "R"
 
     RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
     RC_ASSERT(!NamedGridRegistry::is_registered(name));
 }
 
-// ─── Property 5g: registered_families() returns exactly {'F','N','O'} ────────
+// ─── Property 5g: registered_families() returns exactly {'F','G','N','O','R'} ─
 // Verify the sorted set of registered families is always the same regardless
 // of how many times it is called.
 //
 // **Validates: Requirements 6.3**
 
-RC_GTEST_PROP(PropNamedGridRegistration, RegisteredFamiliesAreFNOR, ()) {
+RC_GTEST_PROP(PropNamedGridRegistration, RegisteredFamiliesAreFGNOR, ()) {
     auto families = NamedGridRegistry::registered_families();
 
     // Must be sorted
     RC_ASSERT(std::is_sorted(families.begin(), families.end()));
 
-    // Must contain exactly F, N, O, R
-    const std::vector<char> expected = {'F', 'N', 'O', 'R'};
+    // Must contain exactly F, G, N, O, R
+    const std::vector<char> expected = {'F', 'G', 'N', 'O', 'R'};
     RC_ASSERT(families == expected);
 }
 
