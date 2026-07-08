@@ -210,9 +210,10 @@ RC_GTEST_PROP(PropNamedGridRegistration, RegisteredFamiliesAreFNOR, ()) {
 // Verify that all registered NOAA GRIB grid numbers (case-insensitive) parse
 // successfully as family 'G' with the correct number.
 RC_GTEST_PROP(PropNamedGridRegistration, RegisteredGribGridsParseCorrectly, ()) {
-    const std::vector<int> registered_numbers = {3,   4,   87,  88,  90,  91,  92,  130, 132, 138, 139, 140, 145, 146, 147, 148, 150, 151, 160, 163, 179, 184,
-                                                 187, 188, 189, 197, 198, 200, 201, 202, 203, 205, 206, 207, 209, 211, 212, 213, 214, 215, 216, 217,
-                                                 218, 219, 220, 221, 222, 223, 224, 226, 227, 236, 237, 240, 241, 242, 245, 246, 247, 249, 252};
+    const std::vector<int> registered_numbers = {3,   4,   87,  88,  90,  91,  92,  130, 132, 138, 139, 140, 145, 146, 147, 148,
+                                                 150, 151, 160, 163, 179, 184, 187, 188, 189, 197, 198, 200, 201, 202, 203, 205,
+                                                 206, 207, 209, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223,
+                                                 224, 226, 227, 236, 237, 240, 241, 242, 245, 246, 247, 249, 252};
     const int number = *rc::gen::elementOf(registered_numbers);
 
     // Test case-insensitivity: randomly choose "grid", "GRID", "Grid"
@@ -228,9 +229,10 @@ RC_GTEST_PROP(PropNamedGridRegistration, RegisteredGribGridsParseCorrectly, ()) 
 // ─── Property 5i: Unregistered GRIB grid numbers throw std::invalid_argument ─
 // Verify that any grid numbers not in the registered GRIB list throw.
 RC_GTEST_PROP(PropNamedGridRegistration, UnregisteredGribGridsThrow, ()) {
-    const std::vector<int> registered_numbers = {3,   4,   87,  88,  90,  91,  92,  130, 132, 138, 139, 140, 145, 146, 147, 148, 150, 151, 160, 163, 179, 184,
-                                                 187, 188, 189, 197, 198, 200, 201, 202, 203, 205, 206, 207, 209, 211, 212, 213, 214, 215, 216, 217,
-                                                 218, 219, 220, 221, 222, 223, 224, 226, 227, 236, 237, 240, 241, 242, 245, 246, 247, 249, 252};
+    const std::vector<int> registered_numbers = {3,   4,   87,  88,  90,  91,  92,  130, 132, 138, 139, 140, 145, 146, 147, 148,
+                                                 150, 151, 160, 163, 179, 184, 187, 188, 189, 197, 198, 200, 201, 202, 203, 205,
+                                                 206, 207, 209, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223,
+                                                 224, 226, 227, 236, 237, 240, 241, 242, 245, 246, 247, 249, 252};
     const int number = *rc::gen::suchThat(rc::gen::inRange(1, 1000), [&](int n) {
         return std::find(registered_numbers.begin(), registered_numbers.end(), n) == registered_numbers.end();
     });

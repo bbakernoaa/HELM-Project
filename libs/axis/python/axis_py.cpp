@@ -15,6 +15,7 @@
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+#include <nanobind/stl/pair.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
@@ -26,6 +27,7 @@
 #include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/solver/vector_regridder.hpp>
+#include <axis/solver/vertical_regridder.hpp>
 #include <axis/solver/weight_cache.hpp>
 #include <axis/solver/weight_generator.hpp>
 #include <axis/topology/mesh_factory.hpp>
@@ -36,6 +38,7 @@
 #include <axis/types.hpp>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -346,16 +349,18 @@ NB_MODULE(axis_py, m) {
             const double *src_ptr = src_arr.data();
             axis::field_view<const double, 1> src_view(src_ptr, n_src);
 
-            // Allocate destination
-            double *dst_ptr = new double[n_dst]();
+            // Allocate destination in an exception-safe unique_ptr
+            auto dst_uniq = std::make_unique<double[]>(n_dst);
+            double *dst_ptr = dst_uniq.get();
             axis::field_view<double, 1> dst_view(dst_ptr, n_dst);
 
             // Apply
             axis::solver::apply<Kokkos::HostSpace>(matrix, src_view, dst_view);
 
-            // Return as numpy array (with ownership)
-            nb::capsule owner(dst_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
-            return nb::ndarray<nb::numpy, double>(dst_ptr, {n_dst}, std::move(owner));
+            // Return as numpy array (with ownership transfer)
+            double *raw_ptr = dst_uniq.release();
+            nb::capsule owner(raw_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            return nb::ndarray<nb::numpy, double>(raw_ptr, {n_dst}, std::move(owner));
         },
         "matrix"_a, "src"_a, "Apply interpolation matrix to source field, return destination array");
 
@@ -404,8 +409,9 @@ NB_MODULE(axis_py, m) {
             // Build field_view<const double, 2> over the column-major source
             axis::field_view<const double, 2> src_view(src_ptr, n_src, n_vars);
 
-            // Allocate column-major destination buffer
-            double *dst_buf = new double[n_dst * n_vars]();
+            // Allocate column-major destination buffer (exception-safe unique_ptr)
+            auto dst_buf_uniq = std::make_unique<double[]>(n_dst * n_vars);
+            double *dst_buf = dst_buf_uniq.get();
             axis::field_view<double, 2> dst_view(dst_buf, n_dst, n_vars);
 
             // Execute batch apply
@@ -413,18 +419,19 @@ NB_MODULE(axis_py, m) {
 
             // Convert back to C-order (row-major) for numpy return
             // numpy expects shape (n_dst, n_vars) in C-order: dst[j*n_vars + v]
-            double *result = new double[n_dst * n_vars];
+            auto result_uniq = std::make_unique<double[]>(n_dst * n_vars);
+            double *result = result_uniq.get();
             for (std::size_t v = 0; v < n_vars; ++v) {
                 for (std::size_t j = 0; j < n_dst; ++j) {
                     result[j * n_vars + v] = dst_buf[j + v * n_dst];
                 }
             }
-            delete[] dst_buf;
 
-            // Return as numpy array (n_dst, n_vars) in C-order
-            nb::capsule owner(result, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            // Return as numpy array (n_dst, n_vars) in C-order (with ownership transfer)
+            double *raw_ptr = result_uniq.release();
+            nb::capsule owner(raw_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
             std::size_t shape[2] = {n_dst, n_vars};
-            return nb::ndarray<nb::numpy, double>(result, 2, shape, std::move(owner));
+            return nb::ndarray<nb::numpy, double>(raw_ptr, 2, shape, std::move(owner));
         },
         "matrix"_a, "src"_a,
         "Apply interpolation matrix to multiple fields (cells × variables).\n"
@@ -506,4 +513,75 @@ NB_MODULE(axis_py, m) {
         },
         "filepath"_a, "Read the interpolation weights matrix from an ESMF netCDF file");
 #endif
+
+    // ─── Vertical Tension Spline interpolation ──────────────────────────────
+
+    m.def(
+        "interpolate_vertical",
+        [](nb::ndarray<const double, nb::ndim<2>> src_field, nb::ndarray<const double, nb::ndim<1>> src_levels_1d,
+           nb::ndarray<const double, nb::ndim<1>> dst_levels_1d, double tension) -> nb::ndarray<nb::numpy, double> {
+            ensure_kokkos();
+
+            std::size_t n_col = src_field.shape(0);
+            std::size_t n_src_lev = src_field.shape(1);
+            std::size_t n_dst_lev = dst_levels_1d.shape(0);
+
+            if (src_levels_1d.shape(0) != n_src_lev) {
+                throw std::invalid_argument("src_levels size must match src_field levels dimension");
+            }
+
+            // Exception-safe unique_ptr allocation
+            auto dst_uniq = std::make_unique<double[]>(n_col * n_dst_lev);
+            double *dst_ptr = dst_uniq.get();
+
+            Kokkos::View<const double **, Kokkos::HostSpace> src_view(src_field.data(), n_col, n_src_lev);
+            Kokkos::View<double **, Kokkos::HostSpace> dst_view(dst_ptr, n_col, n_dst_lev);
+            Kokkos::View<const double *, Kokkos::HostSpace> src_lev_view(src_levels_1d.data(), n_src_lev);
+            Kokkos::View<const double *, Kokkos::HostSpace> dst_lev_view(dst_levels_1d.data(), n_dst_lev);
+
+            axis::solver::VerticalRegridder<Kokkos::HostSpace>::interpolate(src_view, dst_view, src_lev_view, dst_lev_view, tension);
+
+            // Relinquish ownership to Python capsule
+            double *raw_ptr = dst_uniq.release();
+            nb::capsule owner(raw_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            std::size_t shape[2] = {n_col, n_dst_lev};
+            return nb::ndarray<nb::numpy, double>(raw_ptr, 2, shape, std::move(owner));
+        },
+        "src_field"_a, "src_levels"_a, "dst_levels"_a, "tension"_a = 0.0, "Interpolate vertical 2D profiles using 1D uniform coordinates");
+
+    m.def(
+        "interpolate_vertical_varying",
+        [](nb::ndarray<const double, nb::ndim<2>> src_field, nb::ndarray<const double, nb::ndim<2>> src_levels_2d,
+           nb::ndarray<const double, nb::ndim<2>> dst_levels_2d, double tension) -> nb::ndarray<nb::numpy, double> {
+            ensure_kokkos();
+
+            std::size_t n_col = src_field.shape(0);
+            std::size_t n_src_lev = src_field.shape(1);
+            std::size_t n_dst_lev = dst_levels_2d.shape(1);
+
+            if (src_levels_2d.shape(0) != n_col || src_levels_2d.shape(1) != n_src_lev) {
+                throw std::invalid_argument("src_levels shape must match src_field shape");
+            }
+            if (dst_levels_2d.shape(0) != n_col) {
+                throw std::invalid_argument("dst_levels column dimension must match src_field");
+            }
+
+            // Exception-safe unique_ptr allocation
+            auto dst_uniq = std::make_unique<double[]>(n_col * n_dst_lev);
+            double *dst_ptr = dst_uniq.get();
+
+            Kokkos::View<const double **, Kokkos::HostSpace> src_view(src_field.data(), n_col, n_src_lev);
+            Kokkos::View<double **, Kokkos::HostSpace> dst_view(dst_ptr, n_col, n_dst_lev);
+            Kokkos::View<const double **, Kokkos::HostSpace> src_lev_view(src_levels_2d.data(), n_col, n_src_lev);
+            Kokkos::View<const double **, Kokkos::HostSpace> dst_lev_view(dst_levels_2d.data(), n_col, n_dst_lev);
+
+            axis::solver::VerticalRegridder<Kokkos::HostSpace>::interpolate(src_view, dst_view, src_lev_view, dst_lev_view, tension);
+
+            // Relinquish ownership to Python capsule
+            double *raw_ptr = dst_uniq.release();
+            nb::capsule owner(raw_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            std::size_t shape[2] = {n_col, n_dst_lev};
+            return nb::ndarray<nb::numpy, double>(raw_ptr, 2, shape, std::move(owner));
+        },
+        "src_field"_a, "src_levels"_a, "dst_levels"_a, "tension"_a = 0.0, "Interpolate vertical 2D profiles using 2D spatially-varying coordinates");
 }

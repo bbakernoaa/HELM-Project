@@ -33,7 +33,7 @@ def _apply_weights_core(
 ) -> np.ndarray:
     """
     Apply regridding weights to a NumPy data block.
-    
+
     Handles both standard regridding and NaN-aware re-normalization
     using AXIS's C++ SpMV execution path.
     """
@@ -78,7 +78,7 @@ def _apply_weights_core(
         mask = np.isnan(flat_data)
         zero = flat_data.dtype.type(0)
         safe_data = np.where(mask, zero, flat_data)
-        
+
         result_t = axis_py.batch_apply(weights_matrix, np.asfortranarray(safe_data.T))
         result = result_t.T
 

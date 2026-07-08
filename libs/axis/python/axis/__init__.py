@@ -11,6 +11,9 @@ from . import axis_py
 sys.modules["axis_py"] = axis_py
 
 from .regridder import Regridder
+from .grid import Geometry, RectilinearGrid, CurvilinearGrid, UnstructuredMesh, GridFactory
+from .vector import VectorRegridder
+from .vertical import VerticalRegridder, regrid_3d
 from . import accessors  # Automatically registers the custom .axis xarray accessor!
 
 # Expose C++ Mesh construction and Matrix serialization APIs directly on the axis package
@@ -31,6 +34,14 @@ LineType = axis_py.LineType
 
 __all__ = [
     "Regridder",
+    "Geometry",
+    "RectilinearGrid",
+    "CurvilinearGrid",
+    "UnstructuredMesh",
+    "GridFactory",
+    "VectorRegridder",
+    "VerticalRegridder",
+    "regrid_3d",
     "Mesh",
     "Matrix",
     "make_regular_mesh",

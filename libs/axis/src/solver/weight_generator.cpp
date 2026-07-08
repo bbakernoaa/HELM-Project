@@ -825,9 +825,9 @@ Kokkos::View<double *[2], MemorySpace> compute_cell_centroids_device(const topol
                     double lon = coords(ni, 0);
                     double lat = coords(ni, 1);
                     if (csys == topology::CoordinateSystem::SphericalDeg) {
-                          const double pi = 3.14159265358979323846;
-                          lon = lon * pi / 180.0;
-                          lat = lat * pi / 180.0;
+                        const double pi = 3.14159265358979323846;
+                        lon = lon * pi / 180.0;
+                        lat = lat * pi / 180.0;
                     }
                     sum_x += Kokkos::cos(lat) * Kokkos::cos(lon);
                     sum_y += Kokkos::cos(lat) * Kokkos::sin(lon);
@@ -1641,7 +1641,7 @@ InterpolationMatrix<MemorySpace> generate_nearest_device_impl(const topology::Un
 
             if (begin == end) {
                 factor_list(j) = 0.0;
-                factor_row(j) = static_cast<index_t>(-1); // Flag as unmapped
+                factor_row(j) = static_cast<index_t>(-1);  // Flag as unmapped
                 factor_col(j) = static_cast<index_t>(-1);
                 return;
             }
@@ -1711,15 +1711,13 @@ InterpolationMatrix<MemorySpace> generate_nearest_device_impl(const topology::Un
     auto dst_areas_dev = compute_cell_areas_device(dst_mesh, use_spherical);
     Kokkos::deep_copy(area_b, dst_areas_dev);
 
-    return InterpolationMatrix<MemorySpace>(std::move(final_list), std::move(final_row), std::move(final_col),
-                                            std::move(frac_a), std::move(frac_b), std::move(area_a), std::move(area_b),
-                                            n_src, n_dst);
+    return InterpolationMatrix<MemorySpace>(std::move(final_list), std::move(final_row), std::move(final_col), std::move(frac_a), std::move(frac_b),
+                                            std::move(area_a), std::move(area_b), n_src, n_dst);
 }
 
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                         const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                         const RegridConfig &config) {
+                                                         const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config) {
     const auto csys = src_mesh.coord_system();
     const bool use_spherical_nn = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
     if (use_spherical_nn) {
@@ -2094,13 +2092,11 @@ InterpolationMatrix<MemorySpace> generate_nearest_rect(const topology::Unstructu
 // Forward declaration: nearest-neighbor device pipeline
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_device_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                              const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                              const RegridConfig &config);
+                                                              const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
 template <class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_device(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
-                                                         const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
-                                                         const RegridConfig &config);
+                                                         const topology::UnstructuredMesh<MemorySpace> &dst_mesh, const RegridConfig &config);
 
 template <int Dimension, class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_nearest_impl(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
@@ -4310,13 +4306,11 @@ InterpolationMatrix<MemorySpace> generate_conservative_2nd_order_impl(const topo
             });
 
         Kokkos::parallel_for(
-            "ClampFractionsDevice", Kokkos::RangePolicy<exec_space>(0, n_src), KOKKOS_LAMBDA(const std::size_t i) {
-                frac_a(i) = Kokkos::fmin(d_frac_a_acc(i), 1.0);
-            });
+            "ClampFractionsDevice", Kokkos::RangePolicy<exec_space>(0, n_src),
+            KOKKOS_LAMBDA(const std::size_t i) { frac_a(i) = Kokkos::fmin(d_frac_a_acc(i), 1.0); });
         Kokkos::parallel_for(
-            "ClampFractionsBDevice", Kokkos::RangePolicy<exec_space>(0, n_dst), KOKKOS_LAMBDA(const std::size_t j) {
-                frac_b(j) = Kokkos::fmin(d_frac_b_acc(j), 1.0);
-            });
+            "ClampFractionsBDevice", Kokkos::RangePolicy<exec_space>(0, n_dst),
+            KOKKOS_LAMBDA(const std::size_t j) { frac_b(j) = Kokkos::fmin(d_frac_b_acc(j), 1.0); });
 
         Kokkos::deep_copy(area_a, d_src_areas);
         Kokkos::deep_copy(area_b, d_dst_areas);
