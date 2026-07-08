@@ -706,7 +706,7 @@ NamedGridRegistry::ParsedName NamedGridRegistry::parse(const std::string &name) 
 
 bool NamedGridRegistry::is_registered(const std::string &name) noexcept {
     try {
-        parse(name);
+        (void)parse(name);
         return true;
     } catch (...) {
         return false;

@@ -76,7 +76,7 @@ TEST(NamedAndRules, ParseO4ReturnsCorrectParsedName) {
 
 // Test: parse with invalid family throws
 TEST(NamedAndRules, ParseInvalidFamilyThrows) {
-    EXPECT_THROW(topology::NamedGridRegistry::parse("Z100"), std::invalid_argument);
+    EXPECT_THROW((void)topology::NamedGridRegistry::parse("Z100"), std::invalid_argument);
 }
 
 // Test: RuleGenerator RegularLatLon produces correct cell count
