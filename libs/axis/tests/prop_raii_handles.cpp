@@ -70,7 +70,7 @@ TEST(PropRaiiHandles, FileHandle_NormalScopeExit) {
         std::FILE *verify = std::fopen(path.c_str(), "r");
         RC_ASSERT(verify != nullptr);
         char buf[64] = {};
-        std::fgets(buf, sizeof(buf), verify);
+        RC_ASSERT(std::fgets(buf, sizeof(buf), verify) != nullptr);
         std::fclose(verify);
         RC_ASSERT(std::string(buf) == "RAII_TEST_MARKER");
 
@@ -111,7 +111,7 @@ TEST(PropRaiiHandles, FileHandle_ExceptionScopeExit) {
         std::FILE *verify = std::fopen(path.c_str(), "r");
         RC_ASSERT(verify != nullptr);
         char buf[64] = {};
-        std::fgets(buf, sizeof(buf), verify);
+        RC_ASSERT(std::fgets(buf, sizeof(buf), verify) != nullptr);
         std::fclose(verify);
         RC_ASSERT(std::string(buf) == "EXCEPTION_MARKER");
 
@@ -162,7 +162,7 @@ TEST(PropRaiiHandles, FileHandle_MoveSemantics) {
         std::FILE *verify = std::fopen(path.c_str(), "r");
         RC_ASSERT(verify != nullptr);
         char buf[64] = {};
-        std::fgets(buf, sizeof(buf), verify);
+        RC_ASSERT(std::fgets(buf, sizeof(buf), verify) != nullptr);
         std::fclose(verify);
         RC_ASSERT(std::string(buf) == "MOVE_MARKER");
 

@@ -8,15 +8,34 @@
 #include <axis/detail/raii_handles.hpp>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
+#include <random>
+#include <stdexcept>
 #include <string>
 
 namespace axis::test {
 
+static std::string make_temp_txt_path() {
+    namespace fs = std::filesystem;
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    std::uniform_int_distribution<unsigned long long> dist;
+    const fs::path dir = fs::temp_directory_path();
+
+    for (int attempt = 0; attempt < 128; ++attempt) {
+        const fs::path candidate = dir / ("axis_raii_" + std::to_string(dist(rng)) + ".txt");
+        if (!fs::exists(candidate)) {
+            return candidate.string();
+        }
+    }
+
+    throw std::runtime_error("Failed to generate unique temp .txt path");
+}
+
 // Test: File_Handle opens a temp file, writes content, dtor closes it,
 // and the content is readable afterward.
 TEST(RaiiHandles, FileHandleWritesAndCloses) {
-    std::string tmp_path = std::string(std::tmpnam(nullptr)) + ".txt";
+    std::string tmp_path = make_temp_txt_path();
     const char *test_content = "Hello AXIS\n";
 
     {
@@ -43,7 +62,7 @@ TEST(RaiiHandles, FileHandleInvalidPathThrows) {
 
 // Test: File_Handle is move-only — moved-from handle is null
 TEST(RaiiHandles, FileHandleMoveTransfersOwnership) {
-    std::string tmp_path = std::string(std::tmpnam(nullptr)) + ".txt";
+    std::string tmp_path = make_temp_txt_path();
 
     axis::detail::File_Handle fh1(tmp_path.c_str(), "w");
     ASSERT_TRUE(static_cast<bool>(fh1));

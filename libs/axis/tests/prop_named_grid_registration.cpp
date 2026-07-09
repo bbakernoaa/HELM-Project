@@ -119,7 +119,7 @@ RC_GTEST_PROP(PropNamedGridRegistration, UnknownFamilyThrows, ()) {
     const std::string name = std::string(1, bad_family) + std::to_string(number);
 
     // parse must throw std::invalid_argument
-    RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)NamedGridRegistry::parse(name), std::invalid_argument);
 
     // is_registered must return false
     RC_ASSERT(!NamedGridRegistry::is_registered(name));
@@ -138,7 +138,7 @@ RC_GTEST_PROP(PropNamedGridRegistration, NonPositiveNumberThrows, ()) {
     const std::string name = std::string(1, family) + std::to_string(number);
 
     // parse must throw std::invalid_argument
-    RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)NamedGridRegistry::parse(name), std::invalid_argument);
 
     // is_registered must return false
     RC_ASSERT(!NamedGridRegistry::is_registered(name));
@@ -154,7 +154,7 @@ RC_GTEST_PROP(PropNamedGridRegistration, NonPositiveNumberThrows, ()) {
 RC_GTEST_PROP(PropNamedGridRegistration, EmptyStringThrows, ()) {
     const std::string name;  // empty
 
-    RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)NamedGridRegistry::parse(name), std::invalid_argument);
     RC_ASSERT(!NamedGridRegistry::is_registered(name));
 }
 
@@ -171,7 +171,7 @@ RC_GTEST_PROP(PropNamedGridRegistration, NonNumericSuffixThrows, ()) {
     const std::string name = std::string(1, family) + suffix;
 
     // parse must throw std::invalid_argument
-    RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)NamedGridRegistry::parse(name), std::invalid_argument);
 
     // is_registered must return false
     RC_ASSERT(!NamedGridRegistry::is_registered(name));
@@ -187,7 +187,7 @@ RC_GTEST_PROP(PropNamedGridRegistration, FamilyOnlyThrows, ()) {
     const char family = *genValidFamily();
     const std::string name(1, family);  // e.g. "O", "F", "N", "R"
 
-    RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)NamedGridRegistry::parse(name), std::invalid_argument);
     RC_ASSERT(!NamedGridRegistry::is_registered(name));
 }
 
@@ -241,7 +241,7 @@ RC_GTEST_PROP(PropNamedGridRegistration, UnregisteredGribGridsThrow, ()) {
 
     const std::string name = "grid" + std::to_string(number);
 
-    RC_ASSERT_THROWS_AS(NamedGridRegistry::parse(name), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)NamedGridRegistry::parse(name), std::invalid_argument);
     RC_ASSERT(!NamedGridRegistry::is_registered(name));
 }
 
