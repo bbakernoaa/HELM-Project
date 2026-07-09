@@ -33,7 +33,7 @@ if(NOT MPI_CXX_FOUND)
 endif()
 
 find_package(Kokkos REQUIRED)
-if(NOT Kokkos_FOUND)
+if(NOT TARGET Kokkos::kokkos)
     message(FATAL_ERROR "HALO requires Kokkos. Please install Kokkos or set Kokkos_ROOT to the Kokkos installation prefix.")
 endif()
 
