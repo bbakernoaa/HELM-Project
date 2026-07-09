@@ -82,7 +82,7 @@ jobs:
         run: |
           docker compose exec -T helm-dev bash -lc '
             set -e
-            python3 - <<'PYEOF'
+            python3 - <<PYEOF
           import json
           import sys
 
