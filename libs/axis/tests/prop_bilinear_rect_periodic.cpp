@@ -83,10 +83,12 @@ rc::Gen<double> genDstLon() {
 
 /// Generate a random destination latitude within a given [lat_min, lat_max].
 rc::Gen<double> genDstLat(double lat_min, double lat_max) {
-    int imin = static_cast<int>(std::floor(lat_min * 100.0));
-    int imax = static_cast<int>(std::ceil(lat_max * 100.0));
-    if (imax <= imin) imax = imin + 1;
-    return rc::gen::map(rc::gen::inRange(imin, imax), [](int v) { return static_cast<double>(v) / 100.0; });
+    const double lo = (lat_min <= lat_max) ? lat_min : lat_max;
+    const double hi = (lat_min <= lat_max) ? lat_max : lat_min;
+    return rc::gen::map(rc::gen::inRange(0, 10001), [lo, hi](int t) {
+        const double alpha = static_cast<double>(t) / 10000.0;
+        return lo + alpha * (hi - lo);
+    });
 }
 
 /// Generate a wraparound offset multiplier k in [-3, 3] (excluding 0).
