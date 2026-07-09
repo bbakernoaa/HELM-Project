@@ -849,7 +849,7 @@ private:
 
 ```bash
 # Build with testing enabled
-cmake -B build -DBUILD_TESTING=ON -DKokkos_ROOT=/path/to/kokkos
+cmake -B build -DHALO_BUILD_TESTING=ON -DKokkos_ROOT=/path/to/kokkos
 cmake --build build
 
 # Run unit tests (requires MPI, typically 4 ranks)
@@ -1805,7 +1805,7 @@ target_link_libraries(my_fortran_model PRIVATE HELM::HALO_Fortran)
 
 ```bash
 # Build with Fortran tests
-cmake -B build -DBUILD_TESTING=ON -DBUILD_FORTRAN=ON
+cmake -B build -DHALO_BUILD_TESTING=ON -DHALO_BUILD_FORTRAN=ON
 cmake --build build
 
 # Run Fortran integration tests (requires MPI)

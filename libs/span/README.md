@@ -58,7 +58,7 @@ cd /workspace/helm-project/libs/span
 # Configure (tests enabled)
 cmake -B build \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON
+  -DSPAN_BUILD_TESTING=ON
 
 # Build
 cmake --build build --parallel $(nproc)

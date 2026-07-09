@@ -71,8 +71,8 @@ rm -rf "$STANDALONE_DIR/build"
 
 cmake -B "$STANDALONE_DIR/build" -S "$STANDALONE_DIR" -G Ninja \
     -DCMAKE_CXX_STANDARD=20 \
-    -DBUILD_TESTING=ON \
-    -DBUILD_FORTRAN=ON
+    -DHALO_BUILD_TESTING=ON \
+    -DHALO_BUILD_FORTRAN=ON
 cmake --build "$STANDALONE_DIR/build" --parallel "$JOBS"
 
 # Confirm the expected archives were produced.
@@ -101,7 +101,7 @@ ctest --test-dir "$STANDALONE_DIR/build" --output-on-failure -L property
 log "Stage 5 — Sanitizer build + property tests (ASan + UBSan)"
 cmake -B "$ASAN_DIR" -S "$SOURCE_DIR" -G Ninja \
     -DCMAKE_CXX_STANDARD=20 \
-    -DBUILD_TESTING=ON \
+    -DHALO_BUILD_TESTING=ON \
     -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g" \
     -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 cmake --build "$ASAN_DIR" --parallel "$JOBS"

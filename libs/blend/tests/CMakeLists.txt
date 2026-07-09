@@ -3,7 +3,7 @@
 #
 # GTest unit tests and RapidCheck property tests for LinearBlendKernel and
 # StepBlendKernel. Wired into the parent BLEND CMakeLists.txt via the
-# BUILD_TESTING gate (add_subdirectory(tests) is guarded by if(BUILD_TESTING)).
+# BLEND_BUILD_TESTING gate (add_subdirectory(tests) is guarded by if(BLEND_BUILD_TESTING)).
 #
 # CTest labels:
 #   unit     — deterministic fixed-input tests (test_linear_blend, test_step_blend)

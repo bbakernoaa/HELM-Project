@@ -109,7 +109,7 @@ Equivalent forms once a build tree exists:
 # As a CMake custom target:
 cmake --build build --target check_isolation
 
-# As a CTest (configure with -DBUILD_TESTING=ON first):
+# As a CTest (configure with -DHALO_BUILD_TESTING=ON first):
 cd build && ctest -R tier1_isolation --output-on-failure
 ```
 
@@ -136,8 +136,8 @@ cd libs/halo
 rm -rf build-ci
 cmake -B build-ci -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON \
-  -DBUILD_FORTRAN=ON
+  -DHALO_BUILD_TESTING=ON \
+  -DHALO_BUILD_FORTRAN=ON
 cmake --build build-ci --parallel $(nproc)
 ```
 
@@ -157,7 +157,7 @@ rm -rf /tmp/halo-standalone
 cp -r /workspace/helm-project/libs/halo /tmp/halo-standalone
 rm -rf /tmp/halo-standalone/build
 cd /tmp/halo-standalone
-cmake -B build -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=ON -DBUILD_FORTRAN=ON
+cmake -B build -G Ninja -DCMAKE_CXX_STANDARD=20 -DHALO_BUILD_TESTING=ON -DHALO_BUILD_FORTRAN=ON
 cmake --build build --parallel $(nproc)
 # Expect build/libhalo.a (HELM::HALO), build/libhalo_c_interop.a, build/libhalo_fortran.a
 ```
@@ -282,7 +282,7 @@ This covers:
 incremental adoption by legacy NUOPC/ESMF models. The Fortran integration test
 (`test_halo_mod`) drives the C-interop layer through the Fortran module against
 a real multi-rank MPI job, so it runs under `mpirun -np 4`. It is built only
-when `-DBUILD_FORTRAN=ON` and lives in
+when `-DHALO_BUILD_FORTRAN=ON` and lives in
 [`tests_fortran/`](../tests_fortran/CMakeLists.txt).
 
 ```bash
@@ -311,8 +311,8 @@ cd libs/halo
 rm -rf build-asan
 cmake -B build-asan -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON \
-  -DBUILD_FORTRAN=OFF \
+  -DHALO_BUILD_TESTING=ON \
+  -DHALO_BUILD_FORTRAN=OFF \
   -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
 cmake --build build-asan --parallel $(nproc)
 cd build-asan
@@ -405,7 +405,7 @@ docker compose exec -T helm-dev bash -lc '
 
   # Stage 2: standalone build (+ HELM::HALO)
   rm -rf build-ci
-  cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=ON -DBUILD_FORTRAN=ON
+  cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DHALO_BUILD_TESTING=ON -DHALO_BUILD_FORTRAN=ON
   cmake --build build-ci --parallel $(nproc)
 
   # Stages 3-5: unit (mpi), property, fortran
@@ -416,7 +416,7 @@ docker compose exec -T helm-dev bash -lc '
 
   # Stage 6: sanitizers
   rm -rf build-asan
-  cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=ON -DBUILD_FORTRAN=OFF \
+  cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DHALO_BUILD_TESTING=ON -DHALO_BUILD_FORTRAN=OFF \
     -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
   cmake --build build-asan --parallel $(nproc)
   ( cd build-asan && ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 ctest -L property --output-on-failure )

@@ -29,7 +29,7 @@ AXIS is hardware-portable via Kokkos, opens no files, and links no file-format l
 cd libs/axis
 cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_TESTING=ON \
+  -DAXIS_BUILD_TESTING=ON \
   -DAXIS_ENABLE_PROJ=ON
 cmake --build build --parallel $(nproc)
 ```

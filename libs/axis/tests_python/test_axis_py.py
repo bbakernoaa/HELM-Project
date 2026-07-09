@@ -15,7 +15,7 @@ import axis
 import numpy as np
 import pytest
 
-# axis_py is the nanobind extension module built with BUILD_PYTHON=ON.
+# axis_py is the nanobind extension module built with AXIS_BUILD_PYTHON=ON.
 # These tests are written to be runnable once the module is available.
 axis_py = pytest.importorskip("axis_py")
 

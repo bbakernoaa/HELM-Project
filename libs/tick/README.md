@@ -45,7 +45,7 @@ Inside the container:
 ```bash
 cd /workspace/helm-project/libs/tick
 mkdir -p build && cd build
-cmake .. -DBUILD_TESTING=ON
+cmake .. -DTICK_BUILD_TESTING=ON
 ```
 
 ### 3. Build

@@ -45,12 +45,12 @@ include(CMakePackageConfigHelpers)
 # Options
 # ##############################################################################
 
-option(AXIS_ENABLE_PROJ "Enable PROJ (libproj) for coordinate projection transforms" ON)
-option(BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"              OFF)
-option(BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"               OFF)
-option(BUILD_PYTHON     "Build the nanobind Python bindings"                          OFF)
-option(BUILD_EXAMPLES   "Build runnable documentation examples"                       OFF)
-option(BUILD_BENCHMARKS "Build the AXIS performance benchmark harness"                OFF)
+option(AXIS_ENABLE_PROJ      "Enable PROJ (libproj) for coordinate projection transforms" ON)
+option(AXIS_BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"             OFF)
+option(AXIS_BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"              OFF)
+option(AXIS_BUILD_PYTHON     "Build the nanobind Python bindings"                         OFF)
+option(AXIS_BUILD_EXAMPLES   "Build runnable documentation examples"                      OFF)
+option(AXIS_BUILD_BENCHMARKS "Build the AXIS performance benchmark harness"               OFF)
 
 # ##############################################################################
 # Dependency discovery
@@ -281,7 +281,7 @@ endif()
 # Fortran interop (optional)
 # ##############################################################################
 
-if(BUILD_FORTRAN)
+if(AXIS_BUILD_FORTRAN)
     enable_language(Fortran)
 
     add_library(axis_fortran STATIC
@@ -311,7 +311,7 @@ endif()
 # Python bindings (nanobind)
 # ##############################################################################
 
-if(BUILD_PYTHON)
+if(AXIS_BUILD_PYTHON)
     add_subdirectory(python)
 endif()
 
@@ -367,7 +367,7 @@ set_tests_properties(TierIsolationScan PROPERTIES
 # Examples (runnable documentation)
 # ##############################################################################
 
-if(BUILD_EXAMPLES)
+if(AXIS_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
@@ -375,7 +375,7 @@ endif()
 # Testing
 # ##############################################################################
 
-if(BUILD_TESTING)
+if(AXIS_BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
@@ -383,7 +383,7 @@ endif()
 # Benchmarks
 # ##############################################################################
 
-if(BUILD_BENCHMARKS)
+if(AXIS_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif()
 
@@ -398,7 +398,7 @@ install(
 )
 
 set(AXIS_INSTALL_TARGETS axis)
-if(BUILD_FORTRAN)
+if(AXIS_BUILD_FORTRAN)
     list(APPEND AXIS_INSTALL_TARGETS axis_fortran)
 endif()
 
@@ -437,7 +437,7 @@ install(
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AXIS
 )
 
-if(BUILD_FORTRAN)
+if(AXIS_BUILD_FORTRAN)
     install(
         DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fortran/modules/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/axis/fortran
@@ -453,11 +453,11 @@ message(STATUS "")
 message(STATUS "AXIS ${PROJECT_VERSION} configuration summary")
 message(STATUS "  C++ standard    : C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  PROJ enabled    : ${AXIS_ENABLE_PROJ}")
-message(STATUS "  Build testing   : ${BUILD_TESTING}")
-message(STATUS "  Build benchmarks: ${BUILD_BENCHMARKS}")
-message(STATUS "  Build examples  : ${BUILD_EXAMPLES}")
-message(STATUS "  Build Fortran   : ${BUILD_FORTRAN}")
-message(STATUS "  Build Python    : ${BUILD_PYTHON}")
+message(STATUS "  Build testing   : ${AXIS_BUILD_TESTING}")
+message(STATUS "  Build benchmarks: ${AXIS_BUILD_BENCHMARKS}")
+message(STATUS "  Build examples  : ${AXIS_BUILD_EXAMPLES}")
+message(STATUS "  Build Fortran   : ${AXIS_BUILD_FORTRAN}")
+message(STATUS "  Build Python    : ${AXIS_BUILD_PYTHON}")
 message(STATUS "  Doxygen docs    : ${DOXYGEN_FOUND}")
 message(STATUS "  Install prefix  : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "")

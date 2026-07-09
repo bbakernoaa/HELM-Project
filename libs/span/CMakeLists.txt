@@ -40,8 +40,8 @@ include(GNUInstallDirs)
 # Options
 # ##############################################################################
 
-option(BUILD_TESTING   "Build the SPAN test suite"                     OFF)
-option(SPAN_BUILD_C_API "Build the thin C-API shared library"          OFF)
+option(SPAN_BUILD_TESTING "Build the SPAN test suite"           OFF)
+option(SPAN_BUILD_C_API   "Build the thin C-API shared library" OFF)
 
 # ##############################################################################
 # Dependency discovery
@@ -92,7 +92,7 @@ endif()
 # Testing
 # ##############################################################################
 
-if(BUILD_TESTING)
+if(SPAN_BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
 endif()
@@ -137,7 +137,7 @@ install(
 message(STATUS "")
 message(STATUS "SPAN ${PROJECT_VERSION} configuration summary")
 message(STATUS "  C++ standard   : C++${CMAKE_CXX_STANDARD}")
-message(STATUS "  Build testing  : ${BUILD_TESTING}")
+message(STATUS "  Build testing  : ${SPAN_BUILD_TESTING}")
 message(STATUS "  Build C-API    : ${SPAN_BUILD_C_API}")
 message(STATUS "  Install prefix : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "")

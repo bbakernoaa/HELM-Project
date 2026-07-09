@@ -2,7 +2,7 @@
 # tests/CMakeLists.txt
 #
 # AXIS test infrastructure. Included from the root CMakeLists.txt only when
-# BUILD_TESTING=ON. Provides two test executable targets:
+# AXIS_BUILD_TESTING=ON. Provides two test executable targets:
 #
 #   axis_unit_tests      — GTest-based unit/integration tests
 #   axis_property_tests  — RapidCheck property-based tests (≥100 iterations)

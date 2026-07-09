@@ -52,8 +52,8 @@ else()
 endif()
 
 # --- Testing ---
-option(BUILD_TESTING "Build the TICK test suite" OFF)
-if(BUILD_TESTING)
+option(TICK_BUILD_TESTING "Build the TICK test suite" OFF)
+if(TICK_BUILD_TESTING)
     enable_testing()
     find_package(GTest REQUIRED)
     find_package(rapidcheck REQUIRED)

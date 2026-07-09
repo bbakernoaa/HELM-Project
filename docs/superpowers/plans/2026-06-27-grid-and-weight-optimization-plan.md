@@ -400,7 +400,7 @@ Add the new test file to `libs/axis/tests/CMakeLists.txt`.
 
 Run:
 ```bash
-docker exec helm-dev-env bash -c "cd /workspace/helm-project/libs/axis && cmake -B build -DBUILD_TESTING=ON && cmake --build build --parallel 8"
+docker exec helm-dev-env bash -c "cd /workspace/helm-project/libs/axis && cmake -B build -DAXIS_BUILD_TESTING=ON && cmake --build build --parallel 8"
 docker exec helm-dev-env bash -c "cd /workspace/helm-project/libs/axis/build && ./tests/axis_unit_tests --gtest_filter=\"RectilinearGridDetector.*\""
 ```
 Expected: Tests compile and pass.

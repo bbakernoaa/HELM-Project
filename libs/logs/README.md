@@ -59,7 +59,7 @@ You are now at `/workspace/helm-project` inside the container.
 cd /workspace/helm-project/libs/logs
 cmake -B build -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON
+  -DLOGS_BUILD_TESTING=ON
 ```
 
 ### 3. Build

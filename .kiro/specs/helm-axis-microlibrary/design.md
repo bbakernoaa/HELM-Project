@@ -1813,7 +1813,7 @@ RC_PARAMS(rc::Params{}.withNumTests(200).withMaxSize(64));
 # and handed in as an in-memory GridDescriptor. Tests build descriptors directly.
 cmake -B build -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON \
+  -DAXIS_BUILD_TESTING=ON \
   -DAXIS_ENABLE_PROJ=ON
 cmake --build build --parallel
 

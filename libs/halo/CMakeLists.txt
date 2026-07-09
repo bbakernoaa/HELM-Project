@@ -23,8 +23,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ─── Options ─────────────────────────────────────────────────────────────────
 option(HALO_GPU_AWARE_MPI "Enable GPU-aware MPI (pass device pointers directly)" OFF)
-option(BUILD_TESTING "Build the HALO test suite (GTest + RapidCheck)" OFF)
-option(BUILD_FORTRAN "Build the Fortran C-interop layer (halo_mod)" ON)
+option(HALO_BUILD_TESTING "Build the HALO test suite (GTest + RapidCheck)" OFF)
+option(HALO_BUILD_FORTRAN "Build the Fortran C-interop layer (halo_mod)" ON)
 
 # ─── Required Dependencies ───────────────────────────────────────────────────
 find_package(MPI REQUIRED COMPONENTS CXX)
@@ -73,7 +73,7 @@ if(HALO_GPU_AWARE_MPI)
 endif()
 
 # ─── Fortran Interop Layer ───────────────────────────────────────────────────
-if(BUILD_FORTRAN)
+if(HALO_BUILD_FORTRAN)
     enable_language(Fortran)
 
     # C interop layer (C++ compiled with extern "C"). Links the core halo
@@ -150,7 +150,7 @@ install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/"
 
 # Install the Fortran interop targets and generated module files. These targets
 # join the same HALOTargets export set so they are exported alongside halo.
-if(BUILD_FORTRAN)
+if(HALO_BUILD_FORTRAN)
     install(TARGETS halo_c_interop halo_fortran
         EXPORT HALOTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -212,7 +212,7 @@ else()
 endif()
 
 # ─── Testing ─────────────────────────────────────────────────────────────────
-if(BUILD_TESTING)
+if(HALO_BUILD_TESTING)
     enable_testing()
 
     # Register the Tier 1 isolation scan as a CTest so it runs with the suite.
@@ -229,7 +229,7 @@ if(BUILD_TESTING)
 
     add_subdirectory(tests)
 
-    if(BUILD_FORTRAN)
+    if(HALO_BUILD_FORTRAN)
         add_subdirectory(tests_fortran)
     endif()
 endif()

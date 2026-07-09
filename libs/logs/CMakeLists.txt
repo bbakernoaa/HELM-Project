@@ -37,7 +37,7 @@ if(NOT LOGS_HAS_CXX20_FLAG)
 endif()
 
 # ─── Options ─────────────────────────────────────────────────────────────────
-option(BUILD_TESTING "Build the LOGS test suite (GTest + RapidCheck)" OFF)
+option(LOGS_BUILD_TESTING "Build the LOGS test suite (GTest + RapidCheck)" OFF)
 
 # ─── Required Dependencies ───────────────────────────────────────────────────
 find_package(MPI REQUIRED COMPONENTS CXX)
@@ -128,7 +128,7 @@ install(FILES
 )
 
 # ─── Testing ─────────────────────────────────────────────────────────────────
-if(BUILD_TESTING)
+if(LOGS_BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
 endif()

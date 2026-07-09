@@ -55,7 +55,7 @@ All code lives under `libs/tick/`. Builds run inside Docker via `docker compose 
 
 - [x] 4. Checkpoint — Verify C API builds and links
   - Ensure all tests pass, ask the user if questions arise.
-  - Build inside Docker: `docker compose run --rm helm-dev bash -c "cd /workspace/helm-project/libs/tick && cmake -B build -DBUILD_TESTING=ON && cmake --build build"`
+  - Build inside Docker: `docker compose run --rm helm-dev bash -c "cd /workspace/helm-project/libs/tick && cmake -B build -DTICK_BUILD_TESTING=ON && cmake --build build"`
   - Verify `tick_c.h` compiles under C99 and C++20 modes
 
 - [x] 5. C API unit tests
@@ -136,7 +136,7 @@ All code lives under `libs/tick/`. Builds run inside Docker via `docker compose 
 
 - [x] 6. Checkpoint — Verify C API tests pass
   - Ensure all tests pass, ask the user if questions arise.
-  - Run: `docker compose run --rm helm-dev bash -c "cd /workspace/helm-project/libs/tick && cmake -B build -DBUILD_TESTING=ON && cmake --build build && ctest --test-dir build --output-on-failure"`
+  - Run: `docker compose run --rm helm-dev bash -c "cd /workspace/helm-project/libs/tick && cmake -B build -DTICK_BUILD_TESTING=ON && cmake --build build && ctest --test-dir build --output-on-failure"`
 
 - [x] 7. Fortran module
   - [x] 7.1 Create `fortran/tick_mod.f90` with iso_c_binding interfaces
@@ -180,7 +180,7 @@ All code lives under `libs/tick/`. Builds run inside Docker via `docker compose 
 
 - [x] 10. Final checkpoint — Build verification
   - Ensure all tests pass, ask the user if questions arise.
-  - Full Docker build with Fortran enabled: `docker compose run --rm helm-dev bash -c "cd /workspace/helm-project/libs/tick && cmake -B build -DBUILD_TESTING=ON -DTICK_BUILD_FORTRAN=ON && cmake --build build && ctest --test-dir build --output-on-failure"`
+  - Full Docker build with Fortran enabled: `docker compose run --rm helm-dev bash -c "cd /workspace/helm-project/libs/tick && cmake -B build -DTICK_BUILD_TESTING=ON -DTICK_BUILD_FORTRAN=ON && cmake --build build && ctest --test-dir build --output-on-failure"`
   - Verify `tick_c.h` compiles as C99: `gcc -std=c99 -pedantic -Werror -fsyntax-only include/tick/tick_c.h`
   - Verify `tick_c.h` compiles as C++20: `g++ -std=c++20 -Werror -fsyntax-only include/tick/tick_c.h`
   - Verify `tick_mod.f90` compiles with gfortran: `gfortran -std=f2003 -Wall -c fortran/tick_mod.f90`

@@ -59,8 +59,8 @@ cd /workspace/helm-project/libs/conf
 # Configure (tests and Fortran layer enabled)
 cmake -B build \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON \
-  -DBUILD_FORTRAN=ON
+  -DCONF_BUILD_TESTING=ON \
+  -DCONF_BUILD_FORTRAN=ON
 
 # Build
 cmake --build build --parallel $(nproc)

@@ -58,7 +58,7 @@ cd /workspace/helm-project/libs/blend
 # Configure (tests enabled)
 cmake -B build \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON
+  -DBLEND_BUILD_TESTING=ON
 
 # Build
 cmake --build build --parallel $(nproc)

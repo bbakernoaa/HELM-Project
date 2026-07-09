@@ -58,7 +58,7 @@ cmake --build build --parallel $(nproc)
 ```bash
 cmake -B build -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON
+  -DHALO_BUILD_TESTING=ON
 cmake --build build --parallel $(nproc)
 ```
 
@@ -76,7 +76,7 @@ cmake --build build --parallel $(nproc)
 ```bash
 cmake -B build -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_FORTRAN=ON
+  -DHALO_BUILD_FORTRAN=ON
 cmake --build build --parallel $(nproc)
 ```
 
@@ -85,8 +85,8 @@ cmake --build build --parallel $(nproc)
 ```bash
 cmake -B build -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON \
-  -DBUILD_FORTRAN=ON \
+  -DHALO_BUILD_TESTING=ON \
+  -DHALO_BUILD_FORTRAN=ON \
   -DHALO_GPU_AWARE_MPI=OFF
 cmake --build build --parallel $(nproc)
 ```
