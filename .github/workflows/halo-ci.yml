@@ -49,7 +49,7 @@ jobs:
     steps:
       # Requirement 12.5: pinned HALO submodule must be present.
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
