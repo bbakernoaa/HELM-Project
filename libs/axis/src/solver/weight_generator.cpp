@@ -996,10 +996,7 @@ Kokkos::View<double *, MemorySpace> compute_cell_areas_device(const topology::Un
     auto mesh_areas = mesh.cell_areas();
     if (mesh_areas.extent(0) == n_cells) {
         Kokkos::View<double *, MemorySpace> areas("cell_areas_device", n_cells);
-        Kokkos::parallel_for(
-            "copy_cell_areas", Kokkos::RangePolicy<exec_space>(0, n_cells), KOKKOS_LAMBDA(const std::size_t i) {
-                areas(i) = mesh_areas(i);
-            });
+        Kokkos::deep_copy(areas, mesh.cell_areas_view());
         return areas;
     }
 
@@ -1890,6 +1887,10 @@ template <class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                  const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
                                                  const RegridConfig &config) {
+    if (config.budget_subgrid_size < 1) {
+        throw std::invalid_argument("WeightGenerator::generate_budget: budget_subgrid_size must be >= 1.");
+    }
+
     using HostSpace = Kokkos::HostSpace;
     using Point2 = ArborX::Point<2>;
 
@@ -1923,17 +1924,13 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
     const auto dst_off = dst_mesh.conn_offsets();
     const auto dst_idx = dst_mesh.conn_indices();
 
-    std::vector<double> weights_vec;
-    std::vector<index_t> rows_vec;
-    std::vector<index_t> cols_vec;
-
-    // 2. Loop over each destination cell
+    // 2. Pre-generate and batch all ArborX queries to avoid inner-loop View allocations
+    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> batched_queries("queries", n_dst * N2);
     for (std::size_t j = 0; j < n_dst; ++j) {
         auto d_start = static_cast<std::size_t>(dst_off[j]);
         auto d_end = static_cast<std::size_t>(dst_off[j + 1]);
         if (d_start == d_end) continue;
 
-        // Compute local destination cell bounding box
         double x_min = std::numeric_limits<double>::max();
         double x_max = -std::numeric_limits<double>::max();
         double y_min = std::numeric_limits<double>::max();
@@ -1949,11 +1946,48 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
             y_max = std::max(y_max, vy);
         }
 
-        // Subgrid accumulation maps (source cell index -> accumulated weight)
+        for (std::uint32_t u = 0; u < N; ++u) {
+            for (std::uint32_t v = 0; v < N; ++v) {
+                double px = x_min + (static_cast<double>(u) + 0.5) * (x_max - x_min) / N;
+                double py = y_min + (static_cast<double>(v) + 0.5) * (y_max - y_min) / N;
+                batched_queries(j * N2 + u * N + v) = ArborX::nearest(Point2{static_cast<float>(px), static_cast<float>(py)}, (int)std::min(n_src, (std::size_t)8));
+            }
+        }
+    }
+
+    // Execute the single batched query
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> batched_values("values", 0);
+    Kokkos::View<int *, HostSpace> batched_offsets("offsets", 0);
+    tree.query(host_exec, batched_queries, batched_values, batched_offsets);
+
+    std::vector<double> weights_vec;
+    std::vector<index_t> rows_vec;
+    std::vector<index_t> cols_vec;
+
+    // 3. Loop over each destination cell to calculate and average weights
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        auto d_start = static_cast<std::size_t>(dst_off[j]);
+        auto d_end = static_cast<std::size_t>(dst_off[j + 1]);
+        if (d_start == d_end) continue;
+
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = -std::numeric_limits<double>::max();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = -std::numeric_limits<double>::max();
+
+        for (std::size_t i = d_start; i < d_end; ++i) {
+            auto ni = static_cast<std::size_t>(dst_idx[i]);
+            double vx = dst_coords(ni, 0);
+            double vy = dst_coords(ni, 1);
+            x_min = std::min(x_min, vx);
+            x_max = std::max(x_max, vx);
+            y_min = std::min(y_min, vy);
+            y_max = std::max(y_max, vy);
+        }
+
         std::unordered_map<index_t, double> subgrid_weights;
         std::uint32_t valid_subpoints = 0;
 
-        // 3. Generate and sample N x N subgrid points inside the bounding box
         for (std::uint32_t u = 0; u < N; ++u) {
             for (std::uint32_t v = 0; v < N; ++v) {
                 double px = x_min + (static_cast<double>(u) + 0.5) * (x_max - x_min) / N;
@@ -1974,17 +2008,9 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
                     test_py = 0.0;
                 }
 
-                // Query 8 nearest source cells to find containing elements
-                constexpr int k_query = 8;
-                Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> sub_queries("sub_q", 1);
-                sub_queries(0) = ArborX::nearest(Point2{static_cast<float>(px), static_cast<float>(py)}, (int)std::min(n_src, (std::size_t)k_query));
-
-                Kokkos::View<typename decltype(tree)::value_type *, HostSpace> sub_values("sub_v", 0);
-                Kokkos::View<int *, HostSpace> sub_offsets_view("sub_o", 0);
-                tree.query(host_exec, sub_queries, sub_values, sub_offsets_view);
-
-                int begin = sub_offsets_view(0);
-                int end = sub_offsets_view(1);
+                std::size_t query_idx = j * N2 + u * N + v;
+                int begin = batched_offsets(query_idx);
+                int end = batched_offsets(query_idx + 1);
                 int n_avail = end - begin;
 
                 bool subpoint_mapped = false;
@@ -1995,10 +2021,10 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
                         for (int b = a + 1; b < n_avail - 2 && !subpoint_mapped; ++b) {
                             for (int c = b + 1; c < n_avail - 1 && !subpoint_mapped; ++c) {
                                 for (int d = c + 1; d < n_avail && !subpoint_mapped; ++d) {
-                                    std::size_t c0 = static_cast<std::size_t>(sub_values(begin + a).index);
-                                    std::size_t c1 = static_cast<std::size_t>(sub_values(begin + b).index);
-                                    std::size_t c2 = static_cast<std::size_t>(sub_values(begin + c).index);
-                                    std::size_t c3 = static_cast<std::size_t>(sub_values(begin + d).index);
+                                    std::size_t c0 = static_cast<std::size_t>(batched_values(begin + a).index);
+                                    std::size_t c1 = static_cast<std::size_t>(batched_values(begin + b).index);
+                                    std::size_t c2 = static_cast<std::size_t>(batched_values(begin + c).index);
+                                    std::size_t c3 = static_cast<std::size_t>(batched_values(begin + d).index);
 
                                     Vec2 q0{src_cx(c0), src_cy(c0)};
                                     Vec2 q1{src_cx(c1), src_cy(c1)};
@@ -2048,9 +2074,9 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
                     for (int a = 0; a < n_avail - 2 && !subpoint_mapped; ++a) {
                         for (int b = a + 1; b < n_avail - 1 && !subpoint_mapped; ++b) {
                             for (int c = b + 1; c < n_avail && !subpoint_mapped; ++c) {
-                                std::size_t c0 = static_cast<std::size_t>(sub_values(begin + a).index);
-                                std::size_t c1 = static_cast<std::size_t>(sub_values(begin + b).index);
-                                std::size_t c2 = static_cast<std::size_t>(sub_values(begin + c).index);
+                                std::size_t c0 = static_cast<std::size_t>(batched_values(begin + a).index);
+                                std::size_t c1 = static_cast<std::size_t>(batched_values(begin + b).index);
+                                std::size_t c2 = static_cast<std::size_t>(batched_values(begin + c).index);
 
                                 Vec2 q0{src_cx(c0), src_cy(c0)};
                                 Vec2 q1{src_cx(c1), src_cy(c1)};
@@ -2106,7 +2132,14 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
             }
         }
 
-        // 4. Threshold gating & normalization
+        // 4. Threshold gating & normalization (Strictly avoid division by zero)
+        if (valid_subpoints == 0) {
+            if (config.unmapped == UnmappedAction::Error) {
+                throw std::runtime_error("WeightGenerator::generate_budget: Destination cell " + std::to_string(j) + " lacks sufficient coverage (0 valid subpoints).");
+            }
+            continue;
+        }
+
         double fraction = static_cast<double>(valid_subpoints) / static_cast<double>(N2);
         if (fraction < config.budget_min_valid_fraction) {
             if (config.unmapped == UnmappedAction::Error) {
@@ -2115,7 +2148,6 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
             continue;
         }
 
-        // Normalization factor
         double norm = 1.0 / static_cast<double>(valid_subpoints);
         for (const auto &[src_cell, accum_wt] : subgrid_weights) {
             weights_vec.push_back(accum_wt * norm);
