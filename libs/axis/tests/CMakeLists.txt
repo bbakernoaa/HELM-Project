@@ -27,7 +27,9 @@ if(NOT GTest_FOUND)
         GIT_TAG        v1.15.2
         GIT_SHALLOW    TRUE
     )
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    if(MSVC)
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    endif()
     FetchContent_MakeAvailable(googletest)
     set(GTest_FOUND TRUE)
 endif()
