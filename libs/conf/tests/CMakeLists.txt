@@ -191,7 +191,7 @@ endif()
 
 # ─── C Bridge Property Tests (need src/fortran/ include path) ─────────────────
 # These tests exercise the extern "C" interop layer (src/fortran/conf_c_interop.cpp),
-# which is compiled into `conf` when BUILD_FORTRAN=ON. The src/fortran include
+# which is compiled into `conf` when CONF_BUILD_FORTRAN=ON. The src/fortran include
 # directory is added so the tests can reach handle_registry.hpp.
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_no_leak_c_bridge.cpp")

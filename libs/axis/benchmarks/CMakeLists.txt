@@ -2,7 +2,7 @@
 # benchmarks/CMakeLists.txt
 #
 # AXIS performance benchmark harness. Included from the root CMakeLists.txt
-# only when BUILD_BENCHMARKS=ON. Produces a single executable:
+# only when AXIS_BUILD_BENCHMARKS=ON. Produces a single executable:
 #
 #   axis_benchmarks — runs all benchmark cases and outputs JSON results
 #

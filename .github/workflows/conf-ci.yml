@@ -13,7 +13,7 @@
 #   4. Property tests (ctest -L property) ..... Requirements 4.9
 #   4b. Fortran tests (ctest -L fortran) ...... Requirements 4.10
 #   5. Sanitizer build (ASan + UBSan,
-#      BUILD_FORTRAN=OFF) ..................... Requirements 4.11
+#      CONF_BUILD_FORTRAN=OFF) ................ Requirements 4.11
 #
 # CONF includes Fortran integration (BUILD_FORTRAN=ON) in the main build but
 # Fortran is excluded from sanitizer analysis (BUILD_FORTRAN=OFF in Stage 5).
@@ -57,7 +57,7 @@ jobs:
           '
 
       # ── Stage 2: Standalone CMake build ──────────────────────────────────
-      # Builds with BUILD_FORTRAN=ON to exercise the full Fortran interop layer.
+      # Builds with CONF_BUILD_FORTRAN=ON to exercise the full Fortran interop layer.
       - name: "Stage 2: Standalone build (produces HELM::CONF)"
         run: |
           docker compose exec -T helm-dev bash -lc '
@@ -112,7 +112,7 @@ jobs:
             cd libs/conf/build-ci && ctest -L fortran --output-on-failure
           '
 
-      # ── Stage 5: Sanitizer build (ASan + UBSan, BUILD_FORTRAN=OFF) ────────
+      # ── Stage 5: Sanitizer build (ASan + UBSan, CONF_BUILD_FORTRAN=OFF) ────────
       # Fortran code is excluded from sanitizer analysis.
       - name: "Stage 5: Sanitizer build (ASan + UBSan)"
         run: |

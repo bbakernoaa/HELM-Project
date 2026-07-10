@@ -1,7 +1,7 @@
 # ##############################################################################
 # LOGS Test Suite — CMakeLists.txt
 #
-# Activated when BUILD_TESTING=ON. Requires Google Test; uses RapidCheck for
+# Activated when LOGS_BUILD_TESTING=ON. Requires Google Test; uses RapidCheck for
 # property-based tests. MPI-based tests are executed via mpirun -np 4.
 #
 # Requirements: 12.6, 12.7, 12.10
@@ -11,7 +11,7 @@
 find_package(GTest REQUIRED)
 if(NOT GTest_FOUND)
     message(FATAL_ERROR
-        "LOGS tests require Google Test (GTest). BUILD_TESTING is ON but GTest "
+        "LOGS tests require Google Test (GTest). LOGS_BUILD_TESTING is ON but GTest "
         "was not found. Please install GoogleTest or set GTest_ROOT. "
         "(Requirement 12.10)")
 endif()

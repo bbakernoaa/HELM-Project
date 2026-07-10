@@ -1858,9 +1858,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # fields, so it links none of those libraries. The old AXIS_ENABLE_NETCDF,
 # AXIS_ENABLE_GRIB, and AXIS_ENABLE_YAML options are DELETED. PROJ remains because
 # projection-string transforms are pure math with no AMIO equivalent.
-option(AXIS_ENABLE_PROJ   "Enable PROJ projection-string mesh builder (libproj)"  ON)
-option(BUILD_TESTING      "Build the AXIS test suite (GTest + RapidCheck)"        OFF)
-option(BUILD_FORTRAN      "Build the Fortran iso_c_binding interop layer"         OFF)
+option(AXIS_ENABLE_PROJ   "Enable PROJ projection-string mesh builder (libproj)" ON)
+option(AXIS_BUILD_TESTING "Build the AXIS test suite (GTest + RapidCheck)"       OFF)
+option(AXIS_BUILD_FORTRAN "Build the Fortran iso_c_binding interop layer"        OFF)
 
 # ─── Required Dependencies ───────────────────────────────────────────────────
 find_package(Kokkos REQUIRED)            # Hardware portability layer (HELM Law #2)
@@ -1918,7 +1918,7 @@ if(AXIS_ENABLE_PROJ)
 endif()
 
 # ─── Fortran Interop Layer (iso_c_binding) ───────────────────────────────────
-if(BUILD_FORTRAN)
+if(AXIS_BUILD_FORTRAN)
     enable_language(Fortran)
 
     add_library(axis_c_interop STATIC src/fortran/axis_c_interop.cpp)
@@ -1989,7 +1989,7 @@ if(AXIS_SH_EXECUTABLE)
 endif()
 
 # ─── Testing ─────────────────────────────────────────────────────────────────
-if(BUILD_TESTING)
+if(AXIS_BUILD_TESTING)
     find_package(GTest REQUIRED)
     enable_testing()
     if(AXIS_SH_EXECUTABLE)

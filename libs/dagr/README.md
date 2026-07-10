@@ -68,7 +68,7 @@ cmake --build build --parallel $(nproc)
 
 | Option | Default | Description |
 |---|---|---|
-| `BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
+| `DAGR_BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
 
 ### Consuming DAGR from a downstream project
 
@@ -92,7 +92,7 @@ Include the pipeline configuration header:
 ## Running Tests
 
 ```bash
-# After building with BUILD_TESTING=ON
+# After building with DAGR_BUILD_TESTING=ON
 cd build
 ctest --output-on-failure
 
