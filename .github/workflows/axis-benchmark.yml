@@ -25,7 +25,6 @@ on:
     paths:
       - "libs/axis/**"
       - ".github/workflows/axis-benchmark.yml"
-      - ".github/benchmarks/baseline.json"
   workflow_dispatch:
     inputs:
       update_baseline:
@@ -70,10 +69,9 @@ jobs:
         run: |
           docker compose exec -T helm-dev bash -lc '
             set -e
-            cd libs/axis/build-bench
-            OMP_PROC_BIND=false ./benchmarks/axis_benchmarks \
+            OMP_PROC_BIND=false libs/axis/build-bench/benchmarks/axis_benchmarks \
               --commit ${{ github.sha }} \
-              --output /workspace/helm-project/benchmark_results.json
+              --output benchmark_results.json
           '
 
       # Compare against baseline; fail if regression >15% (Requirements 6.2, 6.3, 13.6).
@@ -82,74 +80,17 @@ jobs:
         run: |
           docker compose exec -T helm-dev bash -lc '
             set -e
-            python3 - <<PYEOF
-          import json
-          import sys
-
-          REGRESSION_THRESHOLD = 0.15  # 15%
-
-          # Load baseline
-          try:
-              with open("/workspace/helm-project/.github/benchmarks/baseline.json") as f:
-                  baseline = json.load(f)
-          except FileNotFoundError:
-              print("WARNING: No baseline found — skipping regression check")
-              sys.exit(0)
-
-          # Load current results
-          with open("/workspace/helm-project/benchmark_results.json") as f:
-              results = json.load(f)
-
-          # Build baseline lookup by case name
-          baseline_map = {b["name"]: b["wall_clock_ms"] for b in baseline}
-
-          regressions = []
-          print(f"{'Case':<40} {'Baseline (ms)':<15} {'Current (ms)':<15} {'Delta':<10} {'Status'}")
-          print("-" * 95)
-
-          for result in results:
-              name = result["name"]
-              current_ms = result["wall_clock_ms"]
-
-              if name not in baseline_map:
-                  print(f"{name:<40} {'N/A':<15} {current_ms:<15.2f} {'NEW':<10} SKIP")
-                  continue
-
-              baseline_ms = baseline_map[name]
-              if baseline_ms <= 0:
-                  print(f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {'N/A':<10} SKIP (zero baseline)")
-                  continue
-
-              delta = (current_ms - baseline_ms) / baseline_ms
-              status = "PASS" if delta <= REGRESSION_THRESHOLD else "FAIL"
-
-              if delta > REGRESSION_THRESHOLD:
-                  regressions.append({
-                      "name": name,
-                      "baseline_ms": baseline_ms,
-                      "current_ms": current_ms,
-                      "regression_pct": delta * 100
-                  })
-
-              print(f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {delta*100:>+7.1f}%   {status}")
-
-          print()
-
-          if regressions:
-              print(f"REGRESSION DETECTED: {len(regressions)} benchmark(s) exceeded {REGRESSION_THRESHOLD*100:.0f}% threshold")
-              for r in regressions:
-                  print(f"  - {r['name']}: {r['current_ms']:.2f}ms vs baseline {r['baseline_ms']:.2f}ms (+{r['regression_pct']:.1f}%)")
-              sys.exit(1)
-          else:
-              print("All benchmarks within regression threshold.")
-          PYEOF
+            python3 libs/axis/benchmarks/check_regression.py \
+              libs/axis/benchmarks/baseline.json \
+              benchmark_results.json \
+              0.15
           '
 
       # Update baseline when manually triggered (Requirement 13.4).
       - name: "Update baseline"
         if: ${{ github.event.inputs.update_baseline == 'true' }}
         run: |
-          cp benchmark_results.json .github/benchmarks/baseline.json
+          cp benchmark_results.json libs/axis/benchmarks/baseline.json
           # Note: In practice this would commit and push, but that requires
           # write permissions configured on the workflow token.
           echo "Baseline updated with current results."
