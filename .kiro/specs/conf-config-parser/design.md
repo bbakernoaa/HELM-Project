@@ -1005,8 +1005,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ─── Options ─────────────────────────────────────────────────────────────────
-option(BUILD_TESTING "Build the CONF test suite (GTest + RapidCheck)" OFF)
-option(BUILD_FORTRAN "Build the Fortran C-interop layer (conf_mod)"   ON)
+option(CONF_BUILD_TESTING "Build the CONF test suite (GTest + RapidCheck)" OFF)
+option(CONF_BUILD_FORTRAN "Build the Fortran C-interop layer (conf_mod)"   ON)
 option(CONF_USE_SYSTEM_YAMLCPP
        "Prefer a Spack/system yaml-cpp via find_package over FetchContent" OFF)
 
@@ -1067,7 +1067,7 @@ target_link_libraries(conf PRIVATE ${_conf_yamlcpp_target})
 target_compile_features(conf PUBLIC cxx_std_20)
 
 # ─── Fortran Interop Layer ───────────────────────────────────────────────────
-if(BUILD_FORTRAN)
+if(CONF_BUILD_FORTRAN)
     enable_language(Fortran)
     target_sources(conf PRIVATE src/fortran/conf_c_interop.cpp)
     # conf_mod.f90 compiled into HELM::CONF_Fortran (added with Fortran tests)
@@ -1116,10 +1116,10 @@ install(FILES
 )
 
 # ─── Testing ─────────────────────────────────────────────────────────────────
-if(BUILD_TESTING)
+if(CONF_BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
-    if(BUILD_FORTRAN)
+    if(CONF_BUILD_FORTRAN)
         add_subdirectory(tests_fortran)
     endif()
 endif()

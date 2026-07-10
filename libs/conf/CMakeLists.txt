@@ -9,8 +9,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(BUILD_TESTING "Build the CONF test suite (GTest + RapidCheck)" OFF)
-option(BUILD_FORTRAN "Build the Fortran C-interop layer (conf_mod)" ON)
+option(CONF_BUILD_TESTING "Build the CONF test suite (GTest + RapidCheck)" OFF)
+option(CONF_BUILD_FORTRAN "Build the Fortran C-interop layer (conf_mod)" ON)
 option(CONF_USE_SYSTEM_YAMLCPP "Use system-installed yaml-cpp (e.g. from Spack) instead of FetchContent" OFF)
 
 if(CONF_USE_SYSTEM_YAMLCPP)
@@ -38,7 +38,7 @@ target_sources(conf PRIVATE
     src/fortran/conf_c_interop.cpp
 )
 
-if(BUILD_FORTRAN)
+if(CONF_BUILD_FORTRAN)
     enable_language(Fortran)
 
     add_library(conf_fortran fortran/conf_mod.f90)
@@ -121,11 +121,11 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CONF
 )
 
-if(BUILD_TESTING)
+if(CONF_BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
 
-    if(BUILD_FORTRAN)
+    if(CONF_BUILD_FORTRAN)
         add_subdirectory(tests_fortran)
     endif()
 endif()

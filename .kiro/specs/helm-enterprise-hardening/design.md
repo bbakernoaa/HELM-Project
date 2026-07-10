@@ -255,7 +255,7 @@ jobs:
             rm -rf build-ci
             cmake -B build-ci -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON {extra_cmake_flags}
+              -D{LIB}_BUILD_TESTING=ON {extra_cmake_flags}
             cmake --build build-ci --parallel $(nproc)
           '
 
@@ -275,7 +275,7 @@ jobs:
           EOF
             printf "#include <{lib}/{header}>\nint main() { return 0; }\n" > /tmp/{lib}_consumer/main.cpp
             cd /tmp/{lib}_consumer
-            cmake -B build -G Ninja -DBUILD_TESTING=OFF
+            cmake -B build -G Ninja -D{LIB}_BUILD_TESTING=OFF
             cmake --build build --target consumer
           '
 
@@ -302,7 +302,7 @@ jobs:
             rm -rf build-asan
             cmake -B build-asan -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON {sanitizer_cmake_flags} \
+              -D{LIB}_BUILD_TESTING=ON {sanitizer_cmake_flags} \
               -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
             cmake --build build-asan --parallel $(nproc)
             cd build-asan
@@ -328,7 +328,7 @@ jobs:
 |---------|----------------------|--------------------------|-------------------|
 | BLEND | (none) | (none) | — |
 | SPAN | (none) | (none) | — |
-| CONF | `-DBUILD_FORTRAN=ON` | `-DBUILD_FORTRAN=OFF` | Fortran test stage: `ctest -L fortran` |
+| CONF | `-DCONF_BUILD_FORTRAN=ON` | `-DCONF_BUILD_FORTRAN=OFF` | Fortran test stage: `ctest -L fortran` |
 | AXIS | (none) | (none) | — |
 | TICK | (none) | (none) | — |
 

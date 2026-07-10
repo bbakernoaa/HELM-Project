@@ -11,8 +11,11 @@
 #include <axis/types.hpp>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
+#include <random>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -32,6 +35,22 @@ static auto *const kenv = ::testing::AddGlobalTestEnvironment(new KokkosEnv);
 namespace axis::test {
 
 using MemSpace = Kokkos::HostSpace;
+
+static std::string make_temp_msh_path() {
+    namespace fs = std::filesystem;
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    std::uniform_int_distribution<unsigned long long> dist;
+    const fs::path dir = fs::temp_directory_path();
+
+    for (int attempt = 0; attempt < 128; ++attempt) {
+        const fs::path candidate = dir / ("axis_gmsh_roundtrip_" + std::to_string(dist(rng)) + ".msh");
+        if (!fs::exists(candidate)) {
+            return candidate.string();
+        }
+    }
+
+    throw std::runtime_error("Failed to generate unique temp .msh path");
+}
 
 // Build a 2x2 mesh covering [0,2] x [0,2]
 static topology::UnstructuredMesh<MemSpace> make_2x2_mesh() {
@@ -116,7 +135,7 @@ TEST(GmshRoundtrip, WriteThenRead) {
     auto mesh = make_2x2_mesh();
 
     // Use a temp file path
-    std::string tmp_path = std::string(std::tmpnam(nullptr)) + ".msh";
+    std::string tmp_path = make_temp_msh_path();
 
     // Write
     topology::GmshWriter::write(tmp_path, mesh);
@@ -142,7 +161,7 @@ TEST(GmshRoundtrip, WriteThenRead) {
 // Test: Verify that each element has the expected number of nodes (quads have 4)
 TEST(GmshRoundtrip, QuadrilateralElements) {
     auto mesh = make_2x2_mesh();
-    std::string tmp_path = std::string(std::tmpnam(nullptr)) + ".msh";
+    std::string tmp_path = make_temp_msh_path();
 
     topology::GmshWriter::write(tmp_path, mesh);
     auto gmsh = read_gmsh_file(tmp_path);

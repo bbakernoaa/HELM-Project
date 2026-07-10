@@ -60,8 +60,8 @@ jobs:
             cmake -B build-bench -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
               -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_TESTING=OFF \
-              -DBUILD_BENCHMARKS=ON
+              -DAXIS_BUILD_TESTING=OFF \
+              -DAXIS_BUILD_BENCHMARKS=ON
             cmake --build build-bench --parallel $(nproc)
           '
 
@@ -82,7 +82,7 @@ jobs:
         run: |
           docker compose exec -T helm-dev bash -lc '
             set -e
-            python3 - <<'PYEOF'
+            python3 - <<PYEOF
           import json
           import sys
 

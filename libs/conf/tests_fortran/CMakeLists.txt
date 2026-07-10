@@ -3,7 +3,7 @@
 # drives the public `conf_mod` API. Unlike HALO, CONF is single-process — no
 # MPI launcher is needed.
 #
-# The parent CMakeLists only descends here when BUILD_TESTING AND BUILD_FORTRAN
+# The parent CMakeLists only descends here when CONF_BUILD_TESTING AND CONF_BUILD_FORTRAN
 # are both ON.
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ endif()
 # ─── Test executable ──────────────────────────────────────────────────────────
 add_executable(test_conf_fortran test_conf_fortran.f90)
 
-# Link the conf library (which includes the C interop layer when BUILD_FORTRAN=ON)
+# Link the conf library (which includes the C interop layer when CONF_BUILD_FORTRAN=ON)
 # and the conf_fortran module library (created by task 8.1, provides conf_mod).
 # The conf_fortran target exposes the .mod file directory on its INTERFACE include
 # path, so the `use conf_mod` statement in the test is satisfied.

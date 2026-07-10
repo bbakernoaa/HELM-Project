@@ -64,7 +64,7 @@ jobs:
             rm -rf build-ci
             cmake -B build-ci -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON
+              -DBLEND_BUILD_TESTING=ON
             cmake --build build-ci --parallel $(nproc)
           '
 
@@ -86,7 +86,7 @@ jobs:
           EOF
             printf "#include <blend/helm_math_blend.hpp>\nint main() { return 0; }\n" > /tmp/blend_consumer/main.cpp
             cd /tmp/blend_consumer
-            cmake -B build -G Ninja -DBUILD_TESTING=OFF
+            cmake -B build -G Ninja -DBLEND_BUILD_TESTING=OFF
             cmake --build build --target consumer
           '
 
@@ -113,7 +113,7 @@ jobs:
             rm -rf build-asan
             cmake -B build-asan -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON \
+              -DBLEND_BUILD_TESTING=ON \
               -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
             cmake --build build-asan --parallel $(nproc)
             cd build-asan

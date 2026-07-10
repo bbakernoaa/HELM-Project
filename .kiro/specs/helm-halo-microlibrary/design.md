@@ -849,7 +849,7 @@ private:
 
 ```bash
 # Build with testing enabled
-cmake -B build -DBUILD_TESTING=ON -DKokkos_ROOT=/path/to/kokkos
+cmake -B build -DHALO_BUILD_TESTING=ON -DKokkos_ROOT=/path/to/kokkos
 cmake --build build
 
 # Run unit tests (requires MPI, typically 4 ranks)
@@ -901,7 +901,7 @@ find_package(Kokkos REQUIRED)
 
 # --- Compile-time options ---
 option(HALO_GPU_AWARE_MPI "Enable GPU-aware MPI (device pointers passed directly)" OFF)
-option(BUILD_TESTING "Build the HALO test suite" OFF)
+option(HALO_BUILD_TESTING "Build the HALO test suite" OFF)
 
 # --- Library target ---
 add_library(halo
@@ -969,7 +969,7 @@ install(FILES
 )
 
 # --- Tests ---
-if(BUILD_TESTING)
+if(HALO_BUILD_TESTING)
     find_package(GTest REQUIRED)
     enable_testing()
     add_subdirectory(tests)
@@ -1669,10 +1669,10 @@ The following additions enable Fortran language support and build the Fortran mo
 enable_language(Fortran)
 
 # --- Compile-time options (addition) ---
-option(BUILD_FORTRAN "Build the Fortran iso_c_binding module" ON)
+option(HALO_BUILD_FORTRAN "Build the Fortran iso_c_binding module" ON)
 
 # --- C Interop Layer (always built, needed by Fortran module) ---
-if(BUILD_FORTRAN)
+if(HALO_BUILD_FORTRAN)
     # C interop shared object (C++ compiled with extern "C")
     add_library(halo_c_interop
         src/fortran/halo_c_interop.cpp
@@ -1720,7 +1720,7 @@ if(BUILD_FORTRAN)
 endif()
 
 # --- Fortran Tests ---
-if(BUILD_TESTING AND BUILD_FORTRAN)
+if(HALO_BUILD_TESTING AND HALO_BUILD_FORTRAN)
     find_package(MPI REQUIRED COMPONENTS Fortran)
     add_subdirectory(tests_fortran)
 endif()
@@ -1805,7 +1805,7 @@ target_link_libraries(my_fortran_model PRIVATE HELM::HALO_Fortran)
 
 ```bash
 # Build with Fortran tests
-cmake -B build -DBUILD_TESTING=ON -DBUILD_FORTRAN=ON
+cmake -B build -DHALO_BUILD_TESTING=ON -DHALO_BUILD_FORTRAN=ON
 cmake --build build
 
 # Run Fortran integration tests (requires MPI)

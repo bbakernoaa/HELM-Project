@@ -13,7 +13,7 @@
 #   4. Property tests (ctest -L property) ..... Requirements 4.9
 #   4b. Fortran tests (ctest -L fortran) ...... Requirements 4.10
 #   5. Sanitizer build (ASan + UBSan,
-#      BUILD_FORTRAN=OFF) ..................... Requirements 4.11
+#      CONF_BUILD_FORTRAN=OFF) ................ Requirements 4.11
 #
 # CONF includes Fortran integration (BUILD_FORTRAN=ON) in the main build but
 # Fortran is excluded from sanitizer analysis (BUILD_FORTRAN=OFF in Stage 5).
@@ -57,7 +57,7 @@ jobs:
           '
 
       # ── Stage 2: Standalone CMake build ──────────────────────────────────
-      # Builds with BUILD_FORTRAN=ON to exercise the full Fortran interop layer.
+      # Builds with CONF_BUILD_FORTRAN=ON to exercise the full Fortran interop layer.
       - name: "Stage 2: Standalone build (produces HELM::CONF)"
         run: |
           docker compose exec -T helm-dev bash -lc '
@@ -66,8 +66,8 @@ jobs:
             rm -rf build-ci
             cmake -B build-ci -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON \
-              -DBUILD_FORTRAN=ON
+              -DCONF_BUILD_TESTING=ON \
+              -DCONF_BUILD_FORTRAN=ON
             cmake --build build-ci --parallel $(nproc)
           '
 
@@ -87,7 +87,7 @@ jobs:
           EOF
             printf "#include <conf/conf.hpp>\nint main() { return 0; }\n" > /tmp/conf_consumer/main.cpp
             cd /tmp/conf_consumer
-            cmake -B build -G Ninja -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF
+            cmake -B build -G Ninja -DCONF_BUILD_TESTING=OFF -DCONF_BUILD_FORTRAN=OFF
             cmake --build build --target consumer
           '
 
@@ -112,7 +112,7 @@ jobs:
             cd libs/conf/build-ci && ctest -L fortran --output-on-failure
           '
 
-      # ── Stage 5: Sanitizer build (ASan + UBSan, BUILD_FORTRAN=OFF) ────────
+      # ── Stage 5: Sanitizer build (ASan + UBSan, CONF_BUILD_FORTRAN=OFF) ────────
       # Fortran code is excluded from sanitizer analysis.
       - name: "Stage 5: Sanitizer build (ASan + UBSan)"
         run: |
@@ -122,8 +122,8 @@ jobs:
             rm -rf build-asan
             cmake -B build-asan -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON \
-              -DBUILD_FORTRAN=OFF \
+              -DCONF_BUILD_TESTING=ON \
+              -DCONF_BUILD_FORTRAN=OFF \
               -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
             cmake --build build-asan --parallel $(nproc)
             cd build-asan

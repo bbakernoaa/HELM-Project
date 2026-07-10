@@ -659,7 +659,7 @@ def main():
     print("  - Time includes weight generation + apply (not I/O)")
     if axis is None:
         print("\n  To enable AXIS comparison, build the Python module:")
-        print("    cd libs/axis && cmake -B build-py -DBUILD_PYTHON=ON")
+        print("    cd libs/axis && cmake -B build-py -DAXIS_BUILD_PYTHON=ON")
         print("    cmake --build build-py && export PYTHONPATH=build-py/python")
     if not XREGRID_AVAILABLE:
         print("\n  To enable xregrid comparison, install esmpy and xregrid:")

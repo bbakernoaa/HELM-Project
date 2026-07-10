@@ -2,7 +2,7 @@
 # tests/CMakeLists.txt
 #
 # AXIS test infrastructure. Included from the root CMakeLists.txt only when
-# BUILD_TESTING=ON. Provides two test executable targets:
+# AXIS_BUILD_TESTING=ON. Provides two test executable targets:
 #
 #   axis_unit_tests      — GTest-based unit/integration tests
 #   axis_property_tests  — RapidCheck property-based tests (≥100 iterations)
@@ -17,7 +17,22 @@ include(GoogleTest)
 # Locate test dependencies
 # ##############################################################################
 
-find_package(GTest REQUIRED)
+find_package(GTest QUIET)
+if(NOT GTest_FOUND)
+    # Fall back to FetchContent to obtain GTest if not found on the system.
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.15.2
+        GIT_SHALLOW    TRUE
+    )
+    if(MSVC)
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    endif()
+    FetchContent_MakeAvailable(googletest)
+    set(GTest_FOUND TRUE)
+endif()
 
 find_package(rapidcheck CONFIG QUIET)
 if(NOT rapidcheck_FOUND)

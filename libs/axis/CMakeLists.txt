@@ -45,12 +45,12 @@ include(CMakePackageConfigHelpers)
 # Options
 # ##############################################################################
 
-option(AXIS_ENABLE_PROJ "Enable PROJ (libproj) for coordinate projection transforms" ON)
-option(BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"              OFF)
-option(BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"               OFF)
-option(BUILD_PYTHON     "Build the nanobind Python bindings"                          OFF)
-option(BUILD_EXAMPLES   "Build runnable documentation examples"                       OFF)
-option(BUILD_BENCHMARKS "Build the AXIS performance benchmark harness"                OFF)
+option(AXIS_ENABLE_PROJ      "Enable PROJ (libproj) for coordinate projection transforms" ON)
+option(AXIS_BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"             OFF)
+option(AXIS_BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"              OFF)
+option(AXIS_BUILD_PYTHON     "Build the nanobind Python bindings"                         OFF)
+option(AXIS_BUILD_EXAMPLES   "Build runnable documentation examples"                      OFF)
+option(AXIS_BUILD_BENCHMARKS "Build the AXIS performance benchmark harness"               OFF)
 
 # ##############################################################################
 # Dependency discovery
@@ -61,41 +61,36 @@ option(AXIS_FETCH_KOKKOS "Fetch and build Kokkos automatically if not found on s
 
 find_package(Kokkos QUIET)
 
-if(NOT Kokkos_FOUND AND AXIS_FETCH_KOKKOS)
-    message(STATUS "Kokkos not found on system. Fetching and building Kokkos on-the-fly via FetchContent...")
+if(NOT TARGET Kokkos::kokkos AND AXIS_FETCH_KOKKOS)
     include(FetchContent)
     FetchContent_Declare(
         kokkos
         GIT_REPOSITORY https://github.com/kokkos/kokkos.git
         GIT_TAG        5.1.1
     )
+
     # Ensure Kokkos builds with position independent code and suitable default backend
     set(Kokkos_ENABLE_OPENMP ON CACHE BOOL "Enable OpenMP backend" FORCE)
     set(Kokkos_ENABLE_SERIAL ON CACHE BOOL "Enable Serial backend" FORCE)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
     FetchContent_MakeAvailable(kokkos)
-    set(Kokkos_FOUND ON)
 
     # Generate a dummy KokkosConfig.cmake for subprojects (ArborX, HALO, etc.)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos/KokkosConfig.cmake" "
         set(Kokkos_FOUND TRUE)
         set(Kokkos_VERSION \"5.1.1\")
-        if(NOT TARGET Kokkos::kokkos)
-            add_library(Kokkos::kokkos ALIAS kokkos)
-        endif()
     ")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos/KokkosConfigVersion.cmake" "
         set(PACKAGE_VERSION \"5.1.1\")
         set(PACKAGE_VERSION_COMPATIBLE TRUE)
         set(PACKAGE_VERSION_EXACT FALSE)
     ")
-    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos")
-    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} PARENT_SCOPE)
+    set(Kokkos_DIR "${CMAKE_CURRENT_BINARY_DIR}/cmake/Kokkos" CACHE PATH "Kokkos stub config (FetchContent)" FORCE)
 endif()
 
-if(NOT Kokkos_FOUND)
+if(NOT TARGET Kokkos::kokkos)
     message(FATAL_ERROR "Kokkos REQUIRED but not found on system, and AXIS_FETCH_KOKKOS is OFF.")
 endif()
 
@@ -286,7 +281,7 @@ endif()
 # Fortran interop (optional)
 # ##############################################################################
 
-if(BUILD_FORTRAN)
+if(AXIS_BUILD_FORTRAN)
     enable_language(Fortran)
 
     add_library(axis_fortran STATIC
@@ -316,7 +311,7 @@ endif()
 # Python bindings (nanobind)
 # ##############################################################################
 
-if(BUILD_PYTHON)
+if(AXIS_BUILD_PYTHON)
     add_subdirectory(python)
 endif()
 
@@ -372,7 +367,7 @@ set_tests_properties(TierIsolationScan PROPERTIES
 # Examples (runnable documentation)
 # ##############################################################################
 
-if(BUILD_EXAMPLES)
+if(AXIS_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
@@ -380,7 +375,7 @@ endif()
 # Testing
 # ##############################################################################
 
-if(BUILD_TESTING)
+if(AXIS_BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
@@ -388,7 +383,7 @@ endif()
 # Benchmarks
 # ##############################################################################
 
-if(BUILD_BENCHMARKS)
+if(AXIS_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif()
 
@@ -403,7 +398,7 @@ install(
 )
 
 set(AXIS_INSTALL_TARGETS axis)
-if(BUILD_FORTRAN)
+if(AXIS_BUILD_FORTRAN)
     list(APPEND AXIS_INSTALL_TARGETS axis_fortran)
 endif()
 
@@ -442,7 +437,7 @@ install(
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AXIS
 )
 
-if(BUILD_FORTRAN)
+if(AXIS_BUILD_FORTRAN)
     install(
         DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fortran/modules/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/axis/fortran
@@ -458,11 +453,11 @@ message(STATUS "")
 message(STATUS "AXIS ${PROJECT_VERSION} configuration summary")
 message(STATUS "  C++ standard    : C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  PROJ enabled    : ${AXIS_ENABLE_PROJ}")
-message(STATUS "  Build testing   : ${BUILD_TESTING}")
-message(STATUS "  Build benchmarks: ${BUILD_BENCHMARKS}")
-message(STATUS "  Build examples  : ${BUILD_EXAMPLES}")
-message(STATUS "  Build Fortran   : ${BUILD_FORTRAN}")
-message(STATUS "  Build Python    : ${BUILD_PYTHON}")
+message(STATUS "  Build testing   : ${AXIS_BUILD_TESTING}")
+message(STATUS "  Build benchmarks: ${AXIS_BUILD_BENCHMARKS}")
+message(STATUS "  Build examples  : ${AXIS_BUILD_EXAMPLES}")
+message(STATUS "  Build Fortran   : ${AXIS_BUILD_FORTRAN}")
+message(STATUS "  Build Python    : ${AXIS_BUILD_PYTHON}")
 message(STATUS "  Doxygen docs    : ${DOXYGEN_FOUND}")
 message(STATUS "  Install prefix  : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "")

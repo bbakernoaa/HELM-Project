@@ -198,9 +198,9 @@ call axis_generate_vector_weights(src_mesh, dst_mesh, src_alpha, dst_alpha, "bil
 | CMake | ≥ 3.21 | Required |
 | Kokkos | ≥ 5.1 | Required (`find_package(Kokkos REQUIRED)`) |
 | PROJ (libproj) | ≥ 9 | Optional — controlled by `AXIS_ENABLE_PROJ` (default ON) |
-| GTest | any recent | Required when `BUILD_TESTING=ON` |
-| RapidCheck | latest | Required when `BUILD_TESTING=ON` |
-| gfortran | ≥ 13 | Required when `BUILD_FORTRAN=ON` |
+| GTest | any recent | Required when `AXIS_BUILD_TESTING=ON` |
+| RapidCheck | latest | Required when `AXIS_BUILD_TESTING=ON` |
+| gfortran | ≥ 13 | Required when `AXIS_BUILD_FORTRAN=ON` |
 
 All prerequisites are pre-installed in the HELM Docker development container.
 
@@ -229,8 +229,8 @@ cd /workspace/helm-project/libs/axis
 # Configure (Release build, Python enabled, tests enabled)
 cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_PYTHON=ON \
-  -DBUILD_TESTING=ON \
+  -DAXIS_BUILD_PYTHON=ON \
+  -DAXIS_BUILD_TESTING=ON \
   -DAXIS_ENABLE_PROJ=ON
 
 # Build
@@ -242,9 +242,9 @@ cmake --build build --parallel $(nproc)
 | Option | Default | Description |
 |---|---|---|
 | `AXIS_ENABLE_PROJ` | `ON` | Enable PROJ-based coordinate transforms |
-| `BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
-| `BUILD_FORTRAN` | `OFF` | Build the Fortran iso_c_binding interop layer |
-| `BUILD_PYTHON` | `OFF` | Build the compiled C++ Python nanobind wrapper |
+| `AXIS_BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
+| `AXIS_BUILD_FORTRAN` | `OFF` | Build the Fortran iso_c_binding interop layer |
+| `AXIS_BUILD_PYTHON` | `OFF` | Build the compiled C++ Python nanobind wrapper |
 
 ### Consuming AXIS from a downstream project
 
@@ -256,7 +256,7 @@ target_link_libraries(my_target PRIVATE HELM::AXIS)
 ## Running Tests
 
 ```bash
-# After building with BUILD_TESTING=ON
+# After building with AXIS_BUILD_TESTING=ON
 cd build
 ctest --output-on-failure
 ```

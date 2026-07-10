@@ -72,7 +72,7 @@ Requirements: 10.5, 10.6, 10.7, 10.8
 cd libs/logs
 cmake -B build-ci -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON
+  -DLOGS_BUILD_TESTING=ON
 cmake --build build-ci --parallel $(nproc)
 ```
 
@@ -89,7 +89,7 @@ consumable by an independent project that links only LOGS and MPI:
 ```bash
 # Creates a minimal consumer project in /tmp, adds libs/logs as a subdirectory,
 # and links against HELM::LOGS to prove the alias works standalone.
-cmake -B build -G Ninja -DBUILD_TESTING=OFF
+cmake -B build -G Ninja -DLOGS_BUILD_TESTING=OFF
 cmake --build build --target consumer
 ```
 
@@ -159,7 +159,7 @@ Requirements: 15.2, 15.3
 cd libs/logs
 cmake -B build-asan -G Ninja \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON \
+  -DLOGS_BUILD_TESTING=ON \
   -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
 cmake --build build-asan --parallel $(nproc)
 cd build-asan

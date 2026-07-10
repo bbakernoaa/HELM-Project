@@ -28,10 +28,10 @@ axis-regrid = "axis.cli:main"
 
 [tool.scikit-build]
 cmake.args = [
-    "-DBUILD_PYTHON=ON",
-    "-DBUILD_TESTING=OFF",
-    "-DBUILD_FORTRAN=OFF",
-    "-DBUILD_BENCHMARKS=OFF",
-    "-DBUILD_EXAMPLES=OFF"
+    "-DAXIS_BUILD_PYTHON=ON",
+    "-DAXIS_BUILD_TESTING=OFF",
+    "-DAXIS_BUILD_FORTRAN=OFF",
+    "-DAXIS_BUILD_BENCHMARKS=OFF",
+    "-DAXIS_BUILD_EXAMPLES=OFF"
 ]
 cmake.source-dir = "."

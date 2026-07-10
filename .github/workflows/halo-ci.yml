@@ -79,8 +79,8 @@ jobs:
             rm -rf build-ci
             cmake -B build-ci -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON \
-              -DBUILD_FORTRAN=ON
+              -DHALO_BUILD_TESTING=ON \
+              -DHALO_BUILD_FORTRAN=ON
             cmake --build build-ci --parallel $(nproc)
           '
 
@@ -102,7 +102,7 @@ jobs:
           EOF
             printf "#include <halo/halo.hpp>\nint main() { return 0; }\n" > /tmp/halo_consumer/main.cpp
             cd /tmp/halo_consumer
-            cmake -B build -G Ninja -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF
+            cmake -B build -G Ninja -DHALO_BUILD_TESTING=OFF -DHALO_BUILD_FORTRAN=OFF
             cmake --build build --target consumer
           '
 
@@ -143,8 +143,8 @@ jobs:
             rm -rf build-asan
             cmake -B build-asan -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON \
-              -DBUILD_FORTRAN=OFF \
+              -DHALO_BUILD_TESTING=ON \
+              -DHALO_BUILD_FORTRAN=OFF \
               -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
             cmake --build build-asan --parallel $(nproc)
             cd build-asan

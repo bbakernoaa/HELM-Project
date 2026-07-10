@@ -7,10 +7,10 @@
 
 cmake_minimum_required(VERSION 3.21)
 
-# Only build examples when AXIS is the top-level project or BUILD_EXAMPLES is ON
-option(BUILD_EXAMPLES "Build AXIS runnable examples" ON)
+# Only build examples when AXIS is the top-level project or AXIS_BUILD_EXAMPLES is ON
+option(AXIS_BUILD_EXAMPLES "Build AXIS runnable examples" ON)
 
-if(NOT BUILD_EXAMPLES)
+if(NOT AXIS_BUILD_EXAMPLES)
     return()
 endif()
 

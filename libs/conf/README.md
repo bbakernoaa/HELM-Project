@@ -59,8 +59,8 @@ cd /workspace/helm-project/libs/conf
 # Configure (tests and Fortran layer enabled)
 cmake -B build \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON \
-  -DBUILD_FORTRAN=ON
+  -DCONF_BUILD_TESTING=ON \
+  -DCONF_BUILD_FORTRAN=ON
 
 # Build
 cmake --build build --parallel $(nproc)
@@ -70,8 +70,8 @@ cmake --build build --parallel $(nproc)
 
 | Option | Default | Description |
 |---|---|---|
-| `BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
-| `BUILD_FORTRAN` | `ON` | Build the Fortran iso_c_binding interop layer (`conf_mod`) |
+| `CONF_BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
+| `CONF_BUILD_FORTRAN` | `ON` | Build the Fortran iso_c_binding interop layer (`conf_mod`) |
 | `CONF_USE_SYSTEM_YAMLCPP` | `OFF` | Use system yaml-cpp instead of CMake FetchContent |
 
 ### Consuming CONF from a downstream project
@@ -96,7 +96,7 @@ Include the umbrella header:
 ## Running Tests
 
 ```bash
-# After building with BUILD_TESTING=ON
+# After building with CONF_BUILD_TESTING=ON
 cd build
 ctest --output-on-failure
 
@@ -106,7 +106,7 @@ ctest -L unit --output-on-failure
 # Run only property tests
 ctest -L property --output-on-failure
 
-# Run only Fortran integration tests (requires BUILD_FORTRAN=ON)
+# Run only Fortran integration tests (requires CONF_BUILD_FORTRAN=ON)
 ctest -L fortran --output-on-failure
 ```
 

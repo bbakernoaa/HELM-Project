@@ -10,7 +10,7 @@ Build AXIS with Python bindings enabled:
 
 ```bash
 cmake -B build \
-  -DBUILD_PYTHON=ON \
+  -DAXIS_BUILD_PYTHON=ON \
   -DPython_EXECUTABLE=$(which python3) \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel $(nproc)

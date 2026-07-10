@@ -75,7 +75,7 @@ jobs:
             rm -rf build-graph
             cmake -B build-graph -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=OFF \
+              -DDAGR_BUILD_TESTING=OFF \
               --graphviz=build-graph/dagr_deps.dot 2>/dev/null || true
 
             # If graphviz output was produced, check for upward dependency edges
@@ -132,12 +132,12 @@ jobs:
             # Compile sibling dependencies conf and logs
             cd /workspace/helm-project/libs/conf
             rm -rf build-ci
-            cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF
+            cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DCONF_BUILD_TESTING=OFF -DCONF_BUILD_FORTRAN=OFF
             cmake --build build-ci --parallel $(nproc)
 
             cd /workspace/helm-project/libs/logs
             rm -rf build-ci
-            cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF
+            cmake -B build-ci -G Ninja -DCMAKE_CXX_STANDARD=20 -DLOGS_BUILD_TESTING=OFF
             cmake --build build-ci --parallel $(nproc)
 
             # Build DAGR
@@ -145,7 +145,7 @@ jobs:
             rm -rf build-ci
             cmake -B build-ci -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON
+              -DDAGR_BUILD_TESTING=ON
             cmake --build build-ci --parallel $(nproc)
           '
 
@@ -172,13 +172,13 @@ jobs:
             # Compile sibling dependencies conf and logs with Sanitizers
             cd /workspace/helm-project/libs/conf
             rm -rf build-asan
-            cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF -DBUILD_FORTRAN=OFF \
+            cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DCONF_BUILD_TESTING=OFF -DCONF_BUILD_FORTRAN=OFF \
               -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
             cmake --build build-asan --parallel $(nproc)
 
             cd /workspace/helm-project/libs/logs
             rm -rf build-asan
-            cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DBUILD_TESTING=OFF \
+            cmake -B build-asan -G Ninja -DCMAKE_CXX_STANDARD=20 -DLOGS_BUILD_TESTING=OFF \
               -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
             cmake --build build-asan --parallel $(nproc)
 
@@ -187,7 +187,7 @@ jobs:
             rm -rf build-asan
             cmake -B build-asan -G Ninja \
               -DCMAKE_CXX_STANDARD=20 \
-              -DBUILD_TESTING=ON \
+              -DDAGR_BUILD_TESTING=ON \
               -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
             cmake --build build-asan --parallel $(nproc)
             cd build-asan

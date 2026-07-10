@@ -174,7 +174,7 @@ RC_GTEST_PROP(PropRuleGeneration, ZeroResolutionThrows, ()) {
         params.r_y = static_cast<double>(neg_tenths) / 10.0;
     }
 
-    RC_ASSERT_THROWS_AS(axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params), std::invalid_argument);
 }
 
 // ─── Property 6e: Bounding box max < min throws std::invalid_argument ────────
@@ -211,7 +211,7 @@ RC_GTEST_PROP(PropRuleGeneration, BboxMaxLessThanMinThrows, ()) {
         params.max_x = 90.0;
     }
 
-    RC_ASSERT_THROWS_AS(axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params), std::invalid_argument);
+    RC_ASSERT_THROWS_AS((void)axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(params), std::invalid_argument);
 }
 
 // ─── Kokkos Initialization ───────────────────────────────────────────────────

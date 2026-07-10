@@ -58,7 +58,7 @@ cd /workspace/helm-project/libs/blend
 # Configure (tests enabled)
 cmake -B build \
   -DCMAKE_CXX_STANDARD=20 \
-  -DBUILD_TESTING=ON
+  -DBLEND_BUILD_TESTING=ON
 
 # Build
 cmake --build build --parallel $(nproc)
@@ -68,7 +68,7 @@ cmake --build build --parallel $(nproc)
 
 | Option | Default | Description |
 |---|---|---|
-| `BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
+| `BLEND_BUILD_TESTING` | `OFF` | Build the GTest + RapidCheck test suite |
 
 ### Consuming BLEND from a downstream project
 
@@ -92,7 +92,7 @@ Include the umbrella header:
 ## Running Tests
 
 ```bash
-# After building with BUILD_TESTING=ON
+# After building with BLEND_BUILD_TESTING=ON
 cd build
 ctest --output-on-failure
 

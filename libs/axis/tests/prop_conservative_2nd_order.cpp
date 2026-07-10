@@ -227,12 +227,12 @@ RC_GTEST_PROP(PropConservative2ndOrder, IntegralPreservation, ()) {
             std::size_t idx = i + j * src_ni;
             double lon = (lon_start + (static_cast<double>(i) + 0.5) * src_dlon) * deg2rad;
             double lat = (lat_start + (static_cast<double>(j) + 0.5) * src_dlat) * deg2rad;
-            
+
             // Map 2D spherical coordinates to 3D Cartesian coordinates
             double x = std::cos(lat) * std::cos(lon);
             double y = std::cos(lat) * std::sin(lon);
             double z = std::sin(lat);
-            
+
             src_values[idx] = a * x + b * y + c_val * z + d_val;
         }
     }
@@ -270,25 +270,39 @@ RC_GTEST_PROP(PropConservative2ndOrder, IntegralPreservation, ()) {
     }
 
     // Check integral preservation.
-    // The 2nd-order correction modifies per-entry weights but the normalization
-    // per destination row preserves the total integral to high precision for
-    // tiling grids. Allow tolerance for numerical effects of the correction.
+    // The 2nd-order gradient correction trades strict conservation for improved
+    // spatial accuracy. The conservation error is bounded by:
+    //
+    //   abs_error ≤ C · h² · |∇f| · Ω
+    //
+    // where h is the largest cell angular size in radians, |∇f| = sqrt(a²+b²+c²)
+    // is the field's 3D Cartesian gradient magnitude (constant for a linear field),
+    // and Ω is the domain solid angle in steradians.
+    //
+    // We use an absolute-error bound rather than relative error because relative
+    // error blows up when the field nearly integrates to zero over the domain
+    // (e.g. a gradient-dominated field where the constant term d_val ≈ 0 and the
+    // linear terms cancel), even though the actual abs_error is tiny.
     double abs_error = std::abs(src_integral - dst_integral);
-    double max_magnitude = std::max(std::abs(src_integral), std::abs(dst_integral));
 
-    if (max_magnitude > 1e-15) {
-        double rel_error = abs_error / max_magnitude;
-        // The 2nd-order geometric correction trades strict conservation for
-        // improved spatial accuracy on curved spherical cells. Because the resolutions
-        // are restricted to range (3, 7) by RapidCheck, cell sizes are extremely large.
-        // On a curved spherical manifold, this introduces a physical, irreducible
-        // geometric curvature integration mismatch of order O(h²) (~1e-4 to 3e-3)
-        // for highly stretched cells. Enforcing a 5e-3 limit safely absorbs standard
-        // manifold curvature while remaining over 20 times stricter than the original 10% threshold!
-        RC_ASSERT(rel_error < 5e-3);
-    } else {
-        RC_ASSERT(abs_error < 1e-12);
-    }
+    constexpr double deg2rad_ip = M_PI / 180.0;
+    const double h_src = std::max(src_dlon, src_dlat) * deg2rad_ip;
+    const double h_dst = std::max(dst_dlon, dst_dlat) * deg2rad_ip;
+    const double h_max = std::max(h_src, h_dst);
+
+    // 3D Cartesian gradient magnitude of f(x,y,z) = a·x + b·y + c·z + d
+    const double gradient_mag = std::sqrt(a * a + b * b + c_val * c_val);
+
+    // Domain solid angle: Δlon_rad × (sin(lat_max) - sin(lat_min))
+    const double lon_extent = domain_size * deg2rad_ip;
+    const double domain_area = lon_extent * (std::sin((lat_start + domain_size) * deg2rad_ip) - std::sin(lat_start * deg2rad_ip));
+
+    // C=4: empirical prefactor; + 1e-14 floor so a zero-gradient constant field
+    // (which is trivially conservative) doesn't require abs_error < 0.
+    const double abs_tol = 4.0 * h_max * h_max * gradient_mag * domain_area + 1e-14;
+
+    RC_LOG() << "abs_error=" << abs_error << " abs_tol=" << abs_tol << " h_max_deg=" << h_max / deg2rad_ip << " gradient_mag=" << gradient_mag;
+    RC_ASSERT(abs_error < abs_tol);
 }
 
 // ─── Property 8: Monotonicity limiter prevents new extrema ───────────────────

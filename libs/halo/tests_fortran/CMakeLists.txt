@@ -5,7 +5,7 @@
 # wrapper, the C interop layer, and the core HALO library together under mpirun.
 #
 # Added by task 18.1. The parent CMakeLists only descends here when
-# BUILD_TESTING AND BUILD_FORTRAN are both ON.
+# HALO_BUILD_TESTING AND HALO_BUILD_FORTRAN are both ON.
 # ──────────────────────────────────────────────────────────────────────────────
 
 # ─── MPI Fortran component ────────────────────────────────────────────────────

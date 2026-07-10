@@ -29,7 +29,7 @@ docker exec helm-dev-env bash -c "\
   cd /workspace/helm-project/libs/axis && \
   cmake -B build \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_TESTING=ON \
+    -DAXIS_BUILD_TESTING=ON \
     -DAXIS_ENABLE_PROJ=ON && \
   cmake --build build --parallel 4"
 ```
@@ -103,7 +103,7 @@ docker exec helm-dev-env bash -c "\
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
     -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' \
-    -DBUILD_TESTING=ON && \
+    -DAXIS_BUILD_TESTING=ON && \
   cmake --build build-sanitizers --parallel 4 && \
   cd build-sanitizers && \
   ctest --output-on-failure"
@@ -127,7 +127,7 @@ docker exec helm-dev-env bash -c "\
 # Configure and build
 docker exec helm-dev-env bash -c "\
   cd /workspace/helm-project/libs/axis && \
-  cmake -B build -DBUILD_TESTING=ON -DAXIS_ENABLE_PROJ=ON && \
+  cmake -B build -DAXIS_BUILD_TESTING=ON -DAXIS_ENABLE_PROJ=ON && \
   cmake --build build --parallel 4"
 
 # Run all tests
@@ -142,7 +142,7 @@ docker exec helm-dev-env bash -c "\
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
     -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' \
-    -DBUILD_TESTING=ON && \
+    -DAXIS_BUILD_TESTING=ON && \
   cmake --build build-san --parallel 4 && \
   cd build-san && ctest --output-on-failure"
 ```

@@ -9,7 +9,7 @@ Demonstrates:
 4. Batch apply for multiple variables
 5. Weight caching (serialize/deserialize)
 
-Requires: axis Python module (built with -DBUILD_PYTHON=ON)
+Requires: axis Python module (built with -DAXIS_BUILD_PYTHON=ON)
 """
 
 import numpy as np

@@ -2,7 +2,7 @@
 # tests/CMakeLists.txt
 #
 # SPAN test infrastructure. Included from the root CMakeLists.txt only when
-# BUILD_TESTING=ON. Provides two test executable targets:
+# SPAN_BUILD_TESTING=ON. Provides two test executable targets:
 #
 #   span_unit_tests      — GTest-based unit/integration tests
 #   span_property_tests  — RapidCheck property-based tests (≥100 iterations)

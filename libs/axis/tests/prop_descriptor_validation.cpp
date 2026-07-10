@@ -54,7 +54,7 @@ using axis::ingest::UgridParams;
 
 void expect_throws_naming(const GridDescriptor &desc, const std::string &field) {
     try {
-        axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
+        (void)axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
         RC_FAIL("Expected std::invalid_argument but no exception was thrown");
     } catch (const std::invalid_argument &e) {
         std::string msg = e.what();
@@ -312,7 +312,7 @@ RC_GTEST_PROP(PropDescriptorValidation, UnknownConventionKind, ()) {
 
     // Should throw naming the kind or "ConventionKind"
     try {
-        axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
+        (void)axis::topology::MeshFactory::from_descriptor<Kokkos::HostSpace>(desc);
         RC_FAIL("Expected std::invalid_argument but no exception was thrown");
     } catch (const std::invalid_argument &e) {
         // Verify we get a meaningful error about the unknown kind

@@ -100,8 +100,8 @@ unset(_sibling_libs)
 # Testing
 # ####################################################################################################################################################
 
-option(BUILD_TESTING "Build the DAGR test suite" OFF)
-if(BUILD_TESTING)
+option(DAGR_BUILD_TESTING "Build the DAGR test suite" OFF)
+if(DAGR_BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
 endif()
