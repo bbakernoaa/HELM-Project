@@ -27,7 +27,8 @@ enum class InterpolationMethod : std::uint8_t {
     Bicubic,               ///< Bicubic: 4×4 stencil cubic interpolation (CDO remapbic equivalent)
     Patch,                 ///< Patch recovery: least-squares polynomial fit over local patch (ESMF REGRID_METHOD_PATCH)
     Conservative1stOrder,  ///< Area-weighted first-order conservative (overlap-based via ArborX BVH + Sutherland-Hodgman)
-    Conservative2ndOrder   ///< Second-order conservative: linear gradient reconstruction + overlap integrals (requires GradientReconstructor)
+    Conservative2ndOrder,  ///< Second-order conservative: linear gradient reconstruction + overlap integrals (requires GradientReconstructor)
+    Budget                 ///< NOAA-EMC/UPP Budget interpolation: box-sampled bilinear averaging
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,6 +87,10 @@ struct RegridConfig {
 
     /// @brief Extrapolation method when a destination cell has zero wet source overlaps.
     ExtrapolationAction extrap_method = ExtrapolationAction::NearestWet;
+
+    // Budget-specific configuration
+    std::uint32_t budget_subgrid_size = 5;      ///< Resolution of sampling sub-grid (default: 5)
+    double budget_min_valid_fraction = 0.5;   ///< Min fraction of valid subgrid points (default: 0.5)
 };
 
 }  // namespace axis::solver
