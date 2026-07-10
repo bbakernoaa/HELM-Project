@@ -1881,6 +1881,17 @@ InterpolationMatrix<MemorySpace> coastal_renormalize_and_extrapolate(const topol
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// generate_budget — NOAA Budget Interpolation stub
+// ─────────────────────────────────────────────────────────────────────────────
+
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                 const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                 const RegridConfig &config) {
+    throw std::runtime_error("generate_budget not yet implemented");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // generate — top-level dispatch
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2010,6 +2021,9 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
             break;
         case InterpolationMethod::Conservative2ndOrder:
             raw_matrix = generate_conservative_2nd_order(src_mesh, dst_mesh, config);
+            break;
+        case InterpolationMethod::Budget:
+            raw_matrix = generate_budget(src_mesh, dst_mesh, config);
             break;
         default:
             throw std::invalid_argument("WeightGenerator::generate: unknown InterpolationMethod");
