@@ -182,6 +182,7 @@ if(rapidcheck_FOUND)
         prop_bilinear_rect_periodic.cpp
         prop_bilinear_rect_unmapped.cpp
         prop_bilinear_rect_cell_location.cpp
+        prop_budget.cpp
     )
 
     add_executable(axis_property_tests ${AXIS_PROPERTY_TEST_SOURCES})
