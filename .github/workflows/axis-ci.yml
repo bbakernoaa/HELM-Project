@@ -115,6 +115,15 @@ jobs:
               ctest -L property --output-on-failure
           '
 
+      # ── Stage 6: Python ───────────────────────────────────────────────────
+      - name: "Stage 6: Python"
+        run: |
+          docker compose exec -T helm-dev bash -lc '
+            cd libs/axis
+            uv sync --no-managed-python --group test
+            uv run pytest -v -ra
+          '
+
       - name: Cleanup scratch build trees
         if: always()
         run: |
