@@ -15,7 +15,7 @@ Arguments:
 Exit codes:
     0   All benchmarks within threshold (or no baseline present).
     1   One or more benchmarks regressed beyond the threshold.
-"""
+    2   Usage error (missing/invalid arguments).
 
 from __future__ import annotations
 
