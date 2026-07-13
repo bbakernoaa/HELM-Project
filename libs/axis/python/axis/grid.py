@@ -422,6 +422,13 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
             if grid_mapping == "lambert_conformal_conic":
                 # Generate local projection string and coordinates
                 # Host models can configure custom LCC params here, otherwise fallback to CONUS standard
+                if not getattr(axis_py, "HAVE_PROJ", False):
+                    raise RuntimeError(
+                        f"This dataset uses a '{grid_mapping}' grid_mapping, which "
+                        "requires projected-coordinate support, but axis_py was built without "
+                        "PROJ (AXIS_ENABLE_PROJ=OFF). Rebuild AXIS with -DAXIS_ENABLE_PROJ=ON "
+                        "to regrid projected grids."
+                    ) from None
                 proj_string = "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
                 ni, nj = shape[1], shape[0]
                 center_x = lon.values.ravel()

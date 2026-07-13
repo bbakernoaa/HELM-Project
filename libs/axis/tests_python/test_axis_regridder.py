@@ -17,6 +17,9 @@ except ImportError:
     SCIPY_AVAILABLE = False
 
 import axis
+from axis import axis_py
+
+PROJ_AVAILABLE = getattr(axis_py, "HAVE_PROJ", False)
 
 @pytest.fixture
 def sample_grids():
@@ -306,6 +309,7 @@ def test_regridder_cubed_sphere_3d():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 42.0, rtol=1e-12)
 
+@pytest.mark.skipif(not PROJ_AVAILABLE, reason="axis_py built without PROJ (AXIS_ENABLE_PROJ=OFF)")
 def test_regridder_projected_lcc():
     """Verify that regional Lambert Conformal projected datasets parse and regrid correctly."""
     # Build 2D curvilinear coordinates with standard grid_mapping metadata

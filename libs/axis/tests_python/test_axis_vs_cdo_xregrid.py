@@ -26,9 +26,9 @@ except ImportError:
 # Ensure projection libraries are available for LCC tests
 try:
     import pyproj
-    PROJ_AVAILABLE = True
+    PYPROJ_AVAILABLE = True
 except ImportError:
-    PROJ_AVAILABLE = False
+    PYPROJ_AVAILABLE = False
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper Functions from compare_cdo.py for Grid & NetCDF Generation
@@ -66,7 +66,7 @@ def create_test_dataset(nlat, nlon, grid_type="regular"):
         ds["temperature"].attrs = {"units": "K", "long_name": "Test field"}
         return ds
 
-    elif grid_type == "lcc" and PROJ_AVAILABLE:
+    elif grid_type == "lcc" and PYPROJ_AVAILABLE:
         min_x, max_x = -1000000.0, 1000000.0
         min_y, max_y = -1000000.0, 1000000.0
         xs = np.linspace(min_x, max_x, nlon)
@@ -216,7 +216,7 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
                                        err_msg="AXIS conservative failed to preserve zero-integral cosine field!")
 
 @pytest.mark.skipif(not CDO_AVAILABLE, reason="CDO binary or python-cdo not available")
-@pytest.mark.skipif(not PROJ_AVAILABLE, reason="pyproj projection library not available")
+@pytest.mark.skipif(not PYPROJ_AVAILABLE, reason="pyproj projection library not available")
 def test_axis_vs_cdo_projected_lcc_benchmark():
     """
     Compare AXIS directly to CDO for regional Lambert Conformal Conic (LCC) remapping.
