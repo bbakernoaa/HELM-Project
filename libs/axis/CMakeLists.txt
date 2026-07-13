@@ -45,8 +45,8 @@ include(CMakePackageConfigHelpers)
 # Options
 # ##############################################################################
 
-option(AXIS_ENABLE_NETCDF    "Enable NetCDF I/O and ESMF weight egress support"           ON)
 option(AXIS_ENABLE_PROJ      "Enable PROJ (libproj) for coordinate projection transforms" ON)
+option(AXIS_ENABLE_NETCDF    "Enable NetCDF I/O and ESMF weight egress support"           ON)
 option(AXIS_BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"             OFF)
 option(AXIS_BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"              OFF)
 option(AXIS_BUILD_PYTHON     "Build the nanobind Python bindings"                         OFF)
@@ -272,7 +272,8 @@ if(AXIS_ENABLE_NETCDF)
 
         message(STATUS "AXIS: NetCDF found — compiling optional axis_io target")
     else()
-        message(STATUS "AXIS: NetCDF NOT found — optional axis_io target disabled")
+        message(WARNING "AXIS: AXIS_ENABLE_NETCDF=ON but NetCDF NOT found — optional axis_io target disabled")
+        set(AXIS_ENABLE_NETCDF OFF)
     endif()
 endif()
 
@@ -452,6 +453,7 @@ message(STATUS "")
 message(STATUS "AXIS ${PROJECT_VERSION} configuration summary")
 message(STATUS "  C++ standard    : C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  PROJ enabled    : ${AXIS_ENABLE_PROJ}")
+message(STATUS "  NetCDF enabled  : ${AXIS_ENABLE_NETCDF}")
 message(STATUS "  Build testing   : ${AXIS_BUILD_TESTING}")
 message(STATUS "  Build benchmarks: ${AXIS_BUILD_BENCHMARKS}")
 message(STATUS "  Build examples  : ${AXIS_BUILD_EXAMPLES}")
