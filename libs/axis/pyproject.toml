@@ -19,6 +19,7 @@ dependencies = [
 test = [
     "dask",
     "netCDF4",
+    "pyproj",
     "pytest",
     "scipy",
 ]
