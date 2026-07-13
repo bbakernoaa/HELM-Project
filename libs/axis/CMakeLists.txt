@@ -45,6 +45,7 @@ include(CMakePackageConfigHelpers)
 # Options
 # ##############################################################################
 
+option(AXIS_ENABLE_NETCDF    "Enable NetCDF I/O and ESMF weight egress support"           ON)
 option(AXIS_ENABLE_PROJ      "Enable PROJ (libproj) for coordinate projection transforms" ON)
 option(AXIS_BUILD_TESTING    "Build the AXIS test suite (GTest + RapidCheck)"             OFF)
 option(AXIS_BUILD_FORTRAN    "Build the Fortran iso_c_binding interop layer"              OFF)
@@ -244,8 +245,6 @@ if(AXIS_ENABLE_PROJ)
 endif()
 
 # NetCDF — OPTIONAL target for ESMF weight files reading and writing (AXIS-IO)
-option(AXIS_ENABLE_NETCDF "Enable NetCDF I/O and ESMF weight egress support" ON)
-
 if(AXIS_ENABLE_NETCDF)
     find_package(netCDF COMPONENTS C QUIET)
     if(NOT netCDF_FOUND)
