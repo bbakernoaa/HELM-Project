@@ -281,6 +281,9 @@ def test_axis_vs_cdo_projected_lcc_benchmark():
         axis_time = time.perf_counter() - t0
         axis_sum = float(np.nansum(axis_out.values))
 
+        # Compare results
+        assert axis_sum == pytest.approx(cdo_sum, rel=0.02)  # XXX: should be tighter
+
         # For small regional grids, AXIS bypasses file I/O and runs highly optimized
         # spatial structures, so it should compile and execute within strict budget
         assert axis_time < 0.200, f"AXIS projected remapping took too long: {axis_time:.4f}s"
