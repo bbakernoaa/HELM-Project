@@ -76,16 +76,26 @@ struct BilinearRectKernel {
         double fi = (lon_d - lon_min) / delta_lon - 0.5;
         double fj = (lat_d - lat_min) / delta_lat - 0.5;
 
-        // ── Bounds checking for non-periodic grids ──
+        // ── Bounds checking ──
+        // A destination centroid that lands exactly on a grid boundary can fall
+        // a fraction of a ULP outside the [-0.5, n-0.5] range because of
+        // floating-point round-off in the centroid averaging. Such points are
+        // meant to be accepted and then clamped, so admit a small tolerance
+        // before rejecting a point as unmapped.
+        const double bound_tol = 1.0e-9;
+        const double lat_lo = -0.5 - bound_tol;
+        const double lat_hi = static_cast<double>(nj) - 0.5 + bound_tol;
         if (!is_periodic) {
             // The valid interpolation range is fi ∈ [-0.5, ni-0.5]
             // (anything outside the grid boundary is unmapped)
-            if (fi < -0.5 || fi > static_cast<double>(ni) - 0.5 || fj < -0.5 || fj > static_cast<double>(nj) - 0.5) {
+            const double lon_lo = -0.5 - bound_tol;
+            const double lon_hi = static_cast<double>(ni) - 0.5 + bound_tol;
+            if (fi < lon_lo || fi > lon_hi || fj < lat_lo || fj > lat_hi) {
                 return false;  // Outside bounds
             }
         } else {
             // For periodic grids, only check latitude bounds
-            if (fj < -0.5 || fj > static_cast<double>(nj) - 0.5) {
+            if (fj < lat_lo || fj > lat_hi) {
                 return false;  // Outside latitude bounds
             }
         }
