@@ -184,6 +184,7 @@ if(rapidcheck_FOUND)
         prop_vector_regridder.cpp
         prop_vertical_regridder.cpp
         prop_coastal_renormalization.cpp
+        prop_grid_combinations.cpp
     )
 
     add_executable(axis_property_tests ${AXIS_PROPERTY_TEST_SOURCES})
