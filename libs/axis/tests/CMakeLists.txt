@@ -98,6 +98,7 @@ set(AXIS_UNIT_TEST_SOURCES
     test_noaa_grib_named_grids.cpp
     test_distributed_weight_generator.cpp
     test_bicubic.cpp
+    test_budget.cpp
 )
 
 add_executable(axis_unit_tests ${AXIS_UNIT_TEST_SOURCES})
@@ -181,6 +182,7 @@ if(rapidcheck_FOUND)
         prop_bilinear_rect_periodic.cpp
         prop_bilinear_rect_unmapped.cpp
         prop_bilinear_rect_cell_location.cpp
+        prop_budget.cpp
     )
 
     add_executable(axis_property_tests ${AXIS_PROPERTY_TEST_SOURCES})
