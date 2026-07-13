@@ -1914,13 +1914,6 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
     Kokkos::DefaultHostExecutionSpace host_exec;
     ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
 
-    // Access source coords and connectivity
-    const auto coords = src_mesh.node_coords();
-    const auto conn_off = src_mesh.conn_offsets();
-    const auto conn_idx = src_mesh.conn_indices();
-
-    // Access destination coords and connectivity
-    const auto dst_coords = dst_mesh.node_coords();
     const auto dst_off = dst_mesh.conn_offsets();
     const auto dst_idx = dst_mesh.conn_indices();
 
