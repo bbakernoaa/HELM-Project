@@ -15,7 +15,7 @@ dependencies = [
     "cf-xarray",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 test = [
     "pytest",
     "dask",
