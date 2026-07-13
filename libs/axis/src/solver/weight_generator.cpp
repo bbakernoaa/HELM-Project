@@ -995,9 +995,8 @@ Kokkos::View<double *, MemorySpace> compute_cell_areas_device(const topology::Un
     // Check if precomputed areas are available
     auto mesh_areas = mesh.cell_areas();
     if (mesh_areas.extent(0) == n_cells) {
-        // Deep copy precomputed areas to device (they may already be there)
         Kokkos::View<double *, MemorySpace> areas("cell_areas_device", n_cells);
-        Kokkos::deep_copy(areas, mesh_areas);
+        Kokkos::deep_copy(areas, mesh.cell_areas_view());
         return areas;
     }
 
@@ -1881,6 +1880,312 @@ InterpolationMatrix<MemorySpace> coastal_renormalize_and_extrapolate(const topol
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// generate_budget — NOAA Budget Interpolation stub
+// ─────────────────────────────────────────────────────────────────────────────
+
+template <class MemorySpace>
+InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
+                                                 const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
+                                                 const RegridConfig &config) {
+    if (config.budget_subgrid_size < 1) {
+        throw std::invalid_argument("WeightGenerator::generate_budget: budget_subgrid_size must be >= 1.");
+    }
+
+    using HostSpace = Kokkos::HostSpace;
+    using Point2 = ArborX::Point<2>;
+
+    const std::size_t n_src = src_mesh.n_cells();
+    const std::size_t n_dst = dst_mesh.n_cells();
+    const auto csys = src_mesh.coord_system();
+    const bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
+
+    const std::uint32_t N = config.budget_subgrid_size;
+    const std::uint32_t N2 = N * N;
+
+    // 1. Build ArborX BVH for Source Centroids
+    Kokkos::View<double *, HostSpace> src_cx, src_cy;
+    compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
+
+    Kokkos::View<Point2 *, HostSpace> src_points("src_points", n_src);
+    for (std::size_t i = 0; i < n_src; ++i) {
+        src_points(i) = Point2{static_cast<float>(src_cx(i)), static_cast<float>(src_cy(i))};
+    }
+
+    Kokkos::DefaultHostExecutionSpace host_exec;
+    ArborX::BoundingVolumeHierarchy tree(host_exec, ArborX::Experimental::attach_indices(src_points));
+
+    const auto dst_off = dst_mesh.conn_offsets();
+    const auto dst_idx = dst_mesh.conn_indices();
+
+    // 2. Pre-generate and batch all ArborX queries to avoid inner-loop View allocations
+    Kokkos::View<decltype(ArborX::nearest(Point2{}, 1)) *, HostSpace> batched_queries("queries", n_dst * N2);
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        auto d_start = static_cast<std::size_t>(dst_off[j]);
+        auto d_end = static_cast<std::size_t>(dst_off[j + 1]);
+        if (d_start == d_end) continue;
+
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = -std::numeric_limits<double>::max();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = -std::numeric_limits<double>::max();
+
+        for (std::size_t i = d_start; i < d_end; ++i) {
+            auto ni = static_cast<std::size_t>(dst_idx[i]);
+            double vx = dst_coords(ni, 0);
+            double vy = dst_coords(ni, 1);
+            x_min = std::min(x_min, vx);
+            x_max = std::max(x_max, vx);
+            y_min = std::min(y_min, vy);
+            y_max = std::max(y_max, vy);
+        }
+
+        for (std::uint32_t u = 0; u < N; ++u) {
+            for (std::uint32_t v = 0; v < N; ++v) {
+                double px = x_min + (static_cast<double>(u) + 0.5) * (x_max - x_min) / N;
+                double py = y_min + (static_cast<double>(v) + 0.5) * (y_max - y_min) / N;
+                batched_queries(j * N2 + u * N + v) = ArborX::nearest(Point2{static_cast<float>(px), static_cast<float>(py)}, (int)std::min(n_src, (std::size_t)8));
+            }
+        }
+    }
+
+    // Execute the single batched query
+    Kokkos::View<typename decltype(tree)::value_type *, HostSpace> batched_values("values", 0);
+    Kokkos::View<int *, HostSpace> batched_offsets("offsets", 0);
+    tree.query(host_exec, batched_queries, batched_values, batched_offsets);
+
+    std::vector<double> weights_vec;
+    std::vector<index_t> rows_vec;
+    std::vector<index_t> cols_vec;
+
+    // 3. Loop over each destination cell to calculate and average weights
+    for (std::size_t j = 0; j < n_dst; ++j) {
+        auto d_start = static_cast<std::size_t>(dst_off[j]);
+        auto d_end = static_cast<std::size_t>(dst_off[j + 1]);
+        if (d_start == d_end) continue;
+
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = -std::numeric_limits<double>::max();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = -std::numeric_limits<double>::max();
+
+        for (std::size_t i = d_start; i < d_end; ++i) {
+            auto ni = static_cast<std::size_t>(dst_idx[i]);
+            double vx = dst_coords(ni, 0);
+            double vy = dst_coords(ni, 1);
+            x_min = std::min(x_min, vx);
+            x_max = std::max(x_max, vx);
+            y_min = std::min(y_min, vy);
+            y_max = std::max(y_max, vy);
+        }
+
+        std::unordered_map<index_t, double> subgrid_weights;
+        std::uint32_t valid_subpoints = 0;
+
+        for (std::uint32_t u = 0; u < N; ++u) {
+            for (std::uint32_t v = 0; v < N; ++v) {
+                double px = x_min + (static_cast<double>(u) + 0.5) * (x_max - x_min) / N;
+                double py = y_min + (static_cast<double>(v) + 0.5) * (y_max - y_min) / N;
+
+                double lon0 = px;
+                double lat0 = py;
+                if (csys == topology::CoordinateSystem::SphericalDeg) {
+                    const double pi = 3.14159265358979323846;
+                    lon0 = lon0 * pi / 180.0;
+                    lat0 = lat0 * pi / 180.0;
+                }
+
+                double test_px = px;
+                double test_py = py;
+                if (is_spherical) {
+                    test_px = 0.0;
+                    test_py = 0.0;
+                }
+
+                std::size_t query_idx = j * N2 + u * N + v;
+                int begin = batched_offsets(query_idx);
+                int end = batched_offsets(query_idx + 1);
+                int n_avail = end - begin;
+
+                bool subpoint_mapped = false;
+
+                // Find containing quadrilateral
+                if (n_avail >= 4 && !subpoint_mapped) {
+                    for (int a = 0; a < n_avail - 3 && !subpoint_mapped; ++a) {
+                        for (int b = a + 1; b < n_avail - 2 && !subpoint_mapped; ++b) {
+                            for (int c = b + 1; c < n_avail - 1 && !subpoint_mapped; ++c) {
+                                for (int d = c + 1; d < n_avail && !subpoint_mapped; ++d) {
+                                    std::size_t c0 = static_cast<std::size_t>(batched_values(begin + a).index);
+                                    std::size_t c1 = static_cast<std::size_t>(batched_values(begin + b).index);
+                                    std::size_t c2 = static_cast<std::size_t>(batched_values(begin + c).index);
+                                    std::size_t c3 = static_cast<std::size_t>(batched_values(begin + d).index);
+
+                                    Vec2 q0{src_cx(c0), src_cy(c0)};
+                                    Vec2 q1{src_cx(c1), src_cy(c1)};
+                                    Vec2 q2{src_cx(c2), src_cy(c2)};
+                                    Vec2 q3{src_cx(c3), src_cy(c3)};
+
+                                    if (is_spherical) {
+                                        const double pi = 3.14159265358979323846;
+                                        auto to_rad = [&](double deg) { return deg * pi / 180.0; };
+                                        auto proj = [&](Vec2 q) {
+                                            double mu, mv;
+                                            double q_lon = q.x;
+                                            double q_lat = q.y;
+                                            if (csys == topology::CoordinateSystem::SphericalDeg) {
+                                                q_lon = to_rad(q_lon);
+                                                q_lat = to_rad(q_lat);
+                                            }
+                                            project_gnomonic(lon0, lat0, q_lon, q_lat, mu, mv);
+                                            return Vec2{mu, mv};
+                                        };
+                                        q0 = proj(q0);
+                                        q1 = proj(q1);
+                                        q2 = proj(q2);
+                                        q3 = proj(q3);
+                                    }
+
+                                    double xi_centroids = 0.0, eta_centroids = 0.0;
+                                    if (map_to_reference_quad(test_px, test_py, q0, q1, q2, q3, xi_centroids, eta_centroids)) {
+                                        xi_centroids = std::max(-1.0, std::min(1.0, xi_centroids));
+                                        eta_centroids = std::max(-1.0, std::min(1.0, eta_centroids));
+
+                                        subgrid_weights[c0] += 0.25 * (1.0 - xi_centroids) * (1.0 - eta_centroids);
+                                        subgrid_weights[c1] += 0.25 * (1.0 + xi_centroids) * (1.0 - eta_centroids);
+                                        subgrid_weights[c2] += 0.25 * (1.0 + xi_centroids) * (1.0 + eta_centroids);
+                                        subgrid_weights[c3] += 0.25 * (1.0 - xi_centroids) * (1.0 + eta_centroids);
+
+                                        subpoint_mapped = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Find containing triangle fallback
+                if (n_avail >= 3 && !subpoint_mapped) {
+                    for (int a = 0; a < n_avail - 2 && !subpoint_mapped; ++a) {
+                        for (int b = a + 1; b < n_avail - 1 && !subpoint_mapped; ++b) {
+                            for (int c = b + 1; c < n_avail && !subpoint_mapped; ++c) {
+                                std::size_t c0 = static_cast<std::size_t>(batched_values(begin + a).index);
+                                std::size_t c1 = static_cast<std::size_t>(batched_values(begin + b).index);
+                                std::size_t c2 = static_cast<std::size_t>(batched_values(begin + c).index);
+
+                                Vec2 q0{src_cx(c0), src_cy(c0)};
+                                Vec2 q1{src_cx(c1), src_cy(c1)};
+                                Vec2 q2{src_cx(c2), src_cy(c2)};
+
+                                if (is_spherical) {
+                                    const double pi = 3.14159265358979323846;
+                                    auto to_rad = [&](double deg) { return deg * pi / 180.0; };
+                                    auto proj = [&](Vec2 q) {
+                                        double mu, mv;
+                                        double q_lon = q.x;
+                                        double q_lat = q.y;
+                                        if (csys == topology::CoordinateSystem::SphericalDeg) {
+                                            q_lon = to_rad(q_lon);
+                                            q_lat = to_rad(q_lat);
+                                        }
+                                        project_gnomonic(lon0, lat0, q_lon, q_lat, mu, mv);
+                                        return Vec2{mu, mv};
+                                    };
+                                    q0 = proj(q0);
+                                    q1 = proj(q1);
+                                    q2 = proj(q2);
+                                }
+
+                                double l0 = 0.0, l1 = 0.0, l2 = 0.0;
+                                if (barycentric_triangle(test_px, test_py, q0, q1, q2, l0, l1, l2)) {
+                                    l0 = std::max(0.0, l0);
+                                    l1 = std::max(0.0, l1);
+                                    l2 = std::max(0.0, l2);
+                                    double sum = l0 + l1 + l2;
+                                    if (sum > 0.0) {
+                                        l0 /= sum;
+                                        l1 /= sum;
+                                        l2 /= sum;
+                                    } else {
+                                        l0 = l1 = l2 = 1.0 / 3.0;
+                                    }
+
+                                    subgrid_weights[c0] += l0;
+                                    subgrid_weights[c1] += l1;
+                                    subgrid_weights[c2] += l2;
+
+                                    subpoint_mapped = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (subpoint_mapped) {
+                    valid_subpoints++;
+                }
+            }
+        }
+
+        // 4. Threshold gating & normalization (Strictly avoid division by zero)
+        if (valid_subpoints == 0) {
+            if (config.unmapped == UnmappedAction::Error) {
+                throw std::runtime_error("WeightGenerator::generate_budget: Destination cell " + std::to_string(j) + " lacks sufficient coverage (0 valid subpoints).");
+            }
+            continue;
+        }
+
+        double fraction = static_cast<double>(valid_subpoints) / static_cast<double>(N2);
+        if (fraction < config.budget_min_valid_fraction) {
+            if (config.unmapped == UnmappedAction::Error) {
+                throw std::runtime_error("WeightGenerator::generate_budget: Destination cell " + std::to_string(j) + " lacks sufficient coverage.");
+            }
+            continue;
+        }
+
+        double norm = 1.0 / static_cast<double>(valid_subpoints);
+        for (const auto &[src_cell, accum_wt] : subgrid_weights) {
+            weights_vec.push_back(accum_wt * norm);
+            rows_vec.push_back(static_cast<index_t>(j));
+            cols_vec.push_back(src_cell);
+        }
+    }
+
+    // 5. Build and return InterpolationMatrix
+    const std::size_t nnz = weights_vec.size();
+    Kokkos::View<double *, MemorySpace> factor_list("factor_list", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_row("factor_row", nnz);
+    Kokkos::View<index_t *, MemorySpace> factor_col("factor_col", nnz);
+
+    Kokkos::View<double *, Kokkos::HostSpace> h_factor_list("h_factor_list", nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_factor_row("h_factor_row", nnz);
+    Kokkos::View<index_t *, Kokkos::HostSpace> h_factor_col("h_factor_col", nnz);
+
+    for (std::size_t k = 0; k < nnz; ++k) {
+        h_factor_list(k) = weights_vec[k];
+        h_factor_row(k) = rows_vec[k];
+        h_factor_col(k) = cols_vec[k];
+    }
+
+    Kokkos::deep_copy(factor_list, h_factor_list);
+    Kokkos::deep_copy(factor_row, h_factor_row);
+    Kokkos::deep_copy(factor_col, h_factor_col);
+
+    Kokkos::View<double *, MemorySpace> frac_a("frac_a", n_src);
+    Kokkos::View<double *, MemorySpace> frac_b("frac_b", n_dst);
+    Kokkos::View<double *, MemorySpace> area_a("area_a", n_src);
+    Kokkos::View<double *, MemorySpace> area_b("area_b", n_dst);
+
+    Kokkos::deep_copy(frac_a, 1.0);
+    Kokkos::deep_copy(frac_b, 1.0);
+    Kokkos::deep_copy(area_a, 0.0); // ESMF bilinear/budget convention: area_a is 0
+
+    auto dst_areas = compute_cell_areas_device(dst_mesh, false);
+    Kokkos::deep_copy(area_b, dst_areas);
+
+    return InterpolationMatrix<MemorySpace>(std::move(factor_list), std::move(factor_row), std::move(factor_col), std::move(frac_a),
+                                            std::move(frac_b), std::move(area_a), std::move(area_b), n_src, n_dst);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // generate — top-level dispatch
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2010,6 +2315,9 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate(const topology::Unstr
             break;
         case InterpolationMethod::Conservative2ndOrder:
             raw_matrix = generate_conservative_2nd_order(src_mesh, dst_mesh, config);
+            break;
+        case InterpolationMethod::Budget:
+            raw_matrix = generate_budget(src_mesh, dst_mesh, config);
             break;
         default:
             throw std::invalid_argument("WeightGenerator::generate: unknown InterpolationMethod");
