@@ -8,6 +8,7 @@ import shutil
 import numpy as np
 import xarray as xr
 import pytest
+import warnings
 
 import axis
 
@@ -119,7 +120,6 @@ def create_test_dataset(nlat, nlon, grid_type="regular"):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @pytest.mark.skipif(not CDO_AVAILABLE, reason="CDO binary or python-cdo not available")
-@pytest.mark.skipif(not XREGRID_AVAILABLE, reason="xregrid (ESMF) package not available")
 @pytest.mark.parametrize("method, cdo_op, xr_method", [
     ("bilinear", "remapbil", "bilinear"),
     ("nearest", "remapnn", "nearest_s2d"),
@@ -184,11 +184,14 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
         cdo_sum = float(np.sum(cdo_result))
 
         # 2. Evaluate xregrid (ESMF)
-        t0 = time.perf_counter()
-        xr_regridder = xregrid.Regridder(ds_in, ds_out, method=xr_method, periodic=True)
-        xr_out = xr_regridder(ds_in["temperature"])
-        xregrid_time = time.perf_counter() - t0
-        xregrid_sum = float(np.sum(xr_out.values))
+        if XREGRID_AVAILABLE:
+            t0 = time.perf_counter()
+            xr_regridder = xregrid.Regridder(ds_in, ds_out, method=xr_method, periodic=True)
+            xr_out = xr_regridder(ds_in["temperature"])
+            xregrid_time = time.perf_counter() - t0
+            xregrid_sum = float(np.sum(xr_out.values))
+        else:
+            warnings.warn("xregrid (ESMF) package not available, skipping xregrid evaluation.")
 
         # 3. Evaluate AXIS (Kokkos-Parallel)
         t0 = time.perf_counter()
@@ -201,19 +204,23 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
         # AXIS must always run significantly faster than CDO and xregrid for global regular grids.
         # We allow a small 50ms scheduling jitter margin for micro-grids (16k cells) where single-threaded execution has no setup overhead.
         assert axis_time < (cdo_time + 0.050), f"AXIS remapping is slower than CDO! AXIS: {axis_time:.4f}s, CDO: {cdo_time:.4f}s"
-        assert axis_time < (xregrid_time + 0.050), f"AXIS remapping is slower than xregrid! AXIS: {axis_time:.4f}s, xregrid: {xregrid_time:.4f}s"
+        if XREGRID_AVAILABLE:
+            assert axis_time < (xregrid_time + 0.050), f"AXIS remapping is slower than xregrid! AXIS: {axis_time:.4f}s, xregrid: {xregrid_time:.4f}s"
 
         # ── MATHEMATICAL CONSERVATION ASSERTION ──
         if method == "conservative":
             # Difference in global mass integrals should be negligible (conservation error < 1e-12)
             np.testing.assert_allclose(axis_sum, cdo_sum, rtol=1e-12, atol=1e-12,
                                        err_msg="AXIS failed double-precision mass conservation parity with CDO!")
-            np.testing.assert_allclose(axis_sum, xregrid_sum, rtol=1e-12, atol=1e-12,
-                                       err_msg="AXIS failed double-precision mass conservation parity with xregrid!")
+            if XREGRID_AVAILABLE:
+                np.testing.assert_allclose(axis_sum, xregrid_sum, rtol=1e-12, atol=1e-12,
+                                           err_msg="AXIS failed double-precision mass conservation parity with xregrid!")
 
             # Perfect mass conservation to exactly zero-sum
             np.testing.assert_allclose(axis_sum, 0.0, rtol=1e-11, atol=1e-11,
                                        err_msg="AXIS conservative failed to preserve zero-integral cosine field!")
+        else:
+            ...  # TODO: compare results for other methods
 
 @pytest.mark.skipif(not CDO_AVAILABLE, reason="CDO binary or python-cdo not available")
 @pytest.mark.skipif(not PYPROJ_AVAILABLE, reason="pyproj projection library not available")
