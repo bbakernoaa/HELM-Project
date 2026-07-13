@@ -22,15 +22,38 @@ def _get_non_spatial_dims(ds: xr.Dataset) -> set[str]:
     return non_spatial
 
 def _find_coord(ds: xr.Dataset, name: str) -> Optional[xr.DataArray]:
-    """Find a coordinate array based on standard_name, axis, or name heuristics."""
+    """Find a coordinate array based on standard_name, axis, units, or name heuristics."""
+    # Check coords first
     for c in ds.coords:
         da = ds[c]
         if da.attrs.get("standard_name") == name:
             return da
-        if name == "latitude" and da.attrs.get("axis") == "Y":
+        if name == "latitude":
+            if da.attrs.get("axis") == "Y":
+                return da
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_north", "degree_north", "degree_n", "degrees_n", "degress_n"]:
+                return da
+        if name == "longitude":
+            if da.attrs.get("axis") == "X":
+                return da
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_east", "degree_east", "degree_e", "degrees_e"]:
+                return da
+
+    # Check all variables (e.g. data_vars or other variables)
+    for v in ds.variables:
+        da = ds[v]
+        if da.attrs.get("standard_name") == name:
             return da
-        if name == "longitude" and da.attrs.get("axis") == "X":
-            return da
+        if name == "latitude":
+            if da.attrs.get("axis") == "Y":
+                return da
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_north", "degree_north", "degree_n", "degrees_n", "degress_n"]:
+                return da
+        if name == "longitude":
+            if da.attrs.get("axis") == "X":
+                return da
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_east", "degree_east", "degree_e", "degrees_e"]:
+                return da
     return None
 
 def _get_mesh_info(
@@ -186,25 +209,31 @@ def _triangulate_mpas_mesh(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.n
 
     return node_lon, node_lat, element_conn.astype(np.int32)
 
-def _parse_scrip_bounds(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _parse_scrip_bounds(ds: xr.Dataset, lat: Optional[xr.DataArray] = None, lon: Optional[xr.DataArray] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Parse unstructured SCRIP-style cell centers and 2D bounds into general polygon nodes/connectivity offsets/indices."""
-    # Find longitude/latitude coordinates
-    lat = None
-    for v in ["lat", "latCell", "latitude"]:
-        if v in ds:
-            lat = ds[v]
-            break
+    # Find longitude/latitude coordinates if not provided
+    if lat is None:
+        for v in ["lat", "latCell", "latitude"]:
+            if v in ds:
+                lat = ds[v]
+                break
+    if lat is None:
+        # Fallback to _find_coord
+        lat = _find_coord(ds, "latitude")
     if lat is None:
         raise KeyError("Could not find latitude coordinates in dataset.")
 
-    lon_name = lat.name.replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
-    if lon_name in ds:
-        lon = ds[lon_name]
-    else:
-        for v in ["lon", "lonCell", "longitude"]:
-            if v in ds:
-                lon = ds[v]
-                break
+    if lon is None:
+        lon_name = lat.name.replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
+        if lon_name in ds:
+            lon = ds[lon_name]
+        else:
+            for v in ["lon", "lonCell", "longitude"]:
+                if v in ds:
+                    lon = ds[v]
+                    break
+        if lon is None:
+            lon = _find_coord(ds, "longitude")
     if lon is None:
         raise KeyError("Could not find longitude coordinates.")
 
@@ -213,6 +242,10 @@ def _parse_scrip_bounds(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndar
 
     lat_bnds = ds[lat_bnds_name].values
     lon_bnds = ds[lon_bnds_name].values
+
+    if lat_bnds.ndim == 3:
+        lat_bnds = lat_bnds.reshape(-1, lat_bnds.shape[-1])
+        lon_bnds = lon_bnds.reshape(-1, lon_bnds.shape[-1])
 
     n_cells, nv = lat_bnds.shape
 
@@ -248,8 +281,14 @@ def _parse_scrip_bounds(ds: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndar
 
         conn_offsets.append(len(conn_indices))
 
+    node_lons_arr = np.array(node_lons)
+    if np.any(lon.values < 0.0):
+        node_lons_arr = (node_lons_arr + 180.0) % 360.0 - 180.0
+    else:
+        node_lons_arr = np.mod(node_lons_arr, 360.0)
+
     return (
-        np.mod(np.array(node_lons), 360.0),
+        node_lons_arr,
         np.array(node_lats),
         np.array(conn_offsets, dtype=np.int32),
         np.array(conn_indices, dtype=np.int32)
@@ -337,8 +376,8 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
                 conn_indices = element_conn.astype(np.int32)
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
         # 2. SCRIP 2D Bounds format
-        elif "lat_bnds" in ds or any("bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon"]):
-            node_lon, node_lat, conn_offsets, conn_indices = _parse_scrip_bounds(ds)
+        elif "lat_bnds" in ds or any("bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon", lat.name, lon.name]):
+            node_lon, node_lat, conn_offsets, conn_indices = _parse_scrip_bounds(ds, lat=lat, lon=lon)
             node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
             return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
         # 3. Curvilinear (2D) or Cubed-Sphere (3D) coordinate arrays fallback
@@ -420,9 +459,44 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
                     break
 
             if grid_mapping == "lambert_conformal_conic":
-                # Generate local projection string and coordinates
-                # Host models can configure custom LCC params here, otherwise fallback to CONUS standard
-                proj_string = "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+                # Generate local projection string dynamically from CF attributes
+                grid_mapping_var = None
+                for v in ds.variables:
+                    if ds[v].attrs.get("grid_mapping_name") == "lambert_conformal_conic":
+                        grid_mapping_var = ds[v]
+                        break
+
+                if grid_mapping_var is not None:
+                    attrs = grid_mapping_var.attrs
+                    sp = attrs.get("standard_parallel", 25.0)
+                    if isinstance(sp, (list, tuple, np.ndarray)):
+                        if len(sp) == 1:
+                            lat_1 = float(sp[0])
+                            lat_2 = lat_1
+                        else:
+                            lat_1 = float(sp[0])
+                            lat_2 = float(sp[1])
+                    else:
+                        lat_1 = float(sp)
+                        lat_2 = lat_1
+
+                    lat_0 = float(attrs.get("latitude_of_projection_origin", 25.0))
+                    lon_0 = float(attrs.get("longitude_of_central_meridian", -95.0))
+                    x_0 = float(attrs.get("false_easting", 0.0))
+                    y_0 = float(attrs.get("false_northing", 0.0))
+
+                    ellps_str = "+datum=WGS84"
+                    if "semi_major_axis" in attrs:
+                        ellps_str = f"+a={attrs['semi_major_axis']}"
+                        if "semi_minor_axis" in attrs:
+                            ellps_str += f" +b={attrs['semi_minor_axis']}"
+                        elif "inverse_flattening" in attrs:
+                            ellps_str += f" +rf={attrs['inverse_flattening']}"
+
+                    proj_string = f"+proj=lcc +lat_1={lat_1} +lat_2={lat_2} +lat_0={lat_0} +lon_0={lon_0} +x_0={x_0} +y_0={y_0} {ellps_str} +units=m +no_defs"
+                else:
+                    proj_string = "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+
                 ni, nj = shape[1], shape[0]
                 center_x = lon.values.ravel()
                 center_y = lat.values.ravel()
