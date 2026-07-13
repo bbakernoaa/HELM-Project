@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     libopenmpi-dev \
     libgtest-dev \
     libproj-dev \
+    cdo \
     && rm -rf /var/lib/apt/lists/*
 
 # Set GCC-13 as the default compiler (C, C++, and Fortran)
