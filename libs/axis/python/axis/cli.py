@@ -3,8 +3,11 @@ import argparse
 import os
 import sys
 import time
+
 import xarray as xr
+
 import axis
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -14,31 +17,42 @@ def main():
         "-s", "--source", required=True, help="Path to the input source NetCDF file."
     )
     parser.add_argument(
-        "-t", "--target", required=True, help="Path to the target destination NetCDF file (or UGRID/MPAS description)."
+        "-t",
+        "--target",
+        required=True,
+        help="Path to the target destination NetCDF file (or UGRID/MPAS description).",
     )
     parser.add_argument(
         "-o", "--output", required=True, help="Path to save the regridded output NetCDF file."
     )
     parser.add_argument(
-        "-m", "--method", default="bilinear",
+        "-m",
+        "--method",
+        default="bilinear",
         choices=["bilinear", "nearest", "bicubic", "patch", "conservative"],
-        help="Remapping interpolation method (default: bilinear)."
+        help="Remapping interpolation method (default: bilinear).",
     )
     parser.add_argument(
-        "--periodic", action="store_true",
-        help="Enable periodic longitude wrapping (connects 360 back to 0 degrees)."
+        "--periodic",
+        action="store_true",
+        help="Enable periodic longitude wrapping (connects 360 back to 0 degrees).",
     )
     parser.add_argument(
-        "--skipna", action="store_true",
-        help="Enable NaN-aware weight re-normalization (preserves edges near missing values)."
+        "--skipna",
+        action="store_true",
+        help="Enable NaN-aware weight re-normalization (preserves edges near missing values).",
     )
     parser.add_argument(
-        "--na-thres", type=float, default=1.0,
-        help="Minimum fraction of valid input contribution required for output cell (default: 1.0)."
+        "--na-thres",
+        type=float,
+        default=1.0,
+        help="Minimum fraction of valid input contribution required for output cell (default: 1.0).",
     )
     parser.add_argument(
-        "-v", "--var", action="append",
-        help="Specific variable(s) to regrid (optional, defaults to all spatial variables)."
+        "-v",
+        "--var",
+        action="append",
+        help="Specific variable(s) to regrid (optional, defaults to all spatial variables).",
     )
 
     args = parser.parse_args()
@@ -50,9 +64,9 @@ def main():
         print(f"Error: Target file '{args.target}' does not exist.")
         sys.exit(1)
 
-    print(f"{'='*70}")
-    print(f"AXIS Command-Line Regridding Pipeline")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
+    print("AXIS Command-Line Regridding Pipeline")
+    print(f"{'=' * 70}")
     print(f"Source file : {args.source}")
     print(f"Target file : {args.target}")
     print(f"Output file : {args.output}")
@@ -62,8 +76,8 @@ def main():
     if args.var:
         print(f"Variables   : {', '.join(args.var)}")
     else:
-        print(f"Variables   : All spatial data variables")
-    print(f"{'='*70}")
+        print("Variables   : All spatial data variables")
+    print(f"{'=' * 70}")
     print()
 
     # Load datasets
@@ -80,11 +94,12 @@ def main():
     print("Initializing AXIS engine and generating weights...")
     try:
         regridder = axis.Regridder(
-            ds_in, ds_out,
+            ds_in,
+            ds_out,
             method=args.method,
             periodic=args.periodic,
             skipna=args.skipna,
-            na_thres=args.na_thres
+            na_thres=args.na_thres,
         )
     except Exception as e:
         print(f"Error generating weights: {e}")
@@ -118,7 +133,8 @@ def main():
 
     elapsed = time.perf_counter() - t0
     print(f"Success! Total execution time: {elapsed:.3f} seconds.")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
+
 
 if __name__ == "__main__":
     main()

@@ -1,25 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
+
 from . import axis_py
 
 # Worker-local cache for sparse weight matrices to optimize Dask performance
 _WORKER_CACHE = {}
+
 
 def _setup_worker_cache(key, obj):
     """Setup a shared object in the worker-local cache."""
     _WORKER_CACHE[key] = obj
     return True
 
+
 def _sync_cache_from_worker_data(future_key, cache_key):
     """Retrieve dask future data from worker and save to local cache."""
     try:
         import dask.distributed
+
         worker = dask.distributed.get_worker()
         data = worker.data[future_key]
         _WORKER_CACHE[cache_key] = data
         return True
     except Exception:
         return False
+
 
 def _apply_weights_core(
     data_block: np.ndarray,
@@ -92,9 +97,7 @@ def _apply_weights_core(
             if total_weights is not None:
                 fraction_valid = weights_sum / total_weights
                 nan_val = result.dtype.type(np.nan)
-                result = np.where(
-                    fraction_valid < (1.0 - na_thres - 1e-6), nan_val, result
-                )
+                result = np.where(fraction_valid < (1.0 - na_thres - 1e-6), nan_val, result)
 
     new_shape = other_dims_shape + shape_target
     return result.reshape(new_shape).astype(data_block.dtype, copy=False)
