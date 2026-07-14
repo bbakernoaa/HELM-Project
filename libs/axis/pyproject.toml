@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core>=0.5", "nanobind>=1.6.0", "numpy"]
+requires = ["scikit-build-core>=0.5", "nanobind>=2.0.0", "numpy"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -48,4 +48,5 @@ cmake.args = [
 cmake.source-dir = "."
 
 [tool.mypy]
+packages = ["axis"]
 exclude = "^build.*/"
