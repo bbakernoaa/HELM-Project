@@ -25,9 +25,7 @@ axis_py = pytest.importorskip("axis_py")
 class TestGenerateAndApply:
     """Validates Requirement 12.3: apply() with numpy arrays."""
 
-    def test_generate_and_apply_bilinear_constant_field(
-        self, small_src_mesh, small_dst_mesh, bilinear_matrix
-    ):
+    def test_generate_and_apply_bilinear_constant_field(self, small_src_mesh, small_dst_mesh, bilinear_matrix):
         """
         A spatially constant field interpolated via bilinear weights
         must produce the same constant on the destination mesh.

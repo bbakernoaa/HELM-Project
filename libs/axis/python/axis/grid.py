@@ -152,9 +152,7 @@ def _get_mesh_info(
             return lon, lat, lat.shape, lat.dims, False
 
 
-def _synthesize_curvilinear_corners(
-    lon: np.ndarray, lat: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Synthesize (ny+1, nx+1) corner coordinates from (ny, nx) cell centers via fast 2D slicing."""
     ny, nx = lon.shape
     pad_lon = np.pad(lon, 1, mode="edge")
@@ -203,11 +201,7 @@ def _triangulate_mpas_mesh(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.n
     node_lon = np.mod(node_lon, 360.0)
 
     conn_raw = v_conn.values
-    n_edges = (
-        ds["nEdgesOnCell"].values
-        if "nEdgesOnCell" in ds
-        else np.full(conn_raw.shape[0], conn_raw.shape[1])
-    )
+    n_edges = ds["nEdgesOnCell"].values if "nEdgesOnCell" in ds else np.full(conn_raw.shape[0], conn_raw.shape[1])
 
     n_cells, max_edges = conn_raw.shape
     max_tris = max_edges - 2
@@ -329,9 +323,7 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
         # 1. MPAS (Arbitrary polygonal cells)
         if "verticesOnCell" in ds and "latVertex" in ds:
             # Check if method is cell-centered (nearest/conservative/conservative2nd)
-            cell_centered = (method is not None) and (
-                method.lower() in ["nearest", "conservative", "conservative2nd"]
-            )
+            cell_centered = (method is not None) and (method.lower() in ["nearest", "conservative", "conservative2nd"])
 
             # Normalize and wrap coordinates
             v_lat = ds["latVertex"]
@@ -360,11 +352,7 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                     v_conn = v_conn.isel(isel_conn, drop=True)
 
                 conn_raw = v_conn.values
-                n_edges = (
-                    ds["nEdgesOnCell"].values
-                    if "nEdgesOnCell" in ds
-                    else np.full(conn_raw.shape[0], conn_raw.shape[1])
-                )
+                n_edges = ds["nEdgesOnCell"].values if "nEdgesOnCell" in ds else np.full(conn_raw.shape[0], conn_raw.shape[1])
 
                 conn_offsets = np.zeros(len(n_edges) + 1, dtype=np.int32)
                 conn_offsets[1:] = np.cumsum(n_edges)
@@ -383,9 +371,7 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                 conn_indices = element_conn.astype(np.int32)
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
         # 2. SCRIP 2D Bounds format
-        elif "lat_bnds" in ds or any(
-            "bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon"]
-        ):
+        elif "lat_bnds" in ds or any("bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon"]):
             node_lon, node_lat, conn_offsets, conn_indices = _parse_scrip_bounds(ds)
             node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
             return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
@@ -515,9 +501,7 @@ class XarrayGeometry(Geometry):
 
     def to_mesh(self, method: str | None = None) -> axis_py.Mesh:
         # Keep 100% of existing, verified auto-detection and triangulation/centering logic!
-        ds_normalized = (
-            self.ds.to_dataset(name="_tmp_data") if isinstance(self.ds, xr.DataArray) else self.ds
-        )
+        ds_normalized = self.ds.to_dataset(name="_tmp_data") if isinstance(self.ds, xr.DataArray) else self.ds
         return create_axis_mesh(ds_normalized, method or self.method)
 
 
@@ -535,9 +519,7 @@ class RectilinearGrid(Geometry):
         nj = len(self.lats)
         dlon = float((self.lons[-1] - self.lons[0]) / (ni - 1)) if ni > 1 else 1.0
         dlat = float((self.lats[-1] - self.lats[0]) / (nj - 1)) if nj > 1 else 1.0
-        return axis_py.make_regular_mesh(
-            ni, nj, float(self.lons[0]), float(self.lats[0]), dlon, dlat
-        )
+        return axis_py.make_regular_mesh(ni, nj, float(self.lons[0]), float(self.lats[0]), dlon, dlat)
 
 
 class CurvilinearGrid(Geometry):

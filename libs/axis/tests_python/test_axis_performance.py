@@ -59,9 +59,7 @@ def test_bilinear_performance_budget(benchmark_grids):
     regridder = axis.Regridder(ds_in, ds_out, method="bilinear")
     gen_time = time.perf_counter() - t0
 
-    assert gen_time < 0.250, (
-        f"Bilinear weight generation degraded! Took {gen_time:.4f}s (budget: < 250ms)"
-    )
+    assert gen_time < 0.250, f"Bilinear weight generation degraded! Took {gen_time:.4f}s (budget: < 250ms)"
 
     # ── Application/SpMV Budget ──
     # Applying pre-computed bilinear weights via SpMV on 259,200 source cells to 1,036,800 dest cells
@@ -70,9 +68,7 @@ def test_bilinear_performance_budget(benchmark_grids):
     da_out = regridder(da_in)
     apply_time = time.perf_counter() - t0
 
-    assert apply_time < 0.080, (
-        f"Bilinear apply/SpMV degraded! Took {apply_time:.4f}s (budget: < 80ms)"
-    )
+    assert apply_time < 0.080, f"Bilinear apply/SpMV degraded! Took {apply_time:.4f}s (budget: < 80ms)"
     assert da_out.shape == (360, 720)
 
 
@@ -84,17 +80,13 @@ def test_nearest_performance_budget(benchmark_grids):
     regridder = axis.Regridder(ds_in, ds_out, method="nearest")
     gen_time = time.perf_counter() - t0
 
-    assert gen_time < 0.350, (
-        f"Nearest weight generation degraded! Took {gen_time:.4f}s (budget: < 350ms)"
-    )
+    assert gen_time < 0.350, f"Nearest weight generation degraded! Took {gen_time:.4f}s (budget: < 350ms)"
 
     t0 = time.perf_counter()
     da_out = regridder(da_in)  # noqa: F841
     apply_time = time.perf_counter() - t0
 
-    assert apply_time < 0.080, (
-        f"Nearest apply/SpMV degraded! Took {apply_time:.4f}s (budget: < 80ms)"
-    )
+    assert apply_time < 0.080, f"Nearest apply/SpMV degraded! Took {apply_time:.4f}s (budget: < 80ms)"
 
 
 def test_conservative_performance_budget(benchmark_grids):
@@ -107,18 +99,14 @@ def test_conservative_performance_budget(benchmark_grids):
     regridder = axis.Regridder(ds_in, ds_out, method="conservative")
     gen_time = time.perf_counter() - t0
 
-    assert gen_time < 0.400, (
-        f"Conservative weight generation degraded! Took {gen_time:.4f}s (budget: < 400ms)"
-    )
+    assert gen_time < 0.400, f"Conservative weight generation degraded! Took {gen_time:.4f}s (budget: < 400ms)"
 
     # ── Application/SpMV Budget ──
     t0 = time.perf_counter()
     da_out = regridder(da_in)
     apply_time = time.perf_counter() - t0
 
-    assert apply_time < 0.080, (
-        f"Conservative apply/SpMV degraded! Took {apply_time:.4f}s (budget: < 80ms)"
-    )
+    assert apply_time < 0.080, f"Conservative apply/SpMV degraded! Took {apply_time:.4f}s (budget: < 80ms)"
     assert da_out.shape == (360, 720)
 
     # ── Conservation Assurance ──

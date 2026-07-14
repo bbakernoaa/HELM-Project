@@ -105,12 +105,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
                 valid_coords = True
                 for v_idx in region:
                     v_lon, v_lat = node_coords[v_idx]
-                    if (
-                        v_lon < (min_lon - 5.0)
-                        or v_lon > (max_lon + 5.0)
-                        or v_lat < (min_lat - 5.0)
-                        or v_lat > (max_lat + 5.0)
-                    ):
+                    if v_lon < (min_lon - 5.0) or v_lon > (max_lon + 5.0) or v_lat < (min_lat - 5.0) or v_lat > (max_lat + 5.0):
                         valid_coords = False
                         break
                 if valid_coords:
@@ -441,11 +436,7 @@ def run_xregrid_remap(input_file, target_grid, dst_lats, dst_lons, method, dst_g
 
         # Auto-detect if the grid is global and requires periodic longitude wrapping
         # ESMF requires periodic=True for global grids to connect 360 back to 0.
-        is_global = (
-            dst_grid_type == "regular"
-            and len(dst_lons) > 1
-            and abs(dst_lons[-1] - dst_lons[0]) > 300.0
-        )
+        is_global = dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0
 
         regridder = xregrid.Regridder(ds_in, ds_out, method=method_map[method], periodic=is_global)
         res_ds = regridder(ds_in["temperature"])
@@ -482,16 +473,10 @@ def run_axis_remap(
             ds_out = xr.Dataset({"lat": (["lat"], dst_lats), "lon": (["lon"], dst_lons)})
 
         # Determine periodic longitude wrapping
-        is_global = (
-            dst_grid_type == "regular"
-            and len(dst_lons) > 1
-            and abs(dst_lons[-1] - dst_lons[0]) > 300.0
-        )
+        is_global = dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0
 
         # Initialize high-level xarray regridder
-        regridder = axis.Regridder(
-            ds_in, ds_out, method=method, periodic=is_global, line_type=line_type
-        )
+        regridder = axis.Regridder(ds_in, ds_out, method=method, periodic=is_global, line_type=line_type)
 
         # Regrid the DataArray
         da_out = regridder(ds_in["temperature"])
@@ -614,16 +599,12 @@ def main():
     if args.grid_type == "mpas":
         print(f"Source grid:  {src_nlon} unstructured MPAS cells")
     else:
-        print(
-            f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon * src_nlat:,} cells)"
-        )
+        print(f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon * src_nlat:,} cells)")
 
     if args.dst_grid_type == "mpas":
         print(f"Dest grid:    {dst_nlon} unstructured MPAS cells")
     else:
-        print(
-            f"Dest grid:    {dst_nlon}x{dst_nlat} {args.dst_grid_type} ({dst_nlon * dst_nlat:,} cells)"
-        )
+        print(f"Dest grid:    {dst_nlon}x{dst_nlat} {args.dst_grid_type} ({dst_nlon * dst_nlat:,} cells)")
     print(f"Test field:   {args.field}")
     print(f"Methods:      {', '.join(methods)}")
     print(f"AXIS module:  {'loaded' if axis else 'NOT AVAILABLE'}")
@@ -643,9 +624,7 @@ def main():
         dst_field_data = None
         if args.dst_grid_type == "mpas":
             print("Creating destination test field (MPAS)...")
-            dst_lats, dst_lons, dst_field_data = create_test_field(
-                dst_nlat, dst_nlon, args.field, "mpas"
-            )
+            dst_lats, dst_lons, dst_field_data = create_test_field(dst_nlat, dst_nlon, args.field, "mpas")
             print("Writing destination NetCDF...")
             target_grid = os.path.join(tmpdir, "target_grid.nc")
             write_netcdf(target_grid, dst_lats, dst_lons, dst_field_data, "mpas")
@@ -680,9 +659,7 @@ def main():
                 f.write(f"yinc = {dst_lats[1] - dst_lats[0]}\n")
 
         # Run benchmarks
-        print(
-            f"{'Method':<15} {'Engine':<8} {'Time (s)':<12} {'Max Err':<14} {'RMS Err':<14} {'Src Σ':<14} {'Dst Σ':<14}"
-        )
+        print(f"{'Method':<15} {'Engine':<8} {'Time (s)':<12} {'Max Err':<14} {'RMS Err':<14} {'Src Σ':<14} {'Dst Σ':<14}")
         print(f"{'-' * 15} {'-' * 8} {'-' * 12} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14}")
 
         for method in methods:
@@ -710,9 +687,7 @@ def main():
                 src_sum = float(np.sum(field))
 
             if cdo_result is not None:
-                print(
-                    f"{method:<15} {'CDO':<8} {cdo_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {cdo_sum:<14.4f}"
-                )
+                print(f"{method:<15} {'CDO':<8} {cdo_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {cdo_sum:<14.4f}")
 
             # ── xregrid ──
             xregrid_result = None
@@ -772,9 +747,7 @@ def main():
                         f"{src_sum:<14.4f} {axis_sum:<14.4f}"
                     )
                 else:
-                    print(
-                        f"{method:<15} {'AXIS':<8} {axis_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {axis_sum:<14.4f}"
-                    )
+                    print(f"{method:<15} {'AXIS':<8} {axis_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {axis_sum:<14.4f}")
             else:
                 print(f"{method:<15} {'AXIS':<8} {'N/A':<12} {'(module not loaded)'}")
 

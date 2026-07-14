@@ -63,9 +63,7 @@ def main(argv: list[str]) -> int:
 
         baseline_ms = baseline_map[name]
         if baseline_ms <= 0:
-            print(
-                f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {'N/A':<10} SKIP (zero baseline)"
-            )
+            print(f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {'N/A':<10} SKIP (zero baseline)")
             continue
 
         delta = (current_ms - baseline_ms) / baseline_ms
@@ -81,20 +79,14 @@ def main(argv: list[str]) -> int:
                 }
             )
 
-        print(
-            f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {delta * 100:>+7.1f}%   {status}"
-        )
+        print(f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {delta * 100:>+7.1f}%   {status}")
 
     print()
 
     if regressions:
-        print(
-            f"REGRESSION DETECTED: {len(regressions)} benchmark(s) exceeded {threshold * 100:.0f}% threshold"
-        )
+        print(f"REGRESSION DETECTED: {len(regressions)} benchmark(s) exceeded {threshold * 100:.0f}% threshold")
         for r in regressions:
-            print(
-                f"  - {r['name']}: {r['current_ms']:.2f}ms vs baseline {r['baseline_ms']:.2f}ms (+{r['regression_pct']:.1f}%)"
-            )
+            print(f"  - {r['name']}: {r['current_ms']:.2f}ms vs baseline {r['baseline_ms']:.2f}ms (+{r['regression_pct']:.1f}%)")
         return 1
 
     print("All benchmarks within regression threshold.")

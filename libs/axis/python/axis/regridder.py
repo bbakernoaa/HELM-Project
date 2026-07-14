@@ -87,9 +87,7 @@ class Regridder:
                 from .grid import _get_mesh_info
 
                 if isinstance(ds_in, (xr.Dataset, xr.DataArray)):
-                    _, _, self._shape_source, self._dims_source, self._is_unstructured_src = (
-                        _get_mesh_info(ds_in)
-                    )
+                    _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(ds_in)
                     self.source_grid_ds = ds_in
                 if isinstance(ds_out, (xr.Dataset, xr.DataArray)):
                     _, _, self._shape_target, self._dims_target, _ = _get_mesh_info(ds_out)
@@ -144,9 +142,7 @@ class Regridder:
 
         # 2. Re-extract dimensions and shapes
         if isinstance(src, (xr.Dataset, xr.DataArray)):
-            _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(
-                src, self.method
-            )
+            _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(src, self.method)
             self.source_grid_ds = src
         else:
             if isinstance(self._src_geom, RectilinearGrid):
@@ -182,16 +178,12 @@ class Regridder:
 
         method_lower = self.method.lower()
         if method_lower not in self._method_map:
-            raise ValueError(
-                f"Unknown interpolation method: {self.method}. Choose from {list(self._method_map.keys())}"
-            )
+            raise ValueError(f"Unknown interpolation method: {self.method}. Choose from {list(self._method_map.keys())}")
         self._axis_method = self._method_map[method_lower]
 
         line_type_lower = self.line_type.lower()
         if line_type_lower not in self._line_type_map:
-            raise ValueError(
-                f"Unknown line type: {self.line_type}. Choose from {list(self._line_type_map.keys())}"
-            )
+            raise ValueError(f"Unknown line type: {self.line_type}. Choose from {list(self._line_type_map.keys())}")
         self._axis_line_type = self._line_type_map[line_type_lower]
 
         norm_map = {
@@ -205,9 +197,7 @@ class Regridder:
             "periodic": self.periodic,
             "line_type": self._axis_line_type,
             "norm_type": axis_norm,
-            "unmapped": axis_py.UnmappedAction.Ignore
-            if self.unmapped == "ignore"
-            else axis_py.UnmappedAction.Error,
+            "unmapped": axis_py.UnmappedAction.Ignore if self.unmapped == "ignore" else axis_py.UnmappedAction.Error,
         }
 
         # Inject masks if provided
@@ -274,22 +264,16 @@ class Regridder:
         if self._weights_matrix is None:
             raise RuntimeError("Cannot save weights: Regridder has not been compiled or fit.")
         if not hasattr(axis_py, "write_esmf"):
-            raise RuntimeError(
-                "ESMF weight export is unavailable. AXIS was compiled without NetCDF support."
-            )
+            raise RuntimeError("ESMF weight export is unavailable. AXIS was compiled without NetCDF support.")
         axis_py.write_esmf(filename, self._weights_matrix)
 
     @classmethod
-    def from_esmf(
-        cls, filename: str, src_grid: xr.Dataset, dst_grid: xr.Dataset, skipna: bool = False
-    ) -> "Regridder":
+    def from_esmf(cls, filename: str, src_grid: xr.Dataset, dst_grid: xr.Dataset, skipna: bool = False) -> "Regridder":
         """
         Load a Regridder instance from an ESMF-compliant NetCDF weight file.
         """
         if not hasattr(axis_py, "read_esmf"):
-            raise RuntimeError(
-                "ESMF weight import is unavailable. AXIS was compiled without NetCDF support."
-            )
+            raise RuntimeError("ESMF weight import is unavailable. AXIS was compiled without NetCDF support.")
 
         regridder = cls.__new__(cls)
         regridder.method = "esmf"
@@ -305,9 +289,7 @@ class Regridder:
         regridder._serialized_weights = None
 
         # Extract coordinate information and dimensions
-        _, _, regridder._shape_source, regridder._dims_source, regridder._is_unstructured_src = (
-            _get_mesh_info(src_grid)
-        )
+        _, _, regridder._shape_source, regridder._dims_source, regridder._is_unstructured_src = _get_mesh_info(src_grid)
         _, _, regridder._shape_target, regridder._dims_target, _ = _get_mesh_info(dst_grid)
 
         # Save original datasets for coordinate matching
@@ -319,9 +301,7 @@ class Regridder:
             import numpy as np
 
             regridder._total_weights = np.array(
-                axis_py.apply_weights(
-                    regridder._weights_matrix, np.ones(regridder._weights_matrix.n_src)
-                )
+                axis_py.apply_weights(regridder._weights_matrix, np.ones(regridder._weights_matrix.n_src))
             ).flatten()
         else:
             regridder._total_weights = None
@@ -337,12 +317,8 @@ class Regridder:
         Apply spatial remapping to the input object (NumPy array, xarray.DataArray, or xarray.Dataset).
         """
 
-        if not isinstance(obj, (xr.Dataset, xr.DataArray, np.ndarray)) and not hasattr(
-            obj, "__array__"
-        ):
-            raise TypeError(
-                "Input object must be an xarray.DataArray, xarray.Dataset, or numpy.ndarray"
-            )
+        if not isinstance(obj, (xr.Dataset, xr.DataArray, np.ndarray)) and not hasattr(obj, "__array__"):
+            raise TypeError("Input object must be an xarray.DataArray, xarray.Dataset, or numpy.ndarray")
 
         if self._weights_matrix is None:
             raise RuntimeError("Regridder must be fit to grids before calling transform().")
@@ -417,10 +393,7 @@ class Regridder:
         res = xr.Dataset(regridded_vars)
         # Inherit non-spatial global coordinates
         for c in ds.coords:
-            if (
-                c not in res.coords
-                and set(ds[c].dims).intersection(set(self._dims_source)) == set()
-            ):
+            if c not in res.coords and set(ds[c].dims).intersection(set(self._dims_source)) == set():
                 res = res.assign_coords({c: ds[c]})
         return res
 
@@ -508,11 +481,7 @@ class Regridder:
         )
 
         # Rename temporary output dimensions to target dimension names
-        rename_dict = {
-            temp: orig
-            for temp, orig in zip(temp_output_core_dims, self._dims_target, strict=False)
-            if temp in out.dims
-        }
+        rename_dict = {temp: orig for temp, orig in zip(temp_output_core_dims, self._dims_target, strict=False) if temp in out.dims}
         if rename_dict:
             out = out.rename(rename_dict)
 

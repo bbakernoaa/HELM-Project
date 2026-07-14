@@ -161,9 +161,7 @@ def test_regridder_skipna(sample_grids):
     field = np.ones((5, 10))
     field[2, 3] = np.nan  # Insert NaN in the center
 
-    da_in = xr.DataArray(
-        field, coords={"lat": ds_in["lat"], "lon": ds_in["lon"]}, dims=["lat", "lon"]
-    )
+    da_in = xr.DataArray(field, coords={"lat": ds_in["lat"], "lon": ds_in["lon"]}, dims=["lat", "lon"])
 
     # Eager path: bilinear with skipna=True
     regridder = axis.Regridder(ds_in, ds_out, method="bilinear", skipna=True)

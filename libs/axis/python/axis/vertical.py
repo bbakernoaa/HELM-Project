@@ -65,9 +65,7 @@ class VerticalRegridder:
             if dst_levs_arr.ndim == 1:
                 da_dst_levels = xr.DataArray(dst_levs_arr, dims=[dst_vert_dim])
             else:
-                da_dst_levels = xr.DataArray(
-                    dst_levs_arr, dims=list(da_field.dims[:-1]) + [dst_vert_dim]
-                )
+                da_dst_levels = xr.DataArray(dst_levs_arr, dims=list(da_field.dims[:-1]) + [dst_vert_dim])
 
         # Define block-wise core execution kernel
         def _core_interpolate(field_block, src_lev_block, dst_lev_block):
@@ -119,9 +117,7 @@ class VerticalRegridder:
             else:
                 flat_s = s_arr.reshape(-1, n_src_lev)
                 flat_d = d_arr.reshape(-1, n_dst_lev)
-                res_flat = axis_py.interpolate_vertical_varying(
-                    flat_field, flat_s, flat_d, self.tension
-                )
+                res_flat = axis_py.interpolate_vertical_varying(flat_field, flat_s, flat_d, self.tension)
 
             res = res_flat.reshape(original_shape[:-1] + (n_dst_lev,))
 

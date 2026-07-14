@@ -13,18 +13,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="AXIS Command-Line Regridding Tool — Blazing-fast, Kokkos-parallel spatial interpolation."
     )
-    parser.add_argument(
-        "-s", "--source", required=True, help="Path to the input source NetCDF file."
-    )
+    parser.add_argument("-s", "--source", required=True, help="Path to the input source NetCDF file.")
     parser.add_argument(
         "-t",
         "--target",
         required=True,
         help="Path to the target destination NetCDF file (or UGRID/MPAS description).",
     )
-    parser.add_argument(
-        "-o", "--output", required=True, help="Path to save the regridded output NetCDF file."
-    )
+    parser.add_argument("-o", "--output", required=True, help="Path to save the regridded output NetCDF file.")
     parser.add_argument(
         "-m",
         "--method",

@@ -53,14 +53,10 @@ class VectorRegridder:
         config = {
             "method": method_enum,
             "periodic": kwargs.get("periodic", False),
-            "line_type": axis_py.LineType.GreatCircle
-            if kwargs.get("line_type") == "great_circle"
-            else axis_py.LineType.Cartesian,
+            "line_type": axis_py.LineType.GreatCircle if kwargs.get("line_type") == "great_circle" else axis_py.LineType.Cartesian,
         }
 
-        self._W_u, self._W_v = axis_py.generate_vector_weights(
-            src_mesh, dst_mesh, src_alpha, dst_alpha, config
-        )
+        self._W_u, self._W_v = axis_py.generate_vector_weights(src_mesh, dst_mesh, src_alpha, dst_alpha, config)
 
     def transform(
         self, u: np.ndarray | xr.DataArray, v: np.ndarray | xr.DataArray
