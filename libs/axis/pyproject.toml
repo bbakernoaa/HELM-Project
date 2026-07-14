@@ -61,3 +61,7 @@ cmake.source-dir = "."
 #
 packages = ["axis"]
 exclude = "^build.*/"
+
+[[tool.mypy.overrides]]
+module = ["cdo", "xregrid"]
+ignore_missing_imports = true
