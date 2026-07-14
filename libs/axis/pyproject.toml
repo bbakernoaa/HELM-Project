@@ -23,6 +23,16 @@ test = [
     "pytest",
     "scipy",
 ]
+mypy = [
+    "mypy",
+    #
+    "pandas-stubs",
+    "scipy-stubs",
+    "types-pexpect",
+    "types-psutil",
+    "types-Pygments",
+    "types-PyYAML",
+]
 
 [project.scripts]
 axis-regrid = "axis.cli:main"
@@ -33,6 +43,9 @@ cmake.args = [
     "-DAXIS_BUILD_TESTING=OFF",
     "-DAXIS_BUILD_FORTRAN=OFF",
     "-DAXIS_BUILD_BENCHMARKS=OFF",
-    "-DAXIS_BUILD_EXAMPLES=OFF"
+    "-DAXIS_BUILD_EXAMPLES=OFF",
 ]
 cmake.source-dir = "."
+
+[tool.mypy]
+exclude = "^build.*/"
