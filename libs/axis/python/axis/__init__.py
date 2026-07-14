@@ -9,7 +9,6 @@ from . import axis_py
 
 # Register the custom .axis xarray accessor
 from . import accessors  # noqa: F401
-
 from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, UnstructuredMesh
 from .regridder import Regridder
 from .vector import VectorRegridder

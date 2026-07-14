@@ -99,6 +99,43 @@ TEST(PlanarPolygon, AreaLargerRectangle) {
     EXPECT_DOUBLE_EQ(poly.area(), 12.0);
 }
 
+// Regression: small polygons located far from the origin must not lose
+// precision. The shoelace formula translates to the first vertex before
+// summing; without that, catastrophic cancellation of the large coordinate
+// products would corrupt the (small) area. These cases would fail with the
+// naive absolute-coordinate formula but hold to near machine precision now.
+
+TEST(PlanarPolygon, AreaUnitSquareFarFromOrigin) {
+    // Unit square offset to (1e6, -1e6). Exact area is still 1.0, but the
+    // cross-product terms are ~1e12, so the naive formula loses ~4 digits.
+    constexpr double ox = 1.0e6;
+    constexpr double oy = -1.0e6;
+    axis::detail::PlanarPolygon<32> poly;
+    poly.push(ox + 0.0, oy + 0.0);
+    poly.push(ox + 1.0, oy + 0.0);
+    poly.push(ox + 1.0, oy + 1.0);
+    poly.push(ox + 0.0, oy + 1.0);
+    EXPECT_NEAR(poly.area(), 1.0, 1.0e-13);
+}
+
+TEST(PlanarPolygon, AreaTinySquareFarFromOrigin) {
+    // Side 1e-3 square (area 1e-6) centered near (-3, -3), mirroring the
+    // property-test failure geometry. Relative error must stay tiny.
+    // Theoretical relative error floor is ~1e-12. While this test is
+    // deterministic, we leave 10x headroom for cross-toolchain FP variation
+    // (e.g. FMA contraction).
+    constexpr double ox = -3.0;
+    constexpr double oy = -3.0;
+    constexpr double s = 1.0e-3;
+    axis::detail::PlanarPolygon<32> poly;
+    poly.push(ox + 0.0, oy + 0.0);
+    poly.push(ox + s, oy + 0.0);
+    poly.push(ox + s, oy + s);
+    poly.push(ox + 0.0, oy + s);
+    const double expected = s * s;  // 1e-6
+    EXPECT_NEAR(poly.area(), expected, expected * 1.0e-11);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PlanarClipper::overlap_area — non-overlapping cases
 // ─────────────────────────────────────────────────────────────────────────────
