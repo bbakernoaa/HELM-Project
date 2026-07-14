@@ -610,3 +610,17 @@ class GridFactory:
                 return RectilinearGrid(lons, lats)
             return CurvilinearGrid(lons, lats)
         return XarrayGeometry(ds, method=method)
+
+    @staticmethod
+    def from_dict(mapping: dict) -> Geometry:
+        """
+        Build an explicit AXIS geometry from a dict of coordinate arrays.
+
+        Accepts either ``lon``/``lat`` or ``lons``/``lats`` keys; 1-D arrays yield a
+        RectilinearGrid, higher-dimensional arrays a CurvilinearGrid.
+        """
+        lons = np.asarray(mapping.get("lon") if mapping.get("lon") is not None else mapping.get("lons"))
+        lats = np.asarray(mapping.get("lat") if mapping.get("lat") is not None else mapping.get("lats"))
+        if lons.ndim == 1:
+            return RectilinearGrid(lons, lats)
+        return CurvilinearGrid(lons, lats)

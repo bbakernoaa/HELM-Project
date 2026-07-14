@@ -1,11 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import xarray as xr
 
 from . import axis_py
-from .grid import CurvilinearGrid, Geometry, RectilinearGrid
+from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid
+
+
+def _to_geometry(obj: Geometry | xr.Dataset | xr.DataArray | dict) -> Geometry:
+    """Normalize a Geometry, xarray container, or coordinate dict into a Geometry."""
+    if isinstance(obj, Geometry):
+        return obj
+    if isinstance(obj, dict):
+        return GridFactory.from_dict(obj)
+    return GridFactory.from_xarray(obj)
 
 
 class VectorRegridder:
@@ -23,10 +32,8 @@ class VectorRegridder:
         dst_alpha: np.ndarray | None = None,
         **kwargs: Any,
     ):
-        from .grid import GridFactory
-
-        self._src_geom = src if isinstance(src, Geometry) else GridFactory.from_xarray(cast("xr.Dataset | xr.DataArray", src))
-        self._dst_geom = dst if isinstance(dst, Geometry) else GridFactory.from_xarray(cast("xr.Dataset | xr.DataArray", dst))
+        self._src_geom = _to_geometry(src)
+        self._dst_geom = _to_geometry(dst)
 
         src_mesh = self._src_geom.to_mesh()
         dst_mesh = self._dst_geom.to_mesh()
