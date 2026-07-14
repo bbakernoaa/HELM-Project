@@ -66,3 +66,4 @@ lcov.info
 **/core
 **/core.*
 !**/core.py
+axis_py.pyi

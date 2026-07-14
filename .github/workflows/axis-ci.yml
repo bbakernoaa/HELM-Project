@@ -121,8 +121,9 @@ jobs:
           docker compose exec -T helm-dev bash -lc '
             set -e
             cd libs/axis
-            uv sync --no-managed-python --group test --verbose
+            uv sync --no-managed-python --all-groups --verbose
             uv run pytest -v -ra
+            uv run mypy
           '
 
       - name: Cleanup scratch build trees

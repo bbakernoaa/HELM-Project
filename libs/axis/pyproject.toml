@@ -48,5 +48,11 @@ cmake.args = [
 cmake.source-dir = "."
 
 [tool.mypy]
+# Get the .pyi from the installed package.
+# But consider linking it to the source dir for development
+# for faster dev cycles when working on typing:
+#
+#   ln -sf "$(uv run python -c 'import importlib.util, os; print(os.path.join(os.path.dirname(importlib.util.find_spec("axis").origin), "axis_py.pyi"))')" python/axis/
+#
 packages = ["axis"]
 exclude = "^build.*/"
