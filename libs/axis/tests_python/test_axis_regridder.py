@@ -1,22 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
-import xarray as xr
 import pytest
+import xarray as xr
 
 # Ensure dask and scipy are optionally importable for advanced tests
 try:
     import dask.array as da
+
     DASK_AVAILABLE = True
 except ImportError:
     DASK_AVAILABLE = False
 
 try:
-    import scipy.sparse
+    import scipy.sparse  # noqa: F401
+
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
 
 import axis
+from axis import axis_py
+
+PROJ_AVAILABLE = getattr(axis_py, "HAVE_PROJ", False)
+
 
 @pytest.fixture
 def sample_grids():
@@ -27,17 +33,22 @@ def sample_grids():
     dst_lons = np.linspace(0.0, 360.0, 20, endpoint=False)
     dst_lats = np.linspace(-90.0, 90.0, 10)
 
-    ds_in = xr.Dataset({
-        "lon": (["lon"], src_lons),
-        "lat": (["lat"], src_lats),
-    })
+    ds_in = xr.Dataset(
+        {
+            "lon": (["lon"], src_lons),
+            "lat": (["lat"], src_lats),
+        }
+    )
 
-    ds_out = xr.Dataset({
-        "lon": (["lon"], dst_lons),
-        "lat": (["lat"], dst_lats),
-    })
+    ds_out = xr.Dataset(
+        {
+            "lon": (["lon"], dst_lons),
+            "lat": (["lat"], dst_lats),
+        }
+    )
 
     return ds_in, ds_out
+
 
 def test_regridder_eager_numpy(sample_grids):
     """Verify that axis.Regridder works on eager NumPy-backed DataArrays."""
@@ -51,7 +62,7 @@ def test_regridder_eager_numpy(sample_grids):
         field,
         coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
         dims=["lat", "lon"],
-        name="temperature"
+        name="temperature",
     )
 
     # Initialize and call regridder
@@ -65,13 +76,10 @@ def test_regridder_eager_numpy(sample_grids):
     assert "lon" in da_out.coords
 
     # Verify constant field is preserved (partition of unity)
-    const_da = xr.DataArray(
-        np.full(da_in.shape, 5.0),
-        coords=da_in.coords,
-        dims=da_in.dims
-    )
+    const_da = xr.DataArray(np.full(da_in.shape, 5.0), coords=da_in.coords, dims=da_in.dims)
     const_out = regridder(const_da)
     np.testing.assert_allclose(const_out.values, 5.0, rtol=1e-12)
+
 
 @pytest.mark.skipif(not DASK_AVAILABLE, reason="Dask array not available")
 def test_regridder_lazy_dask(sample_grids):
@@ -84,7 +92,7 @@ def test_regridder_lazy_dask(sample_grids):
         lazy_data,
         coords={"time": [0, 1], "lat": ds_in["lat"], "lon": ds_in["lon"]},
         dims=["time", "lat", "lon"],
-        name="precipitation"
+        name="precipitation",
     )
 
     regridder = axis.Regridder(ds_in, ds_out, method="bilinear")
@@ -100,6 +108,7 @@ def test_regridder_lazy_dask(sample_grids):
     assert isinstance(computed.data, np.ndarray)
     np.testing.assert_allclose(computed.values, 1.0, rtol=1e-12)
 
+
 def test_regridder_accessor(sample_grids):
     """Verify that xarray datasets and dataarrays can be regridded via the .axis accessor."""
     ds_in, ds_out = sample_grids
@@ -108,7 +117,7 @@ def test_regridder_accessor(sample_grids):
         np.ones((5, 10)),
         coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
         dims=["lat", "lon"],
-        name="temperature"
+        name="temperature",
     )
 
     # 1. Test DataArray accessor: da.axis.to(ds_out)
@@ -124,6 +133,7 @@ def test_regridder_accessor(sample_grids):
     assert ds_out_vars["temperature"].shape == (10, 20)
     np.testing.assert_allclose(ds_out_vars["temperature"].values, 1.0, rtol=1e-12)
 
+
 def test_regridder_methods(sample_grids):
     """Verify that the regridder supports all core interpolation methods."""
     ds_in, ds_out = sample_grids
@@ -131,7 +141,7 @@ def test_regridder_methods(sample_grids):
     da_in = xr.DataArray(
         np.ones((5, 10)),
         coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
-        dims=["lat", "lon"]
+        dims=["lat", "lon"],
     )
 
     methods = ["nearest", "bicubic", "conservative"]
@@ -142,6 +152,7 @@ def test_regridder_methods(sample_grids):
         # Verify that non-boundary cells are exactly 1.0 (unmapped polar cells may be 0.0)
         np.testing.assert_allclose(da_out.values[1:-1, :], 1.0, rtol=1e-12)
 
+
 def test_regridder_skipna(sample_grids):
     """Verify NaN-aware re-normalization with skipna=True."""
     ds_in, ds_out = sample_grids
@@ -150,11 +161,7 @@ def test_regridder_skipna(sample_grids):
     field = np.ones((5, 10))
     field[2, 3] = np.nan  # Insert NaN in the center
 
-    da_in = xr.DataArray(
-        field,
-        coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
-        dims=["lat", "lon"]
-    )
+    da_in = xr.DataArray(field, coords={"lat": ds_in["lat"], "lon": ds_in["lon"]}, dims=["lat", "lon"])
 
     # Eager path: bilinear with skipna=True
     regridder = axis.Regridder(ds_in, ds_out, method="bilinear", skipna=True)
@@ -167,11 +174,12 @@ def test_regridder_skipna(sample_grids):
     # Verify that points far from NaN are still exactly 1.0
     np.testing.assert_allclose(da_out.values[0, 0], 1.0, rtol=1e-12)
 
+
 def test_regridder_unstructured_mpas():
     """Verify that unstructured MPAS-style Voronoi datasets parse and regrid correctly."""
     # Define simple MPAS mesh
     n_cells = 4
-    n_vertices = 6
+    n_vertices = 6  # noqa: F841
 
     # 4 cell centroids
     cell_lon = np.array([10.0, 20.0, 10.0, 20.0])
@@ -182,28 +190,27 @@ def test_regridder_unstructured_mpas():
     lon_vertex = np.array([5.0, 5.0, 5.0, 25.0, 25.0, 25.0])
 
     # 4 triangular/quad cells
-    vertices_on_cell = np.array([
-        [1, 2, 5, 4],
-        [4, 5, 6, 0],
-        [2, 3, 6, 5],
-        [0, 0, 0, 0]
-    ])
+    vertices_on_cell = np.array([[1, 2, 5, 4], [4, 5, 6, 0], [2, 3, 6, 5], [0, 0, 0, 0]])
 
-    ds_in = xr.Dataset({
-        "latVertex": (["nVertices"], lat_vertex),
-        "lonVertex": (["nVertices"], lon_vertex),
-        "verticesOnCell": (["nCells", "maxVertices"], vertices_on_cell),
-        "latCell": (["nCells"], cell_lat),
-        "lonCell": (["nCells"], cell_lon),
-        "nEdgesOnCell": (["nCells"], [4, 3, 3, 0]),
-        "temperature": (["nCells"], np.ones(n_cells))
-    })
+    ds_in = xr.Dataset(
+        {
+            "latVertex": (["nVertices"], lat_vertex),
+            "lonVertex": (["nVertices"], lon_vertex),
+            "verticesOnCell": (["nCells", "maxVertices"], vertices_on_cell),
+            "latCell": (["nCells"], cell_lat),
+            "lonCell": (["nCells"], cell_lon),
+            "nEdgesOnCell": (["nCells"], [4, 3, 3, 0]),
+            "temperature": (["nCells"], np.ones(n_cells)),
+        }
+    )
 
     # Destination regular grid
-    ds_out = xr.Dataset({
-        "lon": (["lon"], [15.0]),
-        "lat": (["lat"], [15.0]),
-    })
+    ds_out = xr.Dataset(
+        {
+            "lon": (["lon"], [15.0]),
+            "lat": (["lat"], [15.0]),
+        }
+    )
 
     regridder = axis.Regridder(ds_in, ds_out, method="nearest")
     da_out = regridder(ds_in["temperature"])
@@ -212,36 +219,43 @@ def test_regridder_unstructured_mpas():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 1.0, rtol=1e-12)
 
+
 def test_regridder_mpas_hex():
     """Verify that MPAS meshes with hexagons and pentagons regrid correctly with cell-centered remapping."""
-    n_cells = 2
-    n_vertices = 7
+    n_cells = 2  # noqa: F841
+    n_vertices = 7  # noqa: F841
 
     # 7 vertices
     lat_vertex = np.array([10.0, 10.0, 15.0, 20.0, 20.0, 15.0, 12.0])
     lon_vertex = np.array([10.0, 20.0, 25.0, 20.0, 10.0, 5.0, 15.0])
 
     # 2 cells (hexagon and pentagon)
-    vertices_on_cell = np.array([
-        [1, 2, 3, 4, 5, 6],     # Hexagon (6 edges)
-        [1, 2, 4, 7, 6, 0]      # Pentagon (5 edges, padded with 0)
-    ])
+    vertices_on_cell = np.array(
+        [
+            [1, 2, 3, 4, 5, 6],  # Hexagon (6 edges)
+            [1, 2, 4, 7, 6, 0],  # Pentagon (5 edges, padded with 0)
+        ]
+    )
 
-    ds_in = xr.Dataset({
-        "latVertex": (["nVertices"], lat_vertex),
-        "lonVertex": (["nVertices"], lon_vertex),
-        "verticesOnCell": (["nCells", "maxVertices"], vertices_on_cell),
-        "latCell": (["nCells"], [15.0, 14.0]),
-        "lonCell": (["nCells"], [15.0, 13.0]),
-        "nEdgesOnCell": (["nCells"], [6, 5]),
-        "temperature": (["nCells"], np.array([25.0, 30.0]))
-    })
+    ds_in = xr.Dataset(
+        {
+            "latVertex": (["nVertices"], lat_vertex),
+            "lonVertex": (["nVertices"], lon_vertex),
+            "verticesOnCell": (["nCells", "maxVertices"], vertices_on_cell),
+            "latCell": (["nCells"], [15.0, 14.0]),
+            "lonCell": (["nCells"], [15.0, 13.0]),
+            "nEdgesOnCell": (["nCells"], [6, 5]),
+            "temperature": (["nCells"], np.array([25.0, 30.0])),
+        }
+    )
 
     # Destination regular grid
-    ds_out = xr.Dataset({
-        "lon": (["lon"], [15.0]),
-        "lat": (["lat"], [15.0]),
-    })
+    ds_out = xr.Dataset(
+        {
+            "lon": (["lon"], [15.0]),
+            "lat": (["lat"], [15.0]),
+        }
+    )
 
     regridder = axis.Regridder(ds_in, ds_out, method="nearest")
     da_out = regridder(ds_in["temperature"])
@@ -250,23 +264,28 @@ def test_regridder_mpas_hex():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 25.0, rtol=1e-12)
 
+
 def test_regridder_curvilinear_2d():
     """Verify that general 2D curvilinear grids (without LCC) parse and regrid correctly."""
     # Build 2D curvilinear coordinates
     lons = np.array([[10.0, 20.0], [10.0, 20.0]])
     lats = np.array([[10.0, 10.0], [20.0, 20.0]])
 
-    ds_in = xr.Dataset({
-        "lon": (["y", "x"], lons),
-        "lat": (["y", "x"], lats),
-        "temperature": (["y", "x"], np.array([[10.0, 20.0], [30.0, 40.0]])),
-    })
+    ds_in = xr.Dataset(
+        {
+            "lon": (["y", "x"], lons),
+            "lat": (["y", "x"], lats),
+            "temperature": (["y", "x"], np.array([[10.0, 20.0], [30.0, 40.0]])),
+        }
+    )
 
     # Destination regular grid
-    ds_out = xr.Dataset({
-        "lon": (["lon"], [11.0]),
-        "lat": (["lat"], [11.0]),
-    })
+    ds_out = xr.Dataset(
+        {
+            "lon": (["lon"], [11.0]),
+            "lat": (["lat"], [11.0]),
+        }
+    )
 
     regridder = axis.Regridder(ds_in, ds_out, method="nearest")
     da_out = regridder(ds_in["temperature"])
@@ -274,6 +293,7 @@ def test_regridder_curvilinear_2d():
     assert da_out.dims == ("lat", "lon")
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 10.0, rtol=1e-12)
+
 
 def test_regridder_cubed_sphere_3d():
     """Verify that 3D cubed-sphere grids (ntiles, ny, nx) parse and regrid correctly."""
@@ -287,17 +307,21 @@ def test_regridder_cubed_sphere_3d():
         lons[t] = np.array([[10.0, 20.0], [10.0, 20.0]]) + t * 40.0
         lats[t] = np.array([[10.0, 10.0], [20.0, 20.0]])
 
-    ds_in = xr.Dataset({
-        "lon": (["tile", "y", "x"], lons),
-        "lat": (["tile", "y", "x"], lats),
-        "temperature": (["tile", "y", "x"], np.ones((ntiles, ny, nx)) * 42.0),
-    })
+    ds_in = xr.Dataset(
+        {
+            "lon": (["tile", "y", "x"], lons),
+            "lat": (["tile", "y", "x"], lats),
+            "temperature": (["tile", "y", "x"], np.ones((ntiles, ny, nx)) * 42.0),
+        }
+    )
 
     # Destination regular grid
-    ds_out = xr.Dataset({
-        "lon": (["lon"], [55.0]),
-        "lat": (["lat"], [15.0]),
-    })
+    ds_out = xr.Dataset(
+        {
+            "lon": (["lon"], [55.0]),
+            "lat": (["lat"], [15.0]),
+        }
+    )
 
     regridder = axis.Regridder(ds_in, ds_out, method="nearest")
     da_out = regridder(ds_in["temperature"])
@@ -306,25 +330,31 @@ def test_regridder_cubed_sphere_3d():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 42.0, rtol=1e-12)
 
+
+@pytest.mark.skipif(not PROJ_AVAILABLE, reason="axis_py built without PROJ (AXIS_ENABLE_PROJ=OFF)")
 def test_regridder_projected_lcc():
     """Verify that regional Lambert Conformal projected datasets parse and regrid correctly."""
     # Build 2D curvilinear coordinates with standard grid_mapping metadata
     lons = np.array([[260.0, 261.0], [260.0, 261.0]])
     lats = np.array([[30.0, 30.0], [31.0, 31.0]])
 
-    ds_in = xr.Dataset({
-        "lon": (["y", "x"], lons),
-        "lat": (["y", "x"], lats),
-        "temperature": (["y", "x"], np.ones((2, 2))),
-        "lambert_conformal_conic": ([], 0)
-    })
+    ds_in = xr.Dataset(
+        {
+            "lon": (["y", "x"], lons),
+            "lat": (["y", "x"], lats),
+            "temperature": (["y", "x"], np.ones((2, 2))),
+            "lambert_conformal_conic": ([], 0),
+        }
+    )
     ds_in["lambert_conformal_conic"].attrs = {"grid_mapping_name": "lambert_conformal_conic"}
     ds_in["temperature"].attrs = {"grid_mapping": "lambert_conformal_conic"}
 
-    ds_out = xr.Dataset({
-        "lon": (["lon"], [260.5]),
-        "lat": (["lat"], [30.5]),
-    })
+    ds_out = xr.Dataset(
+        {
+            "lon": (["lon"], [260.5]),
+            "lat": (["lat"], [30.5]),
+        }
+    )
 
     regridder = axis.Regridder(ds_in, ds_out, method="bilinear")
     da_out = regridder(ds_in["temperature"])
@@ -332,13 +362,14 @@ def test_regridder_projected_lcc():
     assert da_out.shape == (1, 1)
     np.testing.assert_allclose(da_out.values, 1.0, rtol=1e-12)
 
+
 def test_regridder_sutherland_approximation(sample_grids):
     """Verify that the regridder supports Sutherland-Hodgman flat planar clipping via line_type='cartesian'."""
     ds_in, ds_out = sample_grids
     da_in = xr.DataArray(
         np.ones((5, 10)),
         coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
-        dims=["lat", "lon"]
+        dims=["lat", "lon"],
     )
 
     # Initialize conservative regridder with Cartesian flat-plane clipping
@@ -348,6 +379,7 @@ def test_regridder_sutherland_approximation(sample_grids):
     assert da_out.shape == (10, 20)
     # Verify that non-boundary cells are exactly 1.0 (unmapped polar cells may be 0.0)
     np.testing.assert_allclose(da_out.values[1:-1, :], 1.0, rtol=1e-12)
+
 
 def test_regridder_errors(sample_grids):
     """Verify that the regridder correctly rejects invalid inputs and raises exceptions."""
@@ -367,9 +399,10 @@ def test_regridder_errors(sample_grids):
         axis.Regridder(ds_in, ds_out, method="conservative", line_type="invalid_line_type")
 
     # 3. Missing latitude coordinates in dataset
-    bad_ds = xr.Dataset({"lon": ds_in["lon"]}) # No lat coordinate!
+    bad_ds = xr.Dataset({"lon": ds_in["lon"]})  # No lat coordinate!
     with pytest.raises(KeyError):
         axis.Regridder(bad_ds, ds_out, method="bilinear")
+
 
 def test_regridder_save_and_reuse_weights(sample_grids, tmp_path):
     """Verify that regridding weights can be serialized to a file and loaded/reused successfully."""
@@ -377,7 +410,7 @@ def test_regridder_save_and_reuse_weights(sample_grids, tmp_path):
     da_in = xr.DataArray(
         np.ones((len(ds_in["lat"]), len(ds_in["lon"]))),
         coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
-        dims=["lat", "lon"]
+        dims=["lat", "lon"],
     )
 
     # 1. Instantiate, run, and save weights to a temporary file
@@ -395,13 +428,14 @@ def test_regridder_save_and_reuse_weights(sample_grids, tmp_path):
     # 3. Assert results are mathematically identical
     np.testing.assert_allclose(da_out_loaded.values, da_out_gen.values, rtol=1e-15, atol=1e-15)
 
+
 def test_regridder_esmf_weights_roundtrip(sample_grids, tmp_path):
     """Verify that regridding weights can be written as an ESMF netCDF file and re-loaded successfully."""
     ds_in, ds_out = sample_grids
     da_in = xr.DataArray(
         np.ones((len(ds_in["lat"]), len(ds_in["lon"]))),
         coords={"lat": ds_in["lat"], "lon": ds_in["lon"]},
-        dims=["lat", "lon"]
+        dims=["lat", "lon"],
     )
 
     regridder_gen = axis.Regridder(ds_in, ds_out, method="bilinear")
@@ -417,6 +451,7 @@ def test_regridder_esmf_weights_roundtrip(sample_grids, tmp_path):
 
     np.testing.assert_allclose(da_out_loaded.values, da_out_gen.values, rtol=1e-15, atol=1e-15)
 
+
 def test_regridder_categorical():
     """Verify that categorical/fractional remapping works perfectly."""
     # Source 2x2 grid
@@ -424,22 +459,18 @@ def test_regridder_categorical():
     lats_in = [10.0, 20.0]
 
     # 2x2 cells with category values: 1 (forest), 2 (water), 3 (urban)
-    categories = np.array([
-        [1, 2],
-        [1, 3]
-    ])
+    categories = np.array([[1, 2], [1, 3]])
 
-    ds_in = xr.Dataset({
-        "land_use": (["lat", "lon"], categories),
-        "lat": (["lat"], lats_in),
-        "lon": (["lon"], lons_in)
-    })
+    ds_in = xr.Dataset(
+        {
+            "land_use": (["lat", "lon"], categories),
+            "lat": (["lat"], lats_in),
+            "lon": (["lon"], lons_in),
+        }
+    )
 
     # Coarse 1x1 destination grid spanning the entire source
-    ds_out = xr.Dataset({
-        "lat": (["lat"], [15.0]),
-        "lon": (["lon"], [15.0])
-    })
+    ds_out = xr.Dataset({"lat": (["lat"], [15.0]), "lon": (["lon"], [15.0])})
 
     regridder = axis.Regridder(ds_in, ds_out, method="nearest")
 

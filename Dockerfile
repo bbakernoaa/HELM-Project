@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y \
     openmpi-bin \
     libopenmpi-dev \
     libgtest-dev \
+    libproj-dev \
+    libnetcdf-dev \
+    python3-dev \
+    cdo \
     && rm -rf /var/lib/apt/lists/*
 
 # Set GCC-13 as the default compiler (C, C++, and Fortran)
@@ -88,6 +92,9 @@ RUN git clone --depth 1 https://github.com/kokkos/kokkos-kernels.git /tmp/kokkos
 
 # 6. Workspace Setup
 WORKDIR /workspace/helm-project
+
+# Provide uv for Python env management
+COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
 
 # Default command to keep the container alive if run detached
 CMD ["/bin/bash"]
