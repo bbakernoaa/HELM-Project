@@ -61,7 +61,9 @@ RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionCallsWaitExactlyOnce, ()) 
 
     MPI_Request req = toRequest(*genNonNullRequestValue());
 
-    { halo::Request_Guard guard(req); }
+    {
+        halo::Request_Guard guard(req);
+    }
 
     auto wait_count = spy.count_of(halo::testing::MPI_Call_Record::Type::Wait);
     RC_ASSERT(wait_count == 1u);
@@ -84,7 +86,9 @@ RC_GTEST_PROP(RequestGuardProperty4, NormalDestructionWaitOnlyCall, ()) {
 
     MPI_Request req = toRequest(*genNonNullRequestValue());
 
-    { halo::Request_Guard guard(req); }
+    {
+        halo::Request_Guard guard(req);
+    }
 
     RC_ASSERT(spy.call_count() == 1u);
 
@@ -101,7 +105,9 @@ RC_GTEST_PROP(RequestGuardProperty4, NullRequestSkipsWait, ()) {
     auto &spy = halo::testing::MPI_Spy::instance();
     spy.reset();
 
-    { halo::Request_Guard guard; }
+    {
+        halo::Request_Guard guard;
+    }
 
     RC_ASSERT(spy.call_count() == 0u);
 }

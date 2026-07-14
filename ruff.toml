@@ -17,4 +17,4 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"libs/halo/spack/package.py" = ["F405"]
+"libs/halo/spack/package.py" = ["F403", "F405"]

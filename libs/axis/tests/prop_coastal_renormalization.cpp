@@ -55,7 +55,7 @@ axis::topology::UnstructuredMesh<MemSpace> build_grid_mesh(std::size_t ni, std::
 
     if (mask.extent(0) > 0) {
         return axis::topology::UnstructuredMesh<MemSpace>(mesh.node_coords_view(), mesh.conn_offsets_view(), mesh.conn_indices_view(),
-                                                           mesh.coord_system(), mesh.cell_areas_view(), std::move(mask));
+                                                          mesh.coord_system(), mesh.cell_areas_view(), std::move(mask));
     }
 
     return mesh;
