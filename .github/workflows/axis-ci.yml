@@ -120,7 +120,7 @@ jobs:
         run: |
           docker compose exec -T helm-dev bash -lc '
             cd libs/axis
-            uv sync --no-managed-python --group test
+            uv sync --no-managed-python --group test --verbose
             uv run pytest -v -ra
           '
 
