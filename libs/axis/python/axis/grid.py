@@ -443,10 +443,10 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
             # Regular grid
             ni = len(lon)
             nj = len(lat)
-            lon_start = float(lon[0])
-            lat_start = float(lat[0])
             dlon = float(lon[1] - lon[0]) if ni > 1 else 1.0
             dlat = float(lat[1] - lat[0]) if nj > 1 else 1.0
+            lon_start = float(lon[0]) - 0.5 * dlon
+            lat_start = float(lat[0]) - 0.5 * dlat
 
             return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
         else:
@@ -504,10 +504,10 @@ def create_axis_mesh(ds: xr.Dataset, method: Optional[str] = None) -> axis_py.Me
             else:
                 # Flat regular 2D fallback
                 ni, nj = shape[1], shape[0]
-                lon_start = float(lon[0, 0])
-                lat_start = float(lat[0, 0])
                 dlon = float(lon[0, 1] - lon[0, 0]) if ni > 1 else 1.0
                 dlat = float(lat[1, 0] - lat[0, 0]) if nj > 1 else 1.0
+                lon_start = float(lon[0, 0]) - 0.5 * dlon
+                lat_start = float(lat[0, 0]) - 0.5 * dlat
 
                 return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
 
@@ -546,7 +546,9 @@ class RectilinearGrid(Geometry):
         nj = len(self.lats)
         dlon = float((self.lons[-1] - self.lons[0]) / (ni - 1)) if ni > 1 else 1.0
         dlat = float((self.lats[-1] - self.lats[0]) / (nj - 1)) if nj > 1 else 1.0
-        return axis_py.make_regular_mesh(ni, nj, float(self.lons[0]), float(self.lats[0]), dlon, dlat)
+        lon_start = float(self.lons[0]) - 0.5 * dlon
+        lat_start = float(self.lats[0]) - 0.5 * dlat
+        return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
 
 class CurvilinearGrid(Geometry):
     """
