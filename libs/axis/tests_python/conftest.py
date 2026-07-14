@@ -14,7 +14,7 @@ import pytest
 @pytest.fixture
 def small_src_mesh():
     """Create a small 8x4 regular lat-lon source mesh."""
-    import axis_py
+    from axis import axis_py
 
     ni, nj = 8, 4
     lon_start, lat_start = 0.0, -90.0
@@ -26,7 +26,7 @@ def small_src_mesh():
 @pytest.fixture
 def small_dst_mesh():
     """Create a small 4x2 regular lat-lon destination mesh."""
-    import axis_py
+    from axis import axis_py
 
     ni, nj = 4, 2
     lon_start, lat_start = 0.0, -90.0
@@ -38,6 +38,6 @@ def small_dst_mesh():
 @pytest.fixture
 def bilinear_matrix(small_src_mesh, small_dst_mesh):
     """Generate bilinear interpolation weights between src and dst meshes."""
-    import axis_py
+    from axis import axis_py
 
     return axis_py.generate_weights(small_src_mesh, small_dst_mesh, axis_py.Method.Bilinear)
