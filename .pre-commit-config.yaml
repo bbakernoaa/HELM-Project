@@ -7,6 +7,10 @@ repos:
       - id: check-yaml
         args: ['--unsafe']
       - id: check-json
+      - id: check-toml
+      - id: check-shebang-scripts-are-executable
+      - id: check-executables-have-shebangs
+      - id: check-symlinks
       - id: check-added-large-files
         args: ['--maxkb=1000']
 
