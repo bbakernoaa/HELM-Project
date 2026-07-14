@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y \
     libopenmpi-dev \
     libgtest-dev \
     libproj-dev \
+    libnetcdf-dev \
+    python3-dev \
     cdo \
     && rm -rf /var/lib/apt/lists/*
 
