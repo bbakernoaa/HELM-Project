@@ -69,10 +69,19 @@ struct PlanarPolygon {
     /// @return Non-negative area of the polygon.
     KOKKOS_FUNCTION double area() const noexcept {
         if (n < 3) return 0.0;
+        // Translate to the first vertex before applying the shoelace formula.
+        // The sum is mathematically translation-invariant, but subtracting a
+        // reference point keeps the cross-product terms small and avoids
+        // catastrophic cancellation for polygons located far from the origin.
+        const double x0 = x[0];
+        const double y0 = y[0];
         double a = 0.0;
-        for (int i = 0; i < n; ++i) {
-            int j = (i + 1) % n;
-            a += x[i] * y[j] - x[j] * y[i];
+        for (int i = 1; i < n - 1; ++i) {
+            const double dx0 = x[i] - x0;
+            const double dy0 = y[i] - y0;
+            const double dx1 = x[i + 1] - x0;
+            const double dy1 = y[i + 1] - y0;
+            a += dx0 * dy1 - dx1 * dy0;
         }
         return Kokkos::fabs(a) * 0.5;
     }
