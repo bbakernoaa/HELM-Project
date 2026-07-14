@@ -1,18 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
-
 import numpy as np
 import xarray as xr
-
+from typing import Union, Any
 from . import axis_py
-
 
 class VerticalRegridder:
     """
     High-performance vertical spline interpolator parallelized with Kokkos on device.
     Supports standard eager NumPy arrays and lazy parallelized Dask distributed arrays.
     """
-
     def __init__(self, tension: float = 0.0):
         """
         Parameters
@@ -26,10 +22,10 @@ class VerticalRegridder:
 
     def interpolate(
         self,
-        src_field: np.ndarray | xr.DataArray,
-        src_levels: np.ndarray | xr.DataArray,
-        dst_levels: np.ndarray | xr.DataArray,
-    ) -> np.ndarray | xr.DataArray:
+        src_field: Union[np.ndarray, xr.DataArray],
+        src_levels: Union[np.ndarray, xr.DataArray],
+        dst_levels: Union[np.ndarray, xr.DataArray],
+    ) -> Union[np.ndarray, xr.DataArray]:
         """
         Perform 1D or 2D vertical spline interpolation.
         Supports automatic coordinate alignment and lazy out-of-core Dask processing.
@@ -80,13 +76,16 @@ class VerticalRegridder:
             flat_field = f_arr.reshape(-1, n_src_lev)
 
             # ─── Automatic Coordinate Direction Alignment ────────────────────
+            reverse_src = False
             if s_arr.ndim == 1:
                 if len(s_arr) > 1 and s_arr[0] > s_arr[-1]:
+                    reverse_src = True
                     s_arr = s_arr[::-1].copy()
                     flat_field = flat_field[:, ::-1].copy()
             else:
                 flat_s = s_arr.reshape(-1, n_src_lev)
                 if flat_s.shape[1] > 1 and flat_s[0, 0] > flat_s[0, -1]:
+                    reverse_src = True
                     flat_s = flat_s[:, ::-1].copy()
                     flat_field = flat_field[:, ::-1].copy()
                     s_arr = flat_s.reshape(s_arr.shape[:-1] + (n_src_lev,))
@@ -142,9 +141,11 @@ class VerticalRegridder:
             vectorize=False,
             output_dtypes=[da_field.dtype],
             dask_gufunc_kwargs={
-                "output_sizes": {da_dst_levels.dims[-1]: da_dst_levels.shape[-1]},
+                "output_sizes": {
+                    da_dst_levels.dims[-1]: da_dst_levels.shape[-1]
+                },
                 "allow_rechunk": True,
-            },
+            }
         )
 
         # Pull global coordinate variables
@@ -164,7 +165,6 @@ class VerticalRegridder:
             return out
         else:
             return out.values
-
 
 def regrid_3d(
     ds: xr.Dataset,

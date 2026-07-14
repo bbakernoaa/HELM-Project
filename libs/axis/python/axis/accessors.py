@@ -1,21 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
-
+from typing import Any, Union
 import xarray as xr
-
 from .regridder import Regridder
-
 
 @xr.register_dataarray_accessor("axis")
 class RegridDataArrayAccessor:
     """
     Xarray Accessor for regridding DataArrays.
     """
-
     def __init__(self, xarray_obj: xr.DataArray):
         self._obj = xarray_obj
 
-    def to(self, target_grid: xr.Dataset | Regridder, **kwargs: Any) -> xr.DataArray:
+    def to(
+        self, target_grid: Union[xr.Dataset, Regridder], **kwargs: Any
+    ) -> xr.DataArray:
         """
         Regrid the DataArray to a target grid or using a pre-computed Regridder.
         """
@@ -39,11 +37,12 @@ class RegridDatasetAccessor:
     """
     Xarray Accessor for regridding Datasets.
     """
-
     def __init__(self, xarray_obj: xr.Dataset):
         self._obj = xarray_obj
 
-    def to(self, target_grid: xr.Dataset | Regridder, **kwargs: Any) -> xr.Dataset:
+    def to(
+        self, target_grid: Union[xr.Dataset, Regridder], **kwargs: Any
+    ) -> xr.Dataset:
         """
         Regrid the Dataset to a target grid or using a pre-computed Regridder.
         """

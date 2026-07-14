@@ -92,7 +92,6 @@ __pycache__/
 .venv/
 venv/
 env/
-uv.lock
 
 # ---------- Docker ----------
 *.log

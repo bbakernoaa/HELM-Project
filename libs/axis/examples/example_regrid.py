@@ -50,7 +50,9 @@ def main():
     # =========================================================================
     print("\nBatch apply (5 variables)...")
     n_vars = 5
-    src_state = np.random.default_rng(42).standard_normal((src_mesh.n_cells, n_vars))
+    src_state = np.random.default_rng(42).standard_normal(
+        (src_mesh.n_cells, n_vars)
+    )
     # Use Fortran order for zero-copy
     src_state = np.asfortranarray(src_state)
 

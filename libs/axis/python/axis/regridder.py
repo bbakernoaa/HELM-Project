@@ -1,24 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-import logging
-import time
-import uuid
-
 import numpy as np
 import xarray as xr
+import uuid
+import warnings
+import logging
+import time
+from typing import Union, Optional, Tuple, Any
 
 from . import axis_py
-from .core import _apply_weights_core, _setup_worker_cache
-from .grid import (
-    CurvilinearGrid,
-    Geometry,
-    RectilinearGrid,
-    _get_mesh_info,
-)
+from .grid import create_axis_mesh, _get_mesh_info, _get_non_spatial_dims, Geometry, RectilinearGrid, CurvilinearGrid
+from .core import _apply_weights_core, _setup_worker_cache, _sync_cache_from_worker_data
 
 # Client-side cache on the driver node to avoid redundant worker cache syncs
 _DRIVER_CACHE = {}
 logger = logging.getLogger("axis")
-
 
 class Regridder:
     """
@@ -30,17 +25,17 @@ class Regridder:
 
     def __init__(
         self,
-        ds_in: Geometry | xr.Dataset | dict | None = None,
-        ds_out: Geometry | xr.Dataset | dict | None = None,
+        ds_in: Optional[Union[Geometry, xr.Dataset, dict]] = None,
+        ds_out: Optional[Union[Geometry, xr.Dataset, dict]] = None,
         method: str = "bilinear",
         periodic: bool = False,
         unmapped: str = "ignore",
         skipna: bool = False,
         na_thres: float = 1.0,
         line_type: str = "great_circle",
-        weights_file: str | None = None,
-        src_mask: np.ndarray | xr.DataArray | None = None,
-        dst_mask: np.ndarray | xr.DataArray | None = None,
+        weights_file: Optional[str] = None,
+        src_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
+        dst_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
         norm_type: str = "fracarea",
     ):
         """
@@ -85,7 +80,6 @@ class Regridder:
                 self._src_geom = ds_in if isinstance(ds_in, Geometry) else None
                 self._dst_geom = ds_out if isinstance(ds_out, Geometry) else None
                 from .grid import _get_mesh_info
-
                 if isinstance(ds_in, (xr.Dataset, xr.DataArray)):
                     _, _, self._shape_source, self._dims_source, self._is_unstructured_src = _get_mesh_info(ds_in)
                     self.source_grid_ds = ds_in
@@ -98,10 +92,10 @@ class Regridder:
 
     def fit(
         self,
-        src: Geometry | xr.Dataset | dict,
-        dst: Geometry | xr.Dataset | dict,
-        src_mask: np.ndarray | xr.DataArray | None = None,
-        dst_mask: np.ndarray | xr.DataArray | None = None,
+        src: Union[Geometry, xr.Dataset, dict],
+        dst: Union[Geometry, xr.Dataset, dict],
+        src_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
+        dst_mask: Optional[Union[np.ndarray, xr.DataArray]] = None,
     ) -> "Regridder":
         """
         Generate spatial interpolation weights (SpMV matrices) from source to destination.
@@ -109,7 +103,7 @@ class Regridder:
         t0 = time.perf_counter()
         logger.info("AXIS: Initiating high-performance weight matrix generation...")
 
-        from .grid import GridFactory
+        from .grid import GridFactory, _get_mesh_info
 
         # 1. Normalize source and target geometries
         if isinstance(src, Geometry):
@@ -197,7 +191,7 @@ class Regridder:
             "periodic": self.periodic,
             "line_type": self._axis_line_type,
             "norm_type": axis_norm,
-            "unmapped": axis_py.UnmappedAction.Ignore if self.unmapped == "ignore" else axis_py.UnmappedAction.Error,
+            "unmapped": axis_py.UnmappedAction.Ignore if self.unmapped == "ignore" else axis_py.UnmappedAction.Error
         }
 
         # Inject masks if provided
@@ -211,9 +205,7 @@ class Regridder:
 
         # Compute total weights sum for NaN-aware re-normalization
         if self.skipna:
-            self._total_weights = np.array(
-                axis_py.apply_weights(self._weights_matrix, np.ones(self._weights_matrix.n_src))
-            ).flatten()
+            self._total_weights = np.array(axis_py.apply_weights(self._weights_matrix, np.ones(self._weights_matrix.n_src))).flatten()
         else:
             self._total_weights = None
 
@@ -264,7 +256,9 @@ class Regridder:
         if self._weights_matrix is None:
             raise RuntimeError("Cannot save weights: Regridder has not been compiled or fit.")
         if not hasattr(axis_py, "write_esmf"):
-            raise RuntimeError("ESMF weight export is unavailable. AXIS was compiled without NetCDF support.")
+            raise RuntimeError(
+                "ESMF weight export is unavailable. AXIS was compiled without NetCDF support."
+            )
         axis_py.write_esmf(filename, self._weights_matrix)
 
     @classmethod
@@ -273,7 +267,9 @@ class Regridder:
         Load a Regridder instance from an ESMF-compliant NetCDF weight file.
         """
         if not hasattr(axis_py, "read_esmf"):
-            raise RuntimeError("ESMF weight import is unavailable. AXIS was compiled without NetCDF support.")
+            raise RuntimeError(
+                "ESMF weight import is unavailable. AXIS was compiled without NetCDF support."
+            )
 
         regridder = cls.__new__(cls)
         regridder.method = "esmf"
@@ -289,6 +285,7 @@ class Regridder:
         regridder._serialized_weights = None
 
         # Extract coordinate information and dimensions
+        from .grid import _get_mesh_info
         _, _, regridder._shape_source, regridder._dims_source, regridder._is_unstructured_src = _get_mesh_info(src_grid)
         _, _, regridder._shape_target, regridder._dims_target, _ = _get_mesh_info(dst_grid)
 
@@ -299,10 +296,7 @@ class Regridder:
         # Compute total weights sum for NaN-aware re-normalization
         if skipna:
             import numpy as np
-
-            regridder._total_weights = np.array(
-                axis_py.apply_weights(regridder._weights_matrix, np.ones(regridder._weights_matrix.n_src))
-            ).flatten()
+            regridder._total_weights = np.array(axis_py.apply_weights(regridder._weights_matrix, np.ones(regridder._weights_matrix.n_src))).flatten()
         else:
             regridder._total_weights = None
 
@@ -310,12 +304,13 @@ class Regridder:
 
     def transform(
         self,
-        obj: xr.DataArray | xr.Dataset | np.ndarray,
+        obj: Union[xr.DataArray, xr.Dataset, np.ndarray],
         keep_attrs: bool = True,
-    ) -> xr.DataArray | xr.Dataset | np.ndarray:
+    ) -> Union[xr.DataArray, xr.Dataset, np.ndarray]:
         """
         Apply spatial remapping to the input object (NumPy array, xarray.DataArray, or xarray.Dataset).
         """
+        from .grid import RectilinearGrid, CurvilinearGrid
 
         if not isinstance(obj, (xr.Dataset, xr.DataArray, np.ndarray)) and not hasattr(obj, "__array__"):
             raise TypeError("Input object must be an xarray.DataArray, xarray.Dataset, or numpy.ndarray")
@@ -356,9 +351,7 @@ class Regridder:
             spatial_shape = original_shape[-n_spatial_dims:]
             other_dims_shape = original_shape[:-n_spatial_dims]
 
-            assert int(np.prod(spatial_shape)) == n_spatial, (
-                f"Trailing dimensions {spatial_shape} must match source spatial size {n_spatial}"
-            )
+            assert int(np.prod(spatial_shape)) == n_spatial, f"Trailing dimensions {spatial_shape} must match source spatial size {n_spatial}"
 
             n_other = int(np.prod(other_dims_shape)) if other_dims_shape else 1
             flat_data = arr.reshape(n_other, n_spatial)
@@ -372,9 +365,9 @@ class Regridder:
 
     def __call__(
         self,
-        obj: xr.DataArray | xr.Dataset | np.ndarray,
+        obj: Union[xr.DataArray, xr.Dataset, np.ndarray],
         keep_attrs: bool = True,
-    ) -> xr.DataArray | xr.Dataset | np.ndarray:
+    ) -> Union[xr.DataArray, xr.Dataset, np.ndarray]:
         """
         Apply spatial remapping. Transparently handles NumPy, xarray, and remote Dask blocks.
         """
@@ -413,7 +406,6 @@ class Regridder:
             # Sync C++ compiled weights to remote Dask workers via serialization
             try:
                 import dask.distributed
-
                 client = dask.distributed.get_client()
             except (ImportError, ValueError):
                 client = None
@@ -429,7 +421,6 @@ class Regridder:
                     def _deserialize_and_cache(bytes_data, key):
                         from axis import axis_py
                         from axis.core import _setup_worker_cache
-
                         mat = axis_py.Matrix.from_bytes(bytes_data)
                         _setup_worker_cache(key, mat)
                         return True
@@ -475,13 +466,15 @@ class Regridder:
             vectorize=False,
             output_dtypes=[da_in.dtype],
             dask_gufunc_kwargs={
-                "output_sizes": dict(zip(temp_output_core_dims, self._shape_target, strict=False)),
+                "output_sizes": {
+                    d: s for d, s in zip(temp_output_core_dims, self._shape_target)
+                },
                 "allow_rechunk": True,
             },
         )
 
         # Rename temporary output dimensions to target dimension names
-        rename_dict = {temp: orig for temp, orig in zip(temp_output_core_dims, self._dims_target, strict=False) if temp in out.dims}
+        rename_dict = {temp: orig for temp, orig in zip(temp_output_core_dims, self._dims_target) if temp in out.dims}
         if rename_dict:
             out = out.rename(rename_dict)
 
@@ -508,7 +501,7 @@ class Regridder:
     def regrid_categorical(
         self,
         da_in: xr.DataArray,
-        categories: list | dict | None = None,
+        categories: Optional[Union[list, dict]] = None,
         prefix: str = "fraction_",
     ) -> xr.Dataset:
         """

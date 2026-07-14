@@ -1,30 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
-
 import numpy as np
 import xarray as xr
-
+from typing import Tuple, Union, Any, Optional
 from . import axis_py
-from .grid import CurvilinearGrid, Geometry, RectilinearGrid
-
+from .grid import Geometry, RectilinearGrid, CurvilinearGrid
 
 class VectorRegridder:
     """
     Coupled horizontal vector interpolator (e.g. for winds and currents)
     accounting for grid-frame rotation.
     """
-
     def __init__(
         self,
-        src: Geometry | xr.Dataset | dict,
-        dst: Geometry | xr.Dataset | dict,
+        src: Union[Geometry, xr.Dataset, dict],
+        dst: Union[Geometry, xr.Dataset, dict],
         method: str = "bilinear",
-        src_alpha: np.ndarray | None = None,
-        dst_alpha: np.ndarray | None = None,
-        **kwargs: Any,
+        src_alpha: Optional[np.ndarray] = None,
+        dst_alpha: Optional[np.ndarray] = None,
+        **kwargs: Any
     ):
         from .grid import GridFactory
-
         self._src_geom = src if isinstance(src, Geometry) else GridFactory.from_xarray(src)
         self._dst_geom = dst if isinstance(dst, Geometry) else GridFactory.from_xarray(dst)
 
@@ -56,11 +51,15 @@ class VectorRegridder:
             "line_type": axis_py.LineType.GreatCircle if kwargs.get("line_type") == "great_circle" else axis_py.LineType.Cartesian,
         }
 
-        self._W_u, self._W_v = axis_py.generate_vector_weights(src_mesh, dst_mesh, src_alpha, dst_alpha, config)
+        self._W_u, self._W_v = axis_py.generate_vector_weights(
+            src_mesh, dst_mesh, src_alpha, dst_alpha, config
+        )
 
     def transform(
-        self, u: np.ndarray | xr.DataArray, v: np.ndarray | xr.DataArray
-    ) -> tuple[np.ndarray | xr.DataArray, np.ndarray | xr.DataArray]:
+        self,
+        u: Union[np.ndarray, xr.DataArray],
+        v: Union[np.ndarray, xr.DataArray]
+    ) -> Tuple[Union[np.ndarray, xr.DataArray], Union[np.ndarray, xr.DataArray]]:
         """
         Remap and rotate (u, v) wind or current components simultaneously.
         """
@@ -108,7 +107,7 @@ class VectorRegridder:
 
             flat_u = u_arr.reshape(n_other, n_spatial)
             flat_v = v_arr.reshape(n_other, n_spatial)
-            flat_uv = np.concatenate([flat_u, flat_v], axis=1)  # shape: (n_other, 2 * n_spatial)
+            flat_uv = np.concatenate([flat_u, flat_v], axis=1) # shape: (n_other, 2 * n_spatial)
 
             flat_uv_t = np.asfortranarray(flat_uv.T)
 

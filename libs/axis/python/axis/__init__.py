@@ -2,22 +2,19 @@
 """
 AXIS Python package — stateless, high-performance spatial regridding for xarray.
 """
-# ruff: noqa: I001
-
 import sys
 
 # Import axis_py FIRST using relative import to completely avoid partially initialized circular issues
 from . import axis_py
 
-# Register the custom .axis xarray accessor
-from . import accessors  # noqa: F401
-from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, UnstructuredMesh
-from .regridder import Regridder
-from .vector import VectorRegridder
-from .vertical import VerticalRegridder, regrid_3d
-
 # Transparent backwards-compatibility bridge (HELM Law #3):
 sys.modules["axis_py"] = axis_py
+
+from .regridder import Regridder
+from .grid import Geometry, RectilinearGrid, CurvilinearGrid, UnstructuredMesh, GridFactory
+from .vector import VectorRegridder
+from .vertical import VerticalRegridder, regrid_3d
+from . import accessors  # Automatically registers the custom .axis xarray accessor!
 
 # Expose C++ Mesh construction and Matrix serialization APIs directly on the axis package
 Mesh = axis_py.Mesh

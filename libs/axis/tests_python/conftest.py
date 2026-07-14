@@ -9,6 +9,7 @@ fixtures for mesh construction used across multiple tests.
 """
 
 import pytest
+import numpy as np
 
 
 @pytest.fixture
@@ -40,4 +41,6 @@ def bilinear_matrix(small_src_mesh, small_dst_mesh):
     """Generate bilinear interpolation weights between src and dst meshes."""
     import axis_py
 
-    return axis_py.generate_weights(small_src_mesh, small_dst_mesh, axis_py.Method.Bilinear)
+    return axis_py.generate_weights(
+        small_src_mesh, small_dst_mesh, axis_py.Method.Bilinear
+    )

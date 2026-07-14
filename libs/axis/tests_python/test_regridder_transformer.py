@@ -3,10 +3,9 @@
 # Verifies standard Scikit-Learn transformer API (fit/transform) for AXIS.
 
 import numpy as np
-import pytest
 import xarray as xr
-from axis import RectilinearGrid, Regridder
-
+import pytest
+from axis import Regridder, RectilinearGrid
 
 @pytest.fixture
 def sample_data():
@@ -18,11 +17,10 @@ def sample_data():
     da = xr.DataArray(
         np.sin(np.radians(lon_grid)) * np.cos(np.radians(lat_grid)),
         coords={"lat": lats, "lon": lons},
-        dims=["lat", "lon"],
+        dims=["lat", "lon"]
     )
     ds = da.to_dataset(name="sst")
     return ds, da
-
 
 def test_sklearn_transformer_pipeline(sample_data):
     ds_in, da_in = sample_data
@@ -44,7 +42,6 @@ def test_sklearn_transformer_pipeline(sample_data):
 
     # Verify results are identical within machine float precision
     xr.testing.assert_allclose(res_transformer, res_classic)
-
 
 def test_fit_with_explicit_geometries(sample_data):
     ds_in, da_in = sample_data

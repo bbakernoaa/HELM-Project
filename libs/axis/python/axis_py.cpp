@@ -80,13 +80,15 @@ HostMesh make_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, dou
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon_start + (static_cast<double>(i) + 0.5) * dlon;
-            cy(i + j * ni) = lat_start + (static_cast<double>(j) + 0.5) * dlat;
+            double lat_val = lat_start + (static_cast<double>(j) + 0.5) * dlat;
+            cy(i + j * ni) = std::max(-90.0, std::min(90.0, lat_val));
         }
     }
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * (ni + 1)) = lon_start + static_cast<double>(i) * dlon;
-            cry(i + j * (ni + 1)) = lat_start + static_cast<double>(j) * dlat;
+            double lat_val = lat_start + static_cast<double>(j) * dlat;
+            cry(i + j * (ni + 1)) = std::max(-90.0, std::min(90.0, lat_val));
         }
     }
 
@@ -218,21 +220,6 @@ axis::solver::RegridConfig parse_regrid_config(const nb::dict &config) {
 
 NB_MODULE(axis_py, m) {
     m.doc() = "AXIS Python bindings — spatial interpolation for Earth-system fields";
-
-    // ─── Build capability flags ──────────────────────────────────────────────
-    // Report which optional AXIS features were compiled in, so Python callers
-    // can gate functionality (e.g. projected meshes) without triggering a
-    // runtime error deep inside the C++ core.
-#ifdef AXIS_ENABLE_PROJ
-    m.attr("HAVE_PROJ") = true;
-#else
-    m.attr("HAVE_PROJ") = false;
-#endif
-#ifdef AXIS_HAVE_NETCDF
-    m.attr("HAVE_NETCDF") = true;
-#else
-    m.attr("HAVE_NETCDF") = false;
-#endif
 
     // ─── InterpolationMethod enum ────────────────────────────────────────────
     nb::enum_<axis::solver::InterpolationMethod>(m, "Method")

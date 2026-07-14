@@ -3,8 +3,8 @@
 # Verifies explicit coordinate layouts (Rectilinear, Curvilinear, Unstructured).
 
 import numpy as np
-from axis.grid import CurvilinearGrid, RectilinearGrid, UnstructuredMesh
-
+import pytest
+from axis.grid import RectilinearGrid, CurvilinearGrid, UnstructuredMesh
 
 def test_rectilinear_grid_generation():
     lons = np.linspace(-180, 180, 36)
@@ -16,7 +16,6 @@ def test_rectilinear_grid_generation():
     # 36 * 18 cell mesh has (36+1)*(18+1) = 37 * 19 = 703 nodes, and 36 * 18 = 648 cells
     assert mesh.n_nodes == 703
     assert mesh.n_cells == 648
-
 
 def test_curvilinear_grid_generation():
     # 5x5 grid centers
@@ -32,10 +31,13 @@ def test_curvilinear_grid_generation():
     assert mesh.n_nodes == 36
     assert mesh.n_cells == 25
 
-
 def test_unstructured_mesh_generation():
     # Define a single triangular cell with 3 nodes
-    coords = np.array([[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]], dtype=np.float64)
+    coords = np.array([
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [0.5, 1.0]
+    ], dtype=np.float64)
     offsets = np.array([0, 3], dtype=np.int64)
     indices = np.array([0, 1, 2], dtype=np.int64)
 
