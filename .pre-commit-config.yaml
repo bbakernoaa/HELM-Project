@@ -16,3 +16,10 @@ repos:
       - id: clang-format
         types_or: [c, c++]
         args: ['--style=file']
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.21
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+      - id: ruff-format

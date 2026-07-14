@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
-import sys
 import time
 import tempfile
 import subprocess
@@ -20,6 +19,7 @@ CDO_AVAILABLE = shutil.which("cdo") is not None
 
 try:
     import xregrid
+
     XREGRID_AVAILABLE = True
 except ImportError:
     XREGRID_AVAILABLE = False
@@ -27,6 +27,7 @@ except ImportError:
 # Ensure projection libraries are available for LCC tests
 try:
     import pyproj
+
     PYPROJ_AVAILABLE = True
 except ImportError:
     PYPROJ_AVAILABLE = False
@@ -35,6 +36,7 @@ except ImportError:
 # Helper Functions from compare_cdo.py for Grid & NetCDF Generation
 # ─────────────────────────────────────────────────────────────────────────────
 LCC_PROJ = "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+
 
 def create_test_dataset(nlat, nlon, grid_type="regular"):
     """Create a standard test dataset containing a smooth cosine bell variable."""
@@ -62,8 +64,18 @@ def create_test_dataset(nlat, nlon, grid_type="regular"):
         )
         ds["lat_bnds"] = (["lat", "bnds"], lat_bnds)
         ds["lon_bnds"] = (["lon", "bnds"], lon_bnds)
-        ds["lat"].attrs = {"units": "degrees_north", "axis": "Y", "bounds": "lat_bnds", "standard_name": "latitude"}
-        ds["lon"].attrs = {"units": "degrees_east", "axis": "X", "bounds": "lon_bnds", "standard_name": "longitude"}
+        ds["lat"].attrs = {
+            "units": "degrees_north",
+            "axis": "Y",
+            "bounds": "lat_bnds",
+            "standard_name": "latitude",
+        }
+        ds["lon"].attrs = {
+            "units": "degrees_east",
+            "axis": "X",
+            "bounds": "lon_bnds",
+            "standard_name": "longitude",
+        }
         ds["temperature"].attrs = {"units": "K", "long_name": "Test field"}
         return ds
 
@@ -90,14 +102,14 @@ def create_test_dataset(nlat, nlon, grid_type="regular"):
         for j in range(nlat):
             for i in range(nlon):
                 lat_bounds[j, i, 0] = clats2d[j, i]
-                lat_bounds[j, i, 1] = clats2d[j, i+1]
-                lat_bounds[j, i, 2] = clats2d[j+1, i+1]
-                lat_bounds[j, i, 3] = clats2d[j+1, i]
+                lat_bounds[j, i, 1] = clats2d[j, i + 1]
+                lat_bounds[j, i, 2] = clats2d[j + 1, i + 1]
+                lat_bounds[j, i, 3] = clats2d[j + 1, i]
 
                 lon_bounds[j, i, 0] = clons2d[j, i]
-                lon_bounds[j, i, 1] = clons2d[j, i+1]
-                lon_bounds[j, i, 2] = clons2d[j+1, i+1]
-                lon_bounds[j, i, 3] = clons2d[j+1, i]
+                lon_bounds[j, i, 1] = clons2d[j, i + 1]
+                lon_bounds[j, i, 2] = clons2d[j + 1, i + 1]
+                lon_bounds[j, i, 3] = clons2d[j + 1, i]
 
         ds = xr.Dataset(
             {"temperature": (["lat", "lon"], field.astype(np.float64))},
@@ -108,23 +120,40 @@ def create_test_dataset(nlat, nlon, grid_type="regular"):
         )
         ds["lat_bounds"] = (["lat", "lon", "nv"], lat_bounds)
         ds["lon_bounds"] = (["lat", "lon", "nv"], lon_bounds)
-        ds["lat_2d"].attrs = {"units": "degrees_north", "standard_name": "latitude", "bounds": "lat_bounds"}
-        ds["lon_2d"].attrs = {"units": "degrees_east", "standard_name": "longitude", "bounds": "lon_bounds"}
-        ds["temperature"].attrs = {"coordinates": "lon_2d lat_2d", "units": "K", "long_name": "Test field"}
+        ds["lat_2d"].attrs = {
+            "units": "degrees_north",
+            "standard_name": "latitude",
+            "bounds": "lat_bounds",
+        }
+        ds["lon_2d"].attrs = {
+            "units": "degrees_east",
+            "standard_name": "longitude",
+            "bounds": "lon_bounds",
+        }
+        ds["temperature"].attrs = {
+            "coordinates": "lon_2d lat_2d",
+            "units": "K",
+            "long_name": "Test field",
+        }
         return ds
 
     return None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Side-by-Side Comparison Benchmarks
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.skipif(not CDO_AVAILABLE, reason="CDO binary or python-cdo not available")
-@pytest.mark.parametrize("method, cdo_op, xr_method", [
-    ("bilinear", "remapbil", "bilinear"),
-    ("nearest", "remapnn", "nearest_s2d"),
-    ("conservative", "remapcon", "conservative"),
-])
+@pytest.mark.parametrize(
+    "method, cdo_op, xr_method",
+    [
+        ("bilinear", "remapbil", "bilinear"),
+        ("nearest", "remapnn", "nearest_s2d"),
+        ("conservative", "remapcon", "conservative"),
+    ],
+)
 def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
     """
     Compare AXIS directly to CDO and xregrid for regular grid remapping.
@@ -135,10 +164,7 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
 
     dst_lons = np.linspace(0.0, 360.0, 360, endpoint=False)
     dst_lats = np.linspace(-90.0, 90.0, 180)
-    ds_out = xr.Dataset({
-        "lat": (["lat"], dst_lats),
-        "lon": (["lon"], dst_lons)
-    })
+    ds_out = xr.Dataset({"lat": (["lat"], dst_lats), "lon": (["lon"], dst_lons)})
 
     # Save standard CF-bounds for CDO and xregrid
     dlat = dst_lats[1] - dst_lats[0]
@@ -153,8 +179,18 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
 
     ds_out["lat_bnds"] = (["lat", "bnds"], lat_bnds)
     ds_out["lon_bnds"] = (["lon", "bnds"], lon_bnds)
-    ds_out["lat"].attrs = {"units": "degrees_north", "axis": "Y", "bounds": "lat_bnds", "standard_name": "latitude"}
-    ds_out["lon"].attrs = {"units": "degrees_east", "axis": "X", "bounds": "lon_bnds", "standard_name": "longitude"}
+    ds_out["lat"].attrs = {
+        "units": "degrees_north",
+        "axis": "Y",
+        "bounds": "lat_bnds",
+        "standard_name": "latitude",
+    }
+    ds_out["lon"].attrs = {
+        "units": "degrees_east",
+        "axis": "X",
+        "bounds": "lon_bnds",
+        "standard_name": "longitude",
+    }
 
     # Add dummy variable so CDO parses target_grid_nc as a valid NetCDF grid description
     ds_out["temperature"] = (["lat", "lon"], np.zeros((len(dst_lats), len(dst_lons))))
@@ -203,24 +239,44 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
         # ── PERFORMANCE DEGRADATION ASSERTIONS ──
         # AXIS must always run significantly faster than CDO and xregrid for global regular grids.
         # We allow a small 50ms scheduling jitter margin for micro-grids (16k cells) where single-threaded execution has no setup overhead.
-        assert axis_time < (cdo_time + 0.050), f"AXIS remapping is slower than CDO! AXIS: {axis_time:.4f}s, CDO: {cdo_time:.4f}s"
+        assert axis_time < (cdo_time + 0.050), (
+            f"AXIS remapping is slower than CDO! AXIS: {axis_time:.4f}s, CDO: {cdo_time:.4f}s"
+        )
         if XREGRID_AVAILABLE:
-            assert axis_time < (xregrid_time + 0.050), f"AXIS remapping is slower than xregrid! AXIS: {axis_time:.4f}s, xregrid: {xregrid_time:.4f}s"
+            assert axis_time < (xregrid_time + 0.050), (
+                f"AXIS remapping is slower than xregrid! AXIS: {axis_time:.4f}s, xregrid: {xregrid_time:.4f}s"
+            )
 
         # ── MATHEMATICAL CONSERVATION ASSERTION ──
         if method == "conservative":
             # Difference in global mass integrals should be negligible (conservation error < 1e-12)
-            np.testing.assert_allclose(axis_sum, cdo_sum, rtol=1e-12, atol=1e-12,
-                                       err_msg="AXIS failed double-precision mass conservation parity with CDO!")
+            np.testing.assert_allclose(
+                axis_sum,
+                cdo_sum,
+                rtol=1e-12,
+                atol=1e-12,
+                err_msg="AXIS failed double-precision mass conservation parity with CDO!",
+            )
             if XREGRID_AVAILABLE:
-                np.testing.assert_allclose(axis_sum, xregrid_sum, rtol=1e-12, atol=1e-12,
-                                           err_msg="AXIS failed double-precision mass conservation parity with xregrid!")
+                np.testing.assert_allclose(
+                    axis_sum,
+                    xregrid_sum,
+                    rtol=1e-12,
+                    atol=1e-12,
+                    err_msg="AXIS failed double-precision mass conservation parity with xregrid!",
+                )
 
             # Perfect mass conservation to exactly zero-sum
-            np.testing.assert_allclose(axis_sum, 0.0, rtol=1e-11, atol=1e-11,
-                                       err_msg="AXIS conservative failed to preserve zero-integral cosine field!")
+            np.testing.assert_allclose(
+                axis_sum,
+                0.0,
+                rtol=1e-11,
+                atol=1e-11,
+                err_msg="AXIS conservative failed to preserve zero-integral cosine field!",
+            )
         else:
             ...  # TODO: compare results for other methods
+
 
 @pytest.mark.skipif(not CDO_AVAILABLE, reason="CDO binary or python-cdo not available")
 @pytest.mark.skipif(not PYPROJ_AVAILABLE, reason="pyproj projection library not available")
@@ -233,10 +289,7 @@ def test_axis_vs_cdo_projected_lcc_benchmark():
     # Destination regular grid
     dst_lons = np.linspace(-110.0, -82.0, 50, endpoint=False)
     dst_lats = np.linspace(30.0, 50.0, 25)
-    ds_out = xr.Dataset({
-        "lat": (["lat"], dst_lats),
-        "lon": (["lon"], dst_lons)
-    })
+    ds_out = xr.Dataset({"lat": (["lat"], dst_lats), "lon": (["lon"], dst_lons)})
 
     # Save standard CF-bounds for CDO
     dlat = dst_lats[1] - dst_lats[0]
@@ -251,8 +304,18 @@ def test_axis_vs_cdo_projected_lcc_benchmark():
 
     ds_out["lat_bnds"] = (["lat", "bnds"], lat_bnds)
     ds_out["lon_bnds"] = (["lon", "bnds"], lon_bnds)
-    ds_out["lat"].attrs = {"units": "degrees_north", "axis": "Y", "bounds": "lat_bnds", "standard_name": "latitude"}
-    ds_out["lon"].attrs = {"units": "degrees_east", "axis": "X", "bounds": "lon_bnds", "standard_name": "longitude"}
+    ds_out["lat"].attrs = {
+        "units": "degrees_north",
+        "axis": "Y",
+        "bounds": "lat_bnds",
+        "standard_name": "latitude",
+    }
+    ds_out["lon"].attrs = {
+        "units": "degrees_east",
+        "axis": "X",
+        "bounds": "lon_bnds",
+        "standard_name": "longitude",
+    }
 
     # Add dummy variable so CDO parses target_grid_nc as a valid NetCDF grid description
     ds_out["temperature"] = (["lat", "lon"], np.zeros((len(dst_lats), len(dst_lons))))
@@ -271,7 +334,7 @@ def test_axis_vs_cdo_projected_lcc_benchmark():
         # Execute CDO directly via subprocess to avoid python-cdo UTF-8 decoding crashes
         cmd = ["cdo", "-O", "-s", "-remapcon," + target_grid_nc, src_nc, cdo_out]
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        cdo_time = time.perf_counter() - t0
+        cdo_time = time.perf_counter() - t0  # noqa: F841
 
         if res.returncode != 0:
             err_msg = res.stderr.decode("utf-8", errors="ignore")

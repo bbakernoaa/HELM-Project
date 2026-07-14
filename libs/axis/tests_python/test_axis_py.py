@@ -11,7 +11,6 @@ These tests exercise the main binding surface:
 Requirements validated: 12.3, 12.5, 12.6
 """
 
-import axis
 import numpy as np
 import pytest
 
@@ -107,8 +106,10 @@ class TestBatchApply:
         for v in range(n_vars):
             dst_single = axis_py.apply_weights(bilinear_matrix, src_2d[:, v].copy())
             np.testing.assert_allclose(
-                dst_batch[:, v], dst_single, rtol=1e-12,
-                err_msg=f"batch_apply mismatch for variable {v}"
+                dst_batch[:, v],
+                dst_single,
+                rtol=1e-12,
+                err_msg=f"batch_apply mismatch for variable {v}",
             )
 
     def test_batch_apply_constant_fields(self, bilinear_matrix):
@@ -117,21 +118,21 @@ class TestBatchApply:
         (validates partition-of-unity across all variables).
         """
         n_src = bilinear_matrix.n_src
-        n_dst = bilinear_matrix.n_dst
-        n_vars = 4
+        n_dst = bilinear_matrix.n_dst  # noqa: F841
+        # n_vars = 4
 
         # Each variable is a different constant
         constants = [1.0, -7.5, 100.0, 0.0]
-        src_2d = np.column_stack(
-            [np.full(n_src, c, dtype=np.float64) for c in constants]
-        )
+        src_2d = np.column_stack([np.full(n_src, c, dtype=np.float64) for c in constants])
 
         dst_batch = axis_py.batch_apply(bilinear_matrix, src_2d)
 
         for v, c in enumerate(constants):
             np.testing.assert_allclose(
-                dst_batch[:, v], c, rtol=1e-12,
-                err_msg=f"batch_apply constant field {v} (={c}) not preserved"
+                dst_batch[:, v],
+                c,
+                rtol=1e-12,
+                err_msg=f"batch_apply constant field {v} (={c}) not preserved",
             )
 
     def test_batch_apply_rejects_wrong_extent(self, bilinear_matrix):
@@ -178,8 +179,11 @@ class TestWeightCacheRoundTrip:
 
         # Should be identical within double precision machine tolerance (same weights)
         np.testing.assert_allclose(
-            dst_original, dst_restored, rtol=1e-15, atol=1e-15,
-            err_msg="Round-tripped matrix produces different apply results"
+            dst_original,
+            dst_restored,
+            rtol=1e-15,
+            atol=1e-15,
+            err_msg="Round-tripped matrix produces different apply results",
         )
 
     def test_to_bytes_returns_bytes(self, bilinear_matrix):
