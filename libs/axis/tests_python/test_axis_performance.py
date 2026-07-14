@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import time
-import numpy as np
-import xarray as xr
-import pytest
+
 import axis
+import numpy as np
+import pytest
+import xarray as xr
 
 
 @pytest.fixture

@@ -3,9 +3,9 @@
 # Verifies standard Scikit-Learn transformer API (fit/transform) for AXIS.
 
 import numpy as np
-import xarray as xr
 import pytest
-from axis import Regridder, RectilinearGrid
+import xarray as xr
+from axis import RectilinearGrid, Regridder
 
 
 @pytest.fixture

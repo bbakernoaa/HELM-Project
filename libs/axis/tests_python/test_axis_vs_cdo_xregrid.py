@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
-import time
-import tempfile
-import subprocess
 import shutil
-import numpy as np
-import xarray as xr
-import pytest
+import subprocess
+import tempfile
+import time
 import warnings
 
 import axis
+import numpy as np
+import pytest
+import xarray as xr
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Optional Dependency and Binary Discovery
@@ -208,7 +208,7 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
 
         # Execute CDO directly via subprocess to avoid python-cdo UTF-8 decoding crashes
         cmd = ["cdo", "-O", "-s", f"-{cdo_op},{target_grid_nc}", src_nc, cdo_out]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        res = subprocess.run(cmd, capture_output=True)
         cdo_time = time.perf_counter() - t0
 
         if res.returncode != 0:
@@ -333,7 +333,7 @@ def test_axis_vs_cdo_projected_lcc_benchmark():
 
         # Execute CDO directly via subprocess to avoid python-cdo UTF-8 decoding crashes
         cmd = ["cdo", "-O", "-s", "-remapcon," + target_grid_nc, src_nc, cdo_out]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        res = subprocess.run(cmd, capture_output=True)
         cdo_time = time.perf_counter() - t0  # noqa: F841
 
         if res.returncode != 0:

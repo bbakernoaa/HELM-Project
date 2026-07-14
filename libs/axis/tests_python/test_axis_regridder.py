@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
-import xarray as xr
 import pytest
+import xarray as xr
 
 # Ensure dask and scipy are optionally importable for advanced tests
 try:

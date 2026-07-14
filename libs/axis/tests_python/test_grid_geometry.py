@@ -3,7 +3,7 @@
 # Verifies explicit coordinate layouts (Rectilinear, Curvilinear, Unstructured).
 
 import numpy as np
-from axis.grid import RectilinearGrid, CurvilinearGrid, UnstructuredMesh
+from axis.grid import CurvilinearGrid, RectilinearGrid, UnstructuredMesh
 
 
 def test_rectilinear_grid_generation():

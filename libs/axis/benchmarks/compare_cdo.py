@@ -25,8 +25,8 @@ Output:
 import argparse
 import os
 import sys
-import time
 import tempfile
+import time
 
 import numpy as np
 

@@ -3,7 +3,7 @@
 # Verifies coupled wind vector interpolation and local grid-frame rotation.
 
 import numpy as np
-from axis import VectorRegridder, RectilinearGrid
+from axis import RectilinearGrid, VectorRegridder
 
 
 def test_vector_regridder_numerical_precision():
