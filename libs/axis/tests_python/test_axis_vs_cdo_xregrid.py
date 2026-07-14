@@ -275,7 +275,7 @@ def test_axis_vs_cdo_vs_xregrid_regular_benchmark(method, cdo_op, xr_method):
                 err_msg="AXIS conservative failed to preserve zero-integral cosine field!",
             )
         else:
-            ...  # TODO: compare results for other methods
+            pytest.xfail("TODO: add numerical parity assertions for non-conservative methods")
 
 
 @pytest.mark.skipif(not CDO_AVAILABLE, reason="CDO binary or python-cdo not available")
