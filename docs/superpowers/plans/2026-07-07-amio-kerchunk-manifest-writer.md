@@ -76,7 +76,7 @@ public:
     static inline void write_netcdf_manifest(
         const std::string& nc_file_path,
         const conf::Config& config,
-        const std::vector<std::string>& written_variables) 
+        const std::vector<std::string>& written_variables)
     {
         (void)nc_file_path; (void)config; (void)written_variables;
     }
@@ -337,7 +337,7 @@ git commit -m "feat: add GRIB2 Kerchunk manifest writer and integration test"
     static inline void write_netcdf_manifest(
         const std::string& nc_file_path,
         const conf::Config& config,
-        const std::vector<std::string>& written_variables) 
+        const std::vector<std::string>& written_variables)
     {
 #ifdef AMIO_HAS_NETCDF
         // Include hdf5.h locally within the function to prevent leaks
@@ -386,7 +386,7 @@ git commit -m "feat: add GRIB2 Kerchunk manifest writer and integration test"
                     haddr_t chunk_addr = 0;
                     hsize_t chunk_size = 0;
 
-                    H5Dget_chunk_info(dataset_id, dataspace_id, idx, offset.data(), 
+                    H5Dget_chunk_info(dataset_id, dataspace_id, idx, offset.data(),
                                       &filter_mask, &chunk_addr, &chunk_size);
 
                     std::vector<std::int64_t> chunk_coords(rank);
@@ -465,7 +465,7 @@ if(netCDF_FOUND AND MPI_C_FOUND AND eckit_FOUND)
     target_include_directories(test_kerchunk_netcdf4 PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(test_kerchunk_netcdf4 PRIVATE AMIO_HAS_NETCDF=1 AMIO_HAS_ECKIT=1)
     target_link_libraries(test_kerchunk_netcdf4 PRIVATE AMIO::public_headers eckit)
-    
+
     if(AMIO_NETCDF_PAR_LIB)
         get_target_property(_nc_inc netCDF::netcdf INTERFACE_INCLUDE_DIRECTORIES)
         if(_nc_inc)

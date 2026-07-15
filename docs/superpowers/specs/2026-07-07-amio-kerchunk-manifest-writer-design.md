@@ -1,7 +1,7 @@
 # Design Specification: AMIO Kerchunk Manifest Writer
 
 ## 1. Overview
-AMIO (Asynchronous Multidimensional I/O) provides high-performance, asynchronous reads and writes for Earth system models. This design adds the ability to write **Kerchunk manifests** (ReferenceFileSystem JSON representation) during the dataset close operation. 
+AMIO (Asynchronous Multidimensional I/O) provides high-performance, asynchronous reads and writes for Earth system models. This design adds the ability to write **Kerchunk manifests** (ReferenceFileSystem JSON representation) during the dataset close operation.
 
 This enables cloud-native, high-performance, and parallel read access to legacy file formats (NetCDF-4 and GRIB2) using a Zarr-like virtual metadata structure without needing to rewrite legacy datasets to Zarr format.
 

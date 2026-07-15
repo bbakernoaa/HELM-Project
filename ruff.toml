@@ -15,3 +15,6 @@ ignore = [
     "E501",  # line too long
     "B028",  # explicit `stacklevel` in `warnings.warn`
 ]
+
+[lint.per-file-ignores]
+"libs/halo/spack/package.py" = ["F403", "F405"]

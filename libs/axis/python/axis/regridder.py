@@ -2,6 +2,7 @@
 import logging
 import time
 import uuid
+from typing import Any, cast
 
 import numpy as np
 import xarray as xr
@@ -12,11 +13,12 @@ from .grid import (
     CurvilinearGrid,
     Geometry,
     RectilinearGrid,
+    UnstructuredMesh,
     _get_mesh_info,
 )
 
 # Client-side cache on the driver node to avoid redundant worker cache syncs
-_DRIVER_CACHE = {}
+_DRIVER_CACHE: dict[Any, Any] = {}
 logger = logging.getLogger("axis")
 
 
@@ -27,6 +29,9 @@ class Regridder:
     Seamlessly supports NumPy eager arrays, xarray Datasets/DataArrays, and Dask
     distributed lazy arrays.
     """
+
+    source_grid_ds: xr.Dataset | None
+    target_grid_ds: xr.Dataset | None
 
     def __init__(
         self,
@@ -55,9 +60,9 @@ class Regridder:
         self.na_thres = na_thres
         self.norm_type = norm_type
         self._uid = str(uuid.uuid4())
-        self._weights_matrix = None
-        self._serialized_weights = None
-        self._total_weights = None
+        self._weights_matrix: axis_py.Matrix | None = None
+        self._serialized_weights: bytes | None = None
+        self._total_weights: np.ndarray | None = None
 
         self._method_map = {
             "bilinear": axis_py.Method.Bilinear,
@@ -117,8 +122,8 @@ class Regridder:
         elif isinstance(src, (xr.Dataset, xr.DataArray)):
             self._src_geom = GridFactory.from_xarray(src, method=self.method)
         elif isinstance(src, dict):
-            lons = src.get("lon") if src.get("lon") is not None else src.get("lons")
-            lats = src.get("lat") if src.get("lat") is not None else src.get("lats")
+            lons = np.asarray(src.get("lon") if src.get("lon") is not None else src.get("lons"))
+            lats = np.asarray(src.get("lat") if src.get("lat") is not None else src.get("lats"))
             if lons.ndim == 1:
                 self._src_geom = RectilinearGrid(lons, lats)
             else:
@@ -131,8 +136,8 @@ class Regridder:
         elif isinstance(dst, (xr.Dataset, xr.DataArray)):
             self._dst_geom = GridFactory.from_xarray(dst, method=self.method)
         elif isinstance(dst, dict):
-            lons = dst.get("lon") if dst.get("lon") is not None else dst.get("lons")
-            lats = dst.get("lat") if dst.get("lat") is not None else dst.get("lats")
+            lons = np.asarray(dst.get("lon") if dst.get("lon") is not None else dst.get("lons"))
+            lats = np.asarray(dst.get("lat") if dst.get("lat") is not None else dst.get("lats"))
             if lons.ndim == 1:
                 self._dst_geom = RectilinearGrid(lons, lats)
             else:
@@ -152,7 +157,7 @@ class Regridder:
                 self._shape_source = self._src_geom.lons.shape
                 self._dims_source = ("y", "x")
             else:
-                self._shape_source = (len(self._src_geom.coords),)
+                self._shape_source = (len(cast(UnstructuredMesh, self._src_geom).coords),)
                 self._dims_source = ("ncol",)
             self._is_unstructured_src = not hasattr(self._src_geom, "lons")
             self.source_grid_ds = None
@@ -168,7 +173,7 @@ class Regridder:
                 self._shape_target = self._dst_geom.lons.shape
                 self._dims_target = ("y", "x")
             else:
-                self._shape_target = (len(self._dst_geom.coords),)
+                self._shape_target = (len(cast(UnstructuredMesh, self._dst_geom).coords),)
                 self._dims_target = ("ncol",)
             self.target_grid_ds = None
 
@@ -323,6 +328,7 @@ class Regridder:
         if self._weights_matrix is None:
             raise RuntimeError("Regridder must be fit to grids before calling transform().")
 
+        res: xr.DataArray | xr.Dataset | np.ndarray
         if isinstance(obj, (xr.Dataset, xr.DataArray)):
             if isinstance(obj, xr.Dataset):
                 res = self._regrid_dataset(obj)
@@ -405,8 +411,8 @@ class Regridder:
         input_core_dims = list(self._dims_source)
         temp_output_core_dims = [f"{d}_regridded" for d in self._dims_target]
 
-        weights_arg = self._weights_matrix
-        total_weights_arg = self._total_weights
+        weights_arg: axis_py.Matrix | str | None = self._weights_matrix
+        total_weights_arg: np.ndarray | str | None = self._total_weights
         weights_key_arg = None
 
         if is_dask:
@@ -486,14 +492,14 @@ class Regridder:
             out = out.rename(rename_dict)
 
         # Assign coordinates from target grid
-        target_coords = {}
+        target_coords: dict[Any, Any] = {}
         if self.target_grid_ds is not None:
             for c in self.target_grid_ds.coords:
                 c_dims = set(self.target_grid_ds.coords[c].dims)
                 if c_dims.issubset(set(self._dims_target)):
                     target_coords[c] = self.target_grid_ds.coords[c]
         else:
-            if hasattr(self._dst_geom, "lons"):
+            if isinstance(self._dst_geom, (RectilinearGrid, CurvilinearGrid)):
                 if self._dst_geom.lons.ndim == 1:
                     target_coords["lat"] = self._dst_geom.lats
                     target_coords["lon"] = self._dst_geom.lons

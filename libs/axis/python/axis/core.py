@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
+from typing import Any
+
 import numpy as np
 
 from . import axis_py
 
 # Worker-local cache for sparse weight matrices to optimize Dask performance
-_WORKER_CACHE = {}
+_WORKER_CACHE: dict[Any, Any] = {}
 
 
 def _setup_worker_cache(key, obj):
@@ -32,9 +34,9 @@ def _apply_weights_core(
     dims_source: tuple,
     shape_target: tuple,
     skipna: bool = False,
-    total_weights: np.ndarray = None,
+    total_weights: np.ndarray | None = None,
     na_thres: float = 1.0,
-    weights_key: str = None,
+    weights_key: str | None = None,
 ) -> np.ndarray:
     """
     Apply regridding weights to a NumPy data block.

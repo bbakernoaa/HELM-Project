@@ -44,7 +44,7 @@ class CurvilinearGrid(Geometry):
         from . import axis_py
         if self.proj_string:
             return axis_py.make_projected_mesh(
-                self.lons.shape[1], self.lons.shape[0], 
+                self.lons.shape[1], self.lons.shape[0],
                 self.proj_string, self.lons.ravel(), self.lats.ravel()
             )
         else:
@@ -90,7 +90,7 @@ class Regridder:
         self.kwargs = kwargs
         self._weights_matrix = None
         self._serialized_weights = None
-        
+
         # Call fit if geometries are passed during construction (xesmf style)
         if src is not None and dst is not None:
             self.fit(src, dst, src_mask=src_mask, dst_mask=dst_mask)
@@ -99,23 +99,23 @@ class Regridder:
         """Generate interpolation matrices (weights) from source to destination."""
         self._src_geom = self._normalize_geometry(src)
         self._dst_geom = self._normalize_geometry(dst)
-        
+
         src_mesh = self._src_geom.to_mesh()
         dst_mesh = self._dst_geom.to_mesh()
-        
+
         config = {
             "method": self._map_method(self.method),
             "norm_type": self._map_norm_type(self.norm_type),
             "periodic": self.kwargs.get("periodic", False),
             "line_type": self.kwargs.get("line_type", "great_circle"),
         }
-        
+
         # Support coastline/fraction area adjustments during weight generation
         if src_mask is not None:
             config["src_mask"] = np.asarray(src_mask, dtype=np.int32)
         if dst_mask is not None:
             config["dst_mask"] = np.asarray(dst_mask, dtype=np.int32)
-            
+
         from . import axis_py
         self._weights_matrix = axis_py.generate_weights(src_mesh, dst_mesh, config)
         self._serialized_weights = self._weights_matrix.to_bytes()
@@ -125,7 +125,7 @@ class Regridder:
         """Apply the computed sparse matrix weights. Supports remote lazy Dask block execution."""
         if self._weights_matrix is None:
             raise RuntimeError("Regridder must be fit to grids before calling transform().")
-            
+
         if isinstance(obj, (xr.Dataset, xr.DataArray)):
             return self._apply_xarray(obj)
         else:
@@ -149,7 +149,7 @@ class VectorRegridder:
     def __init__(self, src: Geometry, dst: Geometry, method: str = "bilinear", **kwargs: Any):
         self.src_mesh = src.to_mesh() if isinstance(src, Geometry) else src
         self.dst_mesh = dst.to_mesh() if isinstance(dst, Geometry) else dst
-        
+
         from . import axis_py
         config = {"method": method, **kwargs}
         self._cpp_vector_regridder = axis_py.VectorWeightGenerator.generate(

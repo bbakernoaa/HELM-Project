@@ -36,16 +36,12 @@ rc::Gen<std::size_t> genDestLevels() {
 
 /// Generate non-negative tension parameter by scaling an integer
 rc::Gen<double> genTension() {
-    return rc::gen::map(rc::gen::inRange(0, 100), [](int v) {
-        return static_cast<double>(v) / 10.0;
-    });
+    return rc::gen::map(rc::gen::inRange(0, 100), [](int v) { return static_cast<double>(v) / 10.0; });
 }
 
 /// Helper to generate a double in range by scaling an integer
 rc::Gen<double> genDoubleInRange(int min_val, int max_val, double scale = 1.0) {
-    return rc::gen::map(rc::gen::inRange(min_val, max_val), [scale](int v) {
-        return static_cast<double>(v) * scale;
-    });
+    return rc::gen::map(rc::gen::inRange(min_val, max_val), [scale](int v) { return static_cast<double>(v) * scale; });
 }
 
 // ─── Property: Linear Field Reproduction ────────────────────────────────────
@@ -119,7 +115,8 @@ RC_GTEST_PROP(PropVerticalRegridder, OneDAndTwoDConsistency, ()) {
 
     // Populate destination levels within bounds
     for (std::size_t j = 0; j < n_dst; ++j) {
-        dst_levels_1d(j) = src_levels_1d(0) + (src_levels_1d(n_src - 1) - src_levels_1d(0)) * (static_cast<double>(j) / static_cast<double>(n_dst - 1));
+        dst_levels_1d(j) =
+            src_levels_1d(0) + (src_levels_1d(n_src - 1) - src_levels_1d(0)) * (static_cast<double>(j) / static_cast<double>(n_dst - 1));
     }
 
     // Copy to 2D levels and initialize random source field
