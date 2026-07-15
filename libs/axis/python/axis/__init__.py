@@ -15,6 +15,7 @@ from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, Unstr
 from .regridder import Regridder
 from .vector import VectorRegridder
 from .vertical import VerticalRegridder, regrid_3d
+from . import spherical
 
 # Transparent backwards-compatibility bridge (HELM Law #3):
 sys.modules["axis_py"] = axis_py
@@ -70,4 +71,5 @@ __all__ = [
     "NormType",
     "UnmappedAction",
     "LineType",
+    "spherical",
 ]

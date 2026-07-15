@@ -21,6 +21,8 @@
 
 #include <Kokkos_Core.hpp>
 #include <axis/detail/regular_grid_detector.hpp>
+#include <axis/detail/spherical_geometry.hpp>
+#include <axis/detail/spherical_clipper.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
@@ -801,4 +803,55 @@ NB_MODULE(axis_py, m) {
             return nb::ndarray<nb::numpy, double>(raw_ptr, 2, shape, std::move(owner));
         },
         "src_field"_a, "src_levels"_a, "dst_levels"_a, "tension"_a = 0.0, "Interpolate vertical 2D profiles using 2D spatially-varying coordinates");
+
+    // ─── Unified Vec3 Class ──────────────────────────────────────────────────
+    nb::class_<axis::detail::Vec3>(m, "Vec3")
+        .def(nb::init<double, double, double>())
+        .def_rw("x", &axis::detail::Vec3::x)
+        .def_rw("y", &axis::detail::Vec3::y)
+        .def_rw("z", &axis::detail::Vec3::z);
+
+    // ─── Spherical Geometry math ─────────────────────────────────────────────
+    m.def(
+        "lonlat_to_xyz",
+        [](double lon, double lat) -> axis::detail::Vec3 {
+            auto v = axis::detail::spherical::lonlat_to_xyz(lon, lat);
+            return axis::detail::Vec3{v.x, v.y, v.z};
+        },
+        "lon"_a, "lat"_a, "Convert lon/lat in radians to 3D Cartesian position vector");
+
+    m.def(
+        "xyz_to_lonlat",
+        [](const axis::detail::Vec3 &p) -> std::pair<double, double> {
+            axis::detail::spherical::Vec3 v{p.x, p.y, p.z};
+            double lon, lat;
+            axis::detail::spherical::xyz_to_lonlat(v, lon, lat);
+            return {lon, lat};
+        },
+        "p"_a, "Convert 3D Cartesian position vector back to lon/lat in radians");
+
+    m.def(
+        "robust_orient_sphere",
+        [](const axis::detail::Vec3 &a, const axis::detail::Vec3 &b, const axis::detail::Vec3 &c) -> double {
+            axis::detail::spherical::Vec3 va{a.x, a.y, a.z};
+            axis::detail::spherical::Vec3 vb{b.x, b.y, b.z};
+            axis::detail::spherical::Vec3 vc{c.x, c.y, c.z};
+            return axis::detail::spherical::robust_orient_sphere(va, vb, vc);
+        },
+        "a"_a, "b"_a, "c"_a, "Compute orientation sign of C relative to arc A->B using adaptive predicates");
+
+    m.def(
+        "great_circle_arc_intersection",
+        [](const axis::detail::Vec3 &a1, const axis::detail::Vec3 &a2, const axis::detail::Vec3 &b1, const axis::detail::Vec3 &b2) -> nb::object {
+            axis::detail::spherical::Vec3 va1{a1.x, a1.y, a1.z};
+            axis::detail::spherical::Vec3 va2{a2.x, a2.y, a2.z};
+            axis::detail::spherical::Vec3 vb1{b1.x, b1.y, b1.z};
+            axis::detail::spherical::Vec3 vb2{b2.x, b2.y, b2.z};
+            axis::detail::spherical::Vec3 vp;
+            if (axis::detail::spherical::great_circle_arc_intersection(va1, va2, vb1, vb2, vp)) {
+                return nb::cast(axis::detail::Vec3{vp.x, vp.y, vp.z});
+            }
+            return nb::none();
+        },
+        "a1"_a, "a2"_a, "b1"_a, "b2"_a, "Compute the exact intersection Vec3 of great-circle arcs A1->A2 and B1->B2, or None");
 }
