@@ -11,7 +11,7 @@ from . import axis_py
 
 # Register the custom .axis xarray accessor
 from . import accessors  # noqa: F401
-from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, UnstructuredMesh
+from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, UnstructuredMesh, RuleGeometry
 from .regridder import Regridder
 from .vector import VectorRegridder
 from .vertical import VerticalRegridder, regrid_3d
@@ -45,6 +45,7 @@ __all__ = [
     "RectilinearGrid",
     "CurvilinearGrid",
     "UnstructuredMesh",
+    "RuleGeometry",
     "GridFactory",
     "VectorRegridder",
     "VerticalRegridder",

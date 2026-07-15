@@ -588,6 +588,18 @@ class UnstructuredMesh(Geometry):
         return axis_py.make_ugrid_mesh(self.coords, self.offsets, self.indices)
 
 
+class RuleGeometry(Geometry):
+    """
+    Geometry generated purely from abstract mathematical rules.
+    """
+
+    def __init__(self, config: dict):
+        self.config = config
+
+    def to_mesh(self, method: str | None = None) -> axis_py.Mesh:
+        return axis_py.generate_mesh_from_rules(self.config)
+
+
 class GridFactory:
     """
     Convenience factory to convert high-level containers to Geometry classes.

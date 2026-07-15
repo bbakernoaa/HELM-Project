@@ -33,6 +33,7 @@
 #include <axis/topology/mesh_factory.hpp>
 #include <axis/topology/named_grid_registry.hpp>
 #include <axis/topology/projection_builder.hpp>
+#include <axis/topology/rule_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
 #include <axis/topology/gmsh_writer.hpp>
@@ -384,6 +385,28 @@ NB_MODULE(axis_py, m) {
             axis::topology::GmshWriter::write<Kokkos::HostSpace>(filepath, mesh);
         },
         "filepath"_a, "mesh"_a, "Write an UnstructuredMesh to a Gmsh .msh v2.2 ASCII file");
+
+    m.def(
+        "generate_mesh_from_rules",
+        [](const nb::dict &config) -> HostMesh {
+            ensure_kokkos();
+            axis::ingest::GridRulesParams rules;
+            
+            std::string kind_str = nb::cast<std::string>(config["kind"]);
+            rules.kind = kind_str;
+
+            if (config.contains("bbox_min_x")) rules.min_x = nb::cast<double>(config["bbox_min_x"]);
+            if (config.contains("bbox_max_x")) rules.max_x = nb::cast<double>(config["bbox_max_x"]);
+            if (config.contains("bbox_min_y")) rules.min_y = nb::cast<double>(config["bbox_min_y"]);
+            if (config.contains("bbox_max_y")) rules.max_y = nb::cast<double>(config["bbox_max_y"]);
+            if (config.contains("r_x")) rules.r_x = nb::cast<double>(config["r_x"]);
+            if (config.contains("r_y")) rules.r_y = nb::cast<double>(config["r_y"]);
+            if (config.contains("gaussian_n")) rules.gaussian_n = nb::cast<axis::index_t>(config["gaussian_n"]);
+            if (config.contains("proj_string")) rules.proj_string = nb::cast<std::string>(config["proj_string"]);
+
+            return axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(rules);
+        },
+        "config"_a, "Generate an UnstructuredMesh using abstract mathematical rules");
 
     // Make a named grid (Req 12.4)
     m.def(
