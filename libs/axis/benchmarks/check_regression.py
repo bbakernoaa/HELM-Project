@@ -16,6 +16,7 @@ Exit codes:
     0   All benchmarks within threshold (or no baseline present).
     1   One or more benchmarks regressed beyond the threshold.
     2   Usage error (missing/invalid arguments).
+"""
 
 from __future__ import annotations
 
@@ -25,7 +26,10 @@ import sys
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3:
-        print(f"usage: {argv[0]} <baseline.json> <results.json> [threshold]", file=sys.stderr)
+        print(
+            f"usage: {argv[0]} <baseline.json> <results.json> [threshold]",
+            file=sys.stderr,
+        )
         return 2
 
     baseline_path = argv[1]
@@ -66,19 +70,21 @@ def main(argv: list[str]) -> int:
         status = "PASS" if delta <= threshold else "FAIL"
 
         if delta > threshold:
-            regressions.append({
-                "name": name,
-                "baseline_ms": baseline_ms,
-                "current_ms": current_ms,
-                "regression_pct": delta * 100,
-            })
+            regressions.append(
+                {
+                    "name": name,
+                    "baseline_ms": baseline_ms,
+                    "current_ms": current_ms,
+                    "regression_pct": delta * 100,
+                }
+            )
 
-        print(f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {delta*100:>+7.1f}%   {status}")
+        print(f"{name:<40} {baseline_ms:<15.2f} {current_ms:<15.2f} {delta * 100:>+7.1f}%   {status}")
 
     print()
 
     if regressions:
-        print(f"REGRESSION DETECTED: {len(regressions)} benchmark(s) exceeded {threshold*100:.0f}% threshold")
+        print(f"REGRESSION DETECTED: {len(regressions)} benchmark(s) exceeded {threshold * 100:.0f}% threshold")
         for r in regressions:
             print(f"  - {r['name']}: {r['current_ms']:.2f}ms vs baseline {r['baseline_ms']:.2f}ms (+{r['regression_pct']:.1f}%)")
         return 1

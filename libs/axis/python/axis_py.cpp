@@ -221,6 +221,21 @@ axis::solver::RegridConfig parse_regrid_config(const nb::dict &config) {
 NB_MODULE(axis_py, m) {
     m.doc() = "AXIS Python bindings — spatial interpolation for Earth-system fields";
 
+    // ─── Build capability flags ──────────────────────────────────────────────
+    // Report which optional AXIS features were compiled in, so Python callers
+    // can gate functionality (e.g. projected meshes) without triggering a
+    // runtime error deep inside the C++ core.
+#ifdef AXIS_ENABLE_PROJ
+    m.attr("HAVE_PROJ") = true;
+#else
+    m.attr("HAVE_PROJ") = false;
+#endif
+#ifdef AXIS_HAVE_NETCDF
+    m.attr("HAVE_NETCDF") = true;
+#else
+    m.attr("HAVE_NETCDF") = false;
+#endif
+
     // ─── InterpolationMethod enum ────────────────────────────────────────────
     nb::enum_<axis::solver::InterpolationMethod>(m, "Method")
         .value("Bilinear", axis::solver::InterpolationMethod::Bilinear)

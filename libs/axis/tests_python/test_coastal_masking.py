@@ -4,8 +4,8 @@
 
 import numpy as np
 import xarray as xr
-import pytest
 from axis import Regridder
+
 
 def test_coastal_mask_application():
     # 4x4 source grid
@@ -21,7 +21,7 @@ def test_coastal_mask_application():
     # Create a source land mask: 0 representing dry land, 1 representing ocean
     # Let's set one quadrant to be land
     src_mask = np.ones((4, 4), dtype=np.int32)
-    src_mask[0:2, 0:2] = 0 # Top-left quadrant is land
+    src_mask[0:2, 0:2] = 0  # Top-left quadrant is land
 
     # Generate weights with coastal mask
     regridder = Regridder(method="conservative", src_mask=src_mask)

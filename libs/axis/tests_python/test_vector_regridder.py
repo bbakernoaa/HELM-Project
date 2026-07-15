@@ -3,9 +3,8 @@
 # Verifies coupled wind vector interpolation and local grid-frame rotation.
 
 import numpy as np
-import xarray as xr
-import pytest
-from axis import VectorRegridder, RectilinearGrid
+from axis import RectilinearGrid, VectorRegridder
+
 
 def test_vector_regridder_numerical_precision():
     # Source grid lons/lats well within bounds
@@ -24,7 +23,7 @@ def test_vector_regridder_numerical_precision():
     regridder = VectorRegridder(
         RectilinearGrid(lons_in, lats_in),
         RectilinearGrid(lons_out, lats_out),
-        method="bilinear"
+        method="bilinear",
     )
 
     u_out, v_out = regridder.transform(u_in, v_in)

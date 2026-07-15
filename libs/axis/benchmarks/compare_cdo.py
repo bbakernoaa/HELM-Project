@@ -25,8 +25,8 @@ Output:
 import argparse
 import os
 import sys
-import time
 import tempfile
+import time
 
 import numpy as np
 
@@ -45,6 +45,7 @@ except ImportError:
 # Try to import axis — if not built, provide instructions
 try:
     import axis
+
     AXIS_AVAILABLE = True
 except ImportError:
     print("WARNING: axis Python package not found. Building requires:")
@@ -57,6 +58,7 @@ except ImportError:
 # Try to import xregrid for optional comparative benchmarking
 try:
     import xregrid
+
     XREGRID_AVAILABLE = True
 except ImportError:
     XREGRID_AVAILABLE = False
@@ -84,6 +86,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
         points = np.column_stack((lons, lats))
 
         from scipy.spatial import Voronoi
+
         vor = Voronoi(points)
 
         node_coords = vor.vertices
@@ -97,7 +100,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
         for i, r_idx in enumerate(vor.point_region):
             region = vor.regions[r_idx]
             # Valid bounded cell has at least 3 vertices and no infinity vertex (-1)
-            if len(region) >= 3 and not -1 in region:
+            if len(region) >= 3 and -1 not in region:
                 # Filter out crazy boundary cells
                 valid_coords = True
                 for v_idx in region:
@@ -123,7 +126,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
         face_nodes = -1 * np.ones((n_valid_cells, max_nv), dtype=np.int32)
         for idx, r_idx in enumerate(valid_cell_indices):
             region = vor.regions[r_idx]
-            face_nodes[idx, :len(region)] = region
+            face_nodes[idx, : len(region)] = region
 
         if field_type == "cosine":
             field = np.cos(np.radians(cell_lats)) * np.cos(np.radians(cell_lons))
@@ -137,23 +140,27 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
             raise ValueError(f"Unknown field type: {field_type}")
 
         # Return structured data package for unstructured grid
-        return cell_lats, cell_lons, {
-            "node_coords": node_coords,
-            "conn_offsets": conn_offsets,
-            "conn_indices": conn_indices,
-            "face_nodes": face_nodes,
-            "cell_lon": cell_lons,
-            "cell_lat": cell_lats,
-            "field": field
-        }
+        return (
+            cell_lats,
+            cell_lons,
+            {
+                "node_coords": node_coords,
+                "conn_offsets": conn_offsets,
+                "conn_indices": conn_indices,
+                "face_nodes": face_nodes,
+                "cell_lon": cell_lons,
+                "cell_lat": cell_lats,
+                "field": field,
+            },
+        )
 
     if grid_type == "lcc":
         # Create a coordinate grid in projection space (meters)
         # Use a large regional domain (2000 km x 2000 km) for better overlap
         min_x = -1000000.0
-        max_x =  1000000.0
+        max_x = 1000000.0
         min_y = -1000000.0
-        max_y =  1000000.0
+        max_y = 1000000.0
 
         xs = np.linspace(min_x, max_x, nlon)
         ys = np.linspace(min_y, max_y, nlat)
@@ -161,6 +168,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
 
         # Convert projection coordinates to geographic lon/lat
         import pyproj
+
         proj = pyproj.Proj(LCC_PROJ)
         lons2d, lats2d = proj(x_grid2d, y_grid2d, inverse=True)
 
@@ -231,16 +239,24 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
             coords={
                 "lon": (["cell"], data["cell_lon"]),
                 "lat": (["cell"], data["cell_lat"]),
-            }
+            },
         )
         ds["lon_bnds"] = (["cell", "nv"], lon_bnds)
         ds["lat_bnds"] = (["cell", "nv"], lat_bnds)
-        ds["lon"].attrs = {"units": "degrees_east", "standard_name": "longitude", "bounds": "lon_bnds"}
-        ds["lat"].attrs = {"units": "degrees_north", "standard_name": "latitude", "bounds": "lat_bnds"}
+        ds["lon"].attrs = {
+            "units": "degrees_east",
+            "standard_name": "longitude",
+            "bounds": "lon_bnds",
+        }
+        ds["lat"].attrs = {
+            "units": "degrees_north",
+            "standard_name": "latitude",
+            "bounds": "lat_bnds",
+        }
         ds[varname].attrs = {
             "coordinates": "lon lat",
             "units": "K",
-            "long_name": "Test field"
+            "long_name": "Test field",
         }
         ds.to_netcdf(filepath)
         return ds
@@ -249,9 +265,9 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
         # Curvilinear format with 2D lon and lat coordinates and boundary corners
         nlat, nlon = field.shape
         min_x = -1000000.0
-        max_x =  1000000.0
+        max_x = 1000000.0
         min_y = -1000000.0
-        max_y =  1000000.0
+        max_y = 1000000.0
         dx = (max_x - min_x) / (nlon - 1)
         dy = (max_y - min_y) / (nlat - 1)
 
@@ -261,6 +277,7 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
         xc_grid2d, yc_grid2d = np.meshgrid(xs_c, ys_c)
 
         import pyproj
+
         proj = pyproj.Proj(LCC_PROJ)
         clons2d, clats2d = proj(xc_grid2d, yc_grid2d, inverse=True)
 
@@ -270,14 +287,14 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
         for j in range(nlat):
             for i in range(nlon):
                 lat_bounds[j, i, 0] = clats2d[j, i]
-                lat_bounds[j, i, 1] = clats2d[j, i+1]
-                lat_bounds[j, i, 2] = clats2d[j+1, i+1]
-                lat_bounds[j, i, 3] = clats2d[j+1, i]
+                lat_bounds[j, i, 1] = clats2d[j, i + 1]
+                lat_bounds[j, i, 2] = clats2d[j + 1, i + 1]
+                lat_bounds[j, i, 3] = clats2d[j + 1, i]
 
                 lon_bounds[j, i, 0] = clons2d[j, i]
-                lon_bounds[j, i, 1] = clons2d[j, i+1]
-                lon_bounds[j, i, 2] = clons2d[j+1, i+1]
-                lon_bounds[j, i, 3] = clons2d[j+1, i]
+                lon_bounds[j, i, 1] = clons2d[j, i + 1]
+                lon_bounds[j, i, 2] = clons2d[j + 1, i + 1]
+                lon_bounds[j, i, 3] = clons2d[j + 1, i]
 
         ds = xr.Dataset(
             {varname: (["lat", "lon"], field.astype(np.float64))},
@@ -288,9 +305,21 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
         )
         ds["lat_bounds"] = (["lat", "lon", "nv"], lat_bounds)
         ds["lon_bounds"] = (["lat", "lon", "nv"], lon_bounds)
-        ds["lat_2d"].attrs = {"units": "degrees_north", "standard_name": "latitude", "bounds": "lat_bounds"}
-        ds["lon_2d"].attrs = {"units": "degrees_east", "standard_name": "longitude", "bounds": "lon_bounds"}
-        ds[varname].attrs = {"coordinates": "lon_2d lat_2d", "units": "K", "long_name": "Test field"}
+        ds["lat_2d"].attrs = {
+            "units": "degrees_north",
+            "standard_name": "latitude",
+            "bounds": "lat_bounds",
+        }
+        ds["lon_2d"].attrs = {
+            "units": "degrees_east",
+            "standard_name": "longitude",
+            "bounds": "lon_bounds",
+        }
+        ds[varname].attrs = {
+            "coordinates": "lon_2d lat_2d",
+            "units": "K",
+            "long_name": "Test field",
+        }
         ds.to_netcdf(filepath)
         return ds
 
@@ -313,8 +342,18 @@ def write_netcdf(filepath, lats, lons, field, grid_type="regular", varname="temp
     )
     ds["lat_bnds"] = (["lat", "bnds"], lat_bnds)
     ds["lon_bnds"] = (["lon", "bnds"], lon_bnds)
-    ds["lat"].attrs = {"units": "degrees_north", "axis": "Y", "bounds": "lat_bnds", "standard_name": "latitude"}
-    ds["lon"].attrs = {"units": "degrees_east", "axis": "X", "bounds": "lon_bnds", "standard_name": "longitude"}
+    ds["lat"].attrs = {
+        "units": "degrees_north",
+        "axis": "Y",
+        "bounds": "lat_bnds",
+        "standard_name": "latitude",
+    }
+    ds["lon"].attrs = {
+        "units": "degrees_east",
+        "axis": "X",
+        "bounds": "lon_bnds",
+        "standard_name": "longitude",
+    }
     ds[varname].attrs = {"units": "K", "long_name": "Test field"}
     ds.to_netcdf(filepath)
     return ds
@@ -352,7 +391,7 @@ def run_xregrid_remap(input_file, target_grid, dst_lats, dst_lons, method, dst_g
         "nearest": "nearest_s2d",
         "conservative": "conservative",
         "bicubic": "bicubic",
-        "patch": "patch"
+        "patch": "patch",
     }
 
     if method not in method_map:
@@ -379,30 +418,46 @@ def run_xregrid_remap(input_file, target_grid, dst_lats, dst_lons, method, dst_g
             lon_bnds[:, 0] = dst_lons - 0.5 * dlon
             lon_bnds[:, 1] = dst_lons + 0.5 * dlon
 
-            ds_out = xr.Dataset({
-                "lat": (["lat"], dst_lats),
-                "lon": (["lon"], dst_lons)
-            })
+            ds_out = xr.Dataset({"lat": (["lat"], dst_lats), "lon": (["lon"], dst_lons)})
             ds_out["lat_bnds"] = (["lat", "bnds"], lat_bnds)
             ds_out["lon_bnds"] = (["lon", "bnds"], lon_bnds)
-            ds_out["lat"].attrs = {"units": "degrees_north", "axis": "Y", "bounds": "lat_bnds", "standard_name": "latitude"}
-            ds_out["lon"].attrs = {"units": "degrees_east", "axis": "X", "bounds": "lon_bnds", "standard_name": "longitude"}
+            ds_out["lat"].attrs = {
+                "units": "degrees_north",
+                "axis": "Y",
+                "bounds": "lat_bnds",
+                "standard_name": "latitude",
+            }
+            ds_out["lon"].attrs = {
+                "units": "degrees_east",
+                "axis": "X",
+                "bounds": "lon_bnds",
+                "standard_name": "longitude",
+            }
 
         # Auto-detect if the grid is global and requires periodic longitude wrapping
         # ESMF requires periodic=True for global grids to connect 360 back to 0.
-        is_global = (dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0)
+        is_global = dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0
 
         regridder = xregrid.Regridder(ds_in, ds_out, method=method_map[method], periodic=is_global)
         res_ds = regridder(ds_in["temperature"])
         result = res_ds.values
         elapsed = time.perf_counter() - t0
         return result, elapsed
-    except Exception as e:
+    except Exception:
         # Silently return None if esmpy/xregrid fails (e.g. for certain unperiodic coordinates)
         return None, 0.0
 
 
-def run_axis_remap(input_file, target_grid, dst_lats, dst_lons, method, grid_type="regular", line_type="great_circle", dst_grid_type="regular"):
+def run_axis_remap(
+    input_file,
+    target_grid,
+    dst_lats,
+    dst_lons,
+    method,
+    grid_type="regular",
+    line_type="great_circle",
+    dst_grid_type="regular",
+):
     """Run AXIS remapping via high-level Python Regridder class and return (result, wall_time)."""
     if not AXIS_AVAILABLE:
         return None, 0.0
@@ -415,13 +470,10 @@ def run_axis_remap(input_file, target_grid, dst_lats, dst_lons, method, grid_typ
         if dst_grid_type == "mpas":
             ds_out = xr.open_dataset(target_grid)
         else:
-            ds_out = xr.Dataset({
-                "lat": (["lat"], dst_lats),
-                "lon": (["lon"], dst_lons)
-            })
+            ds_out = xr.Dataset({"lat": (["lat"], dst_lats), "lon": (["lon"], dst_lons)})
 
         # Determine periodic longitude wrapping
-        is_global = (dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0)
+        is_global = dst_grid_type == "regular" and len(dst_lons) > 1 and abs(dst_lons[-1] - dst_lons[0]) > 300.0
 
         # Initialize high-level xarray regridder
         regridder = axis.Regridder(ds_in, ds_out, method=method, periodic=is_global, line_type=line_type)
@@ -431,8 +483,9 @@ def run_axis_remap(input_file, target_grid, dst_lats, dst_lons, method, grid_typ
         result = da_out.values
         elapsed = time.perf_counter() - t0
         return result, elapsed
-    except Exception as e:
+    except Exception:
         import traceback
+
         traceback.print_exc()
         return None, 0.0
 
@@ -466,32 +519,60 @@ def compare_results(axis_result, cdo_result):
 
 def main():
     parser = argparse.ArgumentParser(description="AXIS vs CDO interpolation benchmark")
-    parser.add_argument("--src-size", type=str, default="32",
-                        help="Source grid size: N (square NxN), NLONxNLAT, or total cells for unstructured")
-    parser.add_argument("--dst-size", type=str, default="24",
-                        help="Destination grid size: N (square NxN) or NLONxNLAT")
-    parser.add_argument("--grid-type", type=str, default="regular",
-                        choices=["regular", "lcc", "mpas"],
-                        help="Source grid type: regular (lat-lon), lcc (Lambert Conformal), or mpas (unstructured Voronoi)")
-    parser.add_argument("--dst-grid-type", type=str, default="regular",
-                        choices=["regular", "mpas"],
-                        help="Destination grid type: regular (lat-lon) or mpas (unstructured Voronoi)")
-    parser.add_argument("--methods", type=str, default="bilinear,nearest,bicubic,patch,conservative",
-                        help="Comma-separated interpolation methods to test")
-    parser.add_argument("--field", type=str, default="cosine",
-                        choices=["cosine", "linear", "constant", "step"],
-                        help="Test field type")
+    parser.add_argument(
+        "--src-size",
+        type=str,
+        default="32",
+        help="Source grid size: N (square NxN), NLONxNLAT, or total cells for unstructured",
+    )
+    parser.add_argument(
+        "--dst-size",
+        type=str,
+        default="24",
+        help="Destination grid size: N (square NxN) or NLONxNLAT",
+    )
+    parser.add_argument(
+        "--grid-type",
+        type=str,
+        default="regular",
+        choices=["regular", "lcc", "mpas"],
+        help="Source grid type: regular (lat-lon), lcc (Lambert Conformal), or mpas (unstructured Voronoi)",
+    )
+    parser.add_argument(
+        "--dst-grid-type",
+        type=str,
+        default="regular",
+        choices=["regular", "mpas"],
+        help="Destination grid type: regular (lat-lon) or mpas (unstructured Voronoi)",
+    )
+    parser.add_argument(
+        "--methods",
+        type=str,
+        default="bilinear,nearest,bicubic,patch,conservative",
+        help="Comma-separated interpolation methods to test",
+    )
+    parser.add_argument(
+        "--field",
+        type=str,
+        default="cosine",
+        choices=["cosine", "linear", "constant", "step"],
+        help="Test field type",
+    )
     parser.add_argument("--skip-cdo", action="store_true", help="Skip CDO runs")
     parser.add_argument("--skip-xregrid", action="store_true", help="Skip xregrid runs")
-    parser.add_argument("--line-type", type=str, default="great_circle",
-                        choices=["great_circle", "cartesian"],
-                        help="Line geometry to use: great_circle (default) or cartesian (fast planar)")
+    parser.add_argument(
+        "--line-type",
+        type=str,
+        default="great_circle",
+        choices=["great_circle", "cartesian"],
+        help="Line geometry to use: great_circle (default) or cartesian (fast planar)",
+    )
     args = parser.parse_args()
 
     # Parse grid sizes (support NxM or just N for square)
     def parse_grid_size(s):
-        if 'x' in s:
-            parts = s.split('x')
+        if "x" in s:
+            parts = s.split("x")
             return int(parts[0]), int(parts[1])
         n = int(s)
         return n, n
@@ -512,22 +593,22 @@ def main():
 
     methods = [m.strip() for m in args.methods.split(",")]
 
-    print(f"{'='*70}")
-    print(f"AXIS vs CDO Interpolation Benchmark")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
+    print("AXIS vs CDO Interpolation Benchmark")
+    print(f"{'=' * 70}")
     if args.grid_type == "mpas":
         print(f"Source grid:  {src_nlon} unstructured MPAS cells")
     else:
-        print(f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon*src_nlat:,} cells)")
+        print(f"Source grid:  {src_nlon}x{src_nlat} {args.grid_type} ({src_nlon * src_nlat:,} cells)")
 
     if args.dst_grid_type == "mpas":
         print(f"Dest grid:    {dst_nlon} unstructured MPAS cells")
     else:
-        print(f"Dest grid:    {dst_nlon}x{dst_nlat} {args.dst_grid_type} ({dst_nlon*dst_nlat:,} cells)")
+        print(f"Dest grid:    {dst_nlon}x{dst_nlat} {args.dst_grid_type} ({dst_nlon * dst_nlat:,} cells)")
     print(f"Test field:   {args.field}")
     print(f"Methods:      {', '.join(methods)}")
     print(f"AXIS module:  {'loaded' if axis else 'NOT AVAILABLE'}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print()
 
     print("Creating test field...")
@@ -569,7 +650,7 @@ def main():
             dst_lons = np.linspace(dst_min_lon, dst_max_lon, dst_nlon, endpoint=False)
             target_grid = os.path.join(tmpdir, "target_grid.txt")
             with open(target_grid, "w") as f:
-                f.write(f"gridtype = lonlat\n")
+                f.write("gridtype = lonlat\n")
                 f.write(f"xsize = {dst_nlon}\n")
                 f.write(f"ysize = {dst_nlat}\n")
                 f.write(f"xfirst = {dst_lons[0]}\n")
@@ -579,7 +660,7 @@ def main():
 
         # Run benchmarks
         print(f"{'Method':<15} {'Engine':<8} {'Time (s)':<12} {'Max Err':<14} {'RMS Err':<14} {'Src Σ':<14} {'Dst Σ':<14}")
-        print(f"{'-'*15} {'-'*8} {'-'*12} {'-'*14} {'-'*14} {'-'*14} {'-'*14}")
+        print(f"{'-' * 15} {'-' * 8} {'-' * 12} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14}")
 
         for method in methods:
             # ── CDO ──
@@ -615,25 +696,43 @@ def main():
             if not args.skip_xregrid and XREGRID_AVAILABLE:
                 try:
                     xregrid_result, xregrid_time = run_xregrid_remap(
-                        src_nc, target_grid, dst_lats, dst_lons, method, args.dst_grid_type)
+                        src_nc,
+                        target_grid,
+                        dst_lats,
+                        dst_lons,
+                        method,
+                        args.dst_grid_type,
+                    )
                     if xregrid_result is not None:
                         xregrid_sum = float(np.nansum(xregrid_result))
-                except Exception as e:
+                except Exception:
                     pass
 
             if xregrid_result is not None:
                 if cdo_result is not None:
                     xr_errors = compare_results(xregrid_result.ravel(), cdo_result)
-                    print(f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} "
-                          f"{xr_errors['max_error']:<14.2e} "
-                          f"{xr_errors['rms_error']:<14.2e} "
-                          f"{src_sum:<14.4f} {xregrid_sum:<14.4f}")
+                    print(
+                        f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} "
+                        f"{xr_errors['max_error']:<14.2e} "
+                        f"{xr_errors['rms_error']:<14.2e} "
+                        f"{src_sum:<14.4f} {xregrid_sum:<14.4f}"
+                    )
                 else:
-                    print(f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {xregrid_sum:<14.4f}")
+                    print(
+                        f"{method:<15} {'xregrid':<8} {xregrid_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {xregrid_sum:<14.4f}"
+                    )
 
             # ── AXIS ──
             axis_result, axis_time = run_axis_remap(
-                src_nc, target_grid, dst_lats, dst_lons, method, args.grid_type, args.line_type, args.dst_grid_type)
+                src_nc,
+                target_grid,
+                dst_lats,
+                dst_lons,
+                method,
+                args.grid_type,
+                args.line_type,
+                args.dst_grid_type,
+            )
 
             if axis_result is not None:
                 axis_sum = float(np.nansum(axis_result))
@@ -641,10 +740,12 @@ def main():
                 # Compare against CDO
                 if cdo_result is not None:
                     errors = compare_results(axis_result, cdo_result)
-                    print(f"{method:<15} {'AXIS':<8} {axis_time:<12.4f} "
-                          f"{errors['max_error']:<14.2e} "
-                          f"{errors['rms_error']:<14.2e} "
-                          f"{src_sum:<14.4f} {axis_sum:<14.4f}")
+                    print(
+                        f"{method:<15} {'AXIS':<8} {axis_time:<12.4f} "
+                        f"{errors['max_error']:<14.2e} "
+                        f"{errors['rms_error']:<14.2e} "
+                        f"{src_sum:<14.4f} {axis_sum:<14.4f}"
+                    )
                 else:
                     print(f"{method:<15} {'AXIS':<8} {axis_time:<12.4f} {'—':<14} {'—':<14} {src_sum:<14.4f} {axis_sum:<14.4f}")
             else:
@@ -652,7 +753,7 @@ def main():
 
             print()
 
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print("Notes:")
     print("  - Max/RMS Err = Engine result vs CDO result (CDO is the reference)")
     print("  - Src/Dst Σ = sum of field values (check conservation)")
