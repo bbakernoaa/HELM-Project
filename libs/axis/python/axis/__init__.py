@@ -29,6 +29,7 @@ make_named_mesh = axis_py.make_named_mesh
 apply_weights = axis_py.apply_weights
 batch_apply = axis_py.batch_apply
 write_gmsh = axis_py.write_gmsh
+reconstruct_gradient = axis_py.reconstruct_gradient
 detect_tripolar_grid = axis_py.detect_tripolar_grid
 detect_regular_grid = axis_py.detect_regular_grid
 detect_rectilinear_grid = axis_py.detect_rectilinear_grid
@@ -59,6 +60,7 @@ __all__ = [
     "apply_weights",
     "batch_apply",
     "write_gmsh",
+    "reconstruct_gradient",
     "detect_tripolar_grid",
     "detect_regular_grid",
     "detect_rectilinear_grid",

@@ -25,6 +25,7 @@
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
 #include <axis/solver/interpolation_matrix.hpp>
+#include <axis/solver/gradient_reconstructor.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/solver/vector_regridder.hpp>
 #include <axis/solver/vertical_regridder.hpp>
@@ -407,6 +408,45 @@ NB_MODULE(axis_py, m) {
             return axis::topology::RuleGenerator::generate<Kokkos::HostSpace>(rules);
         },
         "config"_a, "Generate an UnstructuredMesh using abstract mathematical rules");
+
+    m.def(
+        "reconstruct_gradient",
+        [](nb::ndarray<const double, nb::ndim<1>> cell_values,
+           nb::ndarray<const double, nb::ndim<2>> centroids,
+           nb::ndarray<const axis::index_t, nb::ndim<1>> adj_offsets,
+           nb::ndarray<const axis::index_t, nb::ndim<1>> adj_indices,
+           bool use_limiter) -> nb::ndarray<nb::numpy, double> {
+            ensure_kokkos();
+
+            std::size_t n_cells = cell_values.shape(0);
+            if (centroids.shape(0) != n_cells || centroids.shape(1) != 3) {
+                throw std::invalid_argument("centroids shape must be (n_cells, 3)");
+            }
+            if (adj_offsets.shape(0) != n_cells + 1) {
+                throw std::invalid_argument("adj_offsets shape must be (n_cells + 1)");
+            }
+
+            auto out_grad_uniq = std::make_unique<double[]>(n_cells * 3);
+            double *out_ptr = out_grad_uniq.get();
+
+            Kokkos::View<const double *, Kokkos::HostSpace> val_view(cell_values.data(), n_cells);
+            Kokkos::View<const double *[3], Kokkos::HostSpace> cent_view(centroids.data(), n_cells);
+            Kokkos::View<const axis::index_t *, Kokkos::HostSpace> off_view(adj_offsets.data(), n_cells + 1);
+            Kokkos::View<const axis::index_t *, Kokkos::HostSpace> ind_view(adj_indices.data(), adj_indices.shape(0));
+            Kokkos::View<double *[3], Kokkos::HostSpace> grad_view(out_ptr, n_cells);
+
+            axis::solver::GradientReconstructor<Kokkos::HostSpace>::compute(
+                val_view, cent_view, off_view, ind_view, grad_view, use_limiter
+            );
+
+            double *raw_ptr = out_grad_uniq.release();
+            nb::capsule owner(raw_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            std::size_t shape[2] = {n_cells, 3};
+            return nb::ndarray<nb::numpy, double>(raw_ptr, 2, shape, std::move(owner));
+        },
+        "cell_values"_a, "centroids"_a, "adj_offsets"_a, "adj_indices"_a, "use_limiter"_a = false,
+        "Reconstruct cell-centered linear gradients via least-squares over CSR neighbors"
+    );
 
     // Make a named grid (Req 12.4)
     m.def(
