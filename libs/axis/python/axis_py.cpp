@@ -888,4 +888,19 @@ NB_MODULE(axis_py, m) {
             return nb::none();
         },
         "quad_u"_a, "quad_v"_a, "pu"_a, "pv"_a, "Solve the inverse bilinear problem for point pu, pv in quadrilateral");
+
+    // ─── SphericalPolygon 32 Capacity Struct ─────────────────────────────────
+    nb::class_<axis::detail::SphericalPolygon<32>>(m, "SphericalPolygon")
+        .def(nb::init<>())
+        .def_rw("n", &axis::detail::SphericalPolygon<32>::n)
+        .def("area", &axis::detail::SphericalPolygon<32>::area)
+        .def(
+            "add_vertex",
+            [](axis::detail::SphericalPolygon<32> &poly, const axis::detail::Vec3 &v) {
+                if (poly.n >= 32) {
+                    throw std::runtime_error("Polygon vertex capacity (32) exceeded");
+                }
+                poly.verts[poly.n++] = v;
+            },
+            "v"_a, "Add a unit-sphere Cartesian position vector vertex to the polygon");
 }
