@@ -23,6 +23,7 @@
 #include <axis/detail/regular_grid_detector.hpp>
 #include <axis/detail/spherical_geometry.hpp>
 #include <axis/detail/spherical_clipper.hpp>
+#include <axis/detail/gnomonic_projector.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
@@ -854,4 +855,37 @@ NB_MODULE(axis_py, m) {
             return nb::none();
         },
         "a1"_a, "a2"_a, "b1"_a, "b2"_a, "Compute the exact intersection Vec3 of great-circle arcs A1->A2 and B1->B2, or None");
+
+    // ─── Gnomonic Tangent Projection Math ────────────────────────────────────
+    m.def(
+        "gnomonic_forward",
+        [](const axis::detail::Vec3 &center, const axis::detail::Vec3 &point) -> std::pair<double, double> {
+            double u, v;
+            axis::detail::GnomonicProjector::forward(center, point, u, v);
+            return {u, v};
+        },
+        "center"_a, "point"_a, "Project point on the sphere onto the tangent plane at center");
+
+    m.def(
+        "gnomonic_inverse",
+        [](const axis::detail::Vec3 &center, double u, double v) -> axis::detail::Vec3 {
+            return axis::detail::GnomonicProjector::inverse(center, u, v);
+        },
+        "center"_a, "u"_a, "v"_a, "Reconstruct a unit-sphere point from tangent-plane coordinates");
+
+    m.def(
+        "bilinear_weights",
+        [](nb::ndarray<const double, nb::ndim<1>> quad_u, nb::ndarray<const double, nb::ndim<1>> quad_v, double pu, double pv) -> nb::object {
+            if (quad_u.shape(0) != 4 || quad_v.shape(0) != 4) {
+                throw std::invalid_argument("quad_u and quad_v must have exactly 4 vertices");
+            }
+            double weights[4];
+            bool ok = axis::detail::GnomonicProjector::bilinear_weights(quad_u.data(), quad_v.data(), pu, pv, weights);
+            if (ok) {
+                std::vector<double> out_weights(weights, weights + 4);
+                return nb::cast(out_weights);
+            }
+            return nb::none();
+        },
+        "quad_u"_a, "quad_v"_a, "pu"_a, "pv"_a, "Solve the inverse bilinear problem for point pu, pv in quadrilateral");
 }
