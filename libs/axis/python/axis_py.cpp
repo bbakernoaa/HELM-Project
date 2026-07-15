@@ -35,6 +35,7 @@
 #include <axis/topology/projection_builder.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
+#include <axis/topology/gmsh_writer.hpp>
 #include <axis/types.hpp>
 #include <cstdint>
 #include <cstring>
@@ -269,6 +270,70 @@ NB_MODULE(axis_py, m) {
         .def_prop_ro("n_dst", &HostMatrix::n_dst)
         .def_prop_ro("is_csr", &HostMatrix::is_csr)
 
+        .def_prop_ro(
+            "factor_list",
+            [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
+                auto view = matrix.factor_list();
+                std::size_t shape[1] = {view.extent(0)};
+                return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
+            },
+            nb::keep_alive<0, 1>(),
+            "Interpolation weights list")
+        .def_prop_ro(
+            "factor_col",
+            [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const axis::index_t> {
+                auto view = matrix.factor_col();
+                std::size_t shape[1] = {view.extent(0)};
+                return nb::ndarray<nb::numpy, const axis::index_t>(view.data_handle(), 1, shape, nb::handle());
+            },
+            nb::keep_alive<0, 1>(),
+            "Source column indices list")
+        .def_prop_ro(
+            "factor_row",
+            [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const axis::index_t> {
+                auto view = matrix.factor_row();
+                std::size_t shape[1] = {view.extent(0)};
+                return nb::ndarray<nb::numpy, const axis::index_t>(view.data_handle(), 1, shape, nb::handle());
+            },
+            nb::keep_alive<0, 1>(),
+            "Destination row indices list")
+        .def_prop_ro(
+            "frac_a",
+            [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
+                auto view = matrix.frac_a();
+                std::size_t shape[1] = {view.extent(0)};
+                return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
+            },
+            nb::keep_alive<0, 1>(),
+            "Source fractions")
+        .def_prop_ro(
+            "frac_b",
+            [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
+                auto view = matrix.frac_b();
+                std::size_t shape[1] = {view.extent(0)};
+                return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
+            },
+            nb::keep_alive<0, 1>(),
+            "Destination fractions")
+        .def_prop_ro(
+            "area_a",
+            [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
+                auto view = matrix.area_a();
+                std::size_t shape[1] = {view.extent(0)};
+                return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
+            },
+            nb::keep_alive<0, 1>(),
+            "Source cell areas")
+        .def_prop_ro(
+            "area_b",
+            [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
+                auto view = matrix.area_b();
+                std::size_t shape[1] = {view.extent(0)};
+                return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
+            },
+            nb::keep_alive<0, 1>(),
+            "Destination cell areas")
+
         // to_csr() — convert to CSR format for row-parallel apply
         .def("to_csr", &HostMatrix::to_csr, "Convert internal COO representation to CSR format")
 
@@ -311,6 +376,14 @@ NB_MODULE(axis_py, m) {
 
     // Make an unstructured UGRID mesh
     m.def("make_ugrid_mesh", &make_ugrid_mesh, "node_coords"_a, "conn_offsets"_a, "conn_indices"_a, "Create an unstructured UGRID UnstructuredMesh");
+
+    // Expose GmshWriter ASCII exporter
+    m.def(
+        "write_gmsh",
+        [](const std::string &filepath, const HostMesh &mesh) {
+            axis::topology::GmshWriter::write<Kokkos::HostSpace>(filepath, mesh);
+        },
+        "filepath"_a, "mesh"_a, "Write an UnstructuredMesh to a Gmsh .msh v2.2 ASCII file");
 
     // Make a named grid (Req 12.4)
     m.def(
@@ -490,6 +563,72 @@ NB_MODULE(axis_py, m) {
             return res;
         },
         "mesh"_a, "ni"_a, "nj"_a, "Detect whether an unstructured mesh represents a folded tripolar grid");
+
+    // ─── Regular and Rectilinear grid detection ──────────────────────────────
+
+    m.def(
+        "detect_regular_grid",
+        [](const HostMesh &mesh) -> nb::dict {
+            ensure_kokkos();
+            auto info = axis::detail::detect_regular_grid<Kokkos::HostSpace>(mesh);
+            nb::dict res;
+            res["is_regular"] = info.is_regular;
+            res["lon_min"] = info.lon_min;
+            res["lon_max"] = info.lon_max;
+            res["delta_lon"] = info.delta_lon;
+            res["lat_min"] = info.lat_min;
+            res["lat_max"] = info.lat_max;
+            res["delta_lat"] = info.delta_lat;
+            res["ni"] = info.ni;
+            res["nj"] = info.nj;
+            return res;
+        },
+        "mesh"_a, "Detect whether an unstructured mesh represents a uniform regular lat-lon grid");
+
+    m.def(
+        "detect_rectilinear_grid",
+        [](const HostMesh &mesh) -> nb::dict {
+            ensure_kokkos();
+            auto info = axis::detail::detect_rectilinear_grid<Kokkos::HostSpace>(mesh);
+            nb::dict res;
+            res["is_rectilinear"] = info.is_rectilinear;
+            res["ni"] = info.ni;
+            res["nj"] = info.nj;
+            
+            if (info.is_rectilinear) {
+                std::vector<double> unique_lons(info.unique_lons.extent(0));
+                for (std::size_t i = 0; i < unique_lons.size(); ++i) {
+                    unique_lons[i] = info.unique_lons(i);
+                }
+                std::vector<double> unique_lats(info.unique_lats.extent(0));
+                for (std::size_t j = 0; j < unique_lats.size(); ++j) {
+                    unique_lats[j] = info.unique_lats(j);
+                }
+                res["unique_lons"] = unique_lons;
+                res["unique_lats"] = unique_lats;
+            } else {
+                res["unique_lons"] = std::vector<double>{};
+                res["unique_lats"] = std::vector<double>{};
+            }
+            return res;
+        },
+        "mesh"_a, "Detect whether an unstructured mesh represents a non-uniform rectilinear grid");
+
+    // ─── Adjust by fraction ──────────────────────────────────────────────────
+
+    m.def(
+        "adjust_by_fraction",
+        [](nb::ndarray<nb::numpy, double, nb::ndim<1>> dst_arr, nb::ndarray<const double, nb::ndim<1>> frac_b) {
+            ensure_kokkos();
+            const std::size_t n = dst_arr.shape(0);
+            if (frac_b.shape(0) != n) {
+                throw std::invalid_argument("dst and frac_b dimensions must match");
+            }
+            axis::field_view<double, 1> dst_view(dst_arr.data(), n);
+            axis::field_view<const double, 1> frac_view(frac_b.data(), n);
+            axis::solver::adjust_by_fraction<Kokkos::HostSpace>(dst_view, frac_view);
+        },
+        "dst"_a, "frac_b"_a, "Adjust destination field by fraction (modified in-place)");
 
     // ─── Vector weight generation ───────────────────────────────────────────
 
