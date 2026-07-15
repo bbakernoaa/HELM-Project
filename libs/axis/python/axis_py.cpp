@@ -20,27 +20,27 @@
 #include <nanobind/stl/vector.h>
 
 #include <Kokkos_Core.hpp>
-#include <axis/detail/regular_grid_detector.hpp>
-#include <axis/detail/spherical_geometry.hpp>
-#include <axis/detail/spherical_clipper.hpp>
 #include <axis/detail/gnomonic_projector.hpp>
+#include <axis/detail/regular_grid_detector.hpp>
+#include <axis/detail/spherical_clipper.hpp>
+#include <axis/detail/spherical_geometry.hpp>
 #include <axis/ingest/grid_descriptor.hpp>
 #include <axis/solver/apply.hpp>
 #include <axis/solver/conservation.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/gradient_reconstructor.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
 #include <axis/solver/regrid_config.hpp>
 #include <axis/solver/vector_regridder.hpp>
 #include <axis/solver/vertical_regridder.hpp>
 #include <axis/solver/weight_cache.hpp>
 #include <axis/solver/weight_generator.hpp>
+#include <axis/topology/gmsh_writer.hpp>
 #include <axis/topology/mesh_factory.hpp>
 #include <axis/topology/named_grid_registry.hpp>
 #include <axis/topology/projection_builder.hpp>
 #include <axis/topology/rule_generator.hpp>
 #include <axis/topology/structured_grid.hpp>
 #include <axis/topology/unstructured_mesh.hpp>
-#include <axis/topology/gmsh_writer.hpp>
 #include <axis/types.hpp>
 #include <cstdint>
 #include <cstring>
@@ -282,8 +282,7 @@ NB_MODULE(axis_py, m) {
                 std::size_t shape[1] = {view.extent(0)};
                 return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
             },
-            nb::keep_alive<0, 1>(),
-            "Interpolation weights list")
+            nb::keep_alive<0, 1>(), "Interpolation weights list")
         .def_prop_ro(
             "factor_col",
             [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const axis::index_t> {
@@ -291,8 +290,7 @@ NB_MODULE(axis_py, m) {
                 std::size_t shape[1] = {view.extent(0)};
                 return nb::ndarray<nb::numpy, const axis::index_t>(view.data_handle(), 1, shape, nb::handle());
             },
-            nb::keep_alive<0, 1>(),
-            "Source column indices list")
+            nb::keep_alive<0, 1>(), "Source column indices list")
         .def_prop_ro(
             "factor_row",
             [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const axis::index_t> {
@@ -300,8 +298,7 @@ NB_MODULE(axis_py, m) {
                 std::size_t shape[1] = {view.extent(0)};
                 return nb::ndarray<nb::numpy, const axis::index_t>(view.data_handle(), 1, shape, nb::handle());
             },
-            nb::keep_alive<0, 1>(),
-            "Destination row indices list")
+            nb::keep_alive<0, 1>(), "Destination row indices list")
         .def_prop_ro(
             "frac_a",
             [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
@@ -309,8 +306,7 @@ NB_MODULE(axis_py, m) {
                 std::size_t shape[1] = {view.extent(0)};
                 return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
             },
-            nb::keep_alive<0, 1>(),
-            "Source fractions")
+            nb::keep_alive<0, 1>(), "Source fractions")
         .def_prop_ro(
             "frac_b",
             [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
@@ -318,8 +314,7 @@ NB_MODULE(axis_py, m) {
                 std::size_t shape[1] = {view.extent(0)};
                 return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
             },
-            nb::keep_alive<0, 1>(),
-            "Destination fractions")
+            nb::keep_alive<0, 1>(), "Destination fractions")
         .def_prop_ro(
             "area_a",
             [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
@@ -327,8 +322,7 @@ NB_MODULE(axis_py, m) {
                 std::size_t shape[1] = {view.extent(0)};
                 return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
             },
-            nb::keep_alive<0, 1>(),
-            "Source cell areas")
+            nb::keep_alive<0, 1>(), "Source cell areas")
         .def_prop_ro(
             "area_b",
             [](const HostMatrix &matrix) -> nb::ndarray<nb::numpy, const double> {
@@ -336,8 +330,7 @@ NB_MODULE(axis_py, m) {
                 std::size_t shape[1] = {view.extent(0)};
                 return nb::ndarray<nb::numpy, const double>(view.data_handle(), 1, shape, nb::handle());
             },
-            nb::keep_alive<0, 1>(),
-            "Destination cell areas")
+            nb::keep_alive<0, 1>(), "Destination cell areas")
 
         // to_csr() — convert to CSR format for row-parallel apply
         .def("to_csr", &HostMatrix::to_csr, "Convert internal COO representation to CSR format")
@@ -384,10 +377,7 @@ NB_MODULE(axis_py, m) {
 
     // Expose GmshWriter ASCII exporter
     m.def(
-        "write_gmsh",
-        [](const std::string &filepath, const HostMesh &mesh) {
-            axis::topology::GmshWriter::write<Kokkos::HostSpace>(filepath, mesh);
-        },
+        "write_gmsh", [](const std::string &filepath, const HostMesh &mesh) { axis::topology::GmshWriter::write<Kokkos::HostSpace>(filepath, mesh); },
         "filepath"_a, "mesh"_a, "Write an UnstructuredMesh to a Gmsh .msh v2.2 ASCII file");
 
     m.def(
@@ -395,7 +385,7 @@ NB_MODULE(axis_py, m) {
         [](const nb::dict &config) -> HostMesh {
             ensure_kokkos();
             axis::ingest::GridRulesParams rules;
-            
+
             std::string kind_str = nb::cast<std::string>(config["kind"]);
             rules.kind = kind_str;
 
@@ -414,10 +404,8 @@ NB_MODULE(axis_py, m) {
 
     m.def(
         "reconstruct_gradient",
-        [](nb::ndarray<const double, nb::ndim<1>> cell_values,
-           nb::ndarray<const double, nb::ndim<2>> centroids,
-           nb::ndarray<const axis::index_t, nb::ndim<1>> adj_offsets,
-           nb::ndarray<const axis::index_t, nb::ndim<1>> adj_indices,
+        [](nb::ndarray<const double, nb::ndim<1>> cell_values, nb::ndarray<const double, nb::ndim<2>> centroids,
+           nb::ndarray<const axis::index_t, nb::ndim<1>> adj_offsets, nb::ndarray<const axis::index_t, nb::ndim<1>> adj_indices,
            bool use_limiter) -> nb::ndarray<nb::numpy, double> {
             ensure_kokkos();
 
@@ -438,9 +426,7 @@ NB_MODULE(axis_py, m) {
             Kokkos::View<const axis::index_t *, Kokkos::HostSpace> ind_view(adj_indices.data(), adj_indices.shape(0));
             Kokkos::View<double *[3], Kokkos::HostSpace> grad_view(out_ptr, n_cells);
 
-            axis::solver::GradientReconstructor<Kokkos::HostSpace>::compute(
-                val_view, cent_view, off_view, ind_view, grad_view, use_limiter
-            );
+            axis::solver::GradientReconstructor<Kokkos::HostSpace>::compute(val_view, cent_view, off_view, ind_view, grad_view, use_limiter);
 
             double *raw_ptr = out_grad_uniq.release();
             nb::capsule owner(raw_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
@@ -448,8 +434,7 @@ NB_MODULE(axis_py, m) {
             return nb::ndarray<nb::numpy, double>(raw_ptr, 2, shape, std::move(owner));
         },
         "cell_values"_a, "centroids"_a, "adj_offsets"_a, "adj_indices"_a, "use_limiter"_a = false,
-        "Reconstruct cell-centered linear gradients via least-squares over CSR neighbors"
-    );
+        "Reconstruct cell-centered linear gradients via least-squares over CSR neighbors");
 
     // Make a named grid (Req 12.4)
     m.def(
@@ -591,6 +576,70 @@ NB_MODULE(axis_py, m) {
         "Apply interpolation matrix to multiple fields (cells × variables).\n"
         "Accepts both C-order and Fortran-order 2-D arrays.");
 
+    // ─── NaN-aware Batch apply: multi-field SpMV with re-normalization ───────
+
+    m.def(
+        "nan_batch_apply",
+        [](const HostMatrix &matrix, nb::ndarray<nb::numpy, double, nb::ndim<2>> src_arr, double na_thres) -> nb::ndarray<nb::numpy, double> {
+            ensure_kokkos();
+
+            const std::size_t n_src = src_arr.shape(0);
+            const std::size_t n_vars = src_arr.shape(1);
+            const std::size_t n_dst = matrix.n_dst();
+
+            if (n_src != matrix.n_src()) {
+                throw std::invalid_argument("src array shape[0] (" + std::to_string(n_src) + ") != matrix.n_src (" + std::to_string(matrix.n_src()) +
+                                            ")");
+            }
+
+            const double *src_ptr = src_arr.data();
+            bool is_fortran_order = (src_arr.stride(0) == 1);
+
+            // Allocate a column-major source buffer for AXIS
+            std::vector<double> src_colmajor;
+            if (!is_fortran_order) {
+                // C-order (row-major): src_arr(i, v) is at ptr[i*n_vars + v]
+                // We need column-major: buf(i, v) at buf[i + v*n_src]
+                src_colmajor.resize(n_src * n_vars);
+                for (std::size_t v = 0; v < n_vars; ++v) {
+                    for (std::size_t i = 0; i < n_src; ++i) {
+                        src_colmajor[i + v * n_src] = src_ptr[i * n_vars + v];
+                    }
+                }
+                src_ptr = src_colmajor.data();
+            }
+
+            // Build field_view<const double, 2> over the column-major source
+            axis::field_view<const double, 2> src_view(src_ptr, n_src, n_vars);
+
+            // Allocate column-major destination buffer (exception-safe unique_ptr)
+            auto dst_buf_uniq = std::make_unique<double[]>(n_dst * n_vars);
+            double *dst_buf = dst_buf_uniq.get();
+            axis::field_view<double, 2> dst_view(dst_buf, n_dst, n_vars);
+
+            // Execute nan batch apply
+            axis::solver::nan_batch_apply<Kokkos::HostSpace>(matrix, src_view, dst_view, na_thres);
+
+            // Convert back to C-order (row-major) for numpy return
+            // numpy expects shape (n_dst, n_vars) in C-order: dst[j*n_vars + v]
+            auto result_uniq = std::make_unique<double[]>(n_dst * n_vars);
+            double *result = result_uniq.get();
+            for (std::size_t v = 0; v < n_vars; ++v) {
+                for (std::size_t j = 0; j < n_dst; ++j) {
+                    result[j * n_vars + v] = dst_buf[j + v * n_dst];
+                }
+            }
+
+            // Return as numpy array (n_dst, n_vars) in C-order (with ownership transfer)
+            double *raw_ptr = result_uniq.release();
+            nb::capsule owner(raw_ptr, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            std::size_t shape[2] = {n_dst, n_vars};
+            return nb::ndarray<nb::numpy, double>(raw_ptr, 2, shape, std::move(owner));
+        },
+        "matrix"_a, "src"_a, "na_thres"_a,
+        "Apply interpolation matrix with on-the-fly NaN-aware SpMV re-normalization.\n"
+        "Accepts both C-order and Fortran-order 2-D arrays.");
+
     // ─── Conservation check ──────────────────────────────────────────────────
 
     m.def(
@@ -660,7 +709,7 @@ NB_MODULE(axis_py, m) {
             res["is_rectilinear"] = info.is_rectilinear;
             res["ni"] = info.ni;
             res["nj"] = info.nj;
-            
+
             if (info.is_rectilinear) {
                 std::vector<double> unique_lons(info.unique_lons.extent(0));
                 for (std::size_t i = 0; i < unique_lons.size(); ++i) {

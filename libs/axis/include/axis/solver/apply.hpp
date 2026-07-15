@@ -502,11 +502,11 @@ void nan_batch_apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<
                 }
 
                 if (sum_valid_weights == 0.0 || total_row_weight == 0.0) {
-                    dst_kk(j, v) = Kokkos::ArithTraits<double>::nan();
+                    dst_kk(j, v) = Kokkos::nan("not a number");
                 } else {
                     double fraction_valid = sum_valid_weights / total_row_weight;
                     if (fraction_valid < (1.0 - na_thres - 1e-6)) {
-                        dst_kk(j, v) = Kokkos::ArithTraits<double>::nan();
+                        dst_kk(j, v) = Kokkos::nan("not a number");
                     } else {
                         dst_kk(j, v) = weighted_sum_val / sum_valid_weights;
                     }
