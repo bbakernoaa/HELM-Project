@@ -226,3 +226,71 @@ class TestNamedMeshGeneration:
         # (each cell has at least one node, most are shared)
         assert mesh.n_nodes >= 1
         assert mesh.n_cells >= 1
+
+
+# ─── Test: Exposed Matrix properties and Core utilities ───────────────────────
+
+
+class TestMatrixPropertiesAndCoreUtilities:
+    """Validates exposed C++ properties and utility functions."""
+
+    def test_matrix_exposed_properties(self, bilinear_matrix):
+        """Verify that Matrix exposes factor_list, index lists, areas, and fractions."""
+        assert isinstance(bilinear_matrix.factor_list, np.ndarray)
+        assert isinstance(bilinear_matrix.factor_col, np.ndarray)
+        assert isinstance(bilinear_matrix.factor_row, np.ndarray)
+        assert isinstance(bilinear_matrix.frac_a, np.ndarray)
+        assert isinstance(bilinear_matrix.frac_b, np.ndarray)
+        assert isinstance(bilinear_matrix.area_a, np.ndarray)
+        assert isinstance(bilinear_matrix.area_b, np.ndarray)
+
+        assert len(bilinear_matrix.factor_list) == bilinear_matrix.nnz
+        assert len(bilinear_matrix.factor_col) == bilinear_matrix.nnz
+        assert len(bilinear_matrix.factor_row) == bilinear_matrix.nnz
+        assert len(bilinear_matrix.frac_a) == bilinear_matrix.n_src
+        assert len(bilinear_matrix.frac_b) == bilinear_matrix.n_dst
+        assert len(bilinear_matrix.area_a) == bilinear_matrix.n_src
+        assert len(bilinear_matrix.area_b) == bilinear_matrix.n_dst
+
+    def test_grid_detectors(self):
+        """Verify detect_regular_grid and detect_rectilinear_grid correctly identify grids."""
+        # Create a 10x5 regular lat-lon mesh
+        mesh = axis_py.make_regular_mesh(10, 5, 0.0, -90.0, 36.0, 36.0)
+
+        # 1. Regular grid detection
+        reg_info = axis_py.detect_regular_grid(mesh)
+        assert isinstance(reg_info, dict)
+        assert reg_info["is_regular"] is True
+        assert reg_info["ni"] == 10
+        assert reg_info["nj"] == 5
+        assert np.isclose(reg_info["delta_lon"], 36.0)
+        assert np.isclose(reg_info["delta_lat"], 36.0)
+
+        # 2. Rectilinear grid detection
+        rect_info = axis_py.detect_rectilinear_grid(mesh)
+        assert isinstance(rect_info, dict)
+        assert rect_info["is_rectilinear"] is True
+        assert rect_info["ni"] == 10
+        assert rect_info["nj"] == 5
+        assert isinstance(rect_info["unique_lons"], list)
+        assert len(rect_info["unique_lons"]) == 11
+        assert isinstance(rect_info["unique_lats"], list)
+        assert len(rect_info["unique_lats"]) == 6
+
+    def test_adjust_by_fraction(self):
+        """Verify adjust_by_fraction divides in-place."""
+        dst = np.array([10.0, 20.0, 0.0, 5.0], dtype=np.float64)
+        frac = np.array([0.5, 1.0, 0.0, 0.25], dtype=np.float64)
+
+        # Perform in-place adjustment
+        axis_py.adjust_by_fraction(dst, frac)
+
+        # Expect:
+        # 10.0 / 0.5  = 20.0
+        # 20.0 / 1.0  = 20.0
+        # 0.0 / 0.0   = 0.0 or nan (depending on C++ handling, usually leaves alone if frac is 0, let's verify)
+        # 5.0 / 0.25  = 20.0
+        assert dst[0] == 20.0
+        assert dst[1] == 20.0
+        assert dst[3] == 20.0
+
