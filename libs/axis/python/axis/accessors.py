@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, cast
 
 import xarray as xr
 
@@ -20,11 +20,11 @@ class RegridDataArrayAccessor:
         Regrid the DataArray to a target grid or using a pre-computed Regridder.
         """
         if isinstance(target_grid, Regridder):
-            return target_grid(self._obj)
+            return cast(xr.DataArray, target_grid(self._obj))
 
         source_ds = self._obj.to_dataset(name="_tmp_data")
         regridder = Regridder(source_ds, target_grid, **kwargs)
-        return regridder(self._obj)
+        return cast(xr.DataArray, regridder(self._obj))
 
     def get_regridder(self, target_grid: xr.Dataset, **kwargs: Any) -> Regridder:
         """
@@ -48,10 +48,10 @@ class RegridDatasetAccessor:
         Regrid the Dataset to a target grid or using a pre-computed Regridder.
         """
         if isinstance(target_grid, Regridder):
-            return target_grid(self._obj)
+            return cast(xr.Dataset, target_grid(self._obj))
 
         regridder = Regridder(self._obj, target_grid, **kwargs)
-        return regridder(self._obj)
+        return cast(xr.Dataset, regridder(self._obj))
 
     def get_regridder(self, target_grid: xr.Dataset, **kwargs: Any) -> Regridder:
         """

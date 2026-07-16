@@ -1,20 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
+from typing import Any
+
 import numpy as np
 
 from . import axis_py
 
 # Worker-local cache for sparse weight matrices to optimize Dask performance
-_WORKER_CACHE = {}
+_WORKER_CACHE: dict[Any, Any] = {}
+
 
 def _setup_worker_cache(key, obj):
     """Setup a shared object in the worker-local cache."""
     _WORKER_CACHE[key] = obj
     return True
 
+
 def _sync_cache_from_worker_data(future_key, cache_key):
     """Retrieve dask future data from worker and save to local cache."""
     try:
         import dask.distributed
+
         worker = dask.distributed.get_worker()
         data = worker.data[future_key]
         _WORKER_CACHE[cache_key] = data
@@ -22,15 +27,16 @@ def _sync_cache_from_worker_data(future_key, cache_key):
     except Exception:
         return False
 
+
 def _apply_weights_core(
     data_block: np.ndarray,
     weights_matrix,
     dims_source: tuple,
     shape_target: tuple,
     skipna: bool = False,
-    total_weights: np.ndarray = None,
+    total_weights: np.ndarray | None = None,
     na_thres: float = 1.0,
-    weights_key: str = None,
+    weights_key: str | None = None,
 ) -> np.ndarray:
     """
     Apply regridding weights to a NumPy data block.
@@ -76,7 +82,7 @@ def _apply_weights_core(
     else:
         row_sums = np.array(axis_py.apply_weights(weights_matrix, np.ones(weights_matrix.n_src))).flatten()
 
-    nan_mask = (row_sums == 0.0)
+    nan_mask = row_sums == 0.0
     nan_val = flat_data.dtype.type(np.nan)
 
     if not skipna:
@@ -109,9 +115,7 @@ def _apply_weights_core(
 
             if total_weights is not None:
                 fraction_valid = weights_sum / total_weights
-                result = np.where(
-                    fraction_valid < (1.0 - na_thres - 1e-6), nan_val, result
-                )
+                result = np.where(fraction_valid < (1.0 - na_thres - 1e-6), nan_val, result)
 
     new_shape = other_dims_shape + shape_target
     return result.reshape(new_shape).astype(data_block.dtype, copy=False)

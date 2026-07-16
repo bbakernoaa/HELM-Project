@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import xarray as xr
@@ -37,11 +37,11 @@ class VerticalRegridder:
         is_xarray = isinstance(src_field, xr.DataArray)
 
         # Cast input array to DataArray if passed as a raw NumPy array to leverage apply_ufunc
-        if not is_xarray:
+        if isinstance(src_field, xr.DataArray):
+            da_field = src_field
+        else:
             dims = [f"dim_{i}" for i in range(src_field.ndim - 1)] + ["lev"]
             da_field = xr.DataArray(np.asarray(src_field, dtype=np.float64), dims=dims)
-        else:
-            da_field = src_field
 
         vert_dim = da_field.dims[-1]
         regridded_vert_dim = f"{vert_dim}_regridded"
@@ -157,6 +157,7 @@ class VerticalRegridder:
         out = out.assign_coords(target_coords)
 
         if is_xarray:
+            assert isinstance(src_field, xr.DataArray)
             if da_dst_levels.dims[-1] != vert_dim:
                 out = out.rename({da_dst_levels.dims[-1]: vert_dim})
             out.name = src_field.name
@@ -181,7 +182,7 @@ def regrid_3d(
 
     # 1. Remap horizontally
     regridder_2d = Regridder(ds, target_grid_2d, method=method_2d)
-    ds_h = regridder_2d(ds)
+    ds_h = cast(xr.Dataset, regridder_2d(ds))
 
     # 2. Remap vertically
     regridder_v = VerticalRegridder(tension=tension_1d)
@@ -194,7 +195,7 @@ def regrid_3d(
             da_reordered = da.transpose(*dims_order)
 
             src_levs = ds[vertical_coord_name]
-            res_da = regridder_v.interpolate(da_reordered, src_levs, target_levels_1d)
+            res_da = cast(xr.DataArray, regridder_v.interpolate(da_reordered, src_levs, target_levels_1d))
 
             ds_out[var] = res_da.transpose(*da.dims)
         else:

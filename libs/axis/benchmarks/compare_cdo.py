@@ -52,7 +52,6 @@ except ImportError:
     print("  pip install ./libs/axis")
     print("")
     print("Running CDO-only benchmark (no AXIS comparison)...")
-    axis = None
     AXIS_AVAILABLE = False
 
 # Try to import xregrid for optional comparative benchmarking

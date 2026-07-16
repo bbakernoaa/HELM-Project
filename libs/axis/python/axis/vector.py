@@ -5,7 +5,16 @@ import numpy as np
 import xarray as xr
 
 from . import axis_py
-from .grid import CurvilinearGrid, Geometry, RectilinearGrid
+from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid
+
+
+def _to_geometry(obj: Geometry | xr.Dataset | xr.DataArray | dict) -> Geometry:
+    """Normalize a Geometry, xarray container, or coordinate dict into a Geometry."""
+    if isinstance(obj, Geometry):
+        return obj
+    if isinstance(obj, dict):
+        return GridFactory.from_dict(obj)
+    return GridFactory.from_xarray(obj)
 
 
 class VectorRegridder:
@@ -23,10 +32,8 @@ class VectorRegridder:
         dst_alpha: np.ndarray | None = None,
         **kwargs: Any,
     ):
-        from .grid import GridFactory
-
-        self._src_geom = src if isinstance(src, Geometry) else GridFactory.from_xarray(src)
-        self._dst_geom = dst if isinstance(dst, Geometry) else GridFactory.from_xarray(dst)
+        self._src_geom = _to_geometry(src)
+        self._dst_geom = _to_geometry(dst)
 
         src_mesh = self._src_geom.to_mesh()
         dst_mesh = self._dst_geom.to_mesh()
@@ -66,10 +73,11 @@ class VectorRegridder:
         """
         is_xarray = isinstance(u, xr.DataArray) and isinstance(v, xr.DataArray)
 
-        u_arr = np.asarray(u.values if is_xarray else u, dtype=np.float64)
-        v_arr = np.asarray(v.values if is_xarray else v, dtype=np.float64)
+        u_arr = np.asarray(u.values if isinstance(u, xr.DataArray) else u, dtype=np.float64)
+        v_arr = np.asarray(v.values if isinstance(v, xr.DataArray) else v, dtype=np.float64)
 
         # Determine source and target shapes
+        src_shape: tuple[int, ...]
         if isinstance(self._src_geom, RectilinearGrid):
             src_shape = (len(self._src_geom.lats), len(self._src_geom.lons))
         elif isinstance(self._src_geom, CurvilinearGrid):
@@ -77,6 +85,7 @@ class VectorRegridder:
         else:
             src_shape = (self._W_u.n_src // 2,)
 
+        dst_shape: tuple[int, ...]
         if isinstance(self._dst_geom, RectilinearGrid):
             dst_shape = (len(self._dst_geom.lats), len(self._dst_geom.lons))
         elif isinstance(self._dst_geom, CurvilinearGrid):
@@ -85,6 +94,8 @@ class VectorRegridder:
             dst_shape = (self._W_u.n_dst,)
 
         n_spatial = self._W_u.n_src // 2
+        u_out: np.ndarray
+        v_out: np.ndarray
 
         if u_arr.ndim == len(src_shape) and u_arr.shape == src_shape:
             # 2D Spatial Grid Case
@@ -119,8 +130,10 @@ class VectorRegridder:
             v_out = v_out_t.T.reshape(other_dims_shape + dst_shape)
 
         if is_xarray:
-            target_coords = {}
-            if hasattr(self._dst_geom, "lons"):
+            assert isinstance(u, xr.DataArray) and isinstance(v, xr.DataArray)
+            target_coords: dict[str, Any] = {}
+            dims: tuple[str, ...]
+            if isinstance(self._dst_geom, (RectilinearGrid, CurvilinearGrid)):
                 if self._dst_geom.lons.ndim == 1:
                     target_coords["lat"] = self._dst_geom.lats
                     target_coords["lon"] = self._dst_geom.lons

@@ -7,20 +7,53 @@ from . import axis_py
 
 # Unstructured spatial dimension tags commonly used in climate datasets
 UNSTRUCTURED_DIMS = {
-    "ncol", "grid_size", "nCells", "nVertices", "nNodes", "nFaces", "nEdges",
-    "n_node", "n_face", "n_edge", "n_cells", "n_vertices", "node", "face",
-    "vertex", "cell", "n_pts"
+    "ncol",
+    "grid_size",
+    "nCells",
+    "nVertices",
+    "nNodes",
+    "nFaces",
+    "nEdges",
+    "n_node",
+    "n_face",
+    "n_edge",
+    "n_cells",
+    "n_vertices",
+    "node",
+    "face",
+    "vertex",
+    "cell",
+    "n_pts",
 }
+
 
 def _get_non_spatial_dims(ds: xr.Dataset) -> set[str]:
     """Identify and filter out non-spatial dimensions (Time, Z, Member)."""
-    spatial_keywords = {"lat", "lon", "x", "y", "node", "face", "element", "cell", "n_pts", "ncol", "ncells", "grid_size", "vert", "vertex", "vertices", "tile"}
+    spatial_keywords = {
+        "lat",
+        "lon",
+        "x",
+        "y",
+        "node",
+        "face",
+        "element",
+        "cell",
+        "n_pts",
+        "ncol",
+        "ncells",
+        "grid_size",
+        "vert",
+        "vertex",
+        "vertices",
+        "tile",
+    }
     non_spatial = set()
     for d in ds.dims:
         d_lower = str(d).lower()
         if not any(kw in d_lower for kw in spatial_keywords):
             non_spatial.add(str(d))
     return non_spatial
+
 
 def _find_coord(ds: xr.Dataset, name: str) -> xr.DataArray | None:
     """Find a coordinate array based on standard_name, axis, units, or name heuristics."""
@@ -32,12 +65,23 @@ def _find_coord(ds: xr.Dataset, name: str) -> xr.DataArray | None:
         if name == "latitude":
             if da.attrs.get("axis") == "Y":
                 return da
-            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_north", "degree_north", "degree_n", "degrees_n", "degress_n"]:
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in [
+                "degrees_north",
+                "degree_north",
+                "degree_n",
+                "degrees_n",
+                "degress_n",
+            ]:
                 return da
         if name == "longitude":
             if da.attrs.get("axis") == "X":
                 return da
-            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_east", "degree_east", "degree_e", "degrees_e"]:
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in [
+                "degrees_east",
+                "degree_east",
+                "degree_e",
+                "degrees_e",
+            ]:
                 return da
 
     # Check all variables (e.g. data_vars or other variables)
@@ -48,14 +92,26 @@ def _find_coord(ds: xr.Dataset, name: str) -> xr.DataArray | None:
         if name == "latitude":
             if da.attrs.get("axis") == "Y":
                 return da
-            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_north", "degree_north", "degree_n", "degrees_n", "degress_n"]:
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in [
+                "degrees_north",
+                "degree_north",
+                "degree_n",
+                "degrees_n",
+                "degress_n",
+            ]:
                 return da
         if name == "longitude":
             if da.attrs.get("axis") == "X":
                 return da
-            if "units" in da.attrs and str(da.attrs.get("units")).lower() in ["degrees_east", "degree_east", "degree_e", "degrees_e"]:
+            if "units" in da.attrs and str(da.attrs.get("units")).lower() in [
+                "degrees_east",
+                "degree_east",
+                "degree_e",
+                "degrees_e",
+            ]:
                 return da
     return None
+
 
 def _get_mesh_info(
     ds: xr.Dataset,
@@ -78,7 +134,7 @@ def _get_mesh_info(
     if lat is None:
         raise KeyError("Could not find latitude coordinates in dataset.")
 
-    lon_name = lat.name.replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
+    lon_name = str(lat.name).replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
     if lon_name in ds:
         lon = ds[lon_name]
     else:
@@ -119,26 +175,27 @@ def _get_mesh_info(
         elif lat.ndim == 2:
             # If 2D curvilinear with NO lambert conformal conic mapping, treat as unstructured quad mesh
             has_lcc = False
-            for v in ds.variables:
-                if ds[v].attrs.get("grid_mapping_name") == "lambert_conformal_conic":
+            for var in ds.variables:
+                if ds[var].attrs.get("grid_mapping_name") == "lambert_conformal_conic":
                     has_lcc = True
                     break
             if not has_lcc:
                 is_unstructured = True
 
     if is_unstructured:
-        return lon, lat, lat.shape, lat.dims, True
+        return lon, lat, lat.shape, tuple(str(d) for d in lat.dims), True
     else:
         # Structured grid: both latitude and longitude are spatial dimensions!
         if lat.ndim == 1:
             # Regular grid with 1D lat and 1D lon.
             # Return full 2D spatial dims and shape
-            dims = (lat.name, lon.name)
+            dims = (str(lat.name), str(lon.name))
             shape = (len(lat), len(lon))
             return lon, lat, shape, dims, False
         else:
             # Curvilinear grid with 2D lat and 2D lon
-            return lon, lat, lat.shape, lat.dims, False
+            return lon, lat, lat.shape, tuple(str(d) for d in lat.dims), False
+
 
 def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Synthesize (ny+1, nx+1) corner coordinates from (ny, nx) cell centers via fast 2D slicing."""
@@ -147,18 +204,13 @@ def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[n
     pad_lat = np.pad(lat, 1, mode="edge")
 
     # Sum the 4 surrounding padded elements
-    sum_lon = (
-        pad_lon[:-1, :-1] + pad_lon[:-1, 1:] +
-        pad_lon[1:, :-1] + pad_lon[1:, 1:]
-    )
-    sum_lat = (
-        pad_lat[:-1, :-1] + pad_lat[:-1, 1:] +
-        pad_lat[1:, :-1] + pad_lat[1:, 1:]
-    )
+    sum_lon = pad_lon[:-1, :-1] + pad_lon[:-1, 1:] + pad_lon[1:, :-1] + pad_lon[1:, 1:]
+    sum_lat = pad_lat[:-1, :-1] + pad_lat[:-1, 1:] + pad_lat[1:, :-1] + pad_lat[1:, 1:]
 
     clon = sum_lon / 4.0
     clat = sum_lat / 4.0
     return clon, clat
+
 
 def _triangulate_mpas_mesh(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Triangulate arbitrary polygon cells (like MPAS Voronoi cells) into triangles."""
@@ -185,10 +237,10 @@ def _triangulate_mpas_mesh(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.n
     node_lat = v_lat.values
     node_lon = v_lon.values
     if np.any(np.abs(node_lat) > 2.0 * np.pi):
-         pass # Already degrees
+        pass  # Already degrees
     else:
-         node_lat = np.degrees(node_lat)
-         node_lon = np.degrees(node_lon)
+        node_lat = np.degrees(node_lat)
+        node_lon = np.degrees(node_lon)
 
     # Wrap longitudes to [0, 360]
     node_lon = np.mod(node_lon, 360.0)
@@ -207,9 +259,12 @@ def _triangulate_mpas_mesh(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.n
 
     element_conn = np.stack([v0[mask], v1[mask], v2[mask]], axis=1).flatten()
 
-    return node_lon, node_lat, element_conn.astype(np.int32)
+    return node_lon, node_lat, element_conn.astype(np.int64)
 
-def _parse_scrip_bounds(ds: xr.Dataset, lat: xr.DataArray | None = None, lon: xr.DataArray | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+
+def _parse_scrip_bounds(
+    ds: xr.Dataset, lat: xr.DataArray | None = None, lon: xr.DataArray | None = None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Parse unstructured SCRIP-style cell centers and 2D bounds into general polygon nodes/connectivity offsets/indices."""
     # Find longitude/latitude coordinates if not provided
     if lat is None:
@@ -224,7 +279,7 @@ def _parse_scrip_bounds(ds: xr.Dataset, lat: xr.DataArray | None = None, lon: xr
         raise KeyError("Could not find latitude coordinates in dataset.")
 
     if lon is None:
-        lon_name = lat.name.replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
+        lon_name = str(lat.name).replace("lat", "lon").replace("LAT", "LON").replace("latitude", "longitude")
         if lon_name in ds:
             lon = ds[lon_name]
         else:
@@ -261,11 +316,11 @@ def _parse_scrip_bounds(ds: xr.Dataset, lat: xr.DataArray | None = None, lon: xr
 
         # Filter out repeated padded corners
         cell_vertices = []
-        for v in range(nv):
+        for vi in range(nv):
             # Skip repeated padded corners (standard CDO SCRIP padding)
-            if v > 0 and lats_c[v] == lats_c[v-1] and lons_c[v] == lons_c[v-1]:
+            if vi > 0 and lats_c[vi] == lats_c[vi - 1] and lons_c[vi] == lons_c[vi - 1]:
                 continue
-            cell_vertices.append((lons_c[v], lats_c[v]))
+            cell_vertices.append((lons_c[vi], lats_c[vi]))
 
         n_vertices = len(cell_vertices)
         if n_vertices < 3:
@@ -290,9 +345,10 @@ def _parse_scrip_bounds(ds: xr.Dataset, lat: xr.DataArray | None = None, lon: xr
     return (
         node_lons_arr,
         np.array(node_lats),
-        np.array(conn_offsets, dtype=np.int32),
-        np.array(conn_indices, dtype=np.int32)
+        np.array(conn_offsets, dtype=np.int64),
+        np.array(conn_indices, dtype=np.int64),
     )
+
 
 def _get_ugrid_info(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Extract standard UGRID mesh connectivity and node coordinates."""
@@ -318,7 +374,8 @@ def _get_ugrid_info(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     if start_index == 1:
         face_conn = face_conn - 1
 
-    return node_lon, node_lat, face_conn.astype(np.int32).flatten()
+    return node_lon, node_lat, face_conn.astype(np.int64).flatten()
+
 
 def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
     """Build a native C++ Kokkos-parallel AXIS Mesh from an xarray dataset."""
@@ -344,8 +401,8 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
             node_lat = v_lat.values
             node_lon = v_lon.values
             if not np.any(np.abs(node_lat) > 2.0 * np.pi):
-                 node_lat = np.degrees(node_lat)
-                 node_lon = np.degrees(node_lon)
+                node_lat = np.degrees(node_lat)
+                node_lon = np.degrees(node_lon)
             node_lon = np.mod(node_lon, 360.0)
             node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
 
@@ -359,21 +416,21 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                 conn_raw = v_conn.values
                 n_edges = ds["nEdgesOnCell"].values if "nEdgesOnCell" in ds else np.full(conn_raw.shape[0], conn_raw.shape[1])
 
-                conn_offsets = np.zeros(len(n_edges) + 1, dtype=np.int32)
+                conn_offsets = np.zeros(len(n_edges) + 1, dtype=np.int64)
                 conn_offsets[1:] = np.cumsum(n_edges)
 
                 n_cells, max_edges = conn_raw.shape
                 row_indices = np.arange(max_edges)
                 mask = row_indices[None, :] < n_edges[:, None]
-                conn_indices = (conn_raw[mask] - 1).astype(np.int32)
+                conn_indices = (conn_raw[mask] - 1).astype(np.int64)
 
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
             else:
                 # Triangulated MPAS (for bilinear/bicubic/patch)
                 node_lon, node_lat, element_conn = _triangulate_mpas_mesh(ds)
                 node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
-                conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
-                conn_indices = element_conn.astype(np.int32)
+                conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int64)
+                conn_indices = element_conn.astype(np.int64)
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
         # 2. SCRIP 2D Bounds format
         elif "lat_bnds" in ds or any("bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon", lat.name, lon.name]):
@@ -390,7 +447,7 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                 ni, nj = lon.shape[1], lon.shape[0]
                 nip1 = ni + 1
                 n_cells = ni * nj
-                conn_offsets = np.arange(0, n_cells * 4 + 1, 4, dtype=np.int32)
+                conn_offsets = np.arange(0, n_cells * 4 + 1, 4, dtype=np.int64)
 
                 i_grid, j_grid = np.meshgrid(np.arange(ni), np.arange(nj))
                 bl = (i_grid + j_grid * nip1).ravel()
@@ -398,7 +455,7 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                 tr = ((i_grid + 1) + (j_grid + 1) * nip1).ravel()
                 tl = (i_grid + (j_grid + 1) * nip1).ravel()
 
-                conn_indices = np.column_stack([bl, br, tr, tl]).astype(np.int32).ravel()
+                conn_indices = np.column_stack([bl, br, tr, tl]).astype(np.int64).ravel()
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
             else:
                 # 3D Cubed-Sphere grid (ntiles, ny, nx)
@@ -420,22 +477,22 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                     tr = ((i_grid + 1) + (j_grid + 1) * nip1 + node_offset).ravel()
                     tl = (i_grid + (j_grid + 1) * nip1 + node_offset).ravel()
 
-                    indices_t = np.column_stack([bl, br, tr, tl]).astype(np.int32).ravel()
+                    indices_t = np.column_stack([bl, br, tr, tl]).astype(np.int64).ravel()
                     conn_indices_list.append(indices_t)
 
                     node_offset += len(coords_t)
 
                 node_coords = np.asfortranarray(np.concatenate(node_coords_list))
                 conn_indices = np.concatenate(conn_indices_list)
-                conn_offsets = np.arange(0, len(conn_indices) + 1, 4, dtype=np.int32)
+                conn_offsets = np.arange(0, len(conn_indices) + 1, 4, dtype=np.int64)
 
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
         # 4. CF-UGRID standard
         else:
             node_lon, node_lat, element_conn = _get_ugrid_info(ds)
             node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
-            conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
-            conn_indices = element_conn.astype(np.int32)
+            conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int64)
+            conn_indices = element_conn.astype(np.int64)
             return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
     else:
         # Structured: regular or rectilinear/projected
@@ -516,14 +573,18 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
 # Low-Level Explicit Geometry API
 # ==============================================================================
 
+
 class Geometry:
     """Base abstract class representing any physical coordinate layout in AXIS."""
+
     def to_mesh(self, method: str | None = None) -> axis_py.Mesh:
         """Convert this geometry to a unified C++ UnstructuredMesh."""
         raise NotImplementedError()
 
+
 class XarrayGeometry(Geometry):
     """Wraps an xarray Dataset or DataArray to defer mesh construction."""
+
     def __init__(self, ds: xr.Dataset | xr.DataArray, method: str | None = None):
         self.ds = ds
         self.method = method
@@ -533,10 +594,12 @@ class XarrayGeometry(Geometry):
         ds_normalized = self.ds.to_dataset(name="_tmp_data") if isinstance(self.ds, xr.DataArray) else self.ds
         return create_axis_mesh(ds_normalized, method or self.method)
 
+
 class RectilinearGrid(Geometry):
     """
     Represent a standard 2D lat-lon grid with 1-D coordinate vectors.
     """
+
     def __init__(self, lons: np.ndarray, lats: np.ndarray):
         self.lons = np.asarray(lons, dtype=np.float64)
         self.lats = np.asarray(lats, dtype=np.float64)
@@ -550,10 +613,12 @@ class RectilinearGrid(Geometry):
         lat_start = float(self.lats[0]) - 0.5 * dlat
         return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
 
+
 class CurvilinearGrid(Geometry):
     """
     Represent a 2D curvilinear grid with 2-D coordinate matrices.
     """
+
     def __init__(self, lons: np.ndarray, lats: np.ndarray, proj_string: str | None = None):
         self.lons = np.asarray(lons, dtype=np.float64)
         self.lats = np.asarray(lats, dtype=np.float64)
@@ -562,8 +627,11 @@ class CurvilinearGrid(Geometry):
     def to_mesh(self, method: str | None = None) -> axis_py.Mesh:
         if self.proj_string:
             return axis_py.make_projected_mesh(
-                self.lons.shape[1], self.lons.shape[0],
-                self.proj_string, self.lons.ravel(), self.lats.ravel()
+                self.lons.shape[1],
+                self.lons.shape[0],
+                self.proj_string,
+                self.lons.ravel(),
+                self.lats.ravel(),
             )
         else:
             clon, clat = _synthesize_curvilinear_corners(self.lons, self.lats)
@@ -592,11 +660,18 @@ class CurvilinearGrid(Geometry):
 
             return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
 
+
 class UnstructuredMesh(Geometry):
     """
     Represent an arbitrary unstructured polygon grid (e.g. MPAS, FVCOM, SCRIP).
     """
-    def __init__(self, node_coords: np.ndarray, connectivity_offsets: np.ndarray, connectivity_indices: np.ndarray):
+
+    def __init__(
+        self,
+        node_coords: np.ndarray,
+        connectivity_offsets: np.ndarray,
+        connectivity_indices: np.ndarray,
+    ):
         self.coords = np.asfortranarray(node_coords, dtype=np.float64)
         self.offsets = np.asarray(connectivity_offsets, dtype=np.int64)
         self.indices = np.asarray(connectivity_indices, dtype=np.int64)
@@ -604,12 +679,19 @@ class UnstructuredMesh(Geometry):
     def to_mesh(self, method: str | None = None) -> axis_py.Mesh:
         return axis_py.make_ugrid_mesh(self.coords, self.offsets, self.indices)
 
+
 class GridFactory:
     """
     Convenience factory to convert high-level containers to Geometry classes.
     """
+
     @staticmethod
-    def from_xarray(ds: xr.Dataset | xr.DataArray, lon_var: str | None = None, lat_var: str | None = None, method: str | None = None) -> Geometry:
+    def from_xarray(
+        ds: xr.Dataset | xr.DataArray,
+        lon_var: str | None = None,
+        lat_var: str | None = None,
+        method: str | None = None,
+    ) -> Geometry:
         """
         Build an explicit AXIS geometry from an xarray container.
         """
@@ -620,3 +702,17 @@ class GridFactory:
                 return RectilinearGrid(lons, lats)
             return CurvilinearGrid(lons, lats)
         return XarrayGeometry(ds, method=method)
+
+    @staticmethod
+    def from_dict(mapping: dict) -> Geometry:
+        """
+        Build an explicit AXIS geometry from a dict of coordinate arrays.
+
+        Accepts either ``lon``/``lat`` or ``lons``/``lats`` keys; 1-D arrays yield a
+        RectilinearGrid, higher-dimensional arrays a CurvilinearGrid.
+        """
+        lons = np.asarray(mapping.get("lon") if mapping.get("lon") is not None else mapping.get("lons"))
+        lats = np.asarray(mapping.get("lat") if mapping.get("lat") is not None else mapping.get("lats"))
+        if lons.ndim == 1:
+            return RectilinearGrid(lons, lats)
+        return CurvilinearGrid(lons, lats)

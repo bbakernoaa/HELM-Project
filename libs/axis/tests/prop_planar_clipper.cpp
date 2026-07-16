@@ -37,13 +37,21 @@ struct Vec2 {
 };
 
 /// Shoelace formula for unsigned area of a polygon given as std::vector<Vec2>.
+/// Vertices are translated to the first vertex before summation to avoid
+/// catastrophic cancellation for polygons far from the origin (keeps this
+/// reference consistent with PlanarPolygon::area()).
 double shoelace_area(const std::vector<Vec2> &poly) {
     if (poly.size() < 3) return 0.0;
     double a = 0.0;
     int n = static_cast<int>(poly.size());
-    for (int i = 0; i < n; ++i) {
-        int j = (i + 1) % n;
-        a += poly[i].x * poly[j].y - poly[j].x * poly[i].y;
+    const double x0 = poly[0].x;
+    const double y0 = poly[0].y;
+    for (int i = 1; i < n - 1; ++i) {
+        const double dx0 = poly[i].x - x0;
+        const double dy0 = poly[i].y - y0;
+        const double dx1 = poly[i + 1].x - x0;
+        const double dy1 = poly[i + 1].y - y0;
+        a += dx0 * dy1 - dx1 * dy0;
     }
     return std::fabs(a) * 0.5;
 }

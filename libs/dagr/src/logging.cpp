@@ -12,7 +12,7 @@ namespace {
 #define DAGR_PASTE_TOKENS_RAW(a, b) a##b
 #define DAGR_PASTE_TOKENS(a, b) DAGR_PASTE_TOKENS_RAW(a, b)
 #define DAGR_STDOUT_STREAM std::DAGR_PASTE_TOKENS(co, ut)
-}
+}  // namespace
 
 namespace dagr::detail {
 

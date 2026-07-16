@@ -16,7 +16,8 @@ import pytest
 
 # axis_py is the nanobind extension module built with AXIS_BUILD_PYTHON=ON.
 # These tests are written to be runnable once the module is available.
-axis_py = pytest.importorskip("axis_py")
+axis = pytest.importorskip("axis")
+axis_py = axis.axis_py
 
 
 # ─── Test: generate + apply produces correct results (Req 12.3) ───────────────

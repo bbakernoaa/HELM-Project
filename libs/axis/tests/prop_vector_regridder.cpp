@@ -28,9 +28,7 @@ rc::Gen<std::size_t> genGridDim() {
 
 /// Generate a valid rotation angle in radians [-pi, pi] by scaling an integer
 rc::Gen<double> genAngle() {
-    return rc::gen::map(rc::gen::inRange(-3141, 3142), [](int v) {
-        return static_cast<double>(v) / 1000.0;
-    });
+    return rc::gen::map(rc::gen::inRange(-3141, 3142), [](int v) { return static_cast<double>(v) / 1000.0; });
 }
 
 /// Build a simple structured grid

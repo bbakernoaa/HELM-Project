@@ -36,9 +36,7 @@ rc::Gen<int> genGridRes() {
 
 /// Generate a valid named-grid string
 rc::Gen<std::string> genGridName() {
-    return rc::gen::apply([](char family, int res) {
-        return std::string(1, family) + std::to_string(res);
-    }, genGridFamily(), genGridRes());
+    return rc::gen::apply([](char family, int res) { return std::string(1, family) + std::to_string(res); }, genGridFamily(), genGridRes());
 }
 
 RC_GTEST_PROP(PropGridCombinations, RemapBetweenAnyGridCombination, ()) {
