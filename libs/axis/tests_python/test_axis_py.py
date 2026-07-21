@@ -293,4 +293,3 @@ class TestMatrixPropertiesAndCoreUtilities:
         assert dst[0] == 20.0
         assert dst[1] == 20.0
         assert dst[3] == 20.0
-

@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 import numpy as np
-import axis
+from axis.gnomonic import bilinear_weights, forward, inverse
 from axis.spherical import Vec3, lonlat_to_xyz
-from axis.gnomonic import forward, inverse, bilinear_weights
+
 
 def test_gnomonic_projections():
     center = Vec3(1.0, 0.0, 0.0)
@@ -12,11 +11,12 @@ def test_gnomonic_projections():
 
     u, v = forward(center, pt)
     assert np.isclose(u, np.tan(np.radians(10.0)))
-    
+
     reconstructed = inverse(center, u, v)
     assert np.isclose(reconstructed.x, pt.x)
     assert np.isclose(reconstructed.y, pt.y)
     assert np.isclose(reconstructed.z, pt.z)
+
 
 def test_bilinear_solver():
     # Simple projected quad with resolution 2.0 (from -1 to 1)

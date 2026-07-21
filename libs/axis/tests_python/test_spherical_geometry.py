@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 import numpy as np
-import axis
-from axis.spherical import Vec3, lonlat_to_xyz, xyz_to_lonlat, robust_orient_sphere, great_circle_arc_intersection
+from axis.spherical import Vec3, great_circle_arc_intersection, lonlat_to_xyz, robust_orient_sphere, xyz_to_lonlat
+
 
 def test_spherical_conversions():
     # Convert 45 lon, 45 lat in radians to Cartesian
@@ -17,6 +16,7 @@ def test_spherical_conversions():
     assert np.isclose(lon, np.pi / 4.0)
     assert np.isclose(lat, np.pi / 4.0)
 
+
 def test_robust_orientation():
     a = Vec3(1.0, 0.0, 0.0)
     b = Vec3(0.0, 1.0, 0.0)
@@ -24,6 +24,7 @@ def test_robust_orientation():
     c_left = Vec3(0.5, 0.5, 0.5)
     val = robust_orient_sphere(a, b, c_left)
     assert val > 0.0
+
 
 def test_arc_intersection():
     # Arc 1: Along equator (0 to 90 East)

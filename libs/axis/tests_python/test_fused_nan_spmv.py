@@ -1,6 +1,6 @@
-import pytest
 import numpy as np
 from axis import axis_py
+
 
 def test_fused_nan_batch_apply():
     # Construct a simple regular mesh
@@ -63,4 +63,3 @@ def test_fused_nan_correctness():
 
     # Verify identical matching (both values and NaN locations)
     np.testing.assert_allclose(actual, expected, rtol=1e-12, equal_nan=True)
-

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 import axis
+
 
 def test_rule_generator_regular():
     config = {
@@ -11,7 +11,7 @@ def test_rule_generator_regular():
         "bbox_min_y": -90.0,
         "bbox_max_y": 90.0,
         "r_x": 36.0,
-        "r_y": 36.0
+        "r_y": 36.0,
     }
     geom = axis.grid.RuleGeometry(config)
     mesh = geom.to_mesh()
