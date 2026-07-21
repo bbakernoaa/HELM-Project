@@ -1,7 +1,7 @@
 # Design Specification: AXIS Python Advanced Geometric Utilities
 
 ## 1. Overview
-AXIS (Arbitrary eXgrid Interpolation Solver) utilizes highly robust, numerically stable spherical trigonometry and local coordinate projection algorithms in its core C++ engine. This specification details the design for exposing these key geocomputation utilities as structured sub-modules under `axis` in Python. 
+AXIS (Arbitrary eXgrid Interpolation Solver) utilizes highly robust, numerically stable spherical trigonometry and local coordinate projection algorithms in its core C++ engine. This specification details the design for exposing these key geocomputation utilities as structured sub-modules under `axis` in Python.
 
 ---
 

@@ -4,7 +4,7 @@
 
 **Goal:** Expose core C++ advanced geometric utilities (Spherical Geometry, Gnomonic Projector, and Spherical Polygon Area) to AXIS Python bindings via nanobind, structured into clean Python sub-packages.
 
-**Architecture:** 
+**Architecture:**
 1. Map `axis::detail::Vec3` as a unified 3D Cartesian position vector.
 2. Bind raw spherical utilities, forward/inverse gnomonic projections, Newton-based bilinear weight solvers, and fixed-capacity `SphericalPolygon` structures.
 3. Expose them under `axis.spherical`, `axis.gnomonic`, and `axis.polygon` Python sub-modules.
@@ -197,7 +197,7 @@ def test_gnomonic_projections():
 
     u, v = forward(center, pt)
     assert np.isclose(u, np.tan(np.radians(10.0)))
-    
+
     reconstructed = inverse(center, u, v)
     assert np.isclose(reconstructed.x, pt.x)
     assert np.isclose(reconstructed.y, pt.y)
@@ -315,16 +315,16 @@ def test_spherical_excess_area():
     # Create an octant on the unit sphere (longitude 0 to 90 East, equator to North Pole)
     # Area must be 1/8 of total sphere area = (4 * pi) / 8 = pi / 2 ≈ 1.570796
     poly = SphericalPolygon()
-    
+
     # Vertices
     v0 = lonlat_to_xyz(0.0, 0.0)
     v1 = lonlat_to_xyz(np.pi / 2.0, 0.0)
     v2 = lonlat_to_xyz(0.0, np.pi / 2.0)
-    
+
     poly.add_vertex(v0)
     poly.add_vertex(v1)
     poly.add_vertex(v2)
-    
+
     assert poly.n == 3
     area_calc = poly.area()
     assert np.isclose(area_calc, np.pi / 2.0, rtol=1e-12)

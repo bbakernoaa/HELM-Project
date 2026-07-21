@@ -63,10 +63,10 @@ class CurvilinearGrid(Geometry):
             ny, nx = self.lons.shape
             n_nodes = (nx + 1) * (ny + 1)
             n_cells = nx * ny
-            
+
             node_coords = np.stack([clon.ravel(), clat.ravel()], axis=1)
             conn_offsets = np.arange(0, (n_cells + 1) * 4, 4, dtype=np.int32)
-            
+
             conn_indices = []
             for j in range(ny):
                 row_start = j * (nx + 1)
@@ -148,22 +148,22 @@ git commit -m "feat(python): implement low-level explicit Geometry API classes"
     def fit(self, src, dst, src_mask=None, dst_mask=None) -> "Regridder":
         self._src_geom = self._normalize_geometry(src)
         self._dst_geom = self._normalize_geometry(dst)
-        
+
         src_mesh = self._src_geom.to_mesh()
         dst_mesh = self._dst_geom.to_mesh()
-        
+
         config = {
             "method": self._axis_method,
             "periodic": self.periodic,
             "line_type": self._axis_line_type,
             "unmapped": axis_py.UnmappedAction.Ignore if self.unmapped == "ignore" else axis_py.UnmappedAction.Error
         }
-        
+
         if src_mask is not None:
             config["src_mask"] = np.asarray(src_mask, dtype=np.int32)
         if dst_mask is not None:
             config["dst_mask"] = np.asarray(dst_mask, dtype=np.int32)
-            
+
         self._weights_matrix = axis_py.generate_weights(src_mesh, dst_mesh, config)
         self._serialized_weights = self._weights_matrix.to_bytes()
         return self

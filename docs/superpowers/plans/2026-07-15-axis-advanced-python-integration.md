@@ -39,7 +39,7 @@ from axis import axis_py
 def test_gmsh_writer_export(tmp_path):
     mesh = axis_py.make_regular_mesh(5, 5, 0.0, -90.0, 72.0, 36.0)
     filepath = os.path.join(tmp_path, "test.msh")
-    
+
     # Verify high-level wrapping
     axis_py.write_gmsh(filepath, mesh)
     assert os.path.exists(filepath)
@@ -132,7 +132,7 @@ In `libs/axis/python/axis_py.cpp`:
     m.def("generate_mesh_from_rules", [](const nb::dict &config) -> HostMesh {
         ensure_kokkos();
         axis::ingest::GridRulesParams rules;
-        
+
         std::string kind_str = nb.cast<std::string>(config["kind"]);
         if (kind_str == "RegularLatLon") {
             rules.kind = axis::ingest::GridRulesKind::RegularLatLon;
@@ -220,10 +220,10 @@ def test_gradient_reconstruct_linear_field():
         [0.5, 1.5, 0.0],  # Cell 2
         [1.5, 1.5, 0.0]   # Cell 3
     ], dtype=np.float64)
-    
+
     # Linear field f(x, y) = 2x + 3y
     values = 2.0 * centroids[:, 0] + 3.0 * centroids[:, 1]
-    
+
     # Adjacency CSR structure
     adj_offsets = np.array([0, 2, 4, 6, 8], dtype=np.int64)
     adj_indices = np.array([
@@ -232,9 +232,9 @@ def test_gradient_reconstruct_linear_field():
         0, 3,  # Cell 2 neighbors: 0, 3
         1, 2   # Cell 3 neighbors: 1, 2
     ], dtype=np.int64)
-    
+
     grad = axis_py.reconstruct_gradient(values, centroids, adj_offsets, adj_indices, False)
-    
+
     # Verify reconstructed gradients (Expected x=2, y=3, z=0)
     assert grad.shape == (4, 3)
     for c in range(4):

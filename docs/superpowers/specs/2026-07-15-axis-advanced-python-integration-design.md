@@ -38,7 +38,7 @@ AXIS (Arbitrary eXgrid Interpolation Solver) provides high-performance, stateles
   m.def("generate_mesh_from_rules", [](const nb::dict &config) -> HostMesh {
       ensure_kokkos();
       axis::ingest::GridRulesParams rules;
-      
+
       std::string kind_str = nb::cast<std::string>(config["kind"]);
       if (kind_str == "RegularLatLon") {
           rules.kind = axis::ingest::GridRulesKind::RegularLatLon;
