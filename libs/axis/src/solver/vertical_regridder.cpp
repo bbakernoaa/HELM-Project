@@ -54,10 +54,14 @@ void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, M
             double *d = src_y + n_src;
             double *scratch_arr = d + n_src;
 
+            // Check if coordinates are descending
+            bool is_descending = n_src > 1 && src_levels(0) > src_levels(n_src - 1);
+
             // Cooperatively fill src_x and src_y
             Kokkos::parallel_for(Kokkos::TeamThreadRange(team, n_src), [&](const std::size_t i) {
-                src_y[i] = src_field(c, i);
-                src_x[i] = src_levels(i);
+                std::size_t raw_i = is_descending ? n_src - 1 - i : i;
+                src_y[i] = src_field(c, raw_i);
+                src_x[i] = src_levels(raw_i);
             });
             team.team_barrier();
 
@@ -67,17 +71,21 @@ void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, M
             }
             team.team_barrier();
 
+            // Check if destination coordinates are descending
+            bool dst_descending = n_dst > 1 && dst_levels(0) > dst_levels(n_dst - 1);
+
             // Cooperatively evaluate spline for each target destination level
             Kokkos::parallel_for(Kokkos::TeamThreadRange(team, n_dst), [&](const std::size_t j) {
-                double target = dst_levels(j);
+                std::size_t raw_j = dst_descending ? n_dst - 1 - j : j;
+                double target = dst_levels(raw_j);
 
                 std::size_t idx = 0;
                 while (idx < n_src - 2 && src_x[idx + 1] < target) {
                     idx++;
                 }
 
-                dst_field(c, j) = axis::detail::tspack::evaluate_spline(target, src_x[idx], src_x[idx + 1], src_y[idx], src_y[idx + 1], d[idx],
-                                                                        d[idx + 1], tension);
+                dst_field(c, raw_j) = axis::detail::tspack::evaluate_spline(target, src_x[idx], src_x[idx + 1], src_y[idx], src_y[idx + 1], d[idx],
+                                                                            d[idx + 1], tension);
             });
         });
 }
@@ -127,10 +135,14 @@ void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, M
             double *d = src_y + n_src;
             double *scratch_arr = d + n_src;
 
+            // Check if coordinates are descending for this column
+            bool is_descending = n_src > 1 && src_levels(c, 0) > src_levels(c, n_src - 1);
+
             // Cooperatively fill src_x and src_y
             Kokkos::parallel_for(Kokkos::TeamThreadRange(team, n_src), [&](const std::size_t i) {
-                src_y[i] = src_field(c, i);
-                src_x[i] = src_levels(c, i);
+                std::size_t raw_i = is_descending ? n_src - 1 - i : i;
+                src_y[i] = src_field(c, raw_i);
+                src_x[i] = src_levels(c, raw_i);
             });
             team.team_barrier();
 
@@ -140,17 +152,21 @@ void VerticalRegridder<MemorySpace>::interpolate(Kokkos::View<const double **, M
             }
             team.team_barrier();
 
+            // Check if destination coordinates are descending for this column
+            bool dst_descending = n_dst > 1 && dst_levels(c, 0) > dst_levels(c, n_dst - 1);
+
             // Cooperatively evaluate spline for each target destination level
             Kokkos::parallel_for(Kokkos::TeamThreadRange(team, n_dst), [&](const std::size_t j) {
-                double target = dst_levels(c, j);
+                std::size_t raw_j = dst_descending ? n_dst - 1 - j : j;
+                double target = dst_levels(c, raw_j);
 
                 std::size_t idx = 0;
                 while (idx < n_src - 2 && src_x[idx + 1] < target) {
                     idx++;
                 }
 
-                dst_field(c, j) = axis::detail::tspack::evaluate_spline(target, src_x[idx], src_x[idx + 1], src_y[idx], src_y[idx + 1], d[idx],
-                                                                        d[idx + 1], tension);
+                dst_field(c, raw_j) = axis::detail::tspack::evaluate_spline(target, src_x[idx], src_x[idx + 1], src_y[idx], src_y[idx + 1], d[idx],
+                                                                            d[idx + 1], tension);
             });
         });
 }
