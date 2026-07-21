@@ -268,6 +268,29 @@ NB_MODULE(axis_py, m) {
     // ─── Mesh wrapper class ──────────────────────────────────────────────────
     nb::class_<HostMesh>(m, "Mesh").def_prop_ro("n_nodes", &HostMesh::n_nodes).def_prop_ro("n_cells", &HostMesh::n_cells);
 
+    // ─── StructuredGrid wrapper class ────────────────────────────────────────
+    nb::class_<axis::topology::StructuredGrid<Kokkos::HostSpace>>(m, "StructuredGrid")
+        .def(
+            "__init__",
+            [](axis::topology::StructuredGrid<Kokkos::HostSpace> *grid, std::size_t ni, std::size_t nj, nb::ndarray<const double, nb::ndim<1>> cx,
+               nb::ndarray<const double, nb::ndim<1>> cy) {
+                ensure_kokkos();
+                Kokkos::View<double *, Kokkos::HostSpace> cx_v(const_cast<double *>(cx.data()), cx.shape(0));
+                Kokkos::View<double *, Kokkos::HostSpace> cy_v(const_cast<double *>(cy.data()), cy.shape(0));
+                new (grid) axis::topology::StructuredGrid<Kokkos::HostSpace>(ni, nj, cx_v, cy_v, axis::topology::CoordinateSystem::SphericalDeg);
+            },
+            "ni"_a, "nj"_a, "cx"_a, "cy"_a)
+        .def(
+            "set_corners",
+            [](axis::topology::StructuredGrid<Kokkos::HostSpace> &grid, nb::ndarray<const double, nb::ndim<1>> crx,
+               nb::ndarray<const double, nb::ndim<1>> cry) {
+                Kokkos::View<double *, Kokkos::HostSpace> crx_v(const_cast<double *>(crx.data()), crx.shape(0));
+                Kokkos::View<double *, Kokkos::HostSpace> cry_v(const_cast<double *>(cry.data()), cry.shape(0));
+                grid.set_corners(crx_v, cry_v);
+            },
+            "crx"_a, "cry"_a)
+        .def("to_unstructured", &axis::topology::StructuredGrid<Kokkos::HostSpace>::to_unstructured, "Convert structured grid to unstructured mesh");
+
     // ─── InterpolationMatrix wrapper class ───────────────────────────────────
     nb::class_<HostMatrix>(m, "Matrix")
         .def_prop_ro("nnz", &HostMatrix::nnz)
@@ -374,6 +397,144 @@ NB_MODULE(axis_py, m) {
 
     // Make an unstructured UGRID mesh
     m.def("make_ugrid_mesh", &make_ugrid_mesh, "node_coords"_a, "conn_offsets"_a, "conn_indices"_a, "Create an unstructured UGRID UnstructuredMesh");
+
+    m.def(
+        "triangulate_poly_cells",
+        [](nb::ndarray<const double, nb::ndim<2>> node_coords, nb::ndarray<const axis::index_t, nb::ndim<2>> conn_raw,
+           nb::ndarray<const axis::index_t, nb::ndim<1>> n_edges) -> nb::dict {
+            ensure_kokkos();
+
+            const std::size_t n_cells = conn_raw.shape(0);
+            const std::size_t max_edges = conn_raw.shape(1);
+
+            std::vector<axis::index_t> conn_indices;
+            std::vector<axis::index_t> conn_offsets;
+            conn_offsets.push_back(0);
+
+            for (std::size_t c = 0; c < n_cells; ++c) {
+                std::size_t n_cell_edges = n_edges(c);
+                if (n_cell_edges < 3) continue;
+
+                // Triangulate via standard triangle fan from vertex 0 of the cell
+                axis::index_t v0 = conn_raw(c, 0) - 1;
+                for (std::size_t j = 1; j < n_cell_edges - 1; ++j) {
+                    conn_indices.push_back(v0);
+                    conn_indices.push_back(conn_raw(c, j) - 1);
+                    conn_indices.push_back(conn_raw(c, j + 1) - 1);
+                }
+                conn_offsets.push_back(conn_indices.size());
+            }
+
+            nb::dict res;
+            // Return offsets and indices as numpy arrays
+            auto off_uniq = std::make_unique<axis::index_t[]>(conn_offsets.size());
+            std::copy(conn_offsets.begin(), conn_offsets.end(), off_uniq.get());
+            auto ind_uniq = std::make_unique<axis::index_t[]>(conn_indices.size());
+            std::copy(conn_indices.begin(), conn_indices.end(), ind_uniq.get());
+
+            axis::index_t *raw_off = off_uniq.release();
+            nb::capsule owner_off(raw_off, [](void *p) noexcept { delete[] static_cast<axis::index_t *>(p); });
+            std::size_t shape_off[1] = {conn_offsets.size()};
+
+            axis::index_t *raw_ind = ind_uniq.release();
+            nb::capsule owner_ind(raw_ind, [](void *p) noexcept { delete[] static_cast<axis::index_t *>(p); });
+            std::size_t shape_ind[1] = {conn_indices.size()};
+
+            res["conn_offsets"] = nb::ndarray<nb::numpy, axis::index_t>(raw_off, 1, shape_off, std::move(owner_off));
+            res["conn_indices"] = nb::ndarray<nb::numpy, axis::index_t>(raw_ind, 1, shape_ind, std::move(owner_ind));
+            return res;
+        },
+        "node_coords"_a, "conn_raw"_a, "n_edges"_a, "Triangulate general poly cells into standard triangles");
+
+    m.def(
+        "parse_scrip_bounds",
+        [](nb::ndarray<const double, nb::ndim<2>> lat_bnds, nb::ndarray<const double, nb::ndim<2>> lon_bnds) -> nb::dict {
+            ensure_kokkos();
+
+            const std::size_t n_cells = lat_bnds.shape(0);
+            const std::size_t nv = lat_bnds.shape(1);
+
+            std::vector<double> node_lons;
+            std::vector<double> node_lats;
+            std::vector<axis::index_t> conn_offsets;
+            std::vector<axis::index_t> conn_indices;
+
+            conn_offsets.push_back(0);
+            axis::index_t node_counter = 0;
+
+            for (std::size_t idx = 0; idx < n_cells; ++idx) {
+                // Filter out repeated padded corners
+                std::vector<std::pair<double, double>> cell_vertices;
+                for (std::size_t v = 0; v < nv; ++v) {
+                    double lat_val = lat_bnds(idx, v);
+                    double lon_val = lon_bnds(idx, v);
+
+                    // Skip repeated padded corners (standard CDO SCRIP padding)
+                    if (v > 0 && lat_val == lat_bnds(idx, v - 1) && lon_val == lon_bnds(idx, v - 1)) {
+                        continue;
+                    }
+                    cell_vertices.push_back({lon_val, lat_val});
+                }
+
+                std::size_t n_vertices = cell_vertices.size();
+                if (n_vertices < 3) {
+                    // Fallback: if too many repeated, just use the first 3
+                    cell_vertices = {
+                        {lon_bnds(idx, 0), lat_bnds(idx, 0)}, {lon_bnds(idx, 1), lat_bnds(idx, 1)}, {lon_bnds(idx, 2), lat_bnds(idx, 2)}};
+                    n_vertices = 3;
+                }
+
+                for (const auto &p : cell_vertices) {
+                    // Wrap longitudes to [0, 360]
+                    double wrapped_lon = std::fmod(p.first, 360.0);
+                    if (wrapped_lon < 0.0) {
+                        wrapped_lon += 360.0;
+                    }
+                    node_lons.push_back(wrapped_lon);
+                    node_lats.push_back(p.second);
+                    conn_indices.push_back(node_counter);
+                    node_counter++;
+                }
+
+                conn_offsets.push_back(conn_indices.size());
+            }
+
+            nb::dict res;
+
+            // Return offsets, indices, lons, and lats as numpy arrays
+            auto off_uniq = std::make_unique<axis::index_t[]>(conn_offsets.size());
+            std::copy(conn_offsets.begin(), conn_offsets.end(), off_uniq.get());
+            auto ind_uniq = std::make_unique<axis::index_t[]>(conn_indices.size());
+            std::copy(conn_indices.begin(), conn_indices.end(), ind_uniq.get());
+            auto lon_uniq = std::make_unique<double[]>(node_lons.size());
+            std::copy(node_lons.begin(), node_lons.end(), lon_uniq.get());
+            auto lat_uniq = std::make_unique<double[]>(node_lats.size());
+            std::copy(node_lats.begin(), node_lats.end(), lat_uniq.get());
+
+            axis::index_t *raw_off = off_uniq.release();
+            nb::capsule owner_off(raw_off, [](void *p) noexcept { delete[] static_cast<axis::index_t *>(p); });
+            std::size_t shape_off[1] = {conn_offsets.size()};
+
+            axis::index_t *raw_ind = ind_uniq.release();
+            nb::capsule owner_ind(raw_ind, [](void *p) noexcept { delete[] static_cast<axis::index_t *>(p); });
+            std::size_t shape_ind[1] = {conn_indices.size()};
+
+            double *raw_lon = lon_uniq.release();
+            nb::capsule owner_lon(raw_lon, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            std::size_t shape_lon[1] = {node_lons.size()};
+
+            double *raw_lat = lat_uniq.release();
+            nb::capsule owner_lat(raw_lat, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            std::size_t shape_lat[1] = {node_lats.size()};
+
+            res["node_lon"] = nb::ndarray<nb::numpy, double>(raw_lon, 1, shape_lon, std::move(owner_lon));
+            res["node_lat"] = nb::ndarray<nb::numpy, double>(raw_lat, 1, shape_lat, std::move(owner_lat));
+            res["conn_offsets"] = nb::ndarray<nb::numpy, axis::index_t>(raw_off, 1, shape_off, std::move(owner_off));
+            res["conn_indices"] = nb::ndarray<nb::numpy, axis::index_t>(raw_ind, 1, shape_ind, std::move(owner_ind));
+
+            return res;
+        },
+        "lat_bnds"_a, "lon_bnds"_a, "Parse SCRIP-style cell bounds to unstructured nodes and connectivity in C++");
 
     // Expose GmshWriter ASCII exporter
     m.def(
@@ -767,6 +928,60 @@ NB_MODULE(axis_py, m) {
         },
         "src_mesh"_a, "dst_mesh"_a, "src_alpha"_a, "dst_alpha"_a, "config"_a,
         "Generate coupled vector interpolation weights for U and V wind components");
+
+    m.def(
+        "vector_transform",
+        [](const HostMatrix &W_u, const HostMatrix &W_v, nb::ndarray<nb::numpy, double, nb::ndim<2>> u,
+           nb::ndarray<nb::numpy, double, nb::ndim<2>> v) -> std::pair<nb::ndarray<nb::numpy, double>, nb::ndarray<nb::numpy, double>> {
+            ensure_kokkos();
+
+            const std::size_t n_src = u.shape(0);
+            const std::size_t n_vars = u.shape(1);
+            const std::size_t n_dst = W_u.n_dst();
+
+            // Setup combined source buffer: [2 * n_src, n_vars]
+            // where first n_src rows are U, and next n_src rows are V.
+            std::vector<double> uv_colmajor(2 * n_src * n_vars);
+            for (std::size_t var = 0; var < n_vars; ++var) {
+                for (std::size_t i = 0; i < n_src; ++i) {
+                    uv_colmajor[i + var * 2 * n_src] = u(i, var);
+                    uv_colmajor[i + n_src + var * 2 * n_src] = v(i, var);
+                }
+            }
+
+            axis::field_view<const double, 2> uv_view(uv_colmajor.data(), 2 * n_src, n_vars);
+
+            auto dst_u_uniq = std::make_unique<double[]>(n_dst * n_vars);
+            auto dst_v_uniq = std::make_unique<double[]>(n_dst * n_vars);
+
+            axis::field_view<double, 2> dst_u_view(dst_u_uniq.get(), n_dst, n_vars);
+            axis::field_view<double, 2> dst_v_view(dst_v_uniq.get(), n_dst, n_vars);
+
+            axis::solver::batch_apply<Kokkos::HostSpace>(W_u, uv_view, dst_u_view);
+            axis::solver::batch_apply<Kokkos::HostSpace>(W_v, uv_view, dst_v_view);
+
+            // Reconstruct row-major for Python return
+            auto res_u_uniq = std::make_unique<double[]>(n_dst * n_vars);
+            auto res_v_uniq = std::make_unique<double[]>(n_dst * n_vars);
+
+            for (std::size_t var = 0; var < n_vars; ++var) {
+                for (std::size_t j = 0; j < n_dst; ++j) {
+                    res_u_uniq[j * n_vars + var] = dst_u_uniq[j + var * n_dst];
+                    res_v_uniq[j * n_vars + var] = dst_v_uniq[j + var * n_dst];
+                }
+            }
+
+            double *raw_u = res_u_uniq.release();
+            nb::capsule owner_u(raw_u, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+            std::size_t shape[2] = {n_dst, n_vars};
+
+            double *raw_v = res_v_uniq.release();
+            nb::capsule owner_v(raw_v, [](void *p) noexcept { delete[] static_cast<double *>(p); });
+
+            return std::make_pair(nb::ndarray<nb::numpy, double>(raw_u, 2, shape, std::move(owner_u)),
+                                  nb::ndarray<nb::numpy, double>(raw_v, 2, shape, std::move(owner_v)));
+        },
+        "W_u"_a, "W_v"_a, "u"_a, "v"_a, "Perform coupled SpMV remapping for vector fields");
 
 #ifdef AXIS_HAVE_NETCDF
     m.def(

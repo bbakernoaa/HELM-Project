@@ -167,57 +167,6 @@ def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[n
     return clon, clat
 
 
-def _triangulate_mpas_mesh(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Triangulate arbitrary polygon cells (like MPAS Voronoi cells) into triangles."""
-    non_spatial_dims = _get_non_spatial_dims(ds)
-
-    v_lat = ds["latVertex"]
-    v_lon = ds["lonVertex"]
-    v_conn = ds["verticesOnCell"]
-
-    # Filter non-spatial dimensions individually to prevent mismatched dimension indexing
-    isel_lat = {d: 0 for d in non_spatial_dims if d in v_lat.dims}
-    if isel_lat:
-        v_lat = v_lat.isel(isel_lat, drop=True)
-
-    isel_lon = {d: 0 for d in non_spatial_dims if d in v_lon.dims}
-    if isel_lon:
-        v_lon = v_lon.isel(isel_lon, drop=True)
-
-    isel_conn = {d: 0 for d in non_spatial_dims if d in v_conn.dims}
-    if isel_conn:
-        v_conn = v_conn.isel(isel_conn, drop=True)
-
-    # Normalize longitudes and latitudes to degrees
-    node_lat = v_lat.values
-    node_lon = v_lon.values
-    if np.any(np.abs(node_lat) > 2.0 * np.pi):
-        pass  # Already degrees
-    else:
-        node_lat = np.degrees(node_lat)
-        node_lon = np.degrees(node_lon)
-
-    # Wrap longitudes to [0, 360]
-    node_lon = np.mod(node_lon, 360.0)
-
-    conn_raw = v_conn.values
-    n_edges = ds["nEdgesOnCell"].values if "nEdgesOnCell" in ds else np.full(conn_raw.shape[0], conn_raw.shape[1])
-
-    n_cells, max_edges = conn_raw.shape
-    max_tris = max_edges - 2
-    j = np.arange(1, max_tris + 1)
-    mask = j[None, :] < (n_edges[:, None] - 1)
-
-    v0 = np.repeat(conn_raw[:, 0:1], max_tris, axis=1) - 1
-    v1 = conn_raw[:, 1:-1] - 1
-    v2 = conn_raw[:, 2:] - 1
-
-    element_conn = np.stack([v0[mask], v1[mask], v2[mask]], axis=1).flatten()
-    np.repeat(np.arange(n_cells), max_tris)[mask.flatten()]
-
-    return node_lon, node_lat, element_conn.astype(np.int32)
-
-
 def _parse_scrip_bounds(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Parse unstructured SCRIP-style cell centers and 2D bounds into general polygon nodes/connectivity offsets/indices."""
     # Find longitude/latitude coordinates
@@ -243,49 +192,11 @@ def _parse_scrip_bounds(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndar
     lat_bnds_name = lat.attrs.get("bounds", "lat_bnds")
     lon_bnds_name = lon.attrs.get("bounds", "lon_bnds")
 
-    lat_bnds = ds[lat_bnds_name].values
-    lon_bnds = ds[lon_bnds_name].values
+    lat_bnds = np.asarray(ds[lat_bnds_name].values, dtype=np.float64)
+    lon_bnds = np.asarray(ds[lon_bnds_name].values, dtype=np.float64)
 
-    n_cells, nv = lat_bnds.shape
-
-    node_lons = []
-    node_lats = []
-    conn_offsets = [0]
-    conn_indices = []
-
-    node_counter = 0
-    for idx in range(n_cells):
-        lats_c = lat_bnds[idx]
-        lons_c = lon_bnds[idx]
-
-        # Filter out repeated padded corners
-        cell_vertices = []
-        for v in range(nv):
-            # Skip repeated padded corners (standard CDO SCRIP padding)
-            if v > 0 and lats_c[v] == lats_c[v - 1] and lons_c[v] == lons_c[v - 1]:
-                continue
-            cell_vertices.append((lons_c[v], lats_c[v]))
-
-        n_vertices = len(cell_vertices)
-        if n_vertices < 3:
-            # Fallback: if too many repeated, just use the first 3
-            cell_vertices = [(lons_c[0], lats_c[0]), (lons_c[1], lats_c[1]), (lons_c[2], lats_c[2])]
-            n_vertices = 3
-
-        for lon_val, lat_val in cell_vertices:
-            node_lons.append(lon_val)
-            node_lats.append(lat_val)
-            conn_indices.append(node_counter)
-            node_counter += 1
-
-        conn_offsets.append(len(conn_indices))
-
-    return (
-        np.mod(np.array(node_lons), 360.0),
-        np.array(node_lats),
-        np.array(conn_offsets, dtype=np.int32),
-        np.array(conn_indices, dtype=np.int32),
-    )
+    res = axis_py.parse_scrip_bounds(lat_bnds, lon_bnds)
+    return res["node_lon"], res["node_lat"], res["conn_offsets"], res["conn_indices"]
 
 
 def _get_ugrid_info(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -364,11 +275,22 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
 
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
             else:
-                # Triangulated MPAS (for bilinear/bicubic/patch)
-                node_lon, node_lat, element_conn = _triangulate_mpas_mesh(ds)
-                node_coords = np.asfortranarray(np.column_stack([node_lon, node_lat]))
-                conn_offsets = np.arange(0, len(element_conn) + 1, 3, dtype=np.int32)
-                conn_indices = element_conn.astype(np.int32)
+                # Triangulated MPAS (for bilinear/bicubic/patch) - C++ accelerated
+                v_conn = ds["verticesOnCell"]
+                isel_conn = {d: 0 for d in non_spatial_dims if d in v_conn.dims}
+                if isel_conn:
+                    v_conn = v_conn.isel(isel_conn, drop=True)
+
+                conn_raw = v_conn.values.astype(np.int64)
+                n_edges = (
+                    ds["nEdgesOnCell"].values.astype(np.int64)
+                    if "nEdgesOnCell" in ds
+                    else np.full(conn_raw.shape[0], conn_raw.shape[1], dtype=np.int64)
+                )
+
+                tri_res = axis_py.triangulate_poly_cells(node_coords, conn_raw, n_edges)
+                conn_offsets = tri_res["conn_offsets"]
+                conn_indices = tri_res["conn_indices"]
                 return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
         # 2. SCRIP 2D Bounds format
         elif "lat_bnds" in ds or any("bounds" in ds[v].attrs for v in ds.variables if v in ["lat", "lon"]):
@@ -379,22 +301,11 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
         elif lat.ndim in [2, 3]:
             if lat.ndim == 2:
                 # 2D Curvilinear grid
-                clon, clat = _synthesize_curvilinear_corners(lon.values, lat.values)
-                node_coords = np.asfortranarray(np.column_stack([clon.ravel(), clat.ravel()]))
-
                 ni, nj = lon.shape[1], lon.shape[0]
-                nip1 = ni + 1
-                n_cells = ni * nj
-                conn_offsets = np.arange(0, n_cells * 4 + 1, 4, dtype=np.int32)
-
-                i_grid, j_grid = np.meshgrid(np.arange(ni), np.arange(nj))
-                bl = (i_grid + j_grid * nip1).ravel()
-                br = ((i_grid + 1) + j_grid * nip1).ravel()
-                tr = ((i_grid + 1) + (j_grid + 1) * nip1).ravel()
-                tl = (i_grid + (j_grid + 1) * nip1).ravel()
-
-                conn_indices = np.column_stack([bl, br, tr, tl]).astype(np.int32).ravel()
-                return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+                cx = lon.values.ravel()
+                cy = lat.values.ravel()
+                grid = axis_py.StructuredGrid(ni, nj, cx, cy)
+                return grid.to_unstructured()
             else:
                 # 3D Cubed-Sphere grid (ntiles, ny, nx)
                 ntiles, ny, nx = lon.shape
@@ -542,31 +453,9 @@ class CurvilinearGrid(Geometry):
                 self.lats.ravel(),
             )
         else:
-            clon, clat = _synthesize_curvilinear_corners(self.lons, self.lats)
             ny, nx = self.lons.shape
-            n_cells = nx * ny
-
-            node_coords = np.asfortranarray(np.column_stack([clon.ravel(), clat.ravel()]))
-            conn_offsets = np.arange(0, (n_cells + 1) * 4, 4, dtype=np.int64)
-
-            conn_indices = np.zeros(n_cells * 4, dtype=np.int64)
-            cell_idx = 0
-            ncol = nx + 1
-            for j in range(ny):
-                for i in range(nx):
-                    bl = i + j * ncol
-                    br = (i + 1) + j * ncol
-                    tr = (i + 1) + (j + 1) * ncol
-                    tl = i + (j + 1) * ncol
-
-                    base = cell_idx * 4
-                    conn_indices[base + 0] = bl
-                    conn_indices[base + 1] = br
-                    conn_indices[base + 2] = tr
-                    conn_indices[base + 3] = tl
-                    cell_idx += 1
-
-            return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+            grid = axis_py.StructuredGrid(nx, ny, self.lons.ravel(), self.lats.ravel())
+            return grid.to_unstructured()
 
 
 class UnstructuredMesh(Geometry):
