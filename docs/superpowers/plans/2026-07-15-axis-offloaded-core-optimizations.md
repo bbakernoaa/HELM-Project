@@ -42,7 +42,7 @@ from axis import axis_py
 def test_structured_grid_binding():
     cx = np.array([0.5, 1.5, 0.5, 1.5])
     cy = np.array([0.5, 0.5, 1.5, 1.5])
-    
+
     grid = axis_py.StructuredGrid(2, 2, cx, cy)
     mesh = grid.to_unstructured()
     assert mesh.n_cells == 4
@@ -217,7 +217,7 @@ In `libs/axis/python/axis/grid.py: create_axis_mesh`, replace the old Python tri
                 v_conn = ds["verticesOnCell"]
                 conn_raw = v_conn.values.astype(np.int64)
                 n_edges = ds["nEdgesOnCell"].values.astype(np.int64) if "nEdgesOnCell" in ds else np.full(conn_raw.shape[0], conn_raw.shape[1], dtype=np.int64)
-                
+
                 tri_res = axis_py.triangulate_poly_cells(node_coords, conn_raw, n_edges)
                 conn_offsets = tri_res["conn_offsets"]
                 conn_indices = tri_res["conn_indices"]

@@ -107,7 +107,7 @@ class Memory_Limiter {
     Memory_Limiter &operator=(const Memory_Limiter &) = delete;
 
    private:
-    struct rlimit original_ {};
+    struct rlimit original_{};
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
