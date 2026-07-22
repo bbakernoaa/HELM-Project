@@ -158,6 +158,12 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_halo_plan.cpp")
     )
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_indexed_halo_plan.cpp")
+    halo_add_mpi_test(test_indexed_halo_plan
+        SOURCES test_indexed_halo_plan.cpp
+    )
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_exchange.cpp")
     halo_add_mpi_test(test_exchange
         SOURCES test_exchange.cpp
@@ -207,6 +213,12 @@ endif()
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_halo_plan.cpp")
     halo_add_property_test(prop_halo_plan
         SOURCES prop_halo_plan.cpp
+    )
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_indexed_halo_plan.cpp")
+    halo_add_property_test(prop_indexed_halo_plan
+        SOURCES prop_indexed_halo_plan.cpp
     )
 endif()
 
