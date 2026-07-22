@@ -37,6 +37,7 @@
 #include <halo/structured_halo_plan.hpp>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -159,7 +160,7 @@ void exchange_structured_blocking(const Structured_Halo_Plan<ViewType::rank> &pl
         const auto &send_region = plan.send_region(f);
         const std::size_t count = send_region.size();
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_send_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(std::string("structured_send_buf"), Kokkos::WithoutInitializing), count);
 
         auto subview = detail::make_subview(view, send_region);
         detail::pack(subview, buf);
@@ -184,7 +185,7 @@ void exchange_structured_blocking(const Structured_Halo_Plan<ViewType::rank> &pl
         const int neighbor = plan.neighbor_rank(f);
         const int tag = detail::structured_compute_tag(neighbor, my_rank, comm_size);
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_recv_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(std::string("structured_recv_buf"), Kokkos::WithoutInitializing), count);
 
         MPI_Request req = MPI_REQUEST_NULL;
         int rc = MPI_Irecv(buf.data(), static_cast<int>(count), mpi_dtype, neighbor, tag, mpi_comm, &req);
@@ -322,7 +323,7 @@ template <typename ViewType>
         const auto &send_region = plan.send_region(f);
         const std::size_t count = send_region.size();
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_send_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(std::string("structured_send_buf"), Kokkos::WithoutInitializing), count);
 
         auto subview = detail::make_subview(view, send_region);
         detail::pack(subview, buf);
@@ -344,7 +345,7 @@ template <typename ViewType>
         const int neighbor = plan.neighbor_rank(f);
         const int tag = detail::structured_compute_tag(neighbor, my_rank, comm_size);
 
-        buffer_view_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "structured_recv_buf"), count);
+        buffer_view_t buf(Kokkos::view_alloc(std::string("structured_recv_buf"), Kokkos::WithoutInitializing), count);
 
         MPI_Request req = MPI_REQUEST_NULL;
         int rc = MPI_Irecv(buf.data(), static_cast<int>(count), mpi_dtype, neighbor, tag, mpi_comm, &req);
@@ -534,7 +535,7 @@ void exchange_neighbor_collective(Structured_Halo_Plan<ViewType::rank> &plan, Vi
     }
 
     // Allocate concatenated send buffer and pack all regions
-    buffer_view_t send_buffer(Kokkos::view_alloc(Kokkos::WithoutInitializing, "neighbor_coll_send_buf"), total_send_count);
+    buffer_view_t send_buffer(Kokkos::view_alloc(std::string("neighbor_coll_send_buf"), Kokkos::WithoutInitializing), total_send_count);
 
     for (int i = 0; i < num_neighbors; ++i) {
         int f = active_faces[i];
@@ -561,7 +562,7 @@ void exchange_neighbor_collective(Structured_Halo_Plan<ViewType::rank> &plan, Vi
         total_recv_count += count;
     }
 
-    buffer_view_t recv_buffer(Kokkos::view_alloc(Kokkos::WithoutInitializing, "neighbor_coll_recv_buf"), total_recv_count);
+    buffer_view_t recv_buffer(Kokkos::view_alloc(std::string("neighbor_coll_recv_buf"), Kokkos::WithoutInitializing), total_recv_count);
 
     // ─── Phase 3: MPI_Neighbor_alltoallv ────────────────────────────────────
     int rc = MPI_Neighbor_alltoallv(send_buffer.data(), send_counts.data(), send_displs.data(), mpi_dtype, recv_buffer.data(), recv_counts.data(),

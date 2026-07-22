@@ -35,6 +35,7 @@
 #include <Kokkos_Core.hpp>
 #include <cstddef>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "halo/communicator.hpp"
@@ -134,7 +135,7 @@ class ExchangeLifecycle : public ::testing::Test {
     /// receive region for the given symmetric neighbor count.
     HostView make_field() const {
         const std::size_t total = 2 * neighbors_.size() * kCount;
-        return HostView(Kokkos::view_alloc(Kokkos::WithoutInitializing, "field"), total);
+        return HostView(Kokkos::view_alloc(std::string("field"), Kokkos::WithoutInitializing), total);
     }
 
     std::unique_ptr<halo::Communicator> comm_;
@@ -268,7 +269,7 @@ TEST_F(ExchangeLifecycle, CommunicatorSplitAndDuplicate) {
         halo::Halo_Plan sub_plan(sub, info, info);
 
         const std::size_t total = 2 * sub_neighbors.size() * kCount;
-        HostView field(Kokkos::view_alloc(Kokkos::WithoutInitializing, "sub_field"), total);
+        HostView field(Kokkos::view_alloc(std::string("sub_field"), Kokkos::WithoutInitializing), total);
         initialize_field(field, sub_rank, sub_neighbors.size());
         halo::exchange_blocking(sub_plan, field);
         verify_received(field, sub_neighbors, sub_neighbors.size());

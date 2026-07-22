@@ -20,6 +20,7 @@
 
 #include <Kokkos_Core.hpp>
 #include <cstddef>
+#include <string>
 #include <utility>
 
 #include "halo/communicator.hpp"
@@ -86,7 +87,7 @@ class PersistentHandleTest : public ::testing::Test {
 
     /// Create a field view: [send_region | recv_region]
     HostView make_field() const {
-        return HostView(Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_field"), 2 * kCount);
+        return HostView(Kokkos::view_alloc(std::string("persistent_field"), Kokkos::WithoutInitializing), 2 * kCount);
     }
 
     std::unique_ptr<halo::Communicator> comm_;

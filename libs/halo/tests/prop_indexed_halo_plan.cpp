@@ -1,9 +1,8 @@
 // --- Property-Based Tests: halo::Indexed_Halo_Plan ---------------------------
 // Feature: cpp-dycore-halo-exchange, Property 1
+// Feature: cpp-dycore-halo-exchange, Property 2
 //
-// Uses RapidCheck to verify that an Indexed_Halo_Plan preserves the neighbor
-// topology it was constructed with: the same send/recv neighbor ranks, the same
-// per-layer local index lists, and the same element kind.
+// Uses RapidCheck to verify structural invariants of an Indexed_Halo_Plan.
 //
 // Property 1: Plan preserves neighbor topology
 //   For any set of send and receive neighbors, each with a rank and per-layer
@@ -12,6 +11,14 @@
 //   per-layer index lists, and the same element kind that were supplied.
 //
 //   Validates: Requirements 1.1, 1.5, 5.1
+//
+// Property 2: Plan totals equal the sum of index lists
+//   For any Indexed_Halo_Plan, the reported total send index count equals the
+//   sum of the lengths of all per-neighbor, per-layer send index lists, and the
+//   reported total receive index count equals the sum of the lengths of all
+//   per-neighbor, per-layer receive index lists.
+//
+//   Validates: Requirements 1.3
 // -----------------------------------------------------------------------------
 
 #include <gtest/gtest.h>
@@ -89,6 +96,20 @@ rc::Gen<halo::Element_Kind> genElementKind() {
                             halo::Element_Kind::generic);
 }
 
+/// Independently sum the lengths of every per-neighbor, per-layer index list.
+/// This mirrors the definition of "total index count" directly from the input
+/// data, without relying on the plan's own accessors, so the property compares
+/// the plan's reported totals against a from-scratch reference computation.
+std::size_t sumAllIndexLengths(const std::vector<halo::Indexed_Neighbor> &neighbors) {
+    std::size_t total = 0;
+    for (const auto &neighbor : neighbors) {
+        for (const auto &layer : neighbor.layers) {
+            total += layer.size();
+        }
+    }
+    return total;
+}
+
 /// Assert that a read-back neighbor span matches the supplied input exactly:
 /// same size, same ranks in order, and same per-layer index lists.
 void assertNeighborsMatch(std::span<const halo::Indexed_Neighbor> actual,
@@ -141,4 +162,40 @@ RC_GTEST_PROP(IndexedHaloPlanProperty1, PreservesNeighborTopology, ()) {
     // Neighbor counts are preserved.
     RC_ASSERT(plan.num_send_neighbors() == send_input.size());
     RC_ASSERT(plan.num_recv_neighbors() == recv_input.size());
+}
+
+// --- Property 2: Plan totals equal the sum of index lists --------------------
+// Feature: cpp-dycore-halo-exchange, Property 2
+//
+// For any Indexed_Halo_Plan, the reported total send index count equals the sum
+// of the lengths of all per-neighbor, per-layer send index lists, and the
+// reported total receive index count equals the sum of the lengths of all
+// per-neighbor, per-layer receive index lists.
+//
+// **Validates: Requirements 1.3**
+
+RC_GTEST_PROP(IndexedHaloPlanProperty2, TotalsEqualSumOfIndexLists, ()) {
+    auto &spy = halo::testing::MPI_Spy::instance();
+    spy.reset();
+
+    // Generate valid send and receive neighbor lists and an element kind.
+    auto send_input = *genValidNeighborList();
+    auto recv_input = *genValidNeighborList();
+    auto kind = *genElementKind();
+
+    // Compute the expected totals directly from the generated input, summing the
+    // lengths of every per-neighbor, per-layer index list.
+    const std::size_t expected_send_total = sumAllIndexLengths(send_input);
+    const std::size_t expected_recv_total = sumAllIndexLengths(recv_input);
+
+    // Create a Communicator (mock MPI_Comm_size returns 4).
+    halo::Communicator comm(MPI_COMM_WORLD);
+
+    // Construct the plan with copies of the input.
+    halo::Indexed_Halo_Plan plan(comm, kind, send_input, recv_input);
+
+    // The plan's reported totals must equal the independently computed sums
+    // (Req 1.3).
+    RC_ASSERT(plan.total_send_indices() == expected_send_total);
+    RC_ASSERT(plan.total_recv_indices() == expected_recv_total);
 }

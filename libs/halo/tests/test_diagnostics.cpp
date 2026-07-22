@@ -17,6 +17,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -57,7 +58,7 @@ std::vector<halo::Neighbor_Info> make_neighbor_info(const std::vector<int> &rank
 /// Allocate and initialize a field for ring exchange.
 HostView make_initialized_field(int rank, std::size_t num_neighbors) {
     const std::size_t total = 2 * num_neighbors * kCount;
-    HostView field(Kokkos::view_alloc(Kokkos::WithoutInitializing, "diag_field"), total);
+    HostView field(Kokkos::view_alloc(std::string("diag_field"), Kokkos::WithoutInitializing), total);
     // Fill send region with sender-encoded values.
     const std::size_t total_send = num_neighbors * kCount;
     for (std::size_t s = 0; s < num_neighbors; ++s) {

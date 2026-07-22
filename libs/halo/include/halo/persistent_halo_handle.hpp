@@ -29,6 +29,7 @@
 #include <halo/environment.hpp>
 #include <halo/error_policy.hpp>
 #include <halo/halo_plan.hpp>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -190,7 +191,7 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan &plan, ViewType &
             const auto &neighbor = recv_info[i];
             const int tag = detail::compute_tag(neighbor.rank, my_rank, comm_size);
 
-            auto host_buf = host_view_t(Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_recv_buf"), neighbor.count);
+            auto host_buf = host_view_t(Kokkos::view_alloc(std::string("persistent_recv_buf"), Kokkos::WithoutInitializing), neighbor.count);
             recv_buffers->push_back(host_buf);
 
             int rc = MPI_Recv_init(host_buf.data(), static_cast<int>(neighbor.count), mpi_dtype, neighbor.rank, tag, mpi_comm, &requests_[i]);
@@ -208,7 +209,7 @@ Persistent_Halo_Handle::Persistent_Halo_Handle(const Halo_Plan &plan, ViewType &
             const auto &neighbor = send_info[i];
             const int tag = detail::compute_tag(my_rank, neighbor.rank, comm_size);
 
-            auto host_buf = host_view_t(Kokkos::view_alloc(Kokkos::WithoutInitializing, "persistent_send_buf"), neighbor.count);
+            auto host_buf = host_view_t(Kokkos::view_alloc(std::string("persistent_send_buf"), Kokkos::WithoutInitializing), neighbor.count);
             send_buffers->push_back(host_buf);
 
             int rc =

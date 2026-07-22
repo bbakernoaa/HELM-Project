@@ -228,6 +228,78 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange.cpp")
     )
 endif()
 
+# ─── Indexed Exchange Property Test (single-process, real MPI + RapidCheck) ───
+# exchange_indexed performs a real gather/communicate/scatter round-trip, so it
+# needs the real MPI runtime (NOT the interposition spy, which records but does
+# not move data). The test runs in a single process using a self-send plan (the
+# rank's own send indices feed its own recv indices), matching the design's
+# in-process paired send/recv index model, so no mpirun launch is required.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange_indexed.cpp")
+    add_executable(prop_exchange_indexed prop_exchange_indexed.cpp)
+    target_link_libraries(prop_exchange_indexed
+        PRIVATE
+            halo
+            GTest::gtest
+            GTest::gtest_main
+            rapidcheck
+            MPI::MPI_CXX
+            Kokkos::kokkos
+    )
+    if(TARGET rapidcheck_gtest)
+        target_link_libraries(prop_exchange_indexed PRIVATE rapidcheck_gtest)
+    endif()
+    target_include_directories(prop_exchange_indexed
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_features(prop_exchange_indexed PUBLIC cxx_std_20)
+    add_test(NAME prop_exchange_indexed COMMAND $<TARGET_FILE:prop_exchange_indexed>)
+    set_tests_properties(prop_exchange_indexed PROPERTIES
+        TIMEOUT 120
+        LABELS "property"
+    )
+endif()
+
+# ─── Indexed Exchange No-Op Property Test (single-rank, mocked MPI) ───────────
+# Property 4: an empty or neighborless plan leaves the field view bitwise
+# unchanged. A no-op transfers zero elements, so the mocked-MPI single-process
+# harness validates it deterministically for rank-1 and rank-2 host views.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange_indexed_noop.cpp")
+    halo_add_property_test(prop_exchange_indexed_noop
+        SOURCES prop_exchange_indexed_noop.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
+# ─── Indexed Exchange Round-Trip Property Test (single-process, real MPI) ─────
+# Property 3: after an indexed exchange each receive index holds the paired send
+# index's source-owned value (rank-1 and rank-2 LayoutLeft fields; all levels).
+# Runs single-process with real MPI using an in-process paired self-send index
+# model, so no mpirun launch is required.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange_indexed_roundtrip.cpp")
+    add_executable(prop_exchange_indexed_roundtrip prop_exchange_indexed_roundtrip.cpp)
+    target_link_libraries(prop_exchange_indexed_roundtrip
+        PRIVATE
+            halo
+            GTest::gtest
+            GTest::gtest_main
+            rapidcheck
+            MPI::MPI_CXX
+            Kokkos::kokkos
+    )
+    if(TARGET rapidcheck_gtest)
+        target_link_libraries(prop_exchange_indexed_roundtrip PRIVATE rapidcheck_gtest)
+    endif()
+    target_include_directories(prop_exchange_indexed_roundtrip
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_features(prop_exchange_indexed_roundtrip PUBLIC cxx_std_20)
+    add_test(NAME prop_exchange_indexed_roundtrip COMMAND $<TARGET_FILE:prop_exchange_indexed_roundtrip>)
+    set_tests_properties(prop_exchange_indexed_roundtrip PROPERTIES
+        TIMEOUT 120
+        LABELS "property"
+    )
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_environment.cpp")
     halo_add_property_test(prop_environment
         SOURCES prop_environment.cpp
@@ -424,5 +496,160 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_handle_registry.cpp")
     set_tests_properties(prop_handle_registry PROPERTIES
         TIMEOUT 120
         LABELS "property"
+    )
+endif()
+
+# ─── Indexed Exchange Neighbor-Order Independence Property Test (MPI-based) ────
+# Property 8: permuting the order of a plan's neighbors (and thus the order in
+# which sends/recvs are posted) produces identical field-view results. This
+# property is only meaningful with more than one neighbor, which a single-process
+# plan cannot provide (Indexed_Halo_Plan rejects duplicate ranks), so it runs
+# over the real multi-rank MPI runtime (mpirun -np 4), where each rank has
+# several distinct neighbors and a genuine neighbor permutation can be applied.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange_indexed_neighbor_order.cpp")
+    halo_add_mpi_test(prop_exchange_indexed_neighbor_order
+        SOURCES prop_exchange_indexed_neighbor_order.cpp
+        LIBRARIES Kokkos::kokkos rapidcheck
+    )
+    if(TARGET rapidcheck_gtest)
+        target_link_libraries(prop_exchange_indexed_neighbor_order PRIVATE rapidcheck_gtest)
+    endif()
+    set_tests_properties(prop_exchange_indexed_neighbor_order PROPERTIES
+        TIMEOUT 120
+        LABELS "mpi;property"
+    )
+endif()
+
+# ─── Indexed Exchange Idempotence Property Test (single-process, real MPI) ─────
+# Property 9: running exchange_indexed twice with the owned values held fixed
+# between the two calls yields the same field state as running it once (the
+# second exchange does not change the halo values produced by the first). Runs
+# single-process with real MPI using an in-process paired self-send index model
+# (like prop_exchange_indexed_roundtrip), so no mpirun launch is required.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_exchange_indexed_idempotence.cpp")
+    add_executable(prop_exchange_indexed_idempotence prop_exchange_indexed_idempotence.cpp)
+    target_link_libraries(prop_exchange_indexed_idempotence
+        PRIVATE
+            halo
+            GTest::gtest
+            GTest::gtest_main
+            rapidcheck
+            MPI::MPI_CXX
+            Kokkos::kokkos
+    )
+    if(TARGET rapidcheck_gtest)
+        target_link_libraries(prop_exchange_indexed_idempotence PRIVATE rapidcheck_gtest)
+    endif()
+    target_include_directories(prop_exchange_indexed_idempotence
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_features(prop_exchange_indexed_idempotence PUBLIC cxx_std_20)
+    add_test(NAME prop_exchange_indexed_idempotence COMMAND $<TARGET_FILE:prop_exchange_indexed_idempotence>)
+    set_tests_properties(prop_exchange_indexed_idempotence PROPERTIES
+        TIMEOUT 120
+        LABELS "property"
+    )
+endif()
+
+# ─── Indexed Exchange Infrastructure Unit Test (single-process, real MPI) ─────
+# Task 2.7 (real value-movement checks): diagnostics begin/end neighbor count
+# and byte volume (Req 4.3), tag equivalence with the contiguous exchange for
+# matching rank pairs (Req 2.6), and the single-rank no-neighbor no-op that
+# leaves all elements unchanged (Req 6.3). These need genuine data movement, so
+# the target links the real MPI runtime and runs single-process using an
+# in-process self-send plan (no mpirun launch required).
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_exchange_indexed_infra.cpp")
+    add_executable(test_exchange_indexed_infra test_exchange_indexed_infra.cpp)
+    target_link_libraries(test_exchange_indexed_infra
+        PRIVATE
+            halo
+            GTest::gtest
+            GTest::gtest_main
+            MPI::MPI_CXX
+            Kokkos::kokkos
+    )
+    target_include_directories(test_exchange_indexed_infra
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_features(test_exchange_indexed_infra PUBLIC cxx_std_20)
+    add_test(NAME test_exchange_indexed_infra COMMAND $<TARGET_FILE:test_exchange_indexed_infra>)
+    set_tests_properties(test_exchange_indexed_infra PROPERTIES
+        TIMEOUT 60
+        LABELS "unit"
+    )
+endif()
+
+# ─── Indexed Exchange MPI-Failure Unit Test (single-rank, mocked MPI spy) ─────
+# Task 2.7 (error-path check): an MPI operation failure during exchange_indexed
+# raises an error identifying the failing operation and neighbor rank (Req 2.5).
+# This needs deterministic error injection, so the target links the MPI
+# interposition spy (halo_mpi_spy) instead of the real MPI runtime and runs
+# single-rank (no mpirun launch required).
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_exchange_indexed_infra_mpifail.cpp")
+    add_executable(test_exchange_indexed_infra_mpifail test_exchange_indexed_infra_mpifail.cpp)
+    target_link_libraries(test_exchange_indexed_infra_mpifail
+        PRIVATE
+            halo
+            halo_mpi_spy
+            GTest::gtest
+            GTest::gtest_main
+            MPI::MPI_CXX
+            Kokkos::kokkos
+    )
+    target_include_directories(test_exchange_indexed_infra_mpifail
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_features(test_exchange_indexed_infra_mpifail PUBLIC cxx_std_20)
+    add_test(NAME test_exchange_indexed_infra_mpifail COMMAND $<TARGET_FILE:test_exchange_indexed_infra_mpifail>)
+    set_tests_properties(test_exchange_indexed_infra_mpifail PROPERTIES
+        TIMEOUT 60
+        LABELS "unit"
+    )
+endif()
+
+# ─── Indexed Exchange Multi-Rank Integration Test (MPI-based, np=4) ───────────
+# Task 4.1: exercises exchange_indexed on a small synthetic multi-rank partition
+# over the real MPI runtime (mpirun -np 4). Owned values are seeded as an
+# analytic function of (rank, index); each halo cell is verified against the
+# source-owned value on the neighbor that owns it, for rank-1 and rank-2
+# (nVertLevels x nElements, LayoutLeft) fields. This validates the genuine
+# gather / Irecv+Isend+Waitall / scatter path (Property 3 over real MPI).
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_exchange_indexed_multirank.cpp")
+    halo_add_mpi_test(test_exchange_indexed_multirank
+        SOURCES test_exchange_indexed_multirank.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
+# ─── Indexed Exchange Device-View Round-Trip Test (single-process, real MPI) ──
+# Task 4.2: exercises exchange_indexed against a field view in the default
+# execution space's memory space (Kokkos::DefaultExecutionSpace::memory_space).
+# This drives the compile-time memory-space dispatch: on a device build without
+# GPU-aware MPI it exercises the host-staged path (Req 3.3); the GPU-aware direct
+# path (Req 3.4) is asserted only when Environment::is_gpu_aware_mpi() is true
+# and skipped gracefully otherwise (e.g. on this host-only container, where it
+# exercises the host-direct path). The gather/scatter kernels run in the view's
+# native execution space (Req 4.1). Covers rank-1 and rank-2 (nVertLevels x
+# nElements, LayoutLeft) views. Runs single-process with real MPI using an
+# in-process paired self-send index model (like prop_exchange_indexed_roundtrip),
+# so no mpirun launch is required.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_exchange_indexed_device.cpp")
+    add_executable(test_exchange_indexed_device test_exchange_indexed_device.cpp)
+    target_link_libraries(test_exchange_indexed_device
+        PRIVATE
+            halo
+            GTest::gtest
+            GTest::gtest_main
+            MPI::MPI_CXX
+            Kokkos::kokkos
+    )
+    target_include_directories(test_exchange_indexed_device
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_features(test_exchange_indexed_device PUBLIC cxx_std_20)
+    add_test(NAME test_exchange_indexed_device COMMAND $<TARGET_FILE:test_exchange_indexed_device>)
+    set_tests_properties(test_exchange_indexed_device PROPERTIES
+        TIMEOUT 60
+        LABELS "unit"
     )
 endif()

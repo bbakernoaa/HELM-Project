@@ -33,6 +33,8 @@
 #include <chrono>
 #include <cstddef>
 #include <span>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include <halo/communicator.hpp>
@@ -64,7 +66,9 @@ namespace detail {
 /// @return A view in MemSpace containing the indices (size == indices.size()).
 template <typename MemSpace>
 [[nodiscard]] Kokkos::View<std::size_t *, MemSpace> make_index_view(const std::vector<std::size_t> &indices, const char *label) {
-    Kokkos::View<std::size_t *, MemSpace> dev(Kokkos::view_alloc(Kokkos::WithoutInitializing, label), indices.size());
+    // Wrap the label in std::string so Kokkos treats it unambiguously as an
+    // allocation label rather than a pointer-to-memory to wrap.
+    Kokkos::View<std::size_t *, MemSpace> dev(Kokkos::view_alloc(std::string(label), Kokkos::WithoutInitializing), indices.size());
     auto host = Kokkos::create_mirror_view(Kokkos::WithoutInitializing, Kokkos::HostSpace{}, dev);
     for (std::size_t i = 0; i < indices.size(); ++i) {
         host(i) = indices[i];
@@ -195,7 +199,12 @@ void exchange_indexed(const Indexed_Halo_Plan &plan, ViewType &field_view, std::
     using exec_space = typename ViewType::execution_space;
     using mem_space = typename ViewType::memory_space;
     using buffer_t = Kokkos::View<value_type *, mem_space>;
-    using host_buffer_t = typename buffer_t::HostMirror;
+    // Derive the host staging buffer type from create_mirror_view rather than
+    // buffer_t::HostMirror: for a host-resident buffer_t (e.g.
+    // View<double*, HostSpace>) some Kokkos configurations do not expose a
+    // HostMirror member typedef, whereas create_mirror_view is always valid and
+    // yields the correct host-space mirror type in both host and device cases.
+    using host_buffer_t = decltype(Kokkos::create_mirror_view(Kokkos::WithoutInitializing, Kokkos::HostSpace{}, std::declval<buffer_t>()));
 
     // ─── Per-element block size ─────────────────────────────────────────────
     // rank-1 -> 1 value per index; rank-2 (nVertLevels x nElements, LayoutLeft)
@@ -252,7 +261,7 @@ void exchange_indexed(const Indexed_Halo_Plan &plan, ViewType &field_view, std::
     send_buf.reserve(num_send);
     for (std::size_t i = 0; i < num_send; ++i) {
         const std::size_t n_elem = send_idx[i].size() * bs;
-        buffer_t buf(Kokkos::view_alloc(Kokkos::WithoutInitializing, "halo_indexed_send_buf"), n_elem);
+        buffer_t buf(Kokkos::view_alloc(std::string("halo_indexed_send_buf"), Kokkos::WithoutInitializing), n_elem);
         if (!send_idx[i].empty()) {
             auto didx = detail::make_index_view<mem_space>(send_idx[i], "halo_indexed_send_idx");
             detail::gather_indexed(field_view, buf, didx, bs, exec);
@@ -265,7 +274,7 @@ void exchange_indexed(const Indexed_Halo_Plan &plan, ViewType &field_view, std::
     recv_buf.reserve(num_recv);
     for (std::size_t i = 0; i < num_recv; ++i) {
         const std::size_t n_elem = recv_idx[i].size() * bs;
-        recv_buf.emplace_back(Kokkos::view_alloc(Kokkos::WithoutInitializing, "halo_indexed_recv_buf"), n_elem);
+        recv_buf.emplace_back(Kokkos::view_alloc(std::string("halo_indexed_recv_buf"), Kokkos::WithoutInitializing), n_elem);
     }
 
     // ─── Select the communication path and set up MPI buffer pointers ───────

@@ -180,7 +180,7 @@ void exchange_blocking(const Halo_Plan &plan, ViewType &view) {
 
                 // Allocate host buffer for this receive
                 auto host_buf =
-                    Kokkos::View<value_type *, Kokkos::HostSpace>(Kokkos::view_alloc(Kokkos::WithoutInitializing, "recv_buf"), neighbor.count);
+                    Kokkos::View<value_type *, Kokkos::HostSpace>(Kokkos::view_alloc(std::string("recv_buf"), Kokkos::WithoutInitializing), neighbor.count);
                 recv_buffers.push_back(host_buf);
 
                 int rc = MPI_Irecv(host_buf.data(), static_cast<int>(neighbor.count), mpi_dtype, neighbor.rank, tag, mpi_comm, &requests[i]);
@@ -410,7 +410,7 @@ template <typename ViewType>
 
                 // Allocate host buffer for this receive
                 auto host_buf =
-                    Kokkos::View<value_type *, Kokkos::HostSpace>(Kokkos::view_alloc(Kokkos::WithoutInitializing, "recv_buf"), neighbor.count);
+                    Kokkos::View<value_type *, Kokkos::HostSpace>(Kokkos::view_alloc(std::string("recv_buf"), Kokkos::WithoutInitializing), neighbor.count);
                 recv_buffers.push_back(host_buf);
 
                 MPI_Request req = MPI_REQUEST_NULL;
