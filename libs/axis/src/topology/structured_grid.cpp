@@ -105,6 +105,17 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
     auto center_lon = center_lon_;
     auto center_lat = center_lat_;
 
+    // Detect periodicity if the grid longitude span is close to 360 degrees.
+    bool is_periodic = false;
+    if (ni > 1) {
+        auto center_lon_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, center_lon);
+        double dlon = center_lon_host(1) - center_lon_host(0);
+        double full_span = static_cast<double>(ni) * std::abs(dlon);
+        if (full_span > 350.0 && full_span < 370.0) {
+            is_periodic = true;
+        }
+    }
+
     // Use Kokkos::TeamPolicy for coordinate caching
     using TeamPolicy = Kokkos::TeamPolicy<exec_space>;
     using MemberType = typename TeamPolicy::member_type;
@@ -123,11 +134,28 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
 
                 for (int dj = -1; dj <= 0; ++dj) {
                     for (int di = -1; di <= 0; ++di) {
-                        const auto cell_i = static_cast<long long>(ci) + di;
+                        auto cell_i = static_cast<long long>(ci) + di;
                         const auto cell_j = static_cast<long long>(cj) + dj;
-                        if (cell_i >= 0 && cell_i < static_cast<long long>(ni) && cell_j >= 0 && cell_j < static_cast<long long>(nj)) {
+                        
+                        double cell_lon = 0.0;
+                        bool valid_i = false;
+                        
+                        if (is_periodic) {
+                            if (cell_i < 0) {
+                                cell_i = ni - 1;
+                                cell_lon = -360.0;
+                            } else if (cell_i >= static_cast<long long>(ni)) {
+                                cell_i = 0;
+                                cell_lon = 360.0;
+                            }
+                            valid_i = true;
+                        } else {
+                            valid_i = (cell_i >= 0 && cell_i < static_cast<long long>(ni));
+                        }
+
+                        if (valid_i && cell_j >= 0 && cell_j < static_cast<long long>(nj)) {
                             const std::size_t cell_idx = static_cast<std::size_t>(cell_i) + static_cast<std::size_t>(cell_j) * ni;
-                            sum_lon += center_lon(cell_idx);
+                            sum_lon += (center_lon(cell_idx) + cell_lon);
                             sum_lat += center_lat(cell_idx);
                             ++count;
                         }
