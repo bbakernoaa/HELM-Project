@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace conf {
 
@@ -26,6 +27,19 @@ class Value {
     /// Returns the child count for map/sequence nodes; 0 for scalar/null/undefined.
     [[nodiscard]] std::size_t size() const noexcept;
 
+    // ── Child access (sequence / map navigation) ──
+    // These allow iteration over structured YAML without building dotted-path
+    // strings. They return lightweight Value views into the same tree.
+
+    /// Access a sequence element by index. Returns an undefined Value if out of range.
+    [[nodiscard]] Value operator[](std::size_t index) const noexcept;
+
+    /// Access a map child by key. Returns an undefined Value if not found.
+    [[nodiscard]] Value operator[](const std::string &key) const noexcept;
+
+    /// Get the list of keys for a map node. Empty vector for non-map nodes.
+    [[nodiscard]] std::vector<std::string> keys() const;
+
     // ── Throwing conversions ──
     // Raise Conf_Error{Type_Mismatch} when the node is not a scalar or
     // the scalar text cannot be parsed as the requested type.
@@ -42,6 +56,14 @@ class Value {
     [[nodiscard]] std::optional<double> try_double() const noexcept;
     [[nodiscard]] std::optional<bool> try_bool() const noexcept;
     [[nodiscard]] std::optional<std::string> try_string() const noexcept;
+
+    // ── Defaulted scalar access ──
+    // Returns fallback on any failure (missing, wrong type, undefined node).
+
+    [[nodiscard]] std::string string_or(const std::string &fallback) const noexcept;
+    [[nodiscard]] int int_or(int fallback) const noexcept;
+    [[nodiscard]] double double_or(double fallback) const noexcept;
+    [[nodiscard]] bool bool_or(bool fallback) const noexcept;
 
    private:
     friend class Config;
