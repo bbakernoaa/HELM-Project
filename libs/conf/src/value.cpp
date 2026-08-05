@@ -17,6 +17,11 @@ namespace conf {
 
 Value::Value(std::shared_ptr<void> node_ptr) noexcept : node_(std::move(node_ptr)) {}
 
+Value Value::from_raw(const void* node_ptr) noexcept {
+    // Create a shared_ptr with a no-op deleter (caller owns the pointed-to node)
+    return Value(std::shared_ptr<void>(const_cast<void*>(node_ptr), [](void*) {}));
+}
+
 // ── Introspection ────────────────────────────────────────────────────────────
 
 Node_Kind Value::kind() const noexcept {
@@ -27,6 +32,10 @@ Node_Kind Value::kind() const noexcept {
 
 bool Value::is_defined() const noexcept {
     return kind() != Node_Kind::Undefined;
+}
+
+Value::operator bool() const noexcept {
+    return is_defined();
 }
 
 std::size_t Value::size() const noexcept {
@@ -62,6 +71,30 @@ std::vector<std::string> Value::keys() const {
     result.reserve(n->size());
     for (auto it = n->begin(); it != n->end(); ++it) {
         result.push_back(it->first.as<std::string>());
+    }
+    return result;
+}
+
+std::vector<double> Value::as_double_list() const {
+    std::vector<double> result;
+    if (!node_) return result;
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
+    if (!n->IsSequence()) return result;
+    result.reserve(n->size());
+    for (std::size_t i = 0; i < n->size(); ++i) {
+        result.push_back((*n)[i].as<double>());
+    }
+    return result;
+}
+
+std::vector<std::string> Value::as_string_list() const {
+    std::vector<std::string> result;
+    if (!node_) return result;
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
+    if (!n->IsSequence()) return result;
+    result.reserve(n->size());
+    for (std::size_t i = 0; i < n->size(); ++i) {
+        result.push_back((*n)[i].as<std::string>());
     }
     return result;
 }

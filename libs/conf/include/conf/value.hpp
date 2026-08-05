@@ -25,6 +25,10 @@ class Value {
     /// Returns true if the viewed node is defined (kind != Undefined).
     [[nodiscard]] bool is_defined() const noexcept;
 
+    /// Contextual bool conversion: true if the node is defined.
+    /// Enables natural `if (value["key"]) { ... }` patterns.
+    [[nodiscard]] explicit operator bool() const noexcept;
+
     /// Returns the child count for map/sequence nodes; 0 for scalar/null/undefined.
     [[nodiscard]] std::size_t size() const noexcept;
 
@@ -40,6 +44,12 @@ class Value {
 
     /// Get the list of keys for a map node. Empty vector for non-map nodes.
     [[nodiscard]] std::vector<std::string> keys() const;
+
+    /// Convert a sequence node to a vector of doubles. Empty if not a sequence.
+    [[nodiscard]] std::vector<double> as_double_list() const;
+
+    /// Convert a sequence node to a vector of strings. Empty if not a sequence.
+    [[nodiscard]] std::vector<std::string> as_string_list() const;
 
     // ── Throwing conversions ──
     // Raise Conf_Error{Type_Mismatch} when the node is not a scalar or
@@ -66,10 +76,16 @@ class Value {
     [[nodiscard]] double double_or(double fallback) const noexcept;
     [[nodiscard]] bool bool_or(bool fallback) const noexcept;
 
-   private:
     friend class Config;
+
+    /// Construct a Value wrapping a type-erased shared_ptr to a yaml-cpp node.
+    /// Public to allow wrapping externally-owned YAML nodes.
     explicit Value(std::shared_ptr<void> node_ptr) noexcept;
 
+    /// Construct a non-owning Value from a raw pointer (lifetime must be managed externally).
+    static Value from_raw(const void* node_ptr) noexcept;
+
+   private:
     /// Type-erased shared pointer into the parent Config's node tree.
     /// Points to a yaml-cpp node internally; the type is erased here so that
     /// no yaml-cpp header is required by consumers of this public header.
