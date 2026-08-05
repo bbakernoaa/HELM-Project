@@ -244,12 +244,11 @@ TEST(Conservation, GlobalPeriodicLongitudeMappingWithSynthesizedCorners) {
     }
 
     // Every destination cell should be fully covered and have row sum of approximately 1.0,
-    // except for the boundary columns i=35 and i=36 which only have 0.5 coverage due to the
-    // physical 5.0 degree gap across the dateline in the synthesized corners grid.
+    // as periodic dateline synthesis provides complete global coverage without a gap.
     for (std::size_t j = 0; j < 46; ++j) {
         for (std::size_t i = 0; i < 72; ++i) {
             std::size_t idx = j * 72 + i;
-            double expected = (i == 35 || i == 36) ? 0.5 : 1.0;
+            double expected = 1.0;
             if (i < 36) {
                 EXPECT_NEAR(row_sums[idx], expected, 1e-12)
                     << "Western hemisphere cell at i=" << i << ", j=" << j << " (index " << idx << ") has incorrect coverage!";

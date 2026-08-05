@@ -2,6 +2,7 @@
 #define CONF_VALUE_HPP
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -67,12 +68,12 @@ class Value {
 
    private:
     friend class Config;
-    explicit Value(const void *node_ptr) noexcept;
+    explicit Value(std::shared_ptr<void> node_ptr) noexcept;
 
-    /// Type-erased pointer into the parent Config's node tree.
+    /// Type-erased shared pointer into the parent Config's node tree.
     /// Points to a yaml-cpp node internally; the type is erased here so that
     /// no yaml-cpp header is required by consumers of this public header.
-    const void *node_;
+    std::shared_ptr<void> node_;
 };
 
 }  // namespace conf

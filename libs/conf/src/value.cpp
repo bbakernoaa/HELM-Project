@@ -15,13 +15,13 @@ namespace conf {
 
 // ── Construction ─────────────────────────────────────────────────────────────
 
-Value::Value(const void *node_ptr) noexcept : node_(node_ptr) {}
+Value::Value(std::shared_ptr<void> node_ptr) noexcept : node_(std::move(node_ptr)) {}
 
 // ── Introspection ────────────────────────────────────────────────────────────
 
 Node_Kind Value::kind() const noexcept {
     if (!node_) return Node_Kind::Undefined;
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     return detail::Yaml_Tree::node_kind(*n);
 }
 
@@ -31,7 +31,7 @@ bool Value::is_defined() const noexcept {
 
 std::size_t Value::size() const noexcept {
     if (!node_) return 0;
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (n->IsMap() || n->IsSequence()) return n->size();
     return 0;
 }
@@ -40,43 +40,24 @@ std::size_t Value::size() const noexcept {
 
 Value Value::operator[](std::size_t index) const noexcept {
     if (!node_) return Value(nullptr);
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (!n->IsSequence() || index >= n->size()) return Value(nullptr);
-    // yaml-cpp nodes have reference semantics. The child node returned by
-    // (*n)[index] is a lightweight handle that remains valid as long as the
-    // root tree lives (owned by Config::Impl). We store a pointer to the
-    // underlying yaml-cpp node data. Since yaml-cpp stores sequence children
-    // in a stable internal vector, taking the address of the indexing result
-    // is safe for the Config's lifetime. However, the operator[] on YAML::Node
-    // returns by value, so we need a stable address. We use a thread_local
-    // scratch node to hold the result for the pointer cast. This is safe because
-    // Value is a non-owning view and callers do not hold the address across calls.
-    //
-    // NOTE: For production-quality code we allocate on the heap via a static
-    // vector per-thread. But since Value is intended for immediate use (not
-    // stored long-term), the simplest correct approach is to use heap nodes.
-    // We accept a small allocation here because iteration over sequences is
-    // inherently O(N) anyway.
-    static thread_local std::vector<std::unique_ptr<YAML::Node>> tl_nodes;
-    tl_nodes.push_back(std::make_unique<YAML::Node>((*n)[index]));
-    return Value(static_cast<const void *>(tl_nodes.back().get()));
+    return Value(std::make_shared<YAML::Node>((*n)[index]));
 }
 
 Value Value::operator[](const std::string &key) const noexcept {
     if (!node_) return Value(nullptr);
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (!n->IsMap()) return Value(nullptr);
     YAML::Node child = (*n)[key];
     if (!child.IsDefined()) return Value(nullptr);
-    static thread_local std::vector<std::unique_ptr<YAML::Node>> tl_nodes;
-    tl_nodes.push_back(std::make_unique<YAML::Node>(child));
-    return Value(static_cast<const void *>(tl_nodes.back().get()));
+    return Value(std::make_shared<YAML::Node>(child));
 }
 
 std::vector<std::string> Value::keys() const {
     std::vector<std::string> result;
     if (!node_) return result;
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (!n->IsMap()) return result;
     result.reserve(n->size());
     for (auto it = n->begin(); it != n->end(); ++it) {
@@ -89,7 +70,7 @@ std::vector<std::string> Value::keys() const {
 
 int Value::as_int() const {
     if (!node_) throw Conf_Error(Error_Code::Type_Mismatch, "undefined node");
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (!n->IsScalar()) throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     try {
         return n->as<int>();
@@ -100,7 +81,7 @@ int Value::as_int() const {
 
 double Value::as_double() const {
     if (!node_) throw Conf_Error(Error_Code::Type_Mismatch, "undefined node");
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (!n->IsScalar()) throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     try {
         return n->as<double>();
@@ -111,7 +92,7 @@ double Value::as_double() const {
 
 bool Value::as_bool() const {
     if (!node_) throw Conf_Error(Error_Code::Type_Mismatch, "undefined node");
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (!n->IsScalar()) throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     try {
         return n->as<bool>();
@@ -122,7 +103,7 @@ bool Value::as_bool() const {
 
 std::string Value::as_string() const {
     if (!node_) throw Conf_Error(Error_Code::Type_Mismatch, "undefined node");
-    const auto *n = static_cast<const YAML::Node *>(node_);
+    const auto *n = static_cast<const YAML::Node *>(node_.get());
     if (!n->IsScalar()) throw Conf_Error(Error_Code::Type_Mismatch, "node is not a scalar");
     try {
         return n->as<std::string>();
