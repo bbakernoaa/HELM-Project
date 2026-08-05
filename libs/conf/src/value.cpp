@@ -5,6 +5,7 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <memory>
 #include <vector>
 
 #include "conf/error.hpp"
