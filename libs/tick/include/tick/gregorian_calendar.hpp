@@ -33,6 +33,15 @@ struct Gregorian_Calendar {
         return is_leap_year(year) ? 366 : 365;
     }
 
+    // ─── Day of week (ISO 8601: 1=Monday ... 7=Sunday) ─────────────────────
+
+    [[nodiscard]] static constexpr std::int32_t day_of_week(Date_Time dt) noexcept {
+        std::int64_t z = civil_to_days(dt.year, dt.month, dt.day);
+        std::int64_t w = (z + 3) % 7;
+        if (w < 0) w += 7;
+        return static_cast<std::int32_t>(w + 1);
+    }
+
     // ─── Date_Time → Time_Point ──────────────────────────────────────────
 
     [[nodiscard]] static constexpr Time_Point to_time_point(Date_Time dt) {
