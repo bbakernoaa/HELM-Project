@@ -185,16 +185,16 @@ TEST(GregorianEdgeCases, DayOfWeekISO8601) {
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 4, 0, 0, 0, 0}), 7);
     // 2026-01-05 is Monday -> ISO 1
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 5, 0, 0, 0, 0}), 1);
-    // 2026-01-05 is Tuesday -> ISO 1
+    // 2026-01-06 is Tuesday -> ISO 2
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 6, 0, 0, 0, 0}), 2);
-    // 2026-01-05 is Wednesday -> ISO 1
+    // 2026-01-07 is Wednesday -> ISO 3
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 7, 0, 0, 0, 0}), 3);
-    // 2026-01-05 is Thursday -> ISO 1
+    // 2026-01-08 is Thursday -> ISO 4
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 8, 0, 0, 0, 0}), 4);
-    // 2026-01-05 is Friday -> ISO 1
-    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 8, 0, 0, 0, 0}), 5);
-    // 2026-01-05 is Thursday -> ISO 1
-    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 8, 0, 0, 0, 0}), 6);
+    // 2026-01-09 is Friday -> ISO 5
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 9, 0, 0, 0, 0}), 5);
+    // 2026-01-10 is Saturday -> ISO 6
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 10, 0, 0, 0, 0}), 6);
     // 1970-01-01 was a Thursday -> ISO 4
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{1970, 1, 1, 0, 0, 0, 0}), 4);
 }
@@ -202,6 +202,22 @@ TEST(GregorianEdgeCases, DayOfWeekISO8601) {
 TEST(GregorianEdgeCases, DayOfWeekInvalidDay) {
     // 2023-02-29 is invalid (2023 is not a leap year)
     EXPECT_THROW(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2023, 2, 29, 0, 0, 0, 0}), std::invalid_argument);
+}
+
+TEST(GregorianEdgeCases, DayOfYear) {
+    // 2026-01-01 -> 1
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_year(tick::Date_Time{2026, 1, 1, 0, 0, 0, 0}), 1);
+    // 2026-02-01 -> 32
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_year(tick::Date_Time{2026, 2, 1, 0, 0, 0, 0}), 32);
+    // 2026-12-31 -> 365
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_year(tick::Date_Time{2026, 12, 31, 0, 0, 0, 0}), 365);
+    // 2024-12-31 (leap year) -> 366
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_year(tick::Date_Time{2024, 12, 31, 0, 0, 0, 0}), 366);
+    // 2024-02-29 (leap year) -> 60
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_year(tick::Date_Time{2024, 2, 29, 0, 0, 0, 0}), 60);
+    // 2024-03-01 (leap year) -> 61
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_year(tick::Date_Time{2024, 3, 1, 0, 0, 0, 0}), 61);
+}
 }
 
 TEST(GregorianEdgeCases, InvalidDay) {
