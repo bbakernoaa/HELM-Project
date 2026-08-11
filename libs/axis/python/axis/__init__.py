@@ -9,7 +9,7 @@ from . import axis_py
 
 # Register the custom .axis xarray accessor
 from . import accessors  # noqa: F401
-from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, UnstructuredMesh
+from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, UnstructuredMesh, RuleGeometry
 from .regridder import Regridder
 from .vector import VectorRegridder
 from .vertical import VerticalRegridder, regrid_3d
@@ -23,7 +23,12 @@ make_ugrid_mesh = axis_py.make_ugrid_mesh
 make_named_mesh = axis_py.make_named_mesh
 apply_weights = axis_py.apply_weights
 batch_apply = axis_py.batch_apply
+write_gmsh = axis_py.write_gmsh
+reconstruct_gradient = axis_py.reconstruct_gradient
 detect_tripolar_grid = axis_py.detect_tripolar_grid
+detect_regular_grid = axis_py.detect_regular_grid
+detect_rectilinear_grid = axis_py.detect_rectilinear_grid
+adjust_by_fraction = axis_py.adjust_by_fraction
 generate_vector_weights = axis_py.generate_vector_weights
 Method = axis_py.Method
 NormType = axis_py.NormType
@@ -36,6 +41,7 @@ __all__ = [
     "RectilinearGrid",
     "CurvilinearGrid",
     "UnstructuredMesh",
+    "RuleGeometry",
     "GridFactory",
     "VectorRegridder",
     "VerticalRegridder",
@@ -48,7 +54,12 @@ __all__ = [
     "make_named_mesh",
     "apply_weights",
     "batch_apply",
+    "write_gmsh",
+    "reconstruct_gradient",
     "detect_tripolar_grid",
+    "detect_regular_grid",
+    "detect_rectilinear_grid",
+    "adjust_by_fraction",
     "generate_vector_weights",
     "Method",
     "NormType",
