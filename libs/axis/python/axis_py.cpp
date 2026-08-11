@@ -275,9 +275,18 @@ NB_MODULE(axis_py, m) {
             [](axis::topology::StructuredGrid<Kokkos::HostSpace> *grid, std::size_t ni, std::size_t nj, nb::ndarray<const double, nb::ndim<1>> cx,
                nb::ndarray<const double, nb::ndim<1>> cy) {
                 ensure_kokkos();
-                Kokkos::View<double *, Kokkos::HostSpace> cx_v(const_cast<double *>(cx.data()), cx.shape(0));
-                Kokkos::View<double *, Kokkos::HostSpace> cy_v(const_cast<double *>(cy.data()), cy.shape(0));
-                new (grid) axis::topology::StructuredGrid<Kokkos::HostSpace>(ni, nj, cx_v, cy_v, axis::topology::CoordinateSystem::SphericalDeg);
+
+                Kokkos::View<const double *, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> cx_in(cx.data(), cx.shape(0));
+                Kokkos::View<const double *, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> cy_in(cy.data(), cy.shape(0));
+
+                Kokkos::View<double *, Kokkos::HostSpace> cx_v("structured_grid_cx", cx.shape(0));
+                Kokkos::View<double *, Kokkos::HostSpace> cy_v("structured_grid_cy", cy.shape(0));
+                Kokkos::deep_copy(cx_v, cx_in);
+                Kokkos::deep_copy(cy_v, cy_in);
+
+                new (grid) axis::topology::StructuredGrid<Kokkos::HostSpace>(
+                    ni, nj, std::move(cx_v), std::move(cy_v), axis::topology::CoordinateSystem::SphericalDeg);
+            }
             },
             "ni"_a, "nj"_a, "cx"_a, "cy"_a)
         .def(
