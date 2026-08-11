@@ -776,17 +776,15 @@ NB_MODULE(axis_py, m) {
             }
 
             const double *src_ptr = src_arr.data();
-            bool is_fortran_order = (src_arr.stride(0) == 1);
+            const bool is_fortran_contig = (src_arr.stride(0) == 1) && (src_arr.stride(1) == static_cast<nb::ssize_t>(n_src));
 
-            // Allocate a column-major source buffer for AXIS
+            // Allocate a column-major source buffer for AXIS (safe for any NumPy strides)
             std::vector<double> src_colmajor;
-            if (!is_fortran_order) {
-                // C-order (row-major): src_arr(i, v) is at ptr[i*n_vars + v]
-                // We need column-major: buf(i, v) at buf[i + v*n_src]
+            if (!is_fortran_contig) {
                 src_colmajor.resize(n_src * n_vars);
                 for (std::size_t v = 0; v < n_vars; ++v) {
                     for (std::size_t i = 0; i < n_src; ++i) {
-                        src_colmajor[i + v * n_src] = src_ptr[i * n_vars + v];
+                        src_colmajor[i + v * n_src] = src_arr(i, v);
                     }
                 }
                 src_ptr = src_colmajor.data();
