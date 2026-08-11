@@ -136,10 +136,10 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
                     for (int di = -1; di <= 0; ++di) {
                         auto cell_i = static_cast<long long>(ci) + di;
                         const auto cell_j = static_cast<long long>(cj) + dj;
-                        
+
                         double cell_lon = 0.0;
                         bool valid_i = false;
-                        
+
                         if (is_periodic) {
                             if (cell_i < 0) {
                                 cell_i = ni - 1;
