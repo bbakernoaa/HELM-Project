@@ -83,7 +83,7 @@ class Value {
     explicit Value(std::shared_ptr<void> node_ptr) noexcept;
 
     /// Construct a non-owning Value from a raw pointer (lifetime must be managed externally).
-    static Value from_raw(const void* node_ptr) noexcept;
+    static Value from_raw(const void *node_ptr) noexcept;
 
    private:
     /// Type-erased shared pointer into the parent Config's node tree.

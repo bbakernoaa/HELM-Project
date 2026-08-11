@@ -17,9 +17,9 @@ namespace conf {
 
 Value::Value(std::shared_ptr<void> node_ptr) noexcept : node_(std::move(node_ptr)) {}
 
-Value Value::from_raw(const void* node_ptr) noexcept {
+Value Value::from_raw(const void *node_ptr) noexcept {
     // Create a shared_ptr with a no-op deleter (caller owns the pointed-to node)
-    return Value(std::shared_ptr<void>(const_cast<void*>(node_ptr), [](void*) {}));
+    return Value(std::shared_ptr<void>(const_cast<void *>(node_ptr), [](void *) {}));
 }
 
 // ── Introspection ────────────────────────────────────────────────────────────
