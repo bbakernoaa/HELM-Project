@@ -218,7 +218,6 @@ TEST(GregorianEdgeCases, DayOfYear) {
     // 2024-03-01 (leap year) -> 61
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_year(tick::Date_Time{2024, 3, 1, 0, 0, 0, 0}), 61);
 }
-}
 
 TEST(GregorianEdgeCases, InvalidDay) {
     tick::Date_Time dt{2023, 2, 29, 0, 0, 0, 0};  // 2023 is not a leap year
