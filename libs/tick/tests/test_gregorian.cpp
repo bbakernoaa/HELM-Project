@@ -185,8 +185,23 @@ TEST(GregorianEdgeCases, DayOfWeekISO8601) {
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 4, 0, 0, 0, 0}), 7);
     // 2026-01-05 is Monday -> ISO 1
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 5, 0, 0, 0, 0}), 1);
+    // 2026-01-05 is Tuesday -> ISO 1
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 6, 0, 0, 0, 0}), 2);
+    // 2026-01-05 is Wednesday -> ISO 1
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 7, 0, 0, 0, 0}), 3);
+    // 2026-01-05 is Thursday -> ISO 1
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 8, 0, 0, 0, 0}), 4);
+    // 2026-01-05 is Friday -> ISO 1
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 8, 0, 0, 0, 0}), 5);
+    // 2026-01-05 is Thursday -> ISO 1
+    EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2026, 1, 8, 0, 0, 0, 0}), 6);
     // 1970-01-01 was a Thursday -> ISO 4
     EXPECT_EQ(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{1970, 1, 1, 0, 0, 0, 0}), 4);
+}
+
+TEST(GregorianEdgeCases, DayOfWeekInvalidDay) {
+    // 2023-02-29 is invalid (2023 is not a leap year)
+    EXPECT_THROW(tick::Gregorian_Calendar::day_of_week(tick::Date_Time{2023, 2, 29, 0, 0, 0, 0}), std::invalid_argument);
 }
 
 TEST(GregorianEdgeCases, InvalidDay) {
