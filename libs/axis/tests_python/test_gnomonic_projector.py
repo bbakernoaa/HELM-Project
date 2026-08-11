@@ -1,8 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
-from axis.gnomonic import bilinear_weights, forward, inverse
-from axis.spherical import Vec3, lonlat_to_xyz
+from axis import axis_py
+
+Vec3 = axis_py.Vec3
+lonlat_to_xyz = axis_py.lonlat_to_xyz
+forward = axis_py.gnomonic_forward
+inverse = axis_py.gnomonic_inverse
+bilinear_weights = axis_py.bilinear_weights
 
 
 def test_gnomonic_projections():

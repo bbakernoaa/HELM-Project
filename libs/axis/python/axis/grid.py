@@ -1,9 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import NamedTuple
+
 import numpy as np
 import xarray as xr
 
 from . import axis_py
+
+
+class ScripMeshInfo(NamedTuple):
+    """Parsed SCRIP mesh nodes and connectivity arrays."""
+
+    node_lon: np.ndarray
+    node_lat: np.ndarray
+    conn_offsets: np.ndarray
+    conn_indices: np.ndarray
+
 
 # Unstructured spatial dimension tags commonly used in climate datasets
 UNSTRUCTURED_DIMS = {
@@ -167,7 +179,7 @@ def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[n
     return clon, clat
 
 
-def _parse_scrip_bounds(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _parse_scrip_bounds(ds: xr.Dataset) -> ScripMeshInfo:
     """Parse unstructured SCRIP-style cell centers and 2D bounds into general polygon nodes/connectivity offsets/indices."""
     # Find longitude/latitude coordinates
     lat = None
@@ -196,7 +208,7 @@ def _parse_scrip_bounds(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndar
     lon_bnds = np.asarray(ds[lon_bnds_name].values, dtype=np.float64)
 
     res = axis_py.parse_scrip_bounds(lat_bnds, lon_bnds)
-    return res["node_lon"], res["node_lat"], res["conn_offsets"], res["conn_indices"]
+    return ScripMeshInfo(res["node_lon"], res["node_lat"], res["conn_offsets"], res["conn_indices"])
 
 
 def _get_ugrid_info(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

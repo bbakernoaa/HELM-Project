@@ -1,7 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
-from axis.spherical import Vec3, great_circle_arc_intersection, lonlat_to_xyz, robust_orient_sphere, xyz_to_lonlat
+from axis import axis_py
+
+Vec3 = axis_py.Vec3
+great_circle_arc_intersection = axis_py.great_circle_arc_intersection
+lonlat_to_xyz = axis_py.lonlat_to_xyz
+robust_orient_sphere = axis_py.robust_orient_sphere
+xyz_to_lonlat = axis_py.xyz_to_lonlat
 
 
 def test_spherical_conversions():

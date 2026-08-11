@@ -11,14 +11,22 @@ requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 dependencies = [
     "cf-xarray",
-    "dask",
-    "netCDF4",
     "numpy",
     "xarray",
 ]
 
+[project.optional-dependencies]
+netcdf = [
+    "netCDF4",
+]
+dask = [
+    "dask",
+]
+
 [dependency-groups]
 test = [
+    "dask",
+    "netCDF4",
     "pyproj",
     "pytest",
     "scipy",

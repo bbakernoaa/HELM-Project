@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
-from axis.polygon import SphericalPolygon
-from axis.spherical import lonlat_to_xyz
+from axis import axis_py
+
+SphericalPolygon = axis_py.SphericalPolygon
+lonlat_to_xyz = axis_py.lonlat_to_xyz
 
 
 def test_spherical_excess_area():

@@ -13,9 +13,6 @@ from .grid import CurvilinearGrid, Geometry, GridFactory, RectilinearGrid, Unstr
 from .regridder import Regridder
 from .vector import VectorRegridder
 from .vertical import VerticalRegridder, regrid_3d
-from . import spherical
-from . import gnomonic
-from . import polygon
 
 # Expose C++ Mesh construction and Matrix serialization APIs directly on the axis package
 Mesh = axis_py.Mesh
@@ -68,7 +65,4 @@ __all__ = [
     "NormType",
     "UnmappedAction",
     "LineType",
-    "spherical",
-    "gnomonic",
-    "polygon",
 ]

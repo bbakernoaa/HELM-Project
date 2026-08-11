@@ -284,9 +284,8 @@ NB_MODULE(axis_py, m) {
                 Kokkos::deep_copy(cx_v, cx_in);
                 Kokkos::deep_copy(cy_v, cy_in);
 
-                new (grid) axis::topology::StructuredGrid<Kokkos::HostSpace>(
-                    ni, nj, std::move(cx_v), std::move(cy_v), axis::topology::CoordinateSystem::SphericalDeg);
-            }
+                new (grid) axis::topology::StructuredGrid<Kokkos::HostSpace>(ni, nj, std::move(cx_v), std::move(cy_v),
+                                                                             axis::topology::CoordinateSystem::SphericalDeg);
             },
             "ni"_a, "nj"_a, "cx"_a, "cy"_a)
         .def(
