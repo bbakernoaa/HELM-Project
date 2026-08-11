@@ -957,8 +957,10 @@ NB_MODULE(axis_py, m) {
 
             const std::size_t n_src = u.shape(0);
             const std::size_t n_vars = u.shape(1);
+            if (v.shape(0) != n_src || v.shape(1) != n_vars) {
+                throw std::invalid_argument("vector_transform: u and v must have identical shapes (n_src, n_vars)");
+            }
             const std::size_t n_dst = W_u.n_dst();
-
             // Setup combined source buffer: [2 * n_src, n_vars]
             // where first n_src rows are U, and next n_src rows are V.
             std::vector<double> uv_colmajor(2 * n_src * n_vars);
