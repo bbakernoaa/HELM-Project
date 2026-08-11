@@ -416,13 +416,23 @@ NB_MODULE(axis_py, m) {
             const std::size_t n_cells = conn_raw.shape(0);
             const std::size_t max_edges = conn_raw.shape(1);
 
+            if (n_edges.shape(0) != n_cells) {
+                throw std::invalid_argument("triangulate_poly_cells: n_edges length must match conn_raw.shape(0)");
+            }
+
             std::vector<axis::index_t> conn_indices;
             std::vector<axis::index_t> conn_offsets;
             conn_offsets.push_back(0);
 
             for (std::size_t c = 0; c < n_cells; ++c) {
-                std::size_t n_cell_edges = n_edges(c);
-                if (n_cell_edges < 3) continue;
+                const std::size_t n_cell_edges = static_cast<std::size_t>(n_edges(c));
+                if (n_cell_edges > max_edges) {
+                    throw std::invalid_argument("triangulate_poly_cells: n_edges[" + std::to_string(c) + "] exceeds conn_raw.shape(1)");
+                }
+                if (n_cell_edges < 3) {
+                    conn_offsets.push_back(conn_indices.size());
+                    continue;
+                }
 
                 // Triangulate via standard triangle fan from vertex 0 of the cell
                 axis::index_t v0 = conn_raw(c, 0) - 1;
