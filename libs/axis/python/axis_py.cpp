@@ -473,6 +473,9 @@ NB_MODULE(axis_py, m) {
             const std::size_t n_cells = lat_bnds.shape(0);
             const std::size_t nv = lat_bnds.shape(1);
 
+            if (lon_bnds.shape(0) != n_cells || lon_bnds.shape(1) != nv) {
+                throw std::invalid_argument("parse_scrip_bounds: lon_bnds shape must match lat_bnds shape");
+            }
             std::vector<double> node_lons;
             std::vector<double> node_lats;
             std::vector<axis::index_t> conn_offsets;
