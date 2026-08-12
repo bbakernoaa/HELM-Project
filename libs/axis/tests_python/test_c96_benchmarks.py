@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: Apache-2.0
+import glob
+import os
+import shutil
+
+import numpy as np
+import pytest
+import xarray as xr
+
+import axis
+from axis import axis_py
+
+# Optional dependency discovery
+ESMPY_AVAILABLE = False
+try:
+    import esmpy
+
+    ESMPY_AVAILABLE = True
+except ImportError:
+    pass
+
+C96_FILES = sorted(glob.glob("/workspace/helm-project/libs/axis/C96_grid.tile*.nc"))
+if not C96_FILES:
+    C96_FILES = sorted(glob.glob("libs/axis/C96_grid.tile*.nc"))
+if not C96_FILES:
+    C96_FILES = sorted(glob.glob("C96_grid.tile*.nc"))
+
+pytestmark = pytest.mark.skipif(len(C96_FILES) < 6, reason="C96_grid tile NetCDF files not found")
+
+
+def get_c96_exact_mesh(ds_list):
+    """Build a unified AXIS UnstructuredMesh from all 6 C96 tiles using exact supergrid corners."""
+    node_coords_list = []
+    conn_indices_list = []
+    node_offset = 0
+
+    for ds in ds_list:
+        clon_t = ds["x"].values[0::2, 0::2]
+        clat_t = ds["y"].values[0::2, 0::2]
+        coords_t = np.column_stack([clon_t.ravel(), clat_t.ravel()])
+        node_coords_list.append(coords_t)
+
+        ni, nj = 96, 96
+        nip1 = ni + 1
+        i_grid, j_grid = np.meshgrid(np.arange(ni), np.arange(nj))
+        bl = (i_grid + j_grid * nip1 + node_offset).ravel()
+        br = ((i_grid + 1) + j_grid * nip1 + node_offset).ravel()
+        tr = ((i_grid + 1) + (j_grid + 1) * nip1 + node_offset).ravel()
+        tl = (i_grid + (j_grid + 1) * nip1 + node_offset).ravel()
+
+        indices_t = np.column_stack([bl, br, tr, tl]).astype(np.int64).ravel()
+        conn_indices_list.append(indices_t)
+        node_offset += len(coords_t)
+
+    node_coords = np.asfortranarray(np.concatenate(node_coords_list))
+    conn_indices = np.concatenate(conn_indices_list)
+    conn_offsets = np.arange(0, len(conn_indices) + 1, 4, dtype=np.int64)
+
+    return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+
+
+def test_c96_to_global_regular_conservative():
+    """Verify conservative regridding from all 6 C96 tiles to a global 1-degree regular grid."""
+    ds_list = [xr.open_dataset(f) for f in C96_FILES]
+
+    mesh_src = get_c96_exact_mesh(ds_list)
+    mesh_dst = axis_py.make_regular_mesh(360, 180, 0.0, -90.0, 1.0, 1.0)
+
+    config = {
+        "method": axis_py.Method.Conservative,
+        "periodic": False,
+        "line_type": axis_py.LineType.GreatCircle,
+        "norm_type": axis_py.NormType.FracArea,
+        "unmapped": axis_py.UnmappedAction.Ignore,
+    }
+
+    weights = axis_py.generate_weights(mesh_src, mesh_dst, config)
+    src_const = np.ones(6 * 96 * 96, dtype=np.float64)
+    out_const = np.array(axis_py.apply_weights(weights, src_const)).reshape((180, 360))
+
+    # Verify global mass conservation on constant field
+    assert np.allclose(out_const, 1.0, atol=1e-12), f"Max diff vs 1.0: {np.max(np.abs(out_const - 1.0))}"
+    assert np.isnan(out_const).sum() == 0, "Output contains NaNs"
+
+
+def test_global_regular_to_c96_conservative():
+    """Verify conservative regridding from a global 1-degree regular grid to each C96 tile."""
+    ds_list = [xr.open_dataset(f) for f in C96_FILES]
+
+    mesh_src = axis_py.make_regular_mesh(360, 180, 0.0, -90.0, 1.0, 1.0)
+    src_const = np.ones(180 * 360, dtype=np.float64)
+
+    config = {
+        "method": axis_py.Method.Conservative,
+        "periodic": False,
+        "line_type": axis_py.LineType.GreatCircle,
+        "norm_type": axis_py.NormType.FracArea,
+        "unmapped": axis_py.UnmappedAction.Ignore,
+    }
+
+    for t_idx in range(6):
+        mesh_dst = get_c96_exact_mesh([ds_list[t_idx]])
+        weights = axis_py.generate_weights(mesh_src, mesh_dst, config)
+        out_const = np.array(axis_py.apply_weights(weights, src_const)).reshape((96, 96))
+
+        assert np.allclose(out_const, 1.0, atol=1e-12), f"Tile {t_idx+1} max diff vs 1.0: {np.max(np.abs(out_const - 1.0))}"
