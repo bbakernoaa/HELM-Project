@@ -1924,7 +1924,10 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
     for (std::size_t j = 0; j < n_dst; ++j) {
         auto d_start = static_cast<std::size_t>(dst_off[j]);
         auto d_end = static_cast<std::size_t>(dst_off[j + 1]);
-        if (d_start == d_end) continue;
+        if (d_start == d_end) {
+            for (std::size_t q = 0; q < N2; ++q) batched_queries(j * N2 + q) = ArborX::nearest(Point2{0.f, 0.f}, 1);
+            continue;
+        }
 
         double x_min = std::numeric_limits<double>::max();
         double x_max = -std::numeric_limits<double>::max();
