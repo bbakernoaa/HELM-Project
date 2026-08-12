@@ -1887,8 +1887,14 @@ template <class MemorySpace>
 InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMesh<MemorySpace> &src_mesh,
                                                  const topology::UnstructuredMesh<MemorySpace> &dst_mesh,
                                                  const RegridConfig &config) {
-    if (config.budget_subgrid_size < 1) {
+    if (config.budget_subgrid_size == 0) {
         throw std::invalid_argument("WeightGenerator::generate_budget: budget_subgrid_size must be >= 1.");
+    }
+
+    if (config.budget_subgrid_size == 1) {
+        RegridConfig bilinear_config = config;
+        bilinear_config.method = InterpolationMethod::Bilinear;
+        return WeightGenerator::generate_bilinear<MemorySpace>(src_mesh, dst_mesh, bilinear_config);
     }
 
     using HostSpace = Kokkos::HostSpace;
@@ -1900,8 +1906,7 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
     const bool is_spherical = (csys == topology::CoordinateSystem::SphericalDeg || csys == topology::CoordinateSystem::SphericalRad);
 
     const std::uint32_t N = config.budget_subgrid_size;
-    const std::uint32_t N2 = N * N;
-
+    const std::size_t N2 = static_cast<std::size_t>(N) * static_cast<std::size_t>(N);
     // 1. Build ArborX BVH for Source Centroids
     Kokkos::View<double *, HostSpace> src_cx, src_cy;
     compute_cell_centroids_xy(src_mesh, src_cx, src_cy);
