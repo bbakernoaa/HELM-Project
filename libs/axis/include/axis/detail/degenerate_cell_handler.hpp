@@ -120,15 +120,17 @@ struct DegenerateCellHandler {
             return DegenerateType::ZeroArea;
         }
 
-        // Check 1: Collapsed edges (coincident vertices).
-        if (has_collapsed_edge(cell, edge_threshold)) {
-            return DegenerateType::CollapsedEdge;
-        }
-
-        // Check 2: Zero area.
+        // Check 1: Zero area.
         double a = cell.area();
         if (a < area_threshold) {
             return DegenerateType::ZeroArea;
+        }
+
+        // Check 2: Collapsed edges only if fewer than 3 unique vertices remain.
+        // Polar cap quads on regular lat-lon grids have 2 coincident vertices at the pole,
+        // leaving 3 distinct vertices forming a valid spherical triangle with positive area.
+        if (count_unique_vertices(cell, edge_threshold) < 3) {
+            return DegenerateType::CollapsedEdge;
         }
 
         // Check 3: Self-intersecting boundary.
@@ -237,6 +239,31 @@ struct DegenerateCellHandler {
     // ─────────────────────────────────────────────────────────────────────────
     // Internal detection helpers — all KOKKOS_FUNCTION for device portability
     // ─────────────────────────────────────────────────────────────────────────
+
+    /// @brief Count number of distinct/unique vertices in a polygon.
+    ///
+    /// Vertices closer than threshold are treated as coincident.
+    template <int MaxVerts>
+    KOKKOS_FUNCTION static int count_unique_vertices(const SphericalPolygon<MaxVerts> &cell, double threshold) noexcept {
+        if (cell.n < 1) return 0;
+        double thresh_sq = threshold * threshold;
+        int unique_count = 1;
+
+        for (int i = 1; i < cell.n; ++i) {
+            bool duplicate = false;
+            for (int j = 0; j < i; ++j) {
+                Vec3 diff{cell.verts[i].x - cell.verts[j].x, cell.verts[i].y - cell.verts[j].y, cell.verts[i].z - cell.verts[j].z};
+                if (length_sq(diff) < thresh_sq) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                unique_count++;
+            }
+        }
+        return unique_count;
+    }
 
     /// @brief Detect collapsed edges (coincident adjacent vertices).
     ///

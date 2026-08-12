@@ -526,8 +526,18 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                 conn_indices_list = []
                 node_offset = 0
 
+                # Check if dataset contains supergrid corner variables (e.g. x and y of shape (2*ny+1, 2*nx+1))
+                has_supergrid_xy = (
+                    "x" in ds and "y" in ds and ds["x"].ndim == 2 and ds["x"].shape == (2 * ny + 1, 2 * nx + 1)
+                )
+
                 for t in range(ntiles):
-                    clon_t, clat_t = _synthesize_curvilinear_corners(lon[t].values, lat[t].values)
+                    if has_supergrid_xy:
+                        clon_t = ds["x"].values[0::2, 0::2]
+                        clat_t = ds["y"].values[0::2, 0::2]
+                    else:
+                        clon_t, clat_t = _synthesize_curvilinear_corners(lon[t].values, lat[t].values)
+
                     coords_t = np.column_stack([clon_t.ravel(), clat_t.ravel()])
                     node_coords_list.append(coords_t)
 
