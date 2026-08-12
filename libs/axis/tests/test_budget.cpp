@@ -84,4 +84,35 @@ TEST(BudgetInterpolationTest, PartitionOfUnity) {
     }
 }
 
+TEST(BudgetInterpolationTest, BilinearParityWithSubgridSize1) {
+    auto src = make_simple_cartesian_mesh(4, 1.0);
+    auto dst = make_simple_cartesian_mesh(2, 1.0);
+
+    RegridConfig bilinear_cfg;
+    bilinear_cfg.method = InterpolationMethod::Bilinear;
+    auto bilinear_matrix = solver::WeightGenerator::generate<MemSpace>(src, dst, bilinear_cfg);
+
+    RegridConfig budget_cfg;
+    budget_cfg.method = InterpolationMethod::Budget;
+    budget_cfg.budget_subgrid_size = 1;
+    budget_cfg.budget_min_valid_fraction = 0.0;
+    auto budget_matrix = solver::WeightGenerator::generate<MemSpace>(src, dst, budget_cfg);
+
+    ASSERT_EQ(bilinear_matrix.nnz(), budget_matrix.nnz());
+
+    auto b_row = bilinear_matrix.factor_row_view();
+    auto b_col = bilinear_matrix.factor_col_view();
+    auto b_val = bilinear_matrix.factor_list_view();
+
+    auto m_row = budget_matrix.factor_row_view();
+    auto m_col = budget_matrix.factor_col_view();
+    auto m_val = budget_matrix.factor_list_view();
+
+    for (std::size_t k = 0; k < bilinear_matrix.nnz(); ++k) {
+        EXPECT_EQ(b_row(k), m_row(k));
+        EXPECT_EQ(b_col(k), m_col(k));
+        EXPECT_NEAR(b_val(k), m_val(k), 1e-12);
+    }
+}
+
 } // namespace axis::test
