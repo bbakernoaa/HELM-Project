@@ -2144,7 +2144,10 @@ InterpolationMatrix<MemorySpace> generate_budget(const topology::UnstructuredMes
         }
 
         double norm = 1.0 / static_cast<double>(valid_subpoints);
-        for (const auto &[src_cell, accum_wt] : subgrid_weights) {
+
+        std::vector<std::pair<index_t, double>> entries(subgrid_weights.begin(), subgrid_weights.end());
+        std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+        for (const auto &[src_cell, accum_wt] : entries) {
             weights_vec.push_back(accum_wt * norm);
             rows_vec.push_back(static_cast<index_t>(j));
             cols_vec.push_back(src_cell);
