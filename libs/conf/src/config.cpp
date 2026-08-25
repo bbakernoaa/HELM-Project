@@ -221,6 +221,13 @@ std::vector<std::string> Config::get_string_list(std::string_view path) const {
 
 // ── Value view access ────────────────────────────────────────────────────────
 
+Value Config::root() const {
+    if (!impl_) {
+        throw Conf_Error(Error_Code::Key_Not_Found, "empty config");
+    }
+    return Value(std::make_shared<YAML::Node>(impl_->tree.root()));
+}
+
 Value Config::at(std::string_view dotted_path) const {
     if (!impl_) {
         throw Conf_Error(Error_Code::Key_Not_Found, "empty config");
