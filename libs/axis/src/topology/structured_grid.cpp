@@ -171,6 +171,17 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ensure_corners — lazily synthesize corners from centers if not set
+// ─────────────────────────────────────────────────────────────────────────────
+
+template <class MemorySpace>
+void StructuredGrid<MemorySpace>::ensure_corners() const {
+    if (corner_lon_.extent(0) == 0) {
+        synthesize_corners();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // to_unstructured — the core conversion (Requirement 18.1, 18.2, 18.3)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -179,9 +190,7 @@ UnstructuredMesh<MemorySpace> StructuredGrid<MemorySpace>::to_unstructured() con
     using exec_space = typename detail::exec_space_t<MemorySpace>;
 
     // If corners have not been set explicitly, synthesize from centers.
-    if (corner_lon_.extent(0) == 0) {
-        synthesize_corners();
-    }
+    ensure_corners();
 
     const std::size_t ni = ni_;
     const std::size_t nj = nj_;
@@ -235,6 +244,74 @@ UnstructuredMesh<MemorySpace> StructuredGrid<MemorySpace>::to_unstructured() con
         KOKKOS_LAMBDA(const int /*unused*/) { cell_node_offsets(n_cells) = static_cast<index_t>(n_cells * 4); });
 
     Kokkos::fence("to_unstructured_fence");
+
+    return UnstructuredMesh<MemorySpace>(std::move(node_coords), std::move(cell_node_offsets), std::move(cell_node_indices), coord_sys_);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// to_unstructured_band — emit one contiguous j-row band using global corners
+// ─────────────────────────────────────────────────────────────────────────────
+
+template <class MemorySpace>
+UnstructuredMesh<MemorySpace> StructuredGrid<MemorySpace>::to_unstructured_band(std::size_t j0, std::size_t nrows) const {
+    using exec_space = typename detail::exec_space_t<MemorySpace>;
+
+    if (nrows == 0) {
+        throw std::invalid_argument("StructuredGrid::to_unstructured_band: nrows must be positive");
+    }
+    if (j0 + nrows > nj_) {
+        throw std::invalid_argument("StructuredGrid::to_unstructured_band: j0 + nrows (" + std::to_string(j0 + nrows) + ") exceeds nj (" +
+                                    std::to_string(nj_) + ")");
+    }
+
+    // Synthesize corners on the FULL grid so the band's boundary vertex rows are
+    // shared (bit-identical) with adjacent bands — the crux of seam-free banding.
+    ensure_corners();
+
+    const std::size_t ni = ni_;
+    const std::size_t nip1 = ni + 1;
+    const std::size_t band_njp1 = nrows + 1;
+    const std::size_t n_cells = ni * nrows;
+    const std::size_t n_nodes = nip1 * band_njp1;
+    const std::size_t row0 = j0;
+
+    Kokkos::View<double **, Kokkos::LayoutLeft, MemorySpace> node_coords("unstructured_band_node_coords", n_nodes, std::size_t{2});
+    Kokkos::View<index_t *, MemorySpace> cell_node_offsets("unstructured_band_cell_offsets", n_cells + 1);
+    Kokkos::View<index_t *, MemorySpace> cell_node_indices("unstructured_band_cell_indices", n_cells * 4);
+
+    auto clon = corner_lon_;
+    auto clat = corner_lat_;
+
+    // Node fill: local corner row cj maps to global corner row (row0 + cj).
+    using MDRange2D = Kokkos::MDRangePolicy<exec_space, Kokkos::Rank<2>>;
+    Kokkos::parallel_for(
+        "to_unstructured_band_fill_nodes_md", MDRange2D({0, 0}, {static_cast<int>(nip1), static_cast<int>(band_njp1)}),
+        KOKKOS_LAMBDA(const int ci, const int cj) {
+            const std::size_t local_idx = static_cast<std::size_t>(ci) + static_cast<std::size_t>(cj) * nip1;
+            const std::size_t global_idx = static_cast<std::size_t>(ci) + (row0 + static_cast<std::size_t>(cj)) * nip1;
+            node_coords(local_idx, 0) = clon(global_idx);
+            node_coords(local_idx, 1) = clat(global_idx);
+        });
+
+    // Connectivity references band-local node indices (rows 0..nrows).
+    Kokkos::parallel_for(
+        "to_unstructured_band_fill_connectivity_md", MDRange2D({0, 0}, {static_cast<int>(ni), static_cast<int>(nrows)}),
+        KOKKOS_LAMBDA(const int i, const int j) {
+            const std::size_t cell_idx = static_cast<std::size_t>(i) + static_cast<std::size_t>(j) * ni;
+            cell_node_offsets(cell_idx) = static_cast<index_t>(cell_idx * 4);
+
+            const std::size_t base = cell_idx * 4;
+            cell_node_indices(base + 0) = static_cast<index_t>(i + j * nip1);              // bottom-left
+            cell_node_indices(base + 1) = static_cast<index_t>((i + 1) + j * nip1);        // bottom-right
+            cell_node_indices(base + 2) = static_cast<index_t>((i + 1) + (j + 1) * nip1);  // top-right
+            cell_node_indices(base + 3) = static_cast<index_t>(i + (j + 1) * nip1);        // top-left
+        });
+
+    Kokkos::parallel_for(
+        "to_unstructured_band_sentinel_offset", Kokkos::RangePolicy<exec_space>(0, 1),
+        KOKKOS_LAMBDA(const int /*unused*/) { cell_node_offsets(n_cells) = static_cast<index_t>(n_cells * 4); });
+
+    Kokkos::fence("to_unstructured_band_fence");
 
     return UnstructuredMesh<MemorySpace>(std::move(node_coords), std::move(cell_node_offsets), std::move(cell_node_indices), coord_sys_);
 }
