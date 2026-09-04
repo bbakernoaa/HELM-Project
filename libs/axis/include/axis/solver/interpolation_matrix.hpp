@@ -27,6 +27,10 @@
 #include <axis/types.hpp>
 #include <cstddef>
 
+#ifdef AXIS_HAVE_KOKKOSKERNELS
+#include <KokkosSparse_CrsMatrix.hpp>
+#endif
+
 namespace axis::solver {
 
 /// A (destination, source) index pair representing one nonzero entry in the
@@ -277,6 +281,42 @@ class InterpolationMatrix {
         return csr_vals_;
     }
 
+#ifdef AXIS_HAVE_KOKKOSKERNELS
+    /// Lazily-built, cached KokkosKernels CrsMatrix wrapping the CSR arrays.
+    ///
+    /// The interpolation weights never change after to_csr(), so the derived
+    /// KokkosSparse::CrsMatrix operator (row_map/entries/vals + graph) can be
+    /// built once and reused across every apply() call. On first invocation
+    /// this deep-copies the CSR structure into non-const backing Views (held as
+    /// mutable members so they outlive the returned matrix, whose graph does
+    /// not own the row_map/entries) and constructs the CrsMatrix; subsequent
+    /// calls return the cached matrix unchanged.
+    ///
+    /// Uses the same index_t/device types as axis::solver::apply.
+    ///
+    /// @pre is_csr() == true
+    using kk_device_t = Kokkos::Device<typename MemorySpace::execution_space, MemorySpace>;
+    using kk_crs_matrix_t = KokkosSparse::CrsMatrix<double, index_t, kk_device_t, void, index_t>;
+
+    [[nodiscard]] const kk_crs_matrix_t &kk_crs_matrix() const {
+        if (!kk_csr_built_) {
+            using graph_t = typename kk_crs_matrix_t::staticcrsgraph_type;
+
+            kk_row_map_ = Kokkos::View<index_t *, MemorySpace>("kk_row_map", row_ptr_.extent(0));
+            Kokkos::deep_copy(kk_row_map_, row_ptr_);
+            kk_entries_ = Kokkos::View<index_t *, MemorySpace>("kk_entries", col_idx_.extent(0));
+            Kokkos::deep_copy(kk_entries_, col_idx_);
+            kk_vals_ = Kokkos::View<double *, MemorySpace>("kk_vals", csr_vals_.extent(0));
+            Kokkos::deep_copy(kk_vals_, csr_vals_);
+
+            graph_t graph(kk_entries_, kk_row_map_);
+            kk_crs_matrix_ = kk_crs_matrix_t("axis_spmv", static_cast<index_t>(n_src_), kk_vals_, graph);
+            kk_csr_built_ = true;
+        }
+        return kk_crs_matrix_;
+    }
+#endif
+
     // ─────────────────────────────────────────────────────────────────────────
     // Internal Kokkos::View accessors (for WeightGenerator, apply, and
     // conservation accounting that need direct View access)
@@ -321,6 +361,18 @@ class InterpolationMatrix {
     Kokkos::View<index_t *, MemorySpace> col_idx_;  ///< column indices [nnz]
     Kokkos::View<double *, MemorySpace> csr_vals_;  ///< values [nnz]
     bool has_csr_{false};                           ///< CSR representation available
+
+#ifdef AXIS_HAVE_KOKKOSKERNELS
+    // Lazily-built cache of the derived KokkosKernels CrsMatrix. Because apply()
+    // takes a const InterpolationMatrix&, these are mutable. The row_map/entries
+    // backing Views must persist as members: the CrsMatrix graph references them
+    // without owning copies.
+    mutable Kokkos::View<index_t *, MemorySpace> kk_row_map_;  ///< non-const row_map backing the cached graph
+    mutable Kokkos::View<index_t *, MemorySpace> kk_entries_;  ///< non-const entries backing the cached graph
+    mutable Kokkos::View<double *, MemorySpace> kk_vals_;      ///< non-const values backing the cached matrix
+    mutable kk_crs_matrix_t kk_crs_matrix_;                    ///< cached KokkosKernels CrsMatrix
+    mutable bool kk_csr_built_{false};                         ///< true once the cached matrix is built
+#endif
 };
 
 }  // namespace axis::solver

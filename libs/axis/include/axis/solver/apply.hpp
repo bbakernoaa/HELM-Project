@@ -93,25 +93,10 @@ void apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<const doub
 #ifdef AXIS_HAVE_KOKKOSKERNELS
         // Use KokkosSparse::spmv for hardware-tuned SpMV (cuSPARSE on GPU,
         // MKL on CPU when available, or KokkosKernels native implementation).
-        using device_t = Kokkos::Device<exec_space, MemorySpace>;
-        using crs_matrix_t = KokkosSparse::CrsMatrix<double, index_t, device_t, void, index_t>;
-        using graph_t = typename crs_matrix_t::staticcrsgraph_type;
-
-        // Build the static CRS graph from our row_ptr and col_idx views.
-        // The graph constructor takes (entries, row_map) — both non-const.
-        Kokkos::View<index_t *, MemorySpace> row_map_nc("row_map", row_ptr.extent(0));
-        Kokkos::deep_copy(row_map_nc, row_ptr);
-        Kokkos::View<index_t *, MemorySpace> entries_nc("entries", col_idx.extent(0));
-        Kokkos::deep_copy(entries_nc, col_idx);
-
-        graph_t graph(entries_nc, row_map_nc);
-
-        // Build values view (non-const copy)
-        Kokkos::View<double *, MemorySpace> vals_nc("vals", csr_vals.extent(0));
-        Kokkos::deep_copy(vals_nc, csr_vals);
-
-        // CrsMatrix(label, ncols, vals, graph)
-        crs_matrix_t A("axis_spmv", static_cast<index_t>(matrix.n_src()), vals_nc, graph);
+        // The CrsMatrix is a derived operator of the (immutable) CSR weights,
+        // so it is built once and cached on the matrix rather than rebuilt per
+        // call.
+        const auto &A = matrix.kk_crs_matrix();
 
         // Wrap src/dst as rank-1 Kokkos Views for KokkosSparse::spmv
         Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> x_view(src.data_handle(), src.extent(0));
