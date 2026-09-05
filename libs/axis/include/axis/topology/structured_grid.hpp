@@ -123,6 +123,28 @@ class StructuredGrid {
     /// @return A complete UnstructuredMesh<MemorySpace> instance representing the same grid.
     [[nodiscard]] UnstructuredMesh<MemorySpace> to_unstructured() const;
 
+    /// @brief Ensure corner coordinates exist, synthesizing them from centers if unset.
+    ///
+    /// Idempotent. After this call, `corner_lon()`/`corner_lat()` return the
+    /// `[(ni+1)*(nj+1)]` shared-vertex arrays. Lets callers inspect or slice the
+    /// synthesized corners without building the full unstructured mesh.
+    void ensure_corners() const;
+
+    /// @brief Convert a contiguous range of j-rows into an UnstructuredMesh.
+    ///
+    /// Emits `ni * nrows` quadrilateral cells for the global row range
+    /// `[j0, j0 + nrows)`, referencing the globally-synthesized shared corners so
+    /// band boundaries are bit-identical to those of adjacent bands. This enables
+    /// seam-free MPI row-band decomposition of conservative regridding: build one
+    /// global grid, then extract each rank's band. Corners are synthesized once on
+    /// the full grid (see `ensure_corners()`), so periodicity and pole handling
+    /// use global context rather than the truncated band.
+    ///
+    /// @param j0    First global j-row of the band (0-based).
+    /// @param nrows Number of j-rows in the band; requires `j0 + nrows <= nj`.
+    /// @return An UnstructuredMesh<MemorySpace> for the band's cells.
+    [[nodiscard]] UnstructuredMesh<MemorySpace> to_unstructured_band(std::size_t j0, std::size_t nrows) const;
+
    private:
     std::size_t ni_{0};
     std::size_t nj_{0};
