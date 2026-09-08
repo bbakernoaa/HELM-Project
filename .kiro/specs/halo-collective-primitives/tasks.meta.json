@@ -1,0 +1,469 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Baseline structural checkpoint — existing HALO suite green before any change": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768245
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755786151
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756089882
+      }
+    ],
+    "2.1 Implement non-template helpers in `src/collectives.cpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768273
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756093057
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756176082
+      }
+    ],
+    "2.2 Implement `allgather<T>()` in `include/halo/collectives.hpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768305
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756181185
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756274217
+      }
+    ],
+    "2.3 Implement `allgatherv<T>()` and `Allgather_Result<T>` in `include/halo/collectives.hpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768339
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756277049
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756352309
+      }
+    ],
+    "2.4 Implement `allreduce<T>()` in `include/halo/collectives.hpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768372
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756355976
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756532620
+      }
+    ],
+    "2.5 Add the Tier 1 header to the umbrella and build in the container": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768415
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756537191
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756637827
+      }
+    ],
+    "3.1 Implement `detail::Strided_Datatype` in `include/halo/detail/strided_datatype.hpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768439
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756094388
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756177278
+      }
+    ],
+    "4.1 Implement `Replicated_Gather_Plan<T>` in `include/halo/replicated_gather_plan.hpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768470
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756641568
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756864460
+      }
+    ],
+    "4.2 Add the plan header to the umbrella": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768496
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756867200
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756915716
+      }
+    ],
+    "5.1 Implement `detail::collective_dispatch` in `include/halo/detail/collective_dispatch.hpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768521
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756357071
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756533708
+      }
+    ],
+    "6.1 Implement `gather_replicated<T, SrcV, DstV>()` in `include/halo/gather_replicated.hpp`": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768547
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756919640
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757085225
+      }
+    ],
+    "7. Structural checkpoint — full existing HALO suite with new code compiled in": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768578
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757097852
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757361704
+      }
+    ],
+    "8.1 Write `tests/test_collectives.cpp` (GTest, MPI) — Tier 1 + Pattern A": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768607
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756921030
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757086784
+      }
+    ],
+    "8.2 Wire `test_collectives` into `tests/CMakeLists.txt` and build+run in the container": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768636
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757099245
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757363160
+      }
+    ],
+    "8.3 Extend the MPI-spy interposition (TEST-ONLY) for collectives": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768664
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756922176
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757087794
+      }
+    ],
+    "8.4 Write `tests/test_collective_spy.cpp` (MPI-spy count tests)": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768689
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757100644
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757360763
+      }
+    ],
+    "8.5 Wire `test_collective_spy` with np4 AND explicit np2, then build+run in the container": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768720
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757383273
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757757402
+      }
+    ],
+    "8.6 Write `tests/test_gather_replicated.cpp` (GTest, MPI) — Tier 2 end-to-end": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768746
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757102107
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757364429
+      }
+    ],
+    "8.7 Wire `test_gather_replicated` into CMake and build+run in the container": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768777
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757382145
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757758378
+      }
+    ],
+    "8.8 Write `tests/prop_gather_replicated.cpp` (RapidCheck, MPI)": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768804
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757103175
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757359358
+      }
+    ],
+    "8.9 Wire `prop_gather_replicated` with np4 AND explicit np2, then build+run in the container": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768864
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757380851
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758100217
+      }
+    ],
+    "9.1 Add the new collective files to the HALO include-hygiene scan and confirm link/API hygiene": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768912
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757379346
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758101371
+      }
+    ],
+    "10. Final checkpoint — full container build + single ctest run, np2 and np4": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768939
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758114417
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758234155
+      }
+    ],
+    "11.1 Time `gather_replicated` vs a naive per-level loop and record numbers": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788755768970
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758238122
+      },
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758459189
+      }
+    ],
+    "3. RAII strided-datatype wrapper": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756177319
+      }
+    ],
+    "5. Compile-time collective dispatch": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756533741
+      }
+    ],
+    "2. Tier 1 low-level collective wrappers": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756637858
+      }
+    ],
+    "4. Tier 2 replicated-gather plan": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788756915758
+      }
+    ],
+    "6. Tier 2 single-collective replicated gather": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788757085262
+      }
+    ],
+    "8. Tier 1 and Tier 2 tests": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758100274
+      }
+    ],
+    "9. Tier 1 isolation verification": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758101404
+      }
+    ],
+    "11. Micro-benchmark — one-collective/no-reorder win (optional)": [
+      {
+        "executionId": "72b0ab57-ac08-448a-9002-9f499a575520",
+        "chatSessionId": "sess_70f70bab-7577-48cb-a451-a5070655b380",
+        "timestamp": 1788758459225
+      }
+    ]
+  }
+}
