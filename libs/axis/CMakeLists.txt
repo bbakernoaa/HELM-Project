@@ -98,15 +98,40 @@ endif()
 # MPI — REQUIRED for distributed weights generation
 find_package(MPI REQUIRED COMPONENTS CXX)
 
-# KokkosKernels — OPTIONAL accelerator for sparse linear algebra (SpMV, sort).
-# When found, AXIS uses KokkosSparse::spmv for CSR apply instead of hand-rolled
-# TeamPolicy loops. Header-only usage (no ETI).
+# KokkosKernels — REQUIRED accelerator for sparse linear algebra (SpMV, sort).
+# AXIS uses KokkosSparse::spmv for CSR apply. It is a hard dependency so every
+# build (container, HPC, CI) uses the SAME SpMV path — the former optional
+# fallback to hand-rolled TeamPolicy loops silently produced a different, slower
+# code path on systems where find_package(KokkosKernels) missed (e.g. some
+# spack-stack module sets). Mirror the Kokkos handling: prefer a system package,
+# otherwise fetch a version matching the pinned Kokkos (5.1.1). Header-only
+# usage (no ETI) keeps the fetched build light.
+option(AXIS_FETCH_KOKKOSKERNELS "Fetch and build KokkosKernels automatically if not found on system" ON)
+
 find_package(KokkosKernels QUIET)
-if(KokkosKernels_FOUND)
-    message(STATUS "AXIS: KokkosKernels found — using KokkosSparse::spmv for CSR apply")
-else()
-    message(STATUS "AXIS: KokkosKernels not found — using built-in CSR apply")
+
+if(NOT TARGET Kokkos::kokkoskernels AND AXIS_FETCH_KOKKOSKERNELS)
+    include(FetchContent)
+    FetchContent_Declare(
+        kokkos-kernels
+        GIT_REPOSITORY https://github.com/kokkos/kokkos-kernels.git
+        GIT_TAG        5.1.1
+    )
+    # Header-only consumption: disable ETI and the test/example builds so the
+    # fetched KokkosKernels stays a light, fast configure/build.
+    set(KokkosKernels_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+    set(KokkosKernels_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(KokkosKernels_ETI_ONLY OFF CACHE BOOL "" FORCE)
+    set(KokkosKernels_ENABLE_TPL_BLAS OFF CACHE BOOL "" FORCE)
+    set(KokkosKernels_ENABLE_TPL_LAPACK OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(kokkos-kernels)
 endif()
+
+if(NOT TARGET Kokkos::kokkoskernels)
+    message(FATAL_ERROR "KokkosKernels REQUIRED but not found on system, and AXIS_FETCH_KOKKOSKERNELS is OFF.")
+endif()
+
+message(STATUS "AXIS: KokkosKernels available — using KokkosSparse::spmv for CSR apply")
 
 # PROJ — the single OPTIONAL third-party dependency for projection-string
 # coordinate transforms (pure math, no equivalent in AMIO's stack).
@@ -215,10 +240,9 @@ target_link_libraries(axis PUBLIC Kokkos::kokkos)
 target_link_libraries(axis PUBLIC MPI::MPI_CXX)
 
 # KokkosKernels — PUBLIC for KokkosSparse::spmv in apply.hpp (header-only).
-if(KokkosKernels_FOUND)
-    target_link_libraries(axis PUBLIC Kokkos::kokkoskernels)
-    target_compile_definitions(axis PUBLIC AXIS_HAVE_KOKKOSKERNELS=1)
-endif()
+# Now a hard dependency (found or fetched above), so link + define unconditionally.
+target_link_libraries(axis PUBLIC Kokkos::kokkoskernels)
+target_compile_definitions(axis PUBLIC AXIS_HAVE_KOKKOSKERNELS=1)
 
 # ArborX — PRIVATE (vendored, header-only BVH for spatial search in WeightGenerator).
 target_link_libraries(axis PRIVATE ArborX::ArborX)
