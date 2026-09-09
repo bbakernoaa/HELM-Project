@@ -82,52 +82,60 @@ void StructuredGrid<MemorySpace>::set_corners(Kokkos::View<double *, MemorySpace
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// synthesize_corners — build corners from midpoints of adjacent centers
+// Shared corner-synthesis kernel (single source of truth)
+//
+// Both StructuredGrid::synthesize_corners() (whole grid) and the free
+// synthesize_band_corners() (a latitude band, halo-aware) dispatch through the
+// routines below so the geometry — the 2×2 midpoint average of surrounding
+// centers, the periodic-longitude wrap, and the one-sided boundary convention —
+// lives in exactly one place. A band computed here is provably identical to the
+// corresponding corner rows of the whole-grid result.
 // ─────────────────────────────────────────────────────────────────────────────
 
+namespace {
+
+/// Detect longitude periodicity from a full global center array (column-major,
+/// size ni*nj): true when ni * (spacing of the first row) spans ~360 degrees.
+/// Identical logic to the original in-line detection in synthesize_corners().
 template <class MemorySpace>
-void StructuredGrid<MemorySpace>::synthesize_corners() const {
+bool detect_periodic_lon(std::size_t ni, const Kokkos::View<double *, MemorySpace> &center_lon) {
+    if (ni <= 1) {
+        return false;
+    }
+    auto center_lon_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, center_lon);
+    double dlon = center_lon_host(1) - center_lon_host(0);
+    double full_span = static_cast<double>(ni) * std::abs(dlon);
+    return full_span > 350.0 && full_span < 370.0;
+}
+
+/// Synthesize `nrows` rows of Cell_Corners for the global corner rows
+/// [cj_lo, cj_lo + nrows) over a full grid of ni × nj centers. The output views
+/// are (ni+1) * nrows, indexed so corner (ci, cj) lives at
+/// ci + (cj - cj_lo) * (ni + 1). This is the exact kernel the whole-grid path
+/// uses (cj_lo = 0, nrows = nj+1 reproduces it verbatim).
+template <class MemorySpace>
+void synthesize_corner_rows(std::size_t ni, std::size_t nj, Kokkos::View<double *, MemorySpace> center_lon,
+                            Kokkos::View<double *, MemorySpace> center_lat, std::size_t cj_lo, std::size_t nrows, bool is_periodic,
+                            Kokkos::View<double *, MemorySpace> corner_lon, Kokkos::View<double *, MemorySpace> corner_lat) {
     using exec_space = typename detail::exec_space_t<MemorySpace>;
 
-    const std::size_t nip1 = ni_ + 1;
-    const std::size_t njp1 = nj_ + 1;
-    const std::size_t n_corners = nip1 * njp1;
-    const std::size_t ni = ni_;
-    const std::size_t nj = nj_;
+    const std::size_t nip1 = ni + 1;
 
-    // Allocate corner arrays (mutable cast — this is a lazy-init pattern).
-    auto &self = const_cast<StructuredGrid<MemorySpace> &>(*this);
-    self.corner_lon_ = Kokkos::View<double *, MemorySpace>("structured_grid_corner_lon", n_corners);
-    self.corner_lat_ = Kokkos::View<double *, MemorySpace>("structured_grid_corner_lat", n_corners);
+    auto clon = corner_lon;
+    auto clat = corner_lat;
 
-    auto clon = self.corner_lon_;
-    auto clat = self.corner_lat_;
-    auto center_lon = center_lon_;
-    auto center_lat = center_lat_;
-
-    // Detect periodicity if the grid longitude span is close to 360 degrees.
-    bool is_periodic = false;
-    if (ni > 1) {
-        auto center_lon_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, center_lon);
-        double dlon = center_lon_host(1) - center_lon_host(0);
-        double full_span = static_cast<double>(ni) * std::abs(dlon);
-        if (full_span > 350.0 && full_span < 370.0) {
-            is_periodic = true;
-        }
-    }
-
-    // Use Kokkos::TeamPolicy for coordinate caching
+    // Dispatch one team per requested corner row. Threads in a team handle the
+    // elements within the row.
     using TeamPolicy = Kokkos::TeamPolicy<exec_space>;
     using MemberType = typename TeamPolicy::member_type;
 
-    // Dispatch one team per row of corners (njp1 teams). Threads in a team handle elements in the row.
-    TeamPolicy policy(static_cast<int>(njp1), Kokkos::AUTO);
+    TeamPolicy policy(static_cast<int>(nrows), Kokkos::AUTO);
     Kokkos::parallel_for(
         "synthesize_corners_team", policy, KOKKOS_LAMBDA(const MemberType &team) {
-            const std::size_t cj = static_cast<std::size_t>(team.league_rank());
+            const std::size_t cj = cj_lo + static_cast<std::size_t>(team.league_rank());
 
             Kokkos::parallel_for(Kokkos::TeamThreadRange(team, nip1), [&](const std::size_t ci) {
-                const std::size_t idx = ci + cj * nip1;
+                const std::size_t idx = ci + (cj - cj_lo) * nip1;
                 double sum_lon = 0.0;
                 double sum_lat = 0.0;
                 int count = 0;
@@ -136,10 +144,10 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
                     for (int di = -1; di <= 0; ++di) {
                         auto cell_i = static_cast<long long>(ci) + di;
                         const auto cell_j = static_cast<long long>(cj) + dj;
-                        
+
                         double cell_lon = 0.0;
                         bool valid_i = false;
-                        
+
                         if (is_periodic) {
                             if (cell_i < 0) {
                                 cell_i = ni - 1;
@@ -169,6 +177,31 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
 
     Kokkos::fence("synthesize_corners_fence");
 }
+
+}  // namespace
+
+// ─────────────────────────────────────────────────────────────────────────────
+// synthesize_corners — build corners from midpoints of adjacent centers
+// ─────────────────────────────────────────────────────────────────────────────
+
+template <class MemorySpace>
+void StructuredGrid<MemorySpace>::synthesize_corners() const {
+    const std::size_t nip1 = ni_ + 1;
+    const std::size_t njp1 = nj_ + 1;
+    const std::size_t n_corners = nip1 * njp1;
+
+    // Allocate corner arrays (mutable cast — this is a lazy-init pattern).
+    auto &self = const_cast<StructuredGrid<MemorySpace> &>(*this);
+    self.corner_lon_ = Kokkos::View<double *, MemorySpace>("structured_grid_corner_lon", n_corners);
+    self.corner_lat_ = Kokkos::View<double *, MemorySpace>("structured_grid_corner_lat", n_corners);
+
+    const bool is_periodic = detect_periodic_lon(ni_, center_lon_);
+
+    // Whole grid: corner rows [0, nj_+1). Identical to the historical in-line
+    // kernel (cj_lo = 0, nrows = nj_+1).
+    synthesize_corner_rows(ni_, nj_, center_lon_, center_lat_, /*cj_lo=*/0, njp1, is_periodic, self.corner_lon_, self.corner_lat_);
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // to_unstructured — the core conversion (Requirement 18.1, 18.2, 18.3)
@@ -240,17 +273,63 @@ UnstructuredMesh<MemorySpace> StructuredGrid<MemorySpace>::to_unstructured() con
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// synthesize_band_corners — global-context (halo-aware) band corner synthesis
+// ─────────────────────────────────────────────────────────────────────────────
+
+template <class MemorySpace>
+void synthesize_band_corners(std::size_t ni, std::size_t nj_global, Kokkos::View<double *, MemorySpace> center_lon,
+                             Kokkos::View<double *, MemorySpace> center_lat, std::size_t j0, std::size_t j1,
+                             Kokkos::View<double *, MemorySpace> &corner_lon, Kokkos::View<double *, MemorySpace> &corner_lat) {
+    const std::size_t nip1 = ni + 1;
+
+    if (ni == 0) {
+        throw std::invalid_argument("synthesize_band_corners: ni must be positive");
+    }
+    if (j1 < j0) {
+        throw std::invalid_argument("synthesize_band_corners: j1 must be >= j0");
+    }
+    if (j1 > nj_global) {
+        throw std::invalid_argument("synthesize_band_corners: j1 (" + std::to_string(j1) + ") exceeds nj_global (" + std::to_string(nj_global) + ")");
+    }
+    if (center_lon.extent(0) != ni * nj_global || center_lat.extent(0) != ni * nj_global) {
+        throw std::invalid_argument("synthesize_band_corners: center array extent must equal ni * nj_global");
+    }
+
+    const std::size_t nrows = j1 - j0 + 1;  // corner rows [j0, j1]
+    corner_lon = Kokkos::View<double *, MemorySpace>("band_corner_lon", nip1 * nrows);
+    corner_lat = Kokkos::View<double *, MemorySpace>("band_corner_lat", nip1 * nrows);
+
+    // Periodicity is a property of the FULL global longitude layout.
+    const bool is_periodic = detect_periodic_lon(ni, center_lon);
+
+    // Same kernel as the whole-grid path, restricted to global corner rows [j0, j1].
+    synthesize_corner_rows(ni, nj_global, center_lon, center_lat, j0, nrows, is_periodic, corner_lon, corner_lat);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Explicit template instantiations
 // ─────────────────────────────────────────────────────────────────────────────
 
 template class StructuredGrid<Kokkos::HostSpace>;
+template void synthesize_band_corners<Kokkos::HostSpace>(std::size_t, std::size_t, Kokkos::View<double *, Kokkos::HostSpace>,
+                                                         Kokkos::View<double *, Kokkos::HostSpace>, std::size_t, std::size_t,
+                                                         Kokkos::View<double *, Kokkos::HostSpace> &,
+                                                         Kokkos::View<double *, Kokkos::HostSpace> &);
 
 #ifdef KOKKOS_ENABLE_CUDA
 template class StructuredGrid<Kokkos::CudaSpace>;
+template void synthesize_band_corners<Kokkos::CudaSpace>(std::size_t, std::size_t, Kokkos::View<double *, Kokkos::CudaSpace>,
+                                                         Kokkos::View<double *, Kokkos::CudaSpace>, std::size_t, std::size_t,
+                                                         Kokkos::View<double *, Kokkos::CudaSpace> &,
+                                                         Kokkos::View<double *, Kokkos::CudaSpace> &);
 #endif
 
 #ifdef KOKKOS_ENABLE_HIP
 template class StructuredGrid<Kokkos::HIPSpace>;
+template void synthesize_band_corners<Kokkos::HIPSpace>(std::size_t, std::size_t, Kokkos::View<double *, Kokkos::HIPSpace>,
+                                                        Kokkos::View<double *, Kokkos::HIPSpace>, std::size_t, std::size_t,
+                                                        Kokkos::View<double *, Kokkos::HIPSpace> &,
+                                                        Kokkos::View<double *, Kokkos::HIPSpace> &);
 #endif
 
 }  // namespace axis::topology
