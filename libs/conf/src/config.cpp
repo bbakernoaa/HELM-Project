@@ -21,10 +21,6 @@ namespace conf {
 struct Config::Impl {
     detail::Yaml_Tree tree;
 
-    /// Resolved nodes kept alive for Value views returned by at().
-    /// Each Value holds a non-owning pointer into this container.
-    mutable std::vector<std::unique_ptr<YAML::Node>> resolved_nodes;
-
     explicit Impl(detail::Yaml_Tree t) : tree(std::move(t)) {}
 };
 
@@ -225,17 +221,19 @@ std::vector<std::string> Config::get_string_list(std::string_view path) const {
 
 // ── Value view access ────────────────────────────────────────────────────────
 
+Value Config::root() const {
+    if (!impl_) {
+        throw Conf_Error(Error_Code::Key_Not_Found, "empty config");
+    }
+    return Value(std::make_shared<YAML::Node>(impl_->tree.root()));
+}
+
 Value Config::at(std::string_view dotted_path) const {
     if (!impl_) {
         throw Conf_Error(Error_Code::Key_Not_Found, "empty config");
     }
     auto node = impl_->tree.resolve(dotted_path);
-    // Store a heap-allocated copy of the resolved YAML::Node. Since yaml-cpp
-    // nodes are reference-counted handles, the copy is cheap and remains valid
-    // as long as the root tree (owned by Impl) exists. The unique_ptr in
-    // resolved_nodes ensures the handle is freed when Config is destroyed.
-    impl_->resolved_nodes.push_back(std::make_unique<YAML::Node>(node));
-    return Value(static_cast<const void *>(impl_->resolved_nodes.back().get()));
+    return Value(std::make_shared<YAML::Node>(node));
 }
 
 }  // namespace conf

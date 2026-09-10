@@ -347,3 +347,117 @@ TEST_F(ValueTest, TryDoubleAndAsDouble_AgreeOnFailureForMap) {
     // as_double throws
     EXPECT_THROW(val.as_double(), conf::Conf_Error);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Child access operations (Map and Sequence navigation)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST_F(ValueTest, OperatorIndex_SequenceNode_ReturnsChild) {
+    auto seq = cfg_.at("seq_node");
+    auto child = seq[1];
+    ASSERT_TRUE(child.is_defined());
+    EXPECT_EQ(child.as_string(), "y");
+}
+
+TEST_F(ValueTest, OperatorIndex_SequenceNodeOutOfRange_ReturnsUndefined) {
+    auto seq = cfg_.at("seq_node");
+    auto child = seq[99];
+    EXPECT_FALSE(child.is_defined());
+    EXPECT_EQ(child.kind(), conf::Node_Kind::Undefined);
+}
+
+TEST_F(ValueTest, OperatorIndex_NonSequenceNode_ReturnsUndefined) {
+    auto val = cfg_.at("int_val");
+    auto child = val[0];
+    EXPECT_FALSE(child.is_defined());
+}
+
+TEST_F(ValueTest, OperatorKey_MapNode_ReturnsChild) {
+    auto map = cfg_.at("map_node");
+    auto child = map["b"];
+    ASSERT_TRUE(child.is_defined());
+    EXPECT_EQ(child.as_int(), 2);
+}
+
+TEST_F(ValueTest, OperatorKey_MapNodeMissingKey_ReturnsUndefined) {
+    auto map = cfg_.at("map_node");
+    auto child = map["nonexistent"];
+    EXPECT_FALSE(child.is_defined());
+    EXPECT_EQ(child.kind(), conf::Node_Kind::Undefined);
+}
+
+TEST_F(ValueTest, OperatorKey_NonMapNode_ReturnsUndefined) {
+    auto seq = cfg_.at("seq_node");
+    auto child = seq["key"];
+    EXPECT_FALSE(child.is_defined());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Keys operation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST_F(ValueTest, Keys_MapNode_ReturnsAllKeys) {
+    auto map = cfg_.at("map_node");
+    auto keys = map.keys();
+    EXPECT_EQ(keys.size(), 2u);
+    // Keys should maintain order as in YAML file (yaml-cpp parses maps retaining order in begin()..end())
+    // For safety just check if keys contain 'a' and 'b'
+    EXPECT_TRUE(std::find(keys.begin(), keys.end(), "a") != keys.end());
+    EXPECT_TRUE(std::find(keys.begin(), keys.end(), "b") != keys.end());
+}
+
+TEST_F(ValueTest, Keys_NonMapNode_ReturnsEmptyVector) {
+    auto seq = cfg_.at("seq_node");
+    auto keys = seq.keys();
+    EXPECT_TRUE(keys.empty());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Defaulted scalar access (Fallback behavior)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST_F(ValueTest, StringOr_ValidScalar_ReturnsValue) {
+    auto val = cfg_.at("str_val");
+    EXPECT_EQ(val.string_or("fallback"), "hello");
+}
+
+TEST_F(ValueTest, StringOr_InvalidOrMissing_ReturnsFallback) {
+    auto val = cfg_.at("map_node");
+    EXPECT_EQ(val.string_or("fallback"), "fallback");
+
+    auto map = cfg_.at("map_node");
+    auto child = map["nonexistent"];
+    EXPECT_EQ(child.string_or("fallback"), "fallback");
+}
+
+TEST_F(ValueTest, IntOr_ValidScalar_ReturnsValue) {
+    auto val = cfg_.at("int_val");
+    EXPECT_EQ(val.int_or(99), 42);
+}
+
+TEST_F(ValueTest, IntOr_InvalidOrMissing_ReturnsFallback) {
+    auto val = cfg_.at("str_val");  // not an int
+    EXPECT_EQ(val.int_or(99), 99);
+}
+
+TEST_F(ValueTest, DoubleOr_ValidScalar_ReturnsValue) {
+    auto val = cfg_.at("int_val");  // can be parsed as double
+    EXPECT_EQ(val.double_or(3.14), 42.0);
+}
+
+TEST_F(ValueTest, DoubleOr_InvalidOrMissing_ReturnsFallback) {
+    auto val = cfg_.at("str_val");
+    EXPECT_EQ(val.double_or(3.14), 3.14);
+}
+
+TEST_F(ValueTest, BoolOr_ValidScalar_ReturnsValue) {
+    auto val = cfg_.at("bool_val");
+    EXPECT_TRUE(val.bool_or(false));
+}
+
+TEST_F(ValueTest, BoolOr_InvalidOrMissing_ReturnsFallback) {
+    auto val = cfg_.at("int_val");  // 42 is typically not parsed as bool by strict yaml
+    // yaml-cpp actually fails conversion for "42" to bool usually.
+    // We just check that it falls back if conversion fails.
+    EXPECT_EQ(val.bool_or(false), false);
+}
