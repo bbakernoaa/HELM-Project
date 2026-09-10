@@ -52,8 +52,8 @@ int g_size = 0;
 // per_level_total = sum_r width_r must stay small. With width_r = base + r and
 // up to 4 ranks, capping `base` keeps per_level_total <= ~3000 and the total
 // destination buffer (num_levels * per_level_total ints) well under a few MB.
-constexpr int kMaxLevels = 16;   // num_levels in [1, kMaxLevels]
-constexpr int kMaxBase = 200;    // base band width in [0, kMaxBase]
+constexpr int kMaxLevels = 16;  // num_levels in [1, kMaxLevels]
+constexpr int kMaxBase = 200;   // base band width in [0, kMaxBase]
 
 // Deterministic, collision-free element encoding for (rank, level, band index).
 // rank*100000 + level*1000 + b fits comfortably in int for the capped ranges
@@ -65,7 +65,9 @@ constexpr int encode(int rank, int level, int b) noexcept {
 // This rank's band width for a broadcast `base`. width_r = base + r, so every
 // rank derives the SAME set of widths (it knows base and every rank index),
 // while individual bands genuinely differ per rank.
-constexpr int band_width_for(int base, int rank) noexcept { return base + rank; }
+constexpr int band_width_for(int base, int rank) noexcept {
+    return base + rank;
+}
 
 }  // namespace
 
@@ -104,18 +106,15 @@ RC_GTEST_PROP(GatherReplicatedProps, BatchedGatherEqualsNaiveReference, ()) {
 
     // Source: this rank's contiguous [level][band] band, size num_levels*my_width.
     // src[level * my_width + b] = encode(rank, level, b).
-    Kokkos::View<int *, Kokkos::HostSpace> src(
-        "src", static_cast<std::size_t>(num_levels) * static_cast<std::size_t>(my_width));
+    Kokkos::View<int *, Kokkos::HostSpace> src("src", static_cast<std::size_t>(num_levels) * static_cast<std::size_t>(my_width));
     for (int level = 0; level < num_levels; ++level) {
         for (int b = 0; b < my_width; ++b) {
-            src(static_cast<std::size_t>(level) * static_cast<std::size_t>(my_width) +
-                static_cast<std::size_t>(b)) = encode(g_rank, level, b);
+            src(static_cast<std::size_t>(level) * static_cast<std::size_t>(my_width) + static_cast<std::size_t>(b)) = encode(g_rank, level, b);
         }
     }
 
     // Destination: the full replicated field, zero-initialized.
-    const std::size_t dest_size =
-        static_cast<std::size_t>(num_levels) * static_cast<std::size_t>(per_level_total);
+    const std::size_t dest_size = static_cast<std::size_t>(num_levels) * static_cast<std::size_t>(per_level_total);
     Kokkos::View<int *, Kokkos::HostSpace> dest("dest", dest_size);
     Kokkos::deep_copy(dest, 0);
 

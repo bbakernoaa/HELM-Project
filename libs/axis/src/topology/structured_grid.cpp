@@ -202,7 +202,6 @@ void StructuredGrid<MemorySpace>::synthesize_corners() const {
     synthesize_corner_rows(ni_, nj_, center_lon_, center_lat_, /*cj_lo=*/0, njp1, is_periodic, self.corner_lon_, self.corner_lat_);
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // to_unstructured — the core conversion (Requirement 18.1, 18.2, 18.3)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -313,23 +312,20 @@ void synthesize_band_corners(std::size_t ni, std::size_t nj_global, Kokkos::View
 template class StructuredGrid<Kokkos::HostSpace>;
 template void synthesize_band_corners<Kokkos::HostSpace>(std::size_t, std::size_t, Kokkos::View<double *, Kokkos::HostSpace>,
                                                          Kokkos::View<double *, Kokkos::HostSpace>, std::size_t, std::size_t,
-                                                         Kokkos::View<double *, Kokkos::HostSpace> &,
-                                                         Kokkos::View<double *, Kokkos::HostSpace> &);
+                                                         Kokkos::View<double *, Kokkos::HostSpace> &, Kokkos::View<double *, Kokkos::HostSpace> &);
 
 #ifdef KOKKOS_ENABLE_CUDA
 template class StructuredGrid<Kokkos::CudaSpace>;
 template void synthesize_band_corners<Kokkos::CudaSpace>(std::size_t, std::size_t, Kokkos::View<double *, Kokkos::CudaSpace>,
                                                          Kokkos::View<double *, Kokkos::CudaSpace>, std::size_t, std::size_t,
-                                                         Kokkos::View<double *, Kokkos::CudaSpace> &,
-                                                         Kokkos::View<double *, Kokkos::CudaSpace> &);
+                                                         Kokkos::View<double *, Kokkos::CudaSpace> &, Kokkos::View<double *, Kokkos::CudaSpace> &);
 #endif
 
 #ifdef KOKKOS_ENABLE_HIP
 template class StructuredGrid<Kokkos::HIPSpace>;
 template void synthesize_band_corners<Kokkos::HIPSpace>(std::size_t, std::size_t, Kokkos::View<double *, Kokkos::HIPSpace>,
                                                         Kokkos::View<double *, Kokkos::HIPSpace>, std::size_t, std::size_t,
-                                                        Kokkos::View<double *, Kokkos::HIPSpace> &,
-                                                        Kokkos::View<double *, Kokkos::HIPSpace> &);
+                                                        Kokkos::View<double *, Kokkos::HIPSpace> &, Kokkos::View<double *, Kokkos::HIPSpace> &);
 #endif
 
 }  // namespace axis::topology

@@ -94,8 +94,7 @@ TEST_F(CollectivesTest, AllgathervVariableCountsConcatenatesWithPrefixSumDisplac
     ASSERT_EQ(result.displacements.size(), static_cast<std::size_t>(size_));
     int running = 0;
     for (int r = 0; r < size_; ++r) {
-        EXPECT_EQ(result.displacements[static_cast<std::size_t>(r)], running)
-            << "displacement for rank " << r << " should be the prefix sum";
+        EXPECT_EQ(result.displacements[static_cast<std::size_t>(r)], running) << "displacement for rank " << r << " should be the prefix sum";
         running += counts[static_cast<std::size_t>(r)];
     }
 

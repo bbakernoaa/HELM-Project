@@ -333,16 +333,15 @@ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_
 // The receive buffer is recorded as the handle; a useful count is stored in arg.
 
 // ─── MPI_Allgather ────────────────────────────────────────────────────────────
-int MPI_Allgather(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount,
-                  MPI_Datatype recvtype, MPI_Comm comm) {
+int MPI_Allgather(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm) {
     int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Allgather, recvbuf, recvcount);
     if (err != MPI_SUCCESS) return err;
     return MPI_SUCCESS;
 }
 
 // ─── MPI_Allgatherv ───────────────────────────────────────────────────────────
-int MPI_Allgatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcounts[],
-                   const int displs[], MPI_Datatype recvtype, MPI_Comm comm) {
+int MPI_Allgatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcounts[], const int displs[],
+                   MPI_Datatype recvtype, MPI_Comm comm) {
     int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Allgatherv, recvbuf, sendcount);
     if (err != MPI_SUCCESS) return err;
     return MPI_SUCCESS;

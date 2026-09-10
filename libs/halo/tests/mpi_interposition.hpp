@@ -27,21 +27,7 @@ namespace halo::testing {
 /// Records a single intercepted MPI call with its type, handle, and arguments.
 struct MPI_Call_Record {
     /// Enumeration of all intercepted MPI function types.
-    enum class Type {
-        Comm_free,
-        Request_free,
-        Cancel,
-        Wait,
-        Test,
-        Win_free,
-        Win_fence,
-        Irecv,
-        Isend,
-        Waitall,
-        Allgather,
-        Allgatherv,
-        Allreduce
-    };
+    enum class Type { Comm_free, Request_free, Cancel, Wait, Test, Win_free, Win_fence, Irecv, Isend, Waitall, Allgather, Allgatherv, Allreduce };
 
     Type type;
     void *handle;  ///< The primary handle argument (cast from MPI handle pointer)

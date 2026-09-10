@@ -74,9 +74,13 @@ struct Dispatch_Buffers<T, SrcView, DstView, /*Staged=*/false> {
     T *recv_ptr_{nullptr};
 
     /// @return Pointer to hand to MPI as the send buffer.
-    [[nodiscard]] const T *send_ptr() const noexcept { return send_ptr_; }
+    [[nodiscard]] const T *send_ptr() const noexcept {
+        return send_ptr_;
+    }
     /// @return Pointer to hand to MPI as the receive buffer.
-    [[nodiscard]] T *recv_ptr() const noexcept { return recv_ptr_; }
+    [[nodiscard]] T *recv_ptr() const noexcept {
+        return recv_ptr_;
+    }
 };
 
 // ── Staged path: owns host mirrors backing the send/receive pointers ────────
@@ -86,9 +90,13 @@ struct Dispatch_Buffers<T, SrcView, DstView, /*Staged=*/true> {
     host_mirror_t<DstView> recv_host_{};  ///< Host mirror backing the receive buffer.
 
     /// @return Pointer to the host send mirror handed to MPI.
-    [[nodiscard]] const T *send_ptr() const noexcept { return send_host_.data(); }
+    [[nodiscard]] const T *send_ptr() const noexcept {
+        return send_host_.data();
+    }
     /// @return Pointer to the host receive mirror handed to MPI.
-    [[nodiscard]] T *recv_ptr() const noexcept { return recv_host_.data(); }
+    [[nodiscard]] T *recv_ptr() const noexcept {
+        return recv_host_.data();
+    }
 };
 
 /// @brief Compile-time selector for the collective transfer path.

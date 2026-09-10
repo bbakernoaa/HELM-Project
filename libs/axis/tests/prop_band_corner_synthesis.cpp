@@ -54,10 +54,10 @@ static auto *const kokkos_env = ::testing::AddGlobalTestEnvironment(new KokkosEn
 
 // Build whole-grid synthesized corners by running the real StructuredGrid path
 // (to_unstructured triggers synthesize_corners when corners are unset).
-void global_synthesized_corners(std::size_t ni, std::size_t nj, const std::vector<double>& clon, const std::vector<double>& clat,
-                                std::vector<double>& out_lon, std::vector<double>& out_lat) {
-    Kokkos::View<double*, MemSpace> lon("lon", clon.size());
-    Kokkos::View<double*, MemSpace> lat("lat", clat.size());
+void global_synthesized_corners(std::size_t ni, std::size_t nj, const std::vector<double> &clon, const std::vector<double> &clat,
+                                std::vector<double> &out_lon, std::vector<double> &out_lat) {
+    Kokkos::View<double *, MemSpace> lon("lon", clon.size());
+    Kokkos::View<double *, MemSpace> lat("lat", clat.size());
     for (std::size_t k = 0; k < clon.size(); ++k) {
         lon(k) = clon[k];
         lat(k) = clat[k];
@@ -83,7 +83,7 @@ struct CenterLayout {
     std::vector<double> lon, lat;  // size ni*nj, index i + j*ni
 };
 
-CenterLayout gen_layout(bool& periodic) {
+CenterLayout gen_layout(bool &periodic) {
     const std::size_t ni = *rc::gen::inRange<std::size_t>(2, 9);
     const std::size_t nj = *rc::gen::inRange<std::size_t>(2, 9);
     periodic = *rc::gen::inRange(0, 2) == 0;
@@ -123,13 +123,13 @@ RC_GTEST_PROP(PropBandCornerSynthesis, BandSubsetOfGlobal, ()) {
     std::vector<double> g_lon, g_lat;
     global_synthesized_corners(ni, nj, L.lon, L.lat, g_lon, g_lat);
 
-    Kokkos::View<double*, MemSpace> clon("clon", L.lon.size());
-    Kokkos::View<double*, MemSpace> clat("clat", L.lat.size());
+    Kokkos::View<double *, MemSpace> clon("clon", L.lon.size());
+    Kokkos::View<double *, MemSpace> clat("clat", L.lat.size());
     for (std::size_t k = 0; k < L.lon.size(); ++k) {
         clon(k) = L.lon[k];
         clat(k) = L.lat[k];
     }
-    Kokkos::View<double*, MemSpace> bclon, bclat;
+    Kokkos::View<double *, MemSpace> bclon, bclat;
     axis::topology::synthesize_band_corners<MemSpace>(ni, nj, clon, clat, j0, j1, bclon, bclat);
 
     const std::size_t nip1 = ni + 1;
@@ -155,13 +155,13 @@ RC_GTEST_PROP(PropBandCornerSynthesis, WholeGridEqualsGlobal, ()) {
     std::vector<double> g_lon, g_lat;
     global_synthesized_corners(ni, nj, L.lon, L.lat, g_lon, g_lat);
 
-    Kokkos::View<double*, MemSpace> clon("clon", L.lon.size());
-    Kokkos::View<double*, MemSpace> clat("clat", L.lat.size());
+    Kokkos::View<double *, MemSpace> clon("clon", L.lon.size());
+    Kokkos::View<double *, MemSpace> clat("clat", L.lat.size());
     for (std::size_t k = 0; k < L.lon.size(); ++k) {
         clon(k) = L.lon[k];
         clat(k) = L.lat[k];
     }
-    Kokkos::View<double*, MemSpace> bclon, bclat;
+    Kokkos::View<double *, MemSpace> bclon, bclat;
     axis::topology::synthesize_band_corners<MemSpace>(ni, nj, clon, clat, 0, nj, bclon, bclat);
 
     const std::size_t nip1 = ni + 1;
@@ -181,13 +181,13 @@ RC_GTEST_PROP(PropBandCornerSynthesis, AdjacentBandsShareSeam, ()) {
     const std::size_t jm = *rc::gen::inRange<std::size_t>(j0, nj + 1);
     const std::size_t j1 = *rc::gen::inRange<std::size_t>(jm, nj + 1);
 
-    Kokkos::View<double*, MemSpace> clon("clon", L.lon.size());
-    Kokkos::View<double*, MemSpace> clat("clat", L.lat.size());
+    Kokkos::View<double *, MemSpace> clon("clon", L.lon.size());
+    Kokkos::View<double *, MemSpace> clat("clat", L.lat.size());
     for (std::size_t k = 0; k < L.lon.size(); ++k) {
         clon(k) = L.lon[k];
         clat(k) = L.lat[k];
     }
-    Kokkos::View<double*, MemSpace>alon, alat, blon, blat;
+    Kokkos::View<double *, MemSpace> alon, alat, blon, blat;
     axis::topology::synthesize_band_corners<MemSpace>(ni, nj, clon, clat, j0, jm, alon, alat);
     axis::topology::synthesize_band_corners<MemSpace>(ni, nj, clon, clat, jm, j1, blon, blat);
 

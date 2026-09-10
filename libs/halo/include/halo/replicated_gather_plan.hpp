@@ -21,17 +21,16 @@
 #include <mpi.h>
 
 #include <cstddef>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include <halo/collectives.hpp>
 #include <halo/communicator.hpp>
 #include <halo/detail/mpi_datatype.hpp>
 #include <halo/detail/strided_datatype.hpp>
 #include <halo/environment.hpp>
 #include <halo/error_policy.hpp>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace halo {
 
@@ -72,12 +71,10 @@ class Replicated_Gather_Plan {
     Replicated_Gather_Plan(const Communicator &comm, int local_band_count, int num_levels) : comm_(&comm) {
         // ── Validation BEFORE any MPI / datatype creation (Req 4.5, 4.6) ──
         if (num_levels == 0) {
-            throw std::invalid_argument("Replicated_Gather_Plan: num_levels must be > 0 (got num_levels = " +
-                                        std::to_string(num_levels) + ")");
+            throw std::invalid_argument("Replicated_Gather_Plan: num_levels must be > 0 (got num_levels = " + std::to_string(num_levels) + ")");
         }
         if (local_band_count < 0) {
-            throw std::invalid_argument("Replicated_Gather_Plan: local_band_count must be >= 0 (got " +
-                                        std::to_string(local_band_count) + ")");
+            throw std::invalid_argument("Replicated_Gather_Plan: local_band_count must be >= 0 (got " + std::to_string(local_band_count) + ")");
         }
 
         num_levels_ = num_levels;
@@ -147,19 +144,29 @@ class Replicated_Gather_Plan {
     // ─── Immutable accessors (all const, noexcept) ──────────────────────────
 
     /// @brief Number of outer-axis levels.
-    [[nodiscard]] int num_levels() const noexcept { return num_levels_; }
+    [[nodiscard]] int num_levels() const noexcept {
+        return num_levels_;
+    }
 
     /// @brief Total per-level element count (sum of all ranks' band counts).
-    [[nodiscard]] int per_level_total() const noexcept { return per_level_total_; }
+    [[nodiscard]] int per_level_total() const noexcept {
+        return per_level_total_;
+    }
 
     /// @brief Per-rank band element counts for one level (ascending rank order).
-    [[nodiscard]] const std::vector<int> &band_counts() const noexcept { return band_counts_; }
+    [[nodiscard]] const std::vector<int> &band_counts() const noexcept {
+        return band_counts_;
+    }
 
     /// @brief Per-rank displacements for one level (prefix sum of band_counts()).
-    [[nodiscard]] const std::vector<int> &displacements() const noexcept { return displacements_; }
+    [[nodiscard]] const std::vector<int> &displacements() const noexcept {
+        return displacements_;
+    }
 
     /// @brief This rank's per-level band element count (as passed to the ctor).
-    [[nodiscard]] int local_band_count() const noexcept { return local_band_count_; }
+    [[nodiscard]] int local_band_count() const noexcept {
+        return local_band_count_;
+    }
 
     /// @brief The committed, resized strided send datatype.
     ///
@@ -167,13 +174,19 @@ class Replicated_Gather_Plan {
     /// order so ONE instance is a single j-column across all levels; sending
     /// local_band_count() instances feeds the receive datatype in the order it
     /// scatters (see build_datatypes / the design Data Models "crux").
-    [[nodiscard]] MPI_Datatype send_type() const noexcept { return send_type_.get(); }
+    [[nodiscard]] MPI_Datatype send_type() const noexcept {
+        return send_type_.get();
+    }
 
     /// @brief The committed, resized strided receive datatype.
-    [[nodiscard]] MPI_Datatype recv_type() const noexcept { return recv_type_.get(); }
+    [[nodiscard]] MPI_Datatype recv_type() const noexcept {
+        return recv_type_.get();
+    }
 
     /// @brief Access the communicator.
-    [[nodiscard]] const Communicator &communicator() const noexcept { return *comm_; }
+    [[nodiscard]] const Communicator &communicator() const noexcept {
+        return *comm_;
+    }
 
    private:
     /// @brief Build and commit the resized strided send + receive datatypes
@@ -243,14 +256,14 @@ class Replicated_Gather_Plan {
         return detail::Strided_Datatype{resized};
     }
 
-    const Communicator *comm_;                   ///< Non-owning (Req 8.6).
-    int num_levels_{0};                          ///< Immutable after ctor (Req 4.4).
-    int per_level_total_{0};                      ///< Immutable after ctor (Req 4.4).
-    int local_band_count_{0};                     ///< This rank's band width (send type).
-    std::vector<int> band_counts_;                ///< Per-rank, one level (Req 4.1).
-    std::vector<int> displacements_;              ///< Per-rank, one level (Req 4.2).
-    detail::Strided_Datatype send_type_;          ///< RAII, move-only (Req 4.7).
-    detail::Strided_Datatype recv_type_;          ///< RAII, move-only (Req 4.7).
+    const Communicator *comm_;            ///< Non-owning (Req 8.6).
+    int num_levels_{0};                   ///< Immutable after ctor (Req 4.4).
+    int per_level_total_{0};              ///< Immutable after ctor (Req 4.4).
+    int local_band_count_{0};             ///< This rank's band width (send type).
+    std::vector<int> band_counts_;        ///< Per-rank, one level (Req 4.1).
+    std::vector<int> displacements_;      ///< Per-rank, one level (Req 4.2).
+    detail::Strided_Datatype send_type_;  ///< RAII, move-only (Req 4.7).
+    detail::Strided_Datatype recv_type_;  ///< RAII, move-only (Req 4.7).
 };
 
 }  // namespace halo

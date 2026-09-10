@@ -26,7 +26,6 @@
 
 #include <chrono>
 #include <cstddef>
-
 #include <halo/collectives.hpp>
 #include <halo/communicator.hpp>
 #include <halo/detail/collective_dispatch.hpp>
@@ -83,11 +82,9 @@ void gather_replicated(const Replicated_Gather_Plan<T> &plan, const SrcView &src
     // as band_counts[rank] instances of the plan's [band][level] send datatype
     // (see the MPI_Allgatherv call below and replicated_gather_plan.hpp).
     const int local_band = plan.band_counts()[static_cast<std::size_t>(rank)];
-    const std::size_t send_count =
-        static_cast<std::size_t>(plan.num_levels()) * static_cast<std::size_t>(local_band);
+    const std::size_t send_count = static_cast<std::size_t>(plan.num_levels()) * static_cast<std::size_t>(local_band);
     // Receive side: the full replicated field is num_levels * per_level_total.
-    const std::size_t recv_total =
-        static_cast<std::size_t>(plan.num_levels()) * static_cast<std::size_t>(plan.per_level_total());
+    const std::size_t recv_total = static_cast<std::size_t>(plan.num_levels()) * static_cast<std::size_t>(plan.per_level_total());
 
     // ─── Diagnostics: begin event (only when a callback is registered) ──────
     const bool diag_active = Diagnostics::is_active();
@@ -122,8 +119,8 @@ void gather_replicated(const Replicated_Gather_Plan<T> &plan, const SrcView &src
     //     [level][j][i] with no host reorder (Req 5.2). The send datatype's
     //     [band][level] ordering matches the order the receive datatype scatters
     //     (band is the outer recvcounts axis); see replicated_gather_plan.hpp. ─
-    const int rc = MPI_Allgatherv(bufs.send_ptr(), local_band, plan.send_type(), bufs.recv_ptr(),
-                                  plan.band_counts().data(), plan.displacements().data(), plan.recv_type(),
+    const int rc = MPI_Allgatherv(bufs.send_ptr(), local_band, plan.send_type(), bufs.recv_ptr(), plan.band_counts().data(),
+                                  plan.displacements().data(), plan.recv_type(),
                                   comm.handle());  // Req 5.1
     if (rc != MPI_SUCCESS) {
         detail::handle_mpi_error(rc, rank, "MPI_Allgatherv", comm.handle());  // Req 5.4
@@ -144,8 +141,7 @@ void gather_replicated(const Replicated_Gather_Plan<T> &plan, const SrcView &src
     if (diag_active) {
         const auto elapsed = std::chrono::steady_clock::now() - diag_t0;
         Diagnostics::emit(Exchange_Event{Exchange_Event::Phase::end, rank, /*neighbor_count=*/comm.size(),
-                                         /*total_bytes=*/recv_total * sizeof(T),
-                                         std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
+                                         /*total_bytes=*/recv_total * sizeof(T), std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed),
                                          /*is_async=*/false});  // Req 5.6
     }
 }

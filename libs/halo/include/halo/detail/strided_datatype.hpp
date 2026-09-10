@@ -23,7 +23,7 @@ namespace halo::detail {
 /// finalized). Move operations transfer ownership; the source is reset to
 /// MPI_DATATYPE_NULL so its later destruction is a no-op.
 class Strided_Datatype {
-public:
+   public:
     /// @brief Construct an empty wrapper holding MPI_DATATYPE_NULL.
     Strided_Datatype() noexcept = default;
 
@@ -32,15 +32,17 @@ public:
     explicit Strided_Datatype(MPI_Datatype dt) noexcept : dt_(dt) {}
 
     /// @brief Free the owned datatype (guarded by MPI_Finalized).
-    ~Strided_Datatype() { free(); }
+    ~Strided_Datatype() {
+        free();
+    }
 
     /// @brief Move-construct, transferring ownership from @p o.
-    Strided_Datatype(Strided_Datatype&& o) noexcept : dt_(o.dt_) {
+    Strided_Datatype(Strided_Datatype &&o) noexcept : dt_(o.dt_) {
         o.dt_ = MPI_DATATYPE_NULL;
     }
 
     /// @brief Move-assign, freeing any current datatype then taking @p o's.
-    Strided_Datatype& operator=(Strided_Datatype&& o) noexcept {
+    Strided_Datatype &operator=(Strided_Datatype &&o) noexcept {
         if (this != &o) {
             free();
             dt_ = o.dt_;
@@ -49,14 +51,16 @@ public:
         return *this;
     }
 
-    Strided_Datatype(const Strided_Datatype&) = delete;
-    Strided_Datatype& operator=(const Strided_Datatype&) = delete;
+    Strided_Datatype(const Strided_Datatype &) = delete;
+    Strided_Datatype &operator=(const Strided_Datatype &) = delete;
 
     /// @brief Access the owned datatype without transferring ownership.
     /// @return The owned MPI_Datatype (MPI_DATATYPE_NULL if empty).
-    [[nodiscard]] MPI_Datatype get() const noexcept { return dt_; }
+    [[nodiscard]] MPI_Datatype get() const noexcept {
+        return dt_;
+    }
 
-private:
+   private:
     /// @brief Free the owned datatype exactly once, unless MPI is finalized.
     void free() noexcept {
         if (dt_ != MPI_DATATYPE_NULL) {

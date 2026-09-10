@@ -12,11 +12,11 @@
 
 #include <mpi.h>
 
+#include <cstddef>
 #include <halo/communicator.hpp>
 #include <halo/detail/mpi_datatype.hpp>
 #include <halo/environment.hpp>
 #include <halo/error_policy.hpp>
-#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -148,10 +148,9 @@ struct Allgather_Result {
 /// @throws std::runtime_error via detail::handle_mpi_error if MPI_Allgatherv
 ///         fails (under ErrorPolicy::throw_on_error) (Req 2.6).
 template <typename T>
-[[nodiscard]] Allgather_Result<T> allgatherv(const Communicator &comm, const T *send_data,
-                                             const std::vector<int> &counts) {
+[[nodiscard]] Allgather_Result<T> allgatherv(const Communicator &comm, const T *send_data, const std::vector<int> &counts) {
     const int comm_size = comm.size();
-    detail::validate_counts(counts, comm_size);  // Req 2.4, 2.5 — BEFORE any MPI
+    detail::validate_counts(counts, comm_size);            // Req 2.4, 2.5 — BEFORE any MPI
     std::vector<int> displs = detail::prefix_sum(counts);  // Req 2.1 — computed once
 
     const int my_count = counts[static_cast<std::size_t>(comm.rank())];
@@ -188,8 +187,7 @@ template <typename T>
 /// @throws std::invalid_argument via detail::validate_counts on bad @p counts.
 /// @throws std::runtime_error via detail::handle_mpi_error if MPI_Allgatherv fails.
 template <typename T>
-[[nodiscard]] Allgather_Result<T> allgatherv(const Communicator &comm, const std::vector<T> &send_data,
-                                             const std::vector<int> &counts) {
+[[nodiscard]] Allgather_Result<T> allgatherv(const Communicator &comm, const std::vector<T> &send_data, const std::vector<int> &counts) {
     return allgatherv<T>(comm, send_data.data(), counts);
 }
 

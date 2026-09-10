@@ -55,7 +55,9 @@ using HostView = Kokkos::View<int *, Kokkos::HostSpace>;
 
 /// Encode a value that uniquely identifies (rank, level, band) so the reference
 /// comparison can verify every element landed in exactly the right place.
-constexpr int encode(int rank, int level, int band) noexcept { return rank * 1000 + level * 10 + band; }
+constexpr int encode(int rank, int level, int band) noexcept {
+    return rank * 1000 + level * 10 + band;
+}
 
 /// Test fixture exposing this rank's rank/size over MPI_COMM_WORLD.
 class GatherReplicatedTest : public ::testing::Test {
@@ -105,8 +107,7 @@ TEST_F(GatherReplicatedTest, HostPathMatchesNaivePerLevelReferenceOnEveryRank) {
 
     // Destination: full replicated field, zero-initialized (Kokkos View default
     // initializes to zero).
-    const std::size_t dest_size =
-        static_cast<std::size_t>(L) * static_cast<std::size_t>(per_level_total);
+    const std::size_t dest_size = static_cast<std::size_t>(L) * static_cast<std::size_t>(per_level_total);
     HostView dest("dest", dest_size);
 
     // Single-collective replicated gather (Req 5.1).
@@ -119,8 +120,7 @@ TEST_F(GatherReplicatedTest, HostPathMatchesNaivePerLevelReferenceOnEveryRank) {
         for (int r = 0; r < size_; ++r) {
             for (int b = 0; b < w; ++b) {
                 const std::size_t idx =
-                    static_cast<std::size_t>(level) * static_cast<std::size_t>(per_level_total) +
-                    static_cast<std::size_t>(r * w + b);
+                    static_cast<std::size_t>(level) * static_cast<std::size_t>(per_level_total) + static_cast<std::size_t>(r * w + b);
                 reference[idx] = encode(r, level, b);
             }
         }
@@ -129,8 +129,7 @@ TEST_F(GatherReplicatedTest, HostPathMatchesNaivePerLevelReferenceOnEveryRank) {
     // Every rank asserts the SAME full reference element-for-element (Req 5.3).
     ASSERT_EQ(dest.extent(0), dest_size);
     for (std::size_t idx = 0; idx < dest_size; ++idx) {
-        EXPECT_EQ(dest(idx), reference[idx])
-            << "replicated dest element " << idx << " mismatch on rank " << rank_;
+        EXPECT_EQ(dest(idx), reference[idx]) << "replicated dest element " << idx << " mismatch on rank " << rank_;
     }
 }
 
@@ -140,17 +139,14 @@ TEST_F(GatherReplicatedTest, HostPathMatchesNaivePerLevelReferenceOnEveryRank) {
 // A device view without GPU-aware MPI requires staging, so the dispatch selects
 // the host-staged path. The host static_assert is the essential one; the device
 // one is guarded so a CPU-only container still compiles.
-static_assert(halo::detail::collective_dispatch<int, HostView, HostView>::staged == false,
-              "host views select the direct path");
+static_assert(halo::detail::collective_dispatch<int, HostView, HostView>::staged == false, "host views select the direct path");
 
 #if defined(KOKKOS_ENABLE_CUDA) || defined(KOKKOS_ENABLE_HIP)
 // A device view requires staging when GPU-aware MPI is not enabled.
 using DeviceView = Kokkos::View<int *, Kokkos::DefaultExecutionSpace::memory_space>;
 #ifndef HALO_GPU_AWARE_MPI
-static_assert(halo::detail::requires_staging_v<DeviceView>,
-              "device view without GPU-aware MPI requires staging");
-static_assert(halo::detail::collective_dispatch<int, DeviceView, DeviceView>::staged == true,
-              "device views under requires_staging_v select staging");
+static_assert(halo::detail::requires_staging_v<DeviceView>, "device view without GPU-aware MPI requires staging");
+static_assert(halo::detail::collective_dispatch<int, DeviceView, DeviceView>::staged == true, "device views under requires_staging_v select staging");
 #endif  // !HALO_GPU_AWARE_MPI
 #endif  // KOKKOS_ENABLE_CUDA || KOKKOS_ENABLE_HIP
 

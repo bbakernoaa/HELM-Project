@@ -22,8 +22,8 @@ void validate_counts(const std::vector<int> &counts, int comm_size) {
     // Wrong length: name the expected length (comm_size) (Req 2.5).
     if (static_cast<int>(counts.size()) != comm_size) {
         std::ostringstream oss;
-        oss << "halo::detail::validate_counts: counts array has length " << counts.size()
-            << " but expected length " << comm_size << " (the communicator size)";
+        oss << "halo::detail::validate_counts: counts array has length " << counts.size() << " but expected length " << comm_size
+            << " (the communicator size)";
         throw std::invalid_argument(oss.str());
     }
 
@@ -31,8 +31,7 @@ void validate_counts(const std::vector<int> &counts, int comm_size) {
     for (std::size_t k = 0; k < counts.size(); ++k) {
         if (counts[k] < 0) {
             std::ostringstream oss;
-            oss << "halo::detail::validate_counts: negative count " << counts[k]
-                << " at rank index " << k;
+            oss << "halo::detail::validate_counts: negative count " << counts[k] << " at rank index " << k;
             throw std::invalid_argument(oss.str());
         }
     }
