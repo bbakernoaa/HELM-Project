@@ -21,9 +21,9 @@
 /// Light inline accessors live in this header; the .cpp provides explicit
 /// template instantiations for common memory spaces.
 
+#include <KokkosSparse_CrsMatrix.hpp>
 #include <Kokkos_Core.hpp>
 #include <Kokkos_Sort.hpp>
-#include <KokkosSparse_CrsMatrix.hpp>
 #include <algorithm>
 #include <axis/types.hpp>
 #include <cstddef>

@@ -23,19 +23,17 @@
 ///
 /// Header-only (template) since it is parameterized on MemorySpace.
 
+#include <KokkosSparse_CrsMatrix.hpp>
+#include <KokkosSparse_spmv.hpp>
 #include <Kokkos_Core.hpp>
+#include <axis/solver/halo_pattern.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/types.hpp>
 #include <cstddef>
 #include <functional>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <KokkosSparse_CrsMatrix.hpp>
-#include <KokkosSparse_spmv.hpp>
-
-#include <axis/solver/halo_pattern.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/types.hpp>
 
 namespace axis::solver {
 
