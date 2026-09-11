@@ -23,13 +23,10 @@
 
 #include <Kokkos_Core.hpp>
 #include <Kokkos_Sort.hpp>
+#include <KokkosSparse_CrsMatrix.hpp>
 #include <algorithm>
 #include <axis/types.hpp>
 #include <cstddef>
-
-#ifdef AXIS_HAVE_KOKKOSKERNELS
-#include <KokkosSparse_CrsMatrix.hpp>
-#endif
 
 namespace axis::solver {
 
@@ -281,7 +278,6 @@ class InterpolationMatrix {
         return csr_vals_;
     }
 
-#ifdef AXIS_HAVE_KOKKOSKERNELS
     /// Lazily-built, cached KokkosKernels CrsMatrix wrapping the CSR arrays.
     ///
     /// The interpolation weights never change after to_csr(), so the derived
@@ -291,6 +287,9 @@ class InterpolationMatrix {
     /// mutable members so they outlive the returned matrix, whose graph does
     /// not own the row_map/entries) and constructs the CrsMatrix; subsequent
     /// calls return the cached matrix unchanged.
+    ///
+    /// KokkosKernels is a required dependency of AXIS (enforced in
+    /// libs/axis/CMakeLists.txt), so this accessor is always available.
     ///
     /// Uses the same index_t/device types as axis::solver::apply.
     ///
@@ -315,7 +314,6 @@ class InterpolationMatrix {
         }
         return kk_crs_matrix_;
     }
-#endif
 
     // ─────────────────────────────────────────────────────────────────────────
     // Internal Kokkos::View accessors (for WeightGenerator, apply, and
@@ -362,7 +360,6 @@ class InterpolationMatrix {
     Kokkos::View<double *, MemorySpace> csr_vals_;  ///< values [nnz]
     bool has_csr_{false};                           ///< CSR representation available
 
-#ifdef AXIS_HAVE_KOKKOSKERNELS
     // Lazily-built cache of the derived KokkosKernels CrsMatrix. Because apply()
     // takes a const InterpolationMatrix&, these are mutable. The row_map/entries
     // backing Views must persist as members: the CrsMatrix graph references them
@@ -372,7 +369,6 @@ class InterpolationMatrix {
     mutable Kokkos::View<double *, MemorySpace> kk_vals_;      ///< non-const values backing the cached matrix
     mutable kk_crs_matrix_t kk_crs_matrix_;                    ///< cached KokkosKernels CrsMatrix
     mutable bool kk_csr_built_{false};                         ///< true once the cached matrix is built
-#endif
 };
 
 }  // namespace axis::solver

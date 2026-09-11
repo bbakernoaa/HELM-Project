@@ -240,9 +240,10 @@ target_link_libraries(axis PUBLIC Kokkos::kokkos)
 target_link_libraries(axis PUBLIC MPI::MPI_CXX)
 
 # KokkosKernels — PUBLIC for KokkosSparse::spmv in apply.hpp (header-only).
-# Now a hard dependency (found or fetched above), so link + define unconditionally.
+# Hard dependency (found or fetched above), so link unconditionally. No feature
+# macro: the code paths it once guarded were unreachable once the dependency
+# became required, so they were removed rather than left behind a dead #ifdef.
 target_link_libraries(axis PUBLIC Kokkos::kokkoskernels)
-target_compile_definitions(axis PUBLIC AXIS_HAVE_KOKKOSKERNELS=1)
 
 # ArborX — PRIVATE (vendored, header-only BVH for spatial search in WeightGenerator).
 target_link_libraries(axis PRIVATE ArborX::ArborX)
