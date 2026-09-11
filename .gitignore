@@ -116,3 +116,6 @@ Desktop.ini
 *.temp
 *.orig
 *.rej
+
+# ---------- IDE agent state (Kiro specs/steering) ----------
+.kiro/
