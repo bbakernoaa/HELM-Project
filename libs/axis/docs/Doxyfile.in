@@ -96,8 +96,7 @@ EXPAND_ONLY_PREDEF     = YES
 PREDEFINED             = KOKKOS_FUNCTION= \
                          KOKKOS_INLINE_FUNCTION= \
                          __cplusplus=202002L \
-                         AXIS_ENABLE_PROJ=1 \
-                         AXIS_HAVE_KOKKOSKERNELS=1
+                         AXIS_ENABLE_PROJ=1
 
 #---------------------------------------------------------------------------
 # Dot tool configuration (for diagrams)

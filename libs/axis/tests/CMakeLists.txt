@@ -137,6 +137,7 @@ if(rapidcheck_FOUND)
         prop_field_view_roundtrip.cpp
         prop_raii_handles.cpp
         prop_structured_to_unstructured.cpp
+        prop_band_corner_synthesis.cpp
         prop_csr_connectivity.cpp
         prop_named_grid_deterministic.cpp
         prop_named_grid_registration.cpp

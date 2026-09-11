@@ -9,9 +9,10 @@
 /// @brief Kokkos-parallel sparse matrix-vector apply (SpMV) for field regridding.
 ///
 /// Implements dst = S · src via sparse matrix-vector multiplication.
-/// When AXIS_HAVE_KOKKOSKERNELS is defined, the CSR path delegates to
-/// KokkosSparse::spmv for optimized, hardware-tuned SpMV. Otherwise it falls
-/// back to a TeamPolicy row-parallel kernel.
+/// The CSR path delegates to KokkosSparse::spmv for optimized, hardware-tuned
+/// SpMV. KokkosKernels is a REQUIRED dependency of AXIS (enforced in
+/// libs/axis/CMakeLists.txt — system package or FetchContent, FATAL_ERROR
+/// otherwise), so this is the only CSR path; there is no feature macro.
 ///
 /// The COO path uses scatter-add with Kokkos::atomic_add.
 ///
@@ -22,21 +23,17 @@
 ///
 /// Header-only (template) since it is parameterized on MemorySpace.
 
+#include <KokkosSparse_CrsMatrix.hpp>
+#include <KokkosSparse_spmv.hpp>
 #include <Kokkos_Core.hpp>
+#include <axis/solver/halo_pattern.hpp>
+#include <axis/solver/interpolation_matrix.hpp>
+#include <axis/types.hpp>
 #include <cstddef>
 #include <functional>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#ifdef AXIS_HAVE_KOKKOSKERNELS
-#include <KokkosSparse_CrsMatrix.hpp>
-#include <KokkosSparse_spmv.hpp>
-#endif
-
-#include <axis/solver/halo_pattern.hpp>
-#include <axis/solver/interpolation_matrix.hpp>
-#include <axis/types.hpp>
 
 namespace axis::solver {
 
@@ -85,33 +82,12 @@ void apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<const doub
     using exec_space = typename MemorySpace::execution_space;
 
     if (matrix.is_csr()) {
-        // ── CSR path ─────────────────────────────────────────────────────────
-        const auto row_ptr = matrix.row_ptr();
-        const auto col_idx = matrix.col_idx();
-        const auto csr_vals = matrix.csr_values();
-
-#ifdef AXIS_HAVE_KOKKOSKERNELS
-        // Use KokkosSparse::spmv for hardware-tuned SpMV (cuSPARSE on GPU,
-        // MKL on CPU when available, or KokkosKernels native implementation).
-        using device_t = Kokkos::Device<exec_space, MemorySpace>;
-        using crs_matrix_t = KokkosSparse::CrsMatrix<double, index_t, device_t, void, index_t>;
-        using graph_t = typename crs_matrix_t::staticcrsgraph_type;
-
-        // Build the static CRS graph from our row_ptr and col_idx views.
-        // The graph constructor takes (entries, row_map) — both non-const.
-        Kokkos::View<index_t *, MemorySpace> row_map_nc("row_map", row_ptr.extent(0));
-        Kokkos::deep_copy(row_map_nc, row_ptr);
-        Kokkos::View<index_t *, MemorySpace> entries_nc("entries", col_idx.extent(0));
-        Kokkos::deep_copy(entries_nc, col_idx);
-
-        graph_t graph(entries_nc, row_map_nc);
-
-        // Build values view (non-const copy)
-        Kokkos::View<double *, MemorySpace> vals_nc("vals", csr_vals.extent(0));
-        Kokkos::deep_copy(vals_nc, csr_vals);
-
-        // CrsMatrix(label, ncols, vals, graph)
-        crs_matrix_t A("axis_spmv", static_cast<index_t>(matrix.n_src()), vals_nc, graph);
+        // ── CSR path: KokkosSparse::spmv (required dependency) ──────────────
+        // Hardware-tuned SpMV (cuSPARSE on GPU, MKL on CPU when available, or
+        // the KokkosKernels native implementation). The CrsMatrix is a derived
+        // operator of the (immutable) CSR weights, so it is built once and
+        // cached on the matrix rather than rebuilt per call.
+        const auto &A = matrix.kk_crs_matrix();
 
         // Wrap src/dst as rank-1 Kokkos Views for KokkosSparse::spmv
         Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> x_view(src.data_handle(), src.extent(0));
@@ -119,28 +95,6 @@ void apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<const doub
 
         // y = 1.0 * A * x + 0.0 * y  (i.e., y = A*x, overwriting dst)
         KokkosSparse::spmv("N", 1.0, A, x_view, 0.0, y_view);
-#else
-        // Built-in CSR row-parallel path: one team per destination row,
-        // TeamVectorRange over nonzeros per row. No atomics needed.
-        using team_policy = Kokkos::TeamPolicy<exec_space>;
-        using member_type = typename team_policy::member_type;
-
-        Kokkos::View<double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> dst_kk(dst.data_handle(), n_dst);
-        Kokkos::View<const double *, MemorySpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> src_kk(src.data_handle(), src.extent(0));
-
-        Kokkos::parallel_for(
-            "axis::apply::csr_spmv", team_policy(static_cast<int>(n_dst), Kokkos::AUTO), KOKKOS_LAMBDA(const member_type &team) {
-                const auto j = team.league_rank();
-                const auto start = row_ptr(j);
-                const auto end = row_ptr(j + 1);
-
-                double sum = 0.0;
-                Kokkos::parallel_reduce(
-                    Kokkos::TeamVectorRange(team, start, end), [&](const index_t k, double &lsum) { lsum += csr_vals(k) * src_kk(col_idx(k)); }, sum);
-
-                Kokkos::single(Kokkos::PerTeam(team), [&]() { dst_kk(j) = sum; });
-            });
-#endif
     } else {
         // ── COO scatter-add path (original): uses atomics ────────────────────
         const auto &S = matrix.factor_list_view();   // [nnz]
@@ -306,8 +260,8 @@ void apply(const InterpolationMatrix<MemorySpace> &matrix, const HaloPattern &pa
 ///   - extent(0) = number of cells (leading dimension)
 ///   - extent(1) = number of variables (trailing dimension)
 ///
-/// CSR path: TeamPolicy over destination rows, inner serial loop over nonzeros
-///   per row, ThreadVectorRange over variables for each nonzero contribution.
+/// CSR path: KokkosSparse::spmv over the cached CrsMatrix with rank-2
+///   (multivector) views — the same operator the rank-1 apply path caches.
 /// COO path: parallel_for over nnz, inner serial loop over variables with
 ///   atomic accumulation.
 ///
@@ -350,55 +304,12 @@ void batch_apply(const InterpolationMatrix<MemorySpace> &matrix, field_view<cons
     using exec_space = typename MemorySpace::execution_space;
 
     if (matrix.is_csr()) {
-        // ── CSR path ─────────────────────────────────────────────────────────
-        // TeamPolicy over rows (destination cells). For each row, iterate
-        // serially over nonzeros, then use ThreadVectorRange to distribute
-        // the variable accumulation across vector lanes.
-        const auto row_ptr = matrix.row_ptr();
-        const auto col_idx = matrix.col_idx();
-        const auto csr_vals = matrix.csr_values();
-
-#ifdef AXIS_HAVE_KOKKOSKERNELS
-        // Use KokkosSparse::spmv with multivector (rank-2) views.
-        using device_t = Kokkos::Device<exec_space, MemorySpace>;
-        using crs_matrix_t = KokkosSparse::CrsMatrix<double, index_t, device_t, void, index_t>;
-        using graph_t = typename crs_matrix_t::staticcrsgraph_type;
-
-        Kokkos::View<index_t *, MemorySpace> row_map_nc("row_map", row_ptr.extent(0));
-        Kokkos::deep_copy(row_map_nc, row_ptr);
-        Kokkos::View<index_t *, MemorySpace> entries_nc("entries", col_idx.extent(0));
-        Kokkos::deep_copy(entries_nc, col_idx);
-
-        graph_t graph(entries_nc, row_map_nc);
-
-        Kokkos::View<double *, MemorySpace> vals_nc("vals", csr_vals.extent(0));
-        Kokkos::deep_copy(vals_nc, csr_vals);
-
-        crs_matrix_t A("axis_batch_spmv", static_cast<index_t>(matrix.n_src()), vals_nc, graph);
-
-        // KokkosSparse::spmv supports rank-2 (multivector) views
+        // ── CSR path: KokkosSparse::spmv with multivector (rank-2) views ────
+        // The cached CrsMatrix (built once on first use by the rank-1 apply
+        // path) is reused here; KokkosSparse::spmv accepts rank-2
+        // (multivector) x/y views against the same operator.
+        const auto &A = matrix.kk_crs_matrix();
         KokkosSparse::spmv("N", 1.0, A, src_kk, 0.0, dst_kk);
-#else
-        // Built-in CSR row-parallel path with TeamPolicy.
-        using team_policy = Kokkos::TeamPolicy<exec_space>;
-        using member_type = typename team_policy::member_type;
-
-        Kokkos::parallel_for(
-            "axis::batch_apply::csr", team_policy(static_cast<int>(n_dst), Kokkos::AUTO), KOKKOS_LAMBDA(const member_type &team) {
-                const auto j = team.league_rank();
-                const auto start = row_ptr(j);
-                const auto end = row_ptr(j + 1);
-
-                // For each variable, accumulate the row dot product
-                Kokkos::parallel_for(Kokkos::ThreadVectorRange(team, static_cast<int>(n_vars)), [&](const int v) {
-                    double sum = 0.0;
-                    for (auto k = start; k < end; ++k) {
-                        sum += csr_vals(k) * src_kk(col_idx(k), v);
-                    }
-                    dst_kk(j, v) = sum;
-                });
-            });
-#endif
     } else {
         // ── COO scatter-add path ─────────────────────────────────────────────
         const auto &S = matrix.factor_list_view();   // [nnz]
