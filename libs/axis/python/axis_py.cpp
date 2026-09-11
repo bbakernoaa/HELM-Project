@@ -80,13 +80,15 @@ HostMesh make_regular_mesh(std::size_t ni, std::size_t nj, double lon_start, dou
     for (std::size_t j = 0; j < nj; ++j) {
         for (std::size_t i = 0; i < ni; ++i) {
             cx(i + j * ni) = lon_start + (static_cast<double>(i) + 0.5) * dlon;
-            cy(i + j * ni) = lat_start + (static_cast<double>(j) + 0.5) * dlat;
+            double lat_val = lat_start + (static_cast<double>(j) + 0.5) * dlat;
+            cy(i + j * ni) = std::max(-90.0, std::min(90.0, lat_val));
         }
     }
     for (std::size_t j = 0; j <= nj; ++j) {
         for (std::size_t i = 0; i <= ni; ++i) {
             crx(i + j * (ni + 1)) = lon_start + static_cast<double>(i) * dlon;
-            cry(i + j * (ni + 1)) = lat_start + static_cast<double>(j) * dlat;
+            double lat_val = lat_start + static_cast<double>(j) * dlat;
+            cry(i + j * (ni + 1)) = std::max(-90.0, std::min(90.0, lat_val));
         }
     }
 

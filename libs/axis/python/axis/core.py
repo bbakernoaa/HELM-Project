@@ -76,10 +76,21 @@ def _apply_weights_core(
     # flat_data is (n_vars, n_src), so we transpose to (n_src, n_vars)!
     flat_data_t = np.asfortranarray(flat_data.T)
 
+    # Compute row_sums to find completely unmapped destination cells (where row sum of weights is 0.0)
+    if total_weights is not None:
+        row_sums = total_weights
+    else:
+        row_sums = np.array(axis_py.apply_weights(weights_matrix, np.ones(weights_matrix.n_src))).flatten()
+
+    nan_mask = row_sums == 0.0
+    nan_val = flat_data.dtype.type(np.nan)
+
     if not skipna:
         # Standard fast path: Apply weights directly in C++
         result_t = axis_py.batch_apply(weights_matrix, flat_data_t)
         result = result_t.T
+        if np.any(nan_mask):
+            result = np.where(nan_mask, nan_val, result)
     else:
         # NaN-aware re-normalization path
         mask = np.isnan(flat_data)
@@ -96,9 +107,14 @@ def _apply_weights_core(
 
         with np.errstate(divide="ignore", invalid="ignore"):
             result /= weights_sum
+
+            # Ensure unmapped or zero-valid-weight cells result in NaN
+            unmapped_or_zero_weight = nan_mask | (weights_sum == 0.0)
+            if np.any(unmapped_or_zero_weight):
+                result = np.where(unmapped_or_zero_weight, nan_val, result)
+
             if total_weights is not None:
                 fraction_valid = weights_sum / total_weights
-                nan_val = result.dtype.type(np.nan)
                 result = np.where(fraction_valid < (1.0 - na_thres - 1e-6), nan_val, result)
 
     new_shape = other_dims_shape + shape_target
