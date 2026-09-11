@@ -117,6 +117,6 @@ Desktop.ini
 *.orig
 *.rej
 
-# ---------- IDE agent state (Kiro specs/steering) ----------
+# ---------- Local agent state (Kiro specs/steering, superpowers plans/specs) ----------
 .kiro/
 docs/superpowers/
