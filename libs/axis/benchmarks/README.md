@@ -95,15 +95,27 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 
 ---
 
+### 6. Cubed-Sphere C96 (6 tiles, exact supergrid corners) → Global 1° Regular
+**Source (C96): 6 × 96 × 96 = 55,296 cells → Destination (Regular): 180 × 360 = 64,800 cells**
+
+| Method | ESMF/ESMPy (s) | AXIS Time (s) | Speedup vs ESMF | Max Err (vs ESMF) | RMS Err (vs ESMF) | Const Σ (vs ESMF) |
+|--------|:--------------:|:--------------:|:---------------:|:-----------------:|:-----------------:|:-----------------:|
+| Conservative (Great Circle) | 2.111 | **0.165** | **12.8×** | 1.57e-13 | 2.29e-15 | 1.0 vs 1.0 |
+
+*Note: reference is `esmpy` 8.9.1 (ESMF 8.9.1) run directly on a welded-node cubed-sphere mesh — CDO cannot ingest cubed-sphere supergrid tiles, so this table compares against ESMF rather than CDO. AXIS agrees with ESMF to **machine precision** ($1.6\times10^{-13}$ max, $2.3\times10^{-15}$ RMS) on the smooth `cos(lat)·cos(lon)` field, and conserves a constant field to $4.4\times10^{-16}$ — *better* than ESMF's own $3.5\times10^{-13}$ residual. Both engines share an $8.9\times10^{-3}$ deviation from the analytic field, which is the inherent first-order-conservative discretization error of the C96 grid, not an AXIS error. Source geometry uses the exact analytical supergrid corners (`x[0::2,0::2]`, `y[0::2,0::2]`) rather than center-neighbor averaging; the polar-cap quads are retained by the `DegenerateCellHandler` fix (see `tests_python/test_c96_benchmarks.py`). Reproduce with `python benchmarks/check_c96_vs_esmf.py` (needs the `C96_grid.tile*.nc` files; run in the `helm-dev` container for the ESMF reference).*
+
+---
+
 ## Where AXIS wins
 
 - **Bilinear at all scales:** With the bilinear rect fast-path active on regular grids, AXIS is **3.8× faster than CDO** and **~52× faster than `xregrid`/ESMF** on the 720×360 → 1440×720 case — and it is the only engine here that does bilinear from unstructured grids (Table 4).
 - **Nearest-neighbor:** **1.1–25× faster than CDO** across regular and unstructured cases.
 - **Conservative remapping:** **10.5–15.9× faster than CDO** and **up to 71× faster than `xregrid`** for first-order conservative remapping — while now matching CDO to **machine precision** on regular→regular grids and to **$1.7\times10^{-5}$** max error on the LCC and MPAS clipper paths.
+- **Cubed-sphere (C96):** **12.8× faster than ESMF/ESMPy** on the 6-tile C96 → global 1° case, agreeing with ESMF to $1.6\times10^{-13}$ and conserving a constant field to $4.4\times10^{-16}$ (Table 6).
 - **Large grids:** on the 6.48M-cell Table 2 case AXIS is **13.7× faster than CDO** (0.89 s vs 12.2 s) with *exact* conservation — a case the 7.7 GB Docker VM could not run at all.
 - **GPU potential:** AXIS's device-resident pipeline (not benchmarked here) would provide 10–50× over CDO for conservative remapping on NVIDIA/AMD GPUs.
 
-*Timings are single-node native macOS on an Apple M4 (10-core, `OMP_NUM_THREADS=10`), OpenMP, weight generation + apply, excluding I/O. Rerun 2026-09-15 against the current `develop` build with the CCW-winding MPAS generator and the corrected CF-edge mesh layer in `python/axis/grid.py` (`benchmarks/run_all_native.sh`). CDO/xregrid timings are from this host's conda-forge builds and are not directly comparable to the earlier Docker-container numbers.*
+*Timings are single-node native macOS on an Apple M4 (10-core, `OMP_NUM_THREADS=10`), OpenMP, weight generation + apply, excluding I/O — except Table 6, which was measured in the `helm-dev` Linux container (gcc-13 build, `OMP_NUM_THREADS=8`), since the polar-cap C++ fix is not yet in the native macOS binary. Rerun 2026-09-15 against the current `develop` build with the CCW-winding MPAS generator and the corrected CF-edge mesh layer in `python/axis/grid.py` (`benchmarks/run_all_native.sh`). CDO/xregrid timings are from this host's conda-forge builds and are not directly comparable to the earlier Docker-container numbers.*
 
 ---
 
