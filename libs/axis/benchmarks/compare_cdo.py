@@ -67,6 +67,36 @@ except ImportError:
 LCC_PROJ = "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
 
 
+def _signed_spherical_area_deg(lonlat_deg):
+    """Signed spherical excess of a lon/lat polygon (degrees), CCW-positive.
+
+    Triangle-fan atan2 formula: positive when vertices wind counter-clockwise
+    as seen from outside the sphere — the convention AXIS's clippers (and real
+    MPAS meshes) require. scipy.spatial.Voronoi emits regions in arbitrary
+    winding, so each cell must be normalized before handing it to AXIS.
+    """
+    lon = np.radians(lonlat_deg[:, 0])
+    lat = np.radians(lonlat_deg[:, 1])
+    x = np.cos(lat) * np.cos(lon)
+    y = np.cos(lat) * np.sin(lon)
+    z = np.sin(lat)
+    v = np.column_stack((x, y, z))
+    area = 0.0
+    for i in range(1, len(v) - 1):
+        v0, v1, v2 = v[0], v[i], v[i + 1]
+        num = np.dot(v0, np.cross(v1, v2))
+        den = 1.0 + np.dot(v0, v1) + np.dot(v1, v2) + np.dot(v0, v2)
+        area += 2.0 * np.arctan2(num, den)
+    return area
+
+
+def _normalize_winding_ccw(region, node_coords):
+    """Return the region's vertex indices ordered CCW on the sphere."""
+    if _signed_spherical_area_deg(node_coords[region]) < 0.0:
+        return list(reversed(region))
+    return list(region)
+
+
 def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
     """Create a test field on a regular lat-lon, LCC, or unstructured MPAS (Voronoi) grid."""
     if grid_type == "mpas":
@@ -93,6 +123,7 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
         conn_offsets = [0]
         conn_indices = []
         valid_cell_indices = []
+        ccw_regions = {}
         cell_lons = []
         cell_lats = []
 
@@ -108,6 +139,12 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
                         valid_coords = False
                         break
                 if valid_coords:
+                    # Normalize to CCW winding: AXIS's clipper paths assume CCW
+                    # polygons (like real MPAS meshes); scipy Voronoi regions
+                    # have arbitrary winding (~50% CW here), which silently
+                    # zeroed overlap for CW cells and broke conservation.
+                    region = _normalize_winding_ccw(region, node_coords)
+                    ccw_regions[r_idx] = region
                     valid_cell_indices.append(r_idx)
                     conn_indices.extend(region)
                     conn_offsets.append(len(conn_indices))
@@ -121,10 +158,10 @@ def create_test_field(nlat, nlon, field_type="cosine", grid_type="regular"):
         conn_indices = np.array(conn_indices, dtype=np.int64)
 
         # Determine maximum vertices per cell for the CDO 2D bounds padding
-        max_nv = max(len(vor.regions[r]) for r in valid_cell_indices)
+        max_nv = max(len(ccw_regions[r]) for r in valid_cell_indices)
         face_nodes = -1 * np.ones((n_valid_cells, max_nv), dtype=np.int32)
         for idx, r_idx in enumerate(valid_cell_indices):
-            region = vor.regions[r_idx]
+            region = ccw_regions[r_idx]
             face_nodes[idx, : len(region)] = region
 
         if field_type == "cosine":
