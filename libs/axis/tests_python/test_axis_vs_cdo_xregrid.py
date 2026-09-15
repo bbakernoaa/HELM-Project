@@ -349,8 +349,11 @@ def test_axis_vs_cdo_projected_lcc_benchmark():
         axis_time = time.perf_counter() - t0
         axis_sum = float(np.nansum(axis_out.values))
 
-        # Compare results
-        assert axis_sum == pytest.approx(cdo_sum, rel=0.02)  # XXX: should be tighter
+        # Compare results. With true CF cell bounds used for both the LCC
+        # source mesh and the regular destination mesh (grid.py:
+        # _try_bounds_curvilinear_mesh / _make_regular_mesh_from_centers),
+        # AXIS now matches CDO's conservative sum to ~1e-6 relative.
+        assert axis_sum == pytest.approx(cdo_sum, rel=1e-3)
 
         # For small regional grids, AXIS bypasses file I/O and runs highly optimized
         # spatial structures, so it should compile and execute within strict budget

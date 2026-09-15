@@ -152,6 +152,69 @@ def _get_mesh_info(
             return lon, lat, lat.shape, tuple(str(d) for d in lat.dims), False
 
 
+def _try_bounds_curvilinear_mesh(ds: xr.Dataset, lat: xr.DataArray, lon: xr.DataArray) -> "axis_py.Mesh | None":
+    """Build a quad/polygon mesh from explicit CF ``bounds`` variables on 2-D coords.
+
+    Returns None when the dataset has no resolvable 2-D bounds arrays, so the
+    caller can fall back to synthesizing corners from centers.
+    """
+    lat_b_name = lat.attrs.get("bounds")
+    lon_b_name = lon.attrs.get("bounds")
+    if not lat_b_name or not lon_b_name:
+        return None
+    if lat_b_name not in ds or lon_b_name not in ds:
+        return None
+
+    lb = np.asarray(ds[lat_b_name].values, dtype=np.float64)
+    ob = np.asarray(ds[lon_b_name].values, dtype=np.float64)
+    if lb.ndim != 3 or ob.ndim != 3 or lb.shape != ob.shape:
+        return None
+    if lb.shape[0] != lat.shape[0] or lb.shape[1] != lon.shape[1]:
+        return None
+    nv = lb.shape[2]
+    if nv < 3:
+        return None
+
+    # Drop a repeated closing vertex (ring stored with first == last).
+    wrap_dup = np.all(lb[:, :, 0] == lb[:, :, -1]) and np.all(ob[:, :, 0] == ob[:, :, -1])
+    if wrap_dup:
+        lb, ob = lb[:, :, :-1], ob[:, :, :-1]
+        nv -= 1
+        if nv < 3:
+            return None
+
+    interior_dup = np.any((lb[:, :, 1:] == lb[:, :, :-1]) & (ob[:, :, 1:] == ob[:, :, :-1]))
+    if not interior_dup:
+        node_coords = np.asfortranarray(np.column_stack([ob.ravel(), lb.ravel()]))
+        n_cells = lat.size
+        conn_offsets = np.arange(0, n_cells * nv + 1, nv, dtype=np.int64)
+        conn_indices = np.arange(n_cells * nv, dtype=np.int64)
+        return axis_py.make_ugrid_mesh(node_coords, conn_offsets, conn_indices)
+
+    # Per-cell filter of repeated padded corners (SCRIP-style padding).
+    node_lons: list[float] = []
+    node_lats: list[float] = []
+    conn_offsets_list = [0]
+    for c in range(lb.shape[0] * lb.shape[1]):
+        lats_c = lb.reshape(-1, nv)[c]
+        lons_c = ob.reshape(-1, nv)[c]
+        prev = None
+        n_here = 0
+        for vi in range(nv):
+            if prev is not None and lats_c[vi] == prev[0] and lons_c[vi] == prev[1]:
+                continue
+            prev = (lats_c[vi], lons_c[vi])
+            node_lats.append(lats_c[vi])
+            node_lons.append(lons_c[vi])
+            n_here += 1
+        if n_here < 3:
+            return None  # malformed bounds: fall back to synthesis
+        conn_offsets_list.append(len(node_lons))
+
+    node_coords = np.asfortranarray(np.column_stack([np.array(node_lons), np.array(node_lats)]))
+    return axis_py.make_ugrid_mesh(node_coords, np.array(conn_offsets_list, dtype=np.int64), np.arange(len(node_lons), dtype=np.int64))
+
+
 def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Synthesize (ny+1, nx+1) corner coordinates from (ny, nx) cell centers via fast 2D slicing."""
     ny, nx = lon.shape
@@ -165,6 +228,58 @@ def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[n
     clon = sum_lon / 4.0
     clat = sum_lat / 4.0
     return clon, clat
+
+
+def _rectilinear_cell_edges(centers: np.ndarray, clamp: tuple[float, float] | None = None) -> np.ndarray:
+    """CF cell edges from a 1-D array of cell centers.
+
+    Interior edges are midpoints of adjacent centers; the outer edges extend
+    half a cell beyond the first/last center. When ``clamp`` is given (e.g.
+    latitude to [-90, 90]) edges are clipped into it, so a pole-inclusive
+    center vector (linspace(-90, 90, n)) yields pole-anchored cells instead
+    of overflowing past the pole (where sin() turns around and the spherical
+    cell area would go negative).
+    """
+    c = np.asarray(centers, dtype=np.float64)
+    n = c.size
+    if n < 2:
+        lo, hi = c[0] - 0.5, c[0] + 0.5
+        if clamp is not None:
+            lo, hi = max(clamp[0], lo), min(clamp[1], hi)
+        return np.array([lo, hi], dtype=np.float64)
+    edges = np.empty(n + 1, dtype=np.float64)
+    edges[1:-1] = 0.5 * (c[:-1] + c[1:])
+    edges[0] = c[0] - 0.5 * (c[1] - c[0])
+    edges[-1] = c[-1] + 0.5 * (c[-1] - c[-2])
+    if clamp is not None:
+        edges = np.clip(edges, clamp[0], clamp[1])
+    return edges
+
+
+def _make_regular_mesh_from_centers(lons: np.ndarray, lats: np.ndarray) -> "axis_py.Mesh":
+    """Build a quad-cell mesh from 1-D cell-center vectors using true CF edges.
+
+    Replaces the old center-as-corner convention (make_regular_mesh treats
+    lat_start/lon_start as lower cell CORNERS, so passing centers shifted the
+    whole grid by half a cell and overflowed the north pole). The (nj+1)x(ni+1)
+    node lattice with CCW quads is fed through make_ugrid_mesh, which keeps
+    the regular/nonuniform rectangle fast-paths available (all cells are quads).
+    """
+    lon_edges = _rectilinear_cell_edges(lons)
+    lat_edges = _rectilinear_cell_edges(lats, clamp=(-90.0, 90.0))
+    ni = lon_edges.size - 1
+    nj = lat_edges.size - 1
+
+    clat, clon = np.meshgrid(lat_edges, lon_edges, indexing="ij")
+    node_coords = np.asfortranarray(np.column_stack([clon.ravel(), clat.ravel()]))
+
+    # Vectorized CCW quad connectivity: cell (j, i) -> [bl, br, tr, tl]
+    ncol = ni + 1
+    ii, jj = np.meshgrid(np.arange(ni, dtype=np.int64), np.arange(nj, dtype=np.int64), indexing="xy")
+    bl = ii + jj * ncol
+    conn = np.stack([bl, bl + 1, bl + ncol + 1, bl + ncol], axis=-1).ravel().astype(np.int64)
+    offsets = np.arange(0, conn.size + 1, 4, dtype=np.int64)
+    return axis_py.make_ugrid_mesh(node_coords, offsets, conn)
 
 
 def _triangulate_mpas_mesh(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -378,6 +493,15 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
         # 3. Curvilinear (2D) or Cubed-Sphere (3D) coordinate arrays fallback
         elif lat.ndim in [2, 3]:
             if lat.ndim == 2:
+                # Prefer explicit CF cell bounds when the 2-D coordinate
+                # variables carry a `bounds` attribute: the true corners are
+                # exact, while synthesizing corners from centers shrinks
+                # boundary cells by half a cell (same bug family as the
+                # 1-D center-as-corner issue fixed in
+                # _make_regular_mesh_from_centers).
+                mesh = _try_bounds_curvilinear_mesh(ds, lat, lon)
+                if mesh is not None:
+                    return mesh
                 # 2D Curvilinear grid
                 clon, clat = _synthesize_curvilinear_corners(lon.values, lat.values)
                 node_coords = np.asfortranarray(np.column_stack([clon.ravel(), clat.ravel()]))
@@ -435,15 +559,10 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
     else:
         # Structured: regular or rectilinear/projected
         if lon.ndim == 1 and lat.ndim == 1:
-            # Regular grid
-            ni = len(lon)
-            nj = len(lat)
-            lon_start = float(lon[0])
-            lat_start = float(lat[0])
-            dlon = float(lon[1] - lon[0]) if ni > 1 else 1.0
-            dlat = float(lat[1] - lat[0]) if nj > 1 else 1.0
-
-            return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
+            # Regular grid: derive true CF cell edges from the 1-D centers
+            # (midpoints, clamped to ±90 at the poles) instead of passing the
+            # centers themselves as corners.
+            return _make_regular_mesh_from_centers(np.asarray(lon, dtype=np.float64), np.asarray(lat, dtype=np.float64))
         else:
             # 2D Curvilinear or Projected grid
             # If coordinates have a grid_mapping or PROJ metadata, build a projected mesh
@@ -469,14 +588,14 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                 center_y = lat.values.ravel()
                 return axis_py.make_projected_mesh(ni, nj, proj_string, center_x, center_y)
             else:
-                # Flat regular 2D fallback
+                # Flat regular 2D fallback: rows share lon, columns share lat
                 ni, nj = shape[1], shape[0]
-                lon_start = float(lon[0, 0])
-                lat_start = float(lat[0, 0])
-                dlon = float(lon[0, 1] - lon[0, 0]) if ni > 1 else 1.0
-                dlat = float(lat[1, 0] - lat[0, 0]) if nj > 1 else 1.0
+                lon_1d = np.asarray(lon.values[:, 0] if ni == 1 else lon.values[0, :], dtype=np.float64)
+                lat_1d = np.asarray(lat.values[:, 0], dtype=np.float64)
+                lon_1d = np.asarray(lon.values[0, :], dtype=np.float64)
+                lat_1d = np.asarray(lat.values[:, 0], dtype=np.float64)
 
-                return axis_py.make_regular_mesh(ni, nj, lon_start, lat_start, dlon, dlat)
+                return _make_regular_mesh_from_centers(lon_1d, lat_1d)
 
 
 # ==============================================================================
@@ -515,11 +634,7 @@ class RectilinearGrid(Geometry):
         self.lats = np.asarray(lats, dtype=np.float64)
 
     def to_mesh(self, method: str | None = None) -> axis_py.Mesh:
-        ni = len(self.lons)
-        nj = len(self.lats)
-        dlon = float((self.lons[-1] - self.lons[0]) / (ni - 1)) if ni > 1 else 1.0
-        dlat = float((self.lats[-1] - self.lats[0]) / (nj - 1)) if nj > 1 else 1.0
-        return axis_py.make_regular_mesh(ni, nj, float(self.lons[0]), float(self.lats[0]), dlon, dlat)
+        return _make_regular_mesh_from_centers(self.lons, self.lats)
 
 
 class CurvilinearGrid(Geometry):
