@@ -137,6 +137,51 @@ class StructuredGrid {
     void synthesize_corners() const;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Global-context (halo-aware) corner synthesis — the single source of truth for
+// how a latitude band's Cell_Corners are derived.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Synthesize globally-consistent Cell_Corners for a latitude band.
+///
+/// A distributed driver partitions a destination grid into contiguous latitude
+/// bands [j0, j1). A naive implementation builds a band `StructuredGrid` from a
+/// band-local center slice and lets `to_unstructured()` synthesize corners from
+/// it; that extrapolates the band's outer edges one-sidedly, which is exact only
+/// on a uniform grid and wrong (and rank-seam-inconsistent) on non-uniform or
+/// curvilinear grids.
+///
+/// This function is the halo-aware alternative: it runs the SAME corner-synthesis
+/// kernel `StructuredGrid::synthesize_corners()` uses for a full grid — the 2×2
+/// midpoint average of surrounding centers, with the identical periodic-longitude
+/// wrap and one-sided boundary convention — over the FULL global center arrays,
+/// and returns only the corner rows `[j0, j1]` (i.e. `j1 - j0 + 1` rows) that
+/// bound the band. Because it is the same kernel on the same global centers, the
+/// result is provably identical to rows `[j0, j1]` of the global mesh's
+/// synthesized corners, so a band's boundary edges are globally consistent and a
+/// single-rank (whole-grid) band is byte-for-byte the global mesh.
+///
+/// Works for both rectilinear and curvilinear grids: pass the full global center
+/// arrays (rectilinear grids are expanded to full `ni*nj` centers by the caller).
+///
+/// @tparam MemorySpace Kokkos memory space of the input/output views.
+/// @param ni         Number of cells in the i (longitude) direction (> 0).
+/// @param nj_global  Total number of rows in the FULL global grid (>= j1).
+/// @param center_lon Full global center longitudes, size ni*nj_global, column-major
+///                   (index = i + j*ni). Periodicity is detected from these.
+/// @param center_lat Full global center latitudes, size ni*nj_global.
+/// @param j0         First destination row of the band (>= 0).
+/// @param j1         One-past-last destination row of the band (j0 <= j1 <= nj_global).
+/// @param corner_lon Output view, allocated here, size (ni+1)*(j1-j0+1); corner
+///                   (ci, cj) is at index ci + (cj - j0)*(ni+1).
+/// @param corner_lat Output view, allocated here, same layout.
+///
+/// @throws std::invalid_argument if ni == 0, j1 < j0, or j1 > nj_global.
+template <class MemorySpace = Kokkos::HostSpace>
+void synthesize_band_corners(std::size_t ni, std::size_t nj_global, Kokkos::View<double *, MemorySpace> center_lon,
+                             Kokkos::View<double *, MemorySpace> center_lat, std::size_t j0, std::size_t j1,
+                             Kokkos::View<double *, MemorySpace> &corner_lon, Kokkos::View<double *, MemorySpace> &corner_lat);
+
 }  // namespace axis::topology
 
 #endif  // AXIS_TOPOLOGY_STRUCTURED_GRID_HPP

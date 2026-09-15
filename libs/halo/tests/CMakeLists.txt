@@ -10,8 +10,18 @@ find_package(GTest REQUIRED)
 # ─── Locate RapidCheck (property-based testing) ──────────────────────────────
 # RapidCheck is installed globally in the HELM Docker container (see Dockerfile),
 # which provides both the `rapidcheck` and `rapidcheck_gtest` targets.
-find_package(rapidcheck QUIET)
-if(NOT rapidcheck_FOUND)
+# A parent project (e.g. CECE) or a sibling HELM library may already have
+# imported the rapidcheck export set. The installed rapidcheckConfig.cmake only
+# short-circuits re-inclusion when ALL of its export-set targets are already
+# defined; when an earlier find_package imported only a subset (rapidcheck,
+# rapidcheck_gtest), re-running find_package(rapidcheck) here trips its
+# "some (but not all) targets already defined" FATAL_ERROR. Guard on the target
+# so we only search when rapidcheck has not already been provided (matches the
+# AMIO/SPAN pattern).
+if(NOT TARGET rapidcheck)
+    find_package(rapidcheck QUIET)
+endif()
+if(NOT rapidcheck_FOUND AND NOT TARGET rapidcheck)
     # Fall back to FetchContent for environments without a global install.
     include(FetchContent)
     FetchContent_Declare(
@@ -336,6 +346,33 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_neighbor_collective.cpp")
     )
 endif()
 
+# ─── Collective Wrapper Unit Test (MPI-based, Tier 1 + Pattern A) ────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_collectives.cpp")
+    halo_add_mpi_test(test_collectives
+        SOURCES test_collectives.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
+# ─── Collective MPI-Spy Count Test (spy-mocked; np4 + explicit np2) ──────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_collective_spy.cpp")
+    halo_add_mpi_test(test_collective_spy
+        SOURCES test_collective_spy.cpp
+        LIBRARIES halo_mpi_spy Kokkos::kokkos
+    )
+    add_test(NAME test_collective_spy_np2
+        COMMAND ${MPIEXEC_EXECUTABLE} --oversubscribe -np 2 $<TARGET_FILE:test_collective_spy>)
+    set_tests_properties(test_collective_spy_np2 PROPERTIES TIMEOUT 60 LABELS "mpi;unit")
+endif()
+
+# ─── Replicated Gather Tier 2 End-to-End Test (MPI-based) ────────────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_gather_replicated.cpp")
+    halo_add_mpi_test(test_gather_replicated
+        SOURCES test_gather_replicated.cpp
+        LIBRARIES Kokkos::kokkos
+    )
+endif()
+
 # ─── Error Messages Unit Test (MPI-based) ────────────────────────────────────
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_error_messages.cpp")
     halo_add_mpi_test(test_error_messages
@@ -356,6 +393,21 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_structured_exchange.cpp")
         TIMEOUT 120
         LABELS "mpi;property"
     )
+endif()
+
+# ─── Replicated Gather Property Test (MPI-based + RapidCheck; np4 + np2) ──────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/prop_gather_replicated.cpp")
+    halo_add_mpi_test(prop_gather_replicated
+        SOURCES prop_gather_replicated.cpp
+        LIBRARIES Kokkos::kokkos rapidcheck
+    )
+    if(TARGET rapidcheck_gtest)
+        target_link_libraries(prop_gather_replicated PRIVATE rapidcheck_gtest)
+    endif()
+    set_tests_properties(prop_gather_replicated PROPERTIES TIMEOUT 120 LABELS "mpi;property")
+    add_test(NAME prop_gather_replicated_np2
+        COMMAND ${MPIEXEC_EXECUTABLE} --oversubscribe -np 2 $<TARGET_FILE:prop_gather_replicated>)
+    set_tests_properties(prop_gather_replicated_np2 PROPERTIES TIMEOUT 120 LABELS "mpi;property")
 endif()
 
 # ─── Diagnostics Hook Unit Test (MPI-based) ──────────────────────────────────

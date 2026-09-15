@@ -78,6 +78,47 @@ fortran_hits=$(find $SCAN_ROOTS \
     -type f \( -name '*.f90' -o -name '*.F90' -o -name '*.f' -o -name '*.F' \) \
     -exec grep -nEiH "$FORTRAN_PATTERN" {} + 2>/dev/null)
 
+# ─── Generic-API deny-list scan (Requirement 9.3) ────────────────────────────
+# The collective-primitive PUBLIC API must express its patterns in strictly
+# generic vocabulary (per-rank counts, rank-local bands, replicated fields,
+# levels, displacements) and MUST NOT leak any consumer name, other HELM
+# library name, or domain-science concept into API names, parameters, or docs.
+#
+# The include scan above already forbids HELM component *header paths*
+# (<span/...>, <logs/...>, ...). This companion check adds a small, targeted
+# deny-list for the three PUBLIC collective headers only.
+#
+# IMPORTANT — false-positive avoidance: the bare component words `axis`, `span`,
+# and `logs` are also legitimate generic English/geometry vocabulary that the
+# clean headers already use (e.g. "outer-axis levels", "j-axis"). Matching bare
+# words would fail the build spuriously. So the deny-list matches only the
+# NAMESPACE-QUALIFIED form (`component::`) — a HELM library reference — which
+# never appears in generic geometry prose. This catches a real leak
+# (e.g. `helm::span`, `amio::`, `dagr::`) while leaving generic vocabulary alone.
+#
+# The check is scoped to the three public collective headers when they exist;
+# it is a no-op (does not change exit status) when they are absent, so it never
+# alters behavior for a HALO tree that predates the collective primitives.
+PUBLIC_API_HEADERS=""
+for h in \
+    "$ROOT/include/halo/collectives.hpp" \
+    "$ROOT/include/halo/replicated_gather_plan.hpp" \
+    "$ROOT/include/halo/gather_replicated.hpp"; do
+    if [ -f "$h" ]; then
+        PUBLIC_API_HEADERS="$PUBLIC_API_HEADERS $h"
+    fi
+done
+
+# Namespace-qualified HELM component / umbrella references. `helm::` covers a
+# namespaced umbrella layout; `(components)::` covers a per-library namespace.
+API_DENY_PATTERN="\b(helm|$COMPONENTS)[[:space:]]*::"
+
+api_hits=""
+if [ -n "$PUBLIC_API_HEADERS" ]; then
+    # shellcheck disable=SC2086
+    api_hits=$(grep -nEiH "$API_DENY_PATTERN" $PUBLIC_API_HEADERS 2>/dev/null)
+fi
+
 all_hits=""
 if [ -n "$cpp_hits" ]; then
     all_hits="$cpp_hits"
@@ -90,6 +131,14 @@ $fortran_hits"
         all_hits="$fortran_hits"
     fi
 fi
+if [ -n "$api_hits" ]; then
+    if [ -n "$all_hits" ]; then
+        all_hits="$all_hits
+$api_hits"
+    else
+        all_hits="$api_hits"
+    fi
+fi
 
 if [ -n "$all_hits" ]; then
     count=$(printf '%s\n' "$all_hits" | grep -c .)
@@ -97,7 +146,8 @@ if [ -n "$all_hits" ]; then
     printf '%s\n' "$all_hits" >&2
     echo "" >&2
     echo "Found $count forbidden include/use reference(s)." >&2
-    echo "HALO is a Tier 1 library and MUST NOT depend on TICK, LOGS, AXIS, AMIO, SPAN, or DAGR (Requirement 13)." >&2
+    echo "HALO is a Tier 1 library and MUST NOT depend on TICK, LOGS, AXIS, AMIO, SPAN, or DAGR (Requirement 13);" >&2
+    echo "the collective-primitive public API must also stay generic — no consumer/HELM-library/domain names (Requirement 9.3)." >&2
     exit 1
 fi
 
