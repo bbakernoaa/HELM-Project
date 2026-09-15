@@ -9,6 +9,7 @@ Two questions:
 
 Read-only w.r.t. library code.
 """
+
 import os
 import sys
 import tempfile
@@ -17,17 +18,17 @@ import numpy as np
 import xarray as xr
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import axis  # noqa: E402
 from compare_cdo import create_test_field, write_netcdf  # noqa: E402
 from fetch_mpas import fetch_mpas_grid  # noqa: E402
-
-import axis  # noqa: E402
 
 # Downloaded + cached under libs/axis/data/mpas/ on first run.
 MPAS = str(fetch_mpas_grid("x1.2562"))
 
 
 def to_xyz(lon, lat):
-    lr = np.radians(lon); ar = np.radians(lat)
+    lr = np.radians(lon)
+    ar = np.radians(lat)
     c = np.cos(ar)
     return np.stack([c * np.cos(lr), c * np.sin(lr), np.sin(ar)], axis=-1)
 
@@ -49,8 +50,8 @@ def signed_sph_area(v):
 
 def cell_polygons(ds):
     """Yield (cell_index, n_verts, lon[], lat[]) from native MPAS connectivity."""
-    voc = ds["verticesOnCell"].values          # (nCells, maxEdges), 1-based, 0=pad
-    nec = ds["nEdgesOnCell"].values            # (nCells,)
+    voc = ds["verticesOnCell"].values  # (nCells, maxEdges), 1-based, 0=pad
+    nec = ds["nEdgesOnCell"].values  # (nCells,)
     lon_v = np.degrees(ds["lonVertex"].values) % 360.0
     lat_v = np.degrees(ds["latVertex"].values)
     for c in range(ds.sizes["nCells"]):
@@ -70,12 +71,9 @@ for c, m, lo, la in cell_polygons(ds):
     areas[c] = signed_sph_area(to_xyz(lo, la))
 
 print(f"REAL MPAS x1.2562: nCells={n_cells}")
-print(f"  vertices/cell: min={nv.min()} max={nv.max()} "
-      f"(histogram {np.bincount(nv)[nv.min():].tolist()})")
-print(f"  signed spherical excess:  CCW(>0)={int((areas > 0).sum())}  "
-      f"CW(<0)={int((areas < 0).sum())}")
-print(f"  => real MPAS winding is "
-      f"{'CONSISTENT (all same sign)' if (areas > 0).all() or (areas < 0).all() else 'MIXED'}")
+print(f"  vertices/cell: min={nv.min()} max={nv.max()} (histogram {np.bincount(nv)[nv.min() :].tolist()})")
+print(f"  signed spherical excess:  CCW(>0)={int((areas > 0).sum())}  CW(<0)={int((areas < 0).sum())}")
+print(f"  => real MPAS winding is {'CONSISTENT (all same sign)' if (areas > 0).all() or (areas < 0).all() else 'MIXED'}")
 print(f"  |area| range: {np.abs(areas).min():.3e} .. {np.abs(areas).max():.3e} sr")
 
 # ── 2. AXIS vs CDO conservation into the real MPAS grid ──────────────────────
@@ -101,8 +99,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
     lon_c = np.degrees(ds["lonCell"].values) % 360.0
 
     ds_mp = xr.Dataset(
-        {"lat": (["cell"], lat_c), "lon": (["cell"], lon_c),
-         "lat_bnds": (["cell", "nv"], lb), "lon_bnds": (["cell", "nv"], ln)},
+        {"lat": (["cell"], lat_c), "lon": (["cell"], lon_c), "lat_bnds": (["cell", "nv"], lb), "lon_bnds": (["cell", "nv"], ln)},
     )
     ds_mp["lat"].attrs = {"units": "degrees_north", "bounds": "lat_bnds"}
     ds_mp["lon"].attrs = {"units": "degrees_east", "bounds": "lon_bnds"}
@@ -111,18 +108,14 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
     ds_in = xr.open_dataset(src_nc)
     ds_out = xr.open_dataset(dst_nc)
-    ones = xr.DataArray(np.ones(sfield.shape), dims=ds_in["temperature"].dims,
-                        coords=ds_in["temperature"].coords)
+    ones = xr.DataArray(np.ones(sfield.shape), dims=ds_in["temperature"].dims, coords=ds_in["temperature"].coords)
 
     for lt in ("great_circle", "cartesian"):
-        r = axis.Regridder(ds_in, ds_out, method="conservative", periodic=True,
-                           norm_type="dstarea", line_type=lt)
+        r = axis.Regridder(ds_in, ds_out, method="conservative", periodic=True, norm_type="dstarea", line_type=lt)
         fd = np.nan_to_num(r(ones).values, nan=0.0)
         s = float(np.nansum(r(ds_in["temperature"]).values))
-        print(f"\n[AXIS {lt:<12}] covered={int((fd > 1e-9).sum())}/{fd.size}  "
-              f"mean_cov={fd.mean():.4f}  sum={s:+.4f}")
+        print(f"\n[AXIS {lt:<12}] covered={int((fd > 1e-9).sum())}/{fd.size}  mean_cov={fd.mean():.4f}  sum={s:+.4f}")
         # correlate zero-coverage with winding
         z = fd < 1e-9
         if z.any():
-            print(f"    zero-cov cells: CCW={int((areas[z] > 0).sum())} "
-                  f"CW={int((areas[z] < 0).sum())}")
+            print(f"    zero-cov cells: CCW={int((areas[z] > 0).sum())} CW={int((areas[z] < 0).sum())}")

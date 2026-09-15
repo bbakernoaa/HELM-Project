@@ -1,13 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 import glob
-import os
-import shutil
 
 import numpy as np
 import pytest
 import xarray as xr
-
-import axis
 from axis import axis_py
 
 # Optional dependency discovery
@@ -103,4 +99,4 @@ def test_global_regular_to_c96_conservative():
         weights = axis_py.generate_weights(mesh_src, mesh_dst, config)
         out_const = np.array(axis_py.apply_weights(weights, src_const)).reshape((96, 96))
 
-        assert np.allclose(out_const, 1.0, atol=1e-12), f"Tile {t_idx+1} max diff vs 1.0: {np.max(np.abs(out_const - 1.0))}"
+        assert np.allclose(out_const, 1.0, atol=1e-12), f"Tile {t_idx + 1} max diff vs 1.0: {np.max(np.abs(out_const - 1.0))}"

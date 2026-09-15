@@ -16,7 +16,6 @@ import numpy as np
 import xarray as xr
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import axis  # noqa: E402
 from axis import axis_py  # noqa: E402
 
 try:
@@ -90,10 +89,21 @@ def esmf_regrid(src_lon, src_lat, smooth_src):
     nn = len(node_coords)
     ne = len(elem_conn) // 4
     mesh = esmpy.Mesh(parametric_dim=2, spatial_dim=2, coord_sys=esmpy.CoordSys.SPH_DEG)
-    mesh.add_nodes(nn, np.arange(1, nn + 1, dtype=np.int32), np.array(node_coords, dtype=np.float64).flatten(), np.zeros(nn, dtype=np.int32))
-    mesh.add_elements(ne, np.arange(1, ne + 1, dtype=np.int32), np.full(ne, esmpy.MeshElemType.QUAD, dtype=np.int32), np.array(elem_conn, dtype=np.int32))
+    mesh.add_nodes(
+        nn, np.arange(1, nn + 1, dtype=np.int32), np.array(node_coords, dtype=np.float64).flatten(), np.zeros(nn, dtype=np.int32)
+    )
+    mesh.add_elements(
+        ne,
+        np.arange(1, ne + 1, dtype=np.int32),
+        np.full(ne, esmpy.MeshElemType.QUAD, dtype=np.int32),
+        np.array(elem_conn, dtype=np.int32),
+    )
 
-    grid = esmpy.Grid(max_index=np.array([NLON, NLAT]), coord_sys=esmpy.CoordSys.SPH_DEG, staggerloc=[esmpy.StaggerLoc.CENTER, esmpy.StaggerLoc.CORNER])
+    grid = esmpy.Grid(
+        max_index=np.array([NLON, NLAT]),
+        coord_sys=esmpy.CoordSys.SPH_DEG,
+        staggerloc=[esmpy.StaggerLoc.CENTER, esmpy.StaggerLoc.CORNER],
+    )
     cl = grid.get_coords(0, staggerloc=esmpy.StaggerLoc.CENTER)
     ca = grid.get_coords(1, staggerloc=esmpy.StaggerLoc.CENTER)
     cl[...] = lon2d.T

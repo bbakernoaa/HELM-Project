@@ -212,7 +212,9 @@ def _try_bounds_curvilinear_mesh(ds: xr.Dataset, lat: xr.DataArray, lon: xr.Data
         conn_offsets_list.append(len(node_lons))
 
     node_coords = np.asfortranarray(np.column_stack([np.array(node_lons), np.array(node_lats)]))
-    return axis_py.make_ugrid_mesh(node_coords, np.array(conn_offsets_list, dtype=np.int64), np.arange(len(node_lons), dtype=np.int64))
+    return axis_py.make_ugrid_mesh(
+        node_coords, np.array(conn_offsets_list, dtype=np.int64), np.arange(len(node_lons), dtype=np.int64)
+    )
 
 
 def _synthesize_curvilinear_corners(lon: np.ndarray, lat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -527,9 +529,7 @@ def create_axis_mesh(ds: xr.Dataset, method: str | None = None) -> axis_py.Mesh:
                 node_offset = 0
 
                 # Check if dataset contains supergrid corner variables (e.g. x and y of shape (2*ny+1, 2*nx+1))
-                has_supergrid_xy = (
-                    "x" in ds and "y" in ds and ds["x"].ndim == 2 and ds["x"].shape == (2 * ny + 1, 2 * nx + 1)
-                )
+                has_supergrid_xy = "x" in ds and "y" in ds and ds["x"].ndim == 2 and ds["x"].shape == (2 * ny + 1, 2 * nx + 1)
 
                 for t in range(ntiles):
                     if has_supergrid_xy:
