@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y \
     libproj-dev \
     libnetcdf-dev \
     python3-dev \
-    cdo \
     && rm -rf /var/lib/apt/lists/*
 
 # Set GCC-13 as the default compiler (C, C++, and Fortran)
@@ -90,7 +89,29 @@ RUN git clone --depth 1 https://github.com/kokkos/kokkos-kernels.git /tmp/kokkos
     && cmake --install build \
     && rm -rf /tmp/kokkos-kernels
 
-# 6. Workspace Setup
+# 6. Install Miniforge (conda-forge toolchain) — provides conda + mamba for
+# the benchmark environment with CDO / ESMF / xregrid reference engines.
+RUN ARCH=$(uname -m) \
+    && case "$ARCH" in aarch64) ARCH=aarch64;; x86_64) ARCH=x86_64;; esac \
+    && wget -qO /tmp/miniforge.sh \
+       "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" \
+    && bash /tmp/miniforge.sh -b -p /opt/miniforge \
+    && rm /tmp/miniforge.sh \
+    && /opt/miniforge/bin/conda init bash
+
+ENV PATH=/opt/miniforge/bin:$PATH
+
+# 7. Benchmark environment: AXIS vs CDO vs xregrid comparison harness deps.
+#    Python pinned to 3.11 to match the prebuilt axis_py cpython-311 extension.
+RUN mamba create -y -n axis-bench -c conda-forge \
+        python=3.11 \
+        numpy scipy xarray netcdf4 pyproj \
+        cdo python-cdo esmpy \
+    && mamba run -n axis-bench pip install --no-cache-dir \
+        git+https://github.com/NOAA-EMC/xregrid.git \
+    && mamba clean -afy
+
+# 8. Workspace Setup
 WORKDIR /workspace/helm-project
 
 # Provide uv for Python env management
