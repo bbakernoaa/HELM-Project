@@ -33,8 +33,8 @@
 set -eu
 
 # ── Resolve paths ────────────────────────────────────────────────────────────
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-SOURCE_DIR="${1:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+SOURCE_DIR="${1:-$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)}"
 BUILD_ROOT="${2:-/tmp}"
 
 mkdir -p "$BUILD_ROOT"
