@@ -1,11 +1,17 @@
+import os
+import sys
+
 import esmpy
 import numpy as np
 import xarray as xr
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmarks"))
+from fetch_c96 import fetch_c96_tiles  # noqa: E402
+
 
 def build_esmf_c96_mesh():
     """Build a unified ESMPy Mesh for all 6 tiles of C96 using exact supergrid corners."""
-    tile_files = [f"/workspace/helm-project/libs/axis/C96_grid.tile{i}.nc" for i in range(1, 7)]
+    tile_files = fetch_c96_tiles()
     ds_list = [xr.open_dataset(f) for f in tile_files]
 
     # Total cells: 6 * 96 * 96 = 55296

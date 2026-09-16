@@ -70,3 +70,6 @@ axis_py.pyi
 
 # --- Downloaded benchmark data (fetched on demand by benchmarks/fetch_mpas.py) ---
 data/mpas/
+
+# C96 cubed-sphere tiles fetched on demand by benchmarks/fetch_c96.py
+data/c96/

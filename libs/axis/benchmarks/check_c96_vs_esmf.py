@@ -7,7 +7,6 @@ polar-cap C96 fix). Mirrors the geometry of tests_python/test_c96_benchmarks.py
 so the numbers are directly comparable to the benchmark tables.
 """
 
-import glob
 import os
 import sys
 import time
@@ -17,6 +16,7 @@ import xarray as xr
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from axis import axis_py  # noqa: E402
+from fetch_c96 import fetch_c96_tiles  # noqa: E402
 
 try:
     import esmpy
@@ -25,11 +25,7 @@ try:
 except ImportError:
     ESMPY = False
 
-C96 = sorted(glob.glob(os.path.join(os.path.dirname(__file__), "..", "C96_grid.tile*.nc")))
-if not C96:
-    C96 = sorted(glob.glob("libs/axis/C96_grid.tile*.nc"))
-if not C96:
-    C96 = sorted(glob.glob("/workspace/helm-project/libs/axis/C96_grid.tile*.nc"))
+C96 = fetch_c96_tiles()
 
 NLAT, NLON = 180, 360
 tlats = np.linspace(-89.5, 89.5, NLAT)

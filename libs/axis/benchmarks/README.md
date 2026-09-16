@@ -102,7 +102,7 @@ This guarantees absolute mathematical consistency across both uniform and non-un
 |--------|:--------------:|:--------------:|:---------------:|:-----------------:|:-----------------:|:-----------------:|
 | Conservative (Great Circle) | 2.111 | **0.165** | **12.8×** | 1.57e-13 | 2.29e-15 | 1.0 vs 1.0 |
 
-*Note: reference is `esmpy` 8.9.1 (ESMF 8.9.1) run directly on a welded-node cubed-sphere mesh — CDO cannot ingest cubed-sphere supergrid tiles, so this table compares against ESMF rather than CDO. AXIS agrees with ESMF to **machine precision** ($1.6\times10^{-13}$ max, $2.3\times10^{-15}$ RMS) on the smooth `cos(lat)·cos(lon)` field, and conserves a constant field to $4.4\times10^{-16}$ — *better* than ESMF's own $3.5\times10^{-13}$ residual. Both engines share an $8.9\times10^{-3}$ deviation from the analytic field, which is the inherent first-order-conservative discretization error of the C96 grid, not an AXIS error. Source geometry uses the exact analytical supergrid corners (`x[0::2,0::2]`, `y[0::2,0::2]`) rather than center-neighbor averaging; the polar-cap quads are retained by the `DegenerateCellHandler` fix (see `tests_python/test_c96_benchmarks.py`). Reproduce with `python benchmarks/check_c96_vs_esmf.py` (needs the `C96_grid.tile*.nc` files; run in the `helm-dev` container for the ESMF reference).*
+*Note: reference is `esmpy` 8.9.1 (ESMF 8.9.1) run directly on a welded-node cubed-sphere mesh — CDO cannot ingest cubed-sphere supergrid tiles, so this table compares against ESMF rather than CDO. AXIS agrees with ESMF to **machine precision** ($1.6\times10^{-13}$ max, $2.3\times10^{-15}$ RMS) on the smooth `cos(lat)·cos(lon)` field, and conserves a constant field to $4.4\times10^{-16}$ — *better* than ESMF's own $3.5\times10^{-13}$ residual. Both engines share an $8.9\times10^{-3}$ deviation from the analytic field, which is the inherent first-order-conservative discretization error of the C96 grid, not an AXIS error. Source geometry uses the exact analytical supergrid corners (`x[0::2,0::2]`, `y[0::2,0::2]`) rather than center-neighbor averaging; the polar-cap quads are retained by the `DegenerateCellHandler` fix (see `tests_python/test_c96_benchmarks.py`). Reproduce with `python benchmarks/check_c96_vs_esmf.py` — the six `C96_grid.tileN.nc` files are downloaded on demand from the NOAA EMC fix directory (`benchmarks/fetch_c96.py`, cached in git-ignored `data/c96/`); run in the `helm-dev` container for the ESMF reference.*
 
 ---
 
@@ -182,8 +182,10 @@ cmake --build build-macos && cp build-macos/python/axis_py*.so python/axis/
 # 3. Run everything (all 5 tables, GC + cartesian passes):
 bash benchmarks/run_all_native.sh
 
-# Real MPAS grids (x1.2562) are downloaded on demand — nothing committed:
+# Real MPAS grids (x1.2562) and C96 cubed-sphere tiles are downloaded on
+# demand by the scripts that need them — nothing committed:
 python benchmarks/fetch_mpas.py x1.2562   # -> data/mpas/x1.2562.grid.nc
+python benchmarks/fetch_c96.py            # -> data/c96/C96_grid.tile{1..6}.nc
 ```
 
 ```bash

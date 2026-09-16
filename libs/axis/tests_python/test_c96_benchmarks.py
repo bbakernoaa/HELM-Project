@@ -1,18 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
-import glob
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
 import xarray as xr
 from axis import axis_py
 
-C96_FILES = sorted(glob.glob("/workspace/helm-project/libs/axis/C96_grid.tile*.nc"))
-if not C96_FILES:
-    C96_FILES = sorted(glob.glob("libs/axis/C96_grid.tile*.nc"))
-if not C96_FILES:
-    C96_FILES = sorted(glob.glob("C96_grid.tile*.nc"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "benchmarks"))
 
-pytestmark = pytest.mark.skipif(len(C96_FILES) < 6, reason="C96_grid tile NetCDF files not found")
+try:
+    from fetch_c96 import fetch_c96_tiles
+
+    C96_FILES = fetch_c96_tiles()
+    _FETCH_ERROR = None
+except Exception as exc:  # noqa: BLE001 - skip (not error) when tiles cannot be fetched
+    C96_FILES = []
+    _FETCH_ERROR = str(exc)
+
+pytestmark = pytest.mark.skipif(
+    len(C96_FILES) < 6,
+    reason=f"C96_grid tile NetCDF files could not be fetched: {_FETCH_ERROR}"
+    if _FETCH_ERROR
+    else "C96_grid tile NetCDF files not found",
+)
 
 
 def get_c96_exact_mesh(ds_list):
