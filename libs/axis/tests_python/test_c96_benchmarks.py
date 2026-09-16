@@ -6,15 +6,6 @@ import pytest
 import xarray as xr
 from axis import axis_py
 
-# Optional dependency discovery
-ESMPY_AVAILABLE = False
-try:
-    import esmpy
-
-    ESMPY_AVAILABLE = True
-except ImportError:
-    pass
-
 C96_FILES = sorted(glob.glob("/workspace/helm-project/libs/axis/C96_grid.tile*.nc"))
 if not C96_FILES:
     C96_FILES = sorted(glob.glob("libs/axis/C96_grid.tile*.nc"))

@@ -69,7 +69,7 @@ def esmf_regrid(src_lon, src_lat, smooth_src):
     """Welded-node ESMPy mesh -> 1deg grid, conservative. Returns (const, smooth) dst."""
     node_coords, elem_conn = [], []
     node_map, nxt = {}, 1
-    for t, f in enumerate(C96):
+    for f in C96:
         ds = xr.open_dataset(f)
         clon = ds["x"].values[0::2, 0::2]
         clat = ds["y"].values[0::2, 0::2]
