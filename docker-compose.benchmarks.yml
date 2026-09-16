@@ -1,0 +1,21 @@
+# Compose override: swaps helm-dev to the benchmark image (Dockerfile-Benchmarks),
+# which extends the lean base image with CDO / ESMF / xregrid for
+# libs/axis/benchmarks. Use it on top of the main file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.benchmarks.yml \
+#     up -d --build
+#
+# The BASE_IMAGE arg must point at the image built from the main Dockerfile;
+# compose names it "<project>-helm-dev:latest" (default project name = parent
+# directory, lowercased). Override if needed:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.benchmarks.yml \
+#     build --build-arg BASE_IMAGE=<tag>:latest helm-dev
+services:
+  helm-dev:
+    image: helm-dev-benchmarks:latest
+    build:
+      context: .
+      dockerfile: Dockerfile-Benchmarks
+      args:
+        BASE_IMAGE: helm-project-helm-dev:latest

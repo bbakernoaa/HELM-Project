@@ -166,6 +166,7 @@ The tables above were produced natively (no container) on macOS/arm64:
 # 1. Python env (conda-forge, py3.11): numpy scipy xarray netcdf4 pyproj cdo python-cdo esmpy + xregrid
 #    mamba create -n axis-benchmark-env -c conda-forge python=3.11 numpy scipy xarray netcdf4 pyproj cdo python-cdo esmpy
 #    mamba run -n axis-benchmark-env pip install git+https://github.com/NOAA-EMC/xregrid.git
+#    (Or skip this entirely and use the opt-in benchmarks container below.)
 
 # 2. Build the bindings (Kokkos 5.1.1 must match; KokkosKernels auto-fetches).
 #    On macOS, point OpenMP at the SAME libomp.dylib the conda stack uses.
@@ -183,9 +184,31 @@ cmake --build build-macos && cp build-macos/python/axis_py*.so python/axis/
 bash benchmarks/run_all_native.sh
 
 # Real MPAS grids (x1.2562) and C96 cubed-sphere tiles are downloaded on
-# demand by the scripts that need them — nothing committed:
+# demand by the scripts that need them — the whole data/ tree is git-ignored:
 python benchmarks/fetch_mpas.py x1.2562   # -> data/mpas/x1.2562.grid.nc
 python benchmarks/fetch_c96.py            # -> data/c96/C96_grid.tile{1..6}.nc
+```
+
+### Running in the container (opt-in)
+
+The reference engines (CDO, ESMF/esmpy, xregrid) add well over 1 GB, so they
+are **not** in the main `helm-dev` image. Build the overlay instead — it
+extends the lean base image and provisions the `axis-bench` conda env:
+
+```bash
+# 1. Build the lean base image (skip if already built):
+docker compose build
+
+# 2. Layer on the benchmark toolchain (Dockerfile-Benchmarks):
+docker compose -f docker-compose.yml -f docker-compose.benchmarks.yml \
+  up -d --build
+
+# 3. Run the comparison harness inside it:
+docker compose -f docker-compose.yml -f docker-compose.benchmarks.yml \
+  exec helm-dev bash -lc 'cd libs/axis && mamba run -n axis-bench \
+      python3 benchmarks/compare_cdo.py --src-size 720x360 \
+      --dst-size 1440x720 --dst-grid-type regular \
+      --methods conservative --field constant'
 ```
 
 ```bash
