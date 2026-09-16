@@ -37,6 +37,12 @@ mypy = [
 [project.scripts]
 axis-regrid = "axis.cli:main"
 
+[tool.pytest.ini_options]
+# Keep collection scoped to the real suite so scratch scripts at the
+# package root (e.g. test_c96_comparison.py) or benchmark probes under
+# benchmarks/ are not imported by bare `pytest` in CI.
+testpaths = ["tests_python"]
+
 [tool.scikit-build]
 cmake.args = [
     "-DAXIS_BUILD_PYTHON=ON",
