@@ -4,7 +4,7 @@
 # axis_py .so (copied into python/axis/). Great-circle and cartesian passes
 # run separately so conservative rows in each table fill independently.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 export PYTHONPATH=python
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-10}
 ENVBIN=/opt/homebrew/Caskroom/miniforge/base/envs/axis-benchmark-env/bin

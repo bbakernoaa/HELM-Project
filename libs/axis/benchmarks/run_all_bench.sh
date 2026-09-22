@@ -3,7 +3,7 @@
 # Great-circle (default) and cartesian passes are run separately so the
 # conservative rows in each table can be filled independently.
 set -uo pipefail
-cd /workspace/helm-project/libs/axis
+cd /workspace/helm-project/libs/axis || exit 1
 export PYTHONPATH=python
 OUT=/workspace/helm-project/libs/axis/benchmarks/results
 mkdir -p "$OUT"
