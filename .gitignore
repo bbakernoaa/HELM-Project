@@ -116,3 +116,7 @@ Desktop.ini
 *.temp
 *.orig
 *.rej
+
+# ---------- Local agent state (Kiro specs/steering, superpowers plans/specs) ----------
+.kiro/
+docs/superpowers/

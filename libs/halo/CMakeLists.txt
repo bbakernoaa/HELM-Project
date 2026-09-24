@@ -42,6 +42,7 @@ add_library(halo)
 add_library(HELM::HALO ALIAS halo)
 
 target_sources(halo PRIVATE
+    src/collectives.cpp
     src/communicator.cpp
     src/environment.cpp
     src/error_policy.cpp

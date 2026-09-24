@@ -1,31 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
-import glob
-import os
-import shutil
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
 import xarray as xr
-
-import axis
 from axis import axis_py
 
-# Optional dependency discovery
-ESMPY_AVAILABLE = False
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "benchmarks"))
+
 try:
-    import esmpy
+    from fetch_c96 import fetch_c96_tiles
 
-    ESMPY_AVAILABLE = True
-except ImportError:
-    pass
+    C96_FILES = fetch_c96_tiles()
+    _FETCH_ERROR = None
+except Exception as exc:  # noqa: BLE001 - skip (not error) when tiles cannot be fetched
+    C96_FILES = []
+    _FETCH_ERROR = str(exc)
 
-C96_FILES = sorted(glob.glob("/workspace/helm-project/libs/axis/C96_grid.tile*.nc"))
-if not C96_FILES:
-    C96_FILES = sorted(glob.glob("libs/axis/C96_grid.tile*.nc"))
-if not C96_FILES:
-    C96_FILES = sorted(glob.glob("C96_grid.tile*.nc"))
-
-pytestmark = pytest.mark.skipif(len(C96_FILES) < 6, reason="C96_grid tile NetCDF files not found")
+pytestmark = pytest.mark.skipif(
+    len(C96_FILES) < 6,
+    reason=f"C96_grid tile NetCDF files could not be fetched: {_FETCH_ERROR}"
+    if _FETCH_ERROR
+    else "C96_grid tile NetCDF files not found",
+)
 
 
 def get_c96_exact_mesh(ds_list):
@@ -103,4 +101,4 @@ def test_global_regular_to_c96_conservative():
         weights = axis_py.generate_weights(mesh_src, mesh_dst, config)
         out_const = np.array(axis_py.apply_weights(weights, src_const)).reshape((96, 96))
 
-        assert np.allclose(out_const, 1.0, atol=1e-12), f"Tile {t_idx+1} max diff vs 1.0: {np.max(np.abs(out_const - 1.0))}"
+        assert np.allclose(out_const, 1.0, atol=1e-12), f"Tile {t_idx + 1} max diff vs 1.0: {np.max(np.abs(out_const - 1.0))}"

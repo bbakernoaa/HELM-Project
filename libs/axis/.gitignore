@@ -67,3 +67,8 @@ lcov.info
 **/core.*
 !**/core.py
 axis_py.pyi
+
+# --- Benchmark data: the whole folder is downloaded on demand
+# (MPAS grids via benchmarks/fetch_mpas.py, C96 tiles via benchmarks/fetch_c96.py;
+# both create the cache dirs themselves) ---
+data/

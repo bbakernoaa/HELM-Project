@@ -2,8 +2,10 @@
 #define CONF_VALUE_HPP
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace conf {
 
@@ -23,8 +25,31 @@ class Value {
     /// Returns true if the viewed node is defined (kind != Undefined).
     [[nodiscard]] bool is_defined() const noexcept;
 
+    /// Contextual bool conversion: true if the node is defined.
+    /// Enables natural `if (value["key"]) { ... }` patterns.
+    [[nodiscard]] explicit operator bool() const noexcept;
+
     /// Returns the child count for map/sequence nodes; 0 for scalar/null/undefined.
     [[nodiscard]] std::size_t size() const noexcept;
+
+    // ── Child access (sequence / map navigation) ──
+    // These allow iteration over structured YAML without building dotted-path
+    // strings. They return lightweight Value views into the same tree.
+
+    /// Access a sequence element by index. Returns an undefined Value if out of range.
+    [[nodiscard]] Value operator[](std::size_t index) const noexcept;
+
+    /// Access a map child by key. Returns an undefined Value if not found.
+    [[nodiscard]] Value operator[](const std::string &key) const noexcept;
+
+    /// Get the list of keys for a map node. Empty vector for non-map nodes.
+    [[nodiscard]] std::vector<std::string> keys() const;
+
+    /// Convert a sequence node to a vector of doubles. Empty if not a sequence.
+    [[nodiscard]] std::vector<double> as_double_list() const;
+
+    /// Convert a sequence node to a vector of strings. Empty if not a sequence.
+    [[nodiscard]] std::vector<std::string> as_string_list() const;
 
     // ── Throwing conversions ──
     // Raise Conf_Error{Type_Mismatch} when the node is not a scalar or
@@ -43,14 +68,28 @@ class Value {
     [[nodiscard]] std::optional<bool> try_bool() const noexcept;
     [[nodiscard]] std::optional<std::string> try_string() const noexcept;
 
-   private:
-    friend class Config;
-    explicit Value(const void *node_ptr) noexcept;
+    // ── Defaulted scalar access ──
+    // Returns fallback on any failure (missing, wrong type, undefined node).
 
-    /// Type-erased pointer into the parent Config's node tree.
+    [[nodiscard]] std::string string_or(const std::string &fallback) const noexcept;
+    [[nodiscard]] int int_or(int fallback) const noexcept;
+    [[nodiscard]] double double_or(double fallback) const noexcept;
+    [[nodiscard]] bool bool_or(bool fallback) const noexcept;
+
+    friend class Config;
+
+    /// Construct a Value wrapping a type-erased shared_ptr to a yaml-cpp node.
+    /// Public to allow wrapping externally-owned YAML nodes.
+    explicit Value(std::shared_ptr<void> node_ptr) noexcept;
+
+    /// Construct a non-owning Value from a raw pointer (lifetime must be managed externally).
+    static Value from_raw(const void *node_ptr) noexcept;
+
+   private:
+    /// Type-erased shared pointer into the parent Config's node tree.
     /// Points to a yaml-cpp node internally; the type is erased here so that
     /// no yaml-cpp header is required by consumers of this public header.
-    const void *node_;
+    std::shared_ptr<void> node_;
 };
 
 }  // namespace conf

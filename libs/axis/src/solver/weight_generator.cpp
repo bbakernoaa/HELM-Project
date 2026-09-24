@@ -3261,9 +3261,20 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const to
     auto dst_grid_info = detail::detect_regular_grid(dst_mesh);
     if (src_grid_info.is_regular && dst_grid_info.is_regular) {
         auto result = generate_conservative_rect(src_mesh, dst_mesh, config, src_grid_info, dst_grid_info);
-        // If non-empty, use it. If empty (fallback signal from dateline wrap
-        // or other edge case), fall through to standard BVH path.
-        if (result.nnz() > 0) {
+        // The fast path signals DECLINE (dateline wrap / misaligned grids) by
+        // returning a default-constructed matrix whose n_dst()==0. A legitimate
+        // "no source overlaps these destination cells" result is a real matrix
+        // with n_dst()>0 but nnz()==0 (e.g. a latitude band sitting entirely
+        // above/below the source range).
+        //
+        // Under UnmappedAction::Ignore there is no coverage requirement, so we
+        // accept any real matrix (n_dst()>0) and must NOT re-route a
+        // zero-overlap band to the BVH path, which would fabricate spurious
+        // near-pole overlap weights. Under UnmappedAction::Error the caller
+        // expects zero-coverage destination cells to be diagnosed, which only
+        // the BVH path validates — so keep the stricter nnz()>0 accept there and
+        // let an all-zero-coverage matrix fall through to BVH to raise.
+        if (result.n_dst() > 0 && (config.unmapped != UnmappedAction::Error || result.nnz() > 0)) {
             return result;
         }
     }
@@ -3274,7 +3285,11 @@ InterpolationMatrix<MemorySpace> WeightGenerator::generate_conservative(const to
     auto dst_rect_info = detail::detect_rectilinear_grid(dst_mesh);
     if (src_rect_info.is_rectilinear && dst_rect_info.is_rectilinear) {
         auto result = generate_conservative_rect_nonuniform(src_mesh, dst_mesh, config, src_rect_info, dst_rect_info);
-        if (result.nnz() > 0) {
+        // Same decline-vs-legitimately-empty convention as the regular fast path
+        // above: under UnmappedAction::Ignore accept any real matrix (n_dst()>0),
+        // even a zero-nonzero one; under Error keep the stricter nnz()>0 so an
+        // all-zero-coverage matrix falls through to BVH to be diagnosed.
+        if (result.n_dst() > 0 && (config.unmapped != UnmappedAction::Error || result.nnz() > 0)) {
             return result;
         }
     }

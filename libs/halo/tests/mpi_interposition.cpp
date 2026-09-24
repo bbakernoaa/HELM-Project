@@ -324,4 +324,34 @@ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_
     return MPI_SUCCESS;
 }
 
+// ─── Collective Overrides (TEST-ONLY) ────────────────────────────────────────
+// These intercept the collectives used by HALO's Tier 1/Tier 2 primitives and
+// record the call so the spy tests (test_collective_spy) can assert CALL COUNTS.
+// Following the existing spy design, they do NOT delegate to real MPI and do NOT
+// touch recvbuf — they simply record and return MPI_SUCCESS. Count-only tests are
+// unaffected; any test needing real gathered DATA must NOT link the spy layer.
+// The receive buffer is recorded as the handle; a useful count is stored in arg.
+
+// ─── MPI_Allgather ────────────────────────────────────────────────────────────
+int MPI_Allgather(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Allgather, recvbuf, recvcount);
+    if (err != MPI_SUCCESS) return err;
+    return MPI_SUCCESS;
+}
+
+// ─── MPI_Allgatherv ───────────────────────────────────────────────────────────
+int MPI_Allgatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcounts[], const int displs[],
+                   MPI_Datatype recvtype, MPI_Comm comm) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Allgatherv, recvbuf, sendcount);
+    if (err != MPI_SUCCESS) return err;
+    return MPI_SUCCESS;
+}
+
+// ─── MPI_Allreduce ────────────────────────────────────────────────────────────
+int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) {
+    int err = MPI_Spy::instance().record(MPI_Call_Record::Type::Allreduce, recvbuf, count);
+    if (err != MPI_SUCCESS) return err;
+    return MPI_SUCCESS;
+}
+
 }  // extern "C"

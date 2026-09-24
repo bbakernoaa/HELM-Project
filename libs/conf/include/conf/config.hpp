@@ -53,6 +53,7 @@ class Config {
     [[nodiscard]] T get_or(std::string_view dotted_path, T fallback) const noexcept;
 
     // ── Generic node access (returns a lightweight Value view) ───────────────
+    [[nodiscard]] Value root() const;
     [[nodiscard]] Value at(std::string_view dotted_path) const;
 
     // ── List access ──────────────────────────────────────────────────────────
