@@ -2,7 +2,7 @@
 # Rerun README benchmark tables 1,3,4,5 (GC + cartesian) with the FRESH axis_py build.
 # Table 2 is run separately after Docker memory is raised.
 set -uo pipefail
-cd /workspace/helm-project/libs/axis
+cd /workspace/helm-project/libs/axis || exit 1
 export PYTHONPATH=python
 OUT=/workspace/helm-project/libs/axis/benchmarks/results
 mkdir -p "$OUT"

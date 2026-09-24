@@ -5,25 +5,42 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-        args: ['--unsafe']
+        args: ["--unsafe"]
       - id: check-json
       - id: check-toml
       - id: check-shebang-scripts-are-executable
       - id: check-executables-have-shebangs
       - id: check-symlinks
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ["--maxkb=1000"]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.8
     hooks:
       - id: clang-format
         types_or: [c, c++]
-        args: ['--style=file']
+        args: ["--style=file"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.21
     hooks:
       - id: ruff-check
-        args: ['--fix']
+        args: ["--fix"]
       - id: ruff-format
+
+  # Shell script linting — Put more effort into errors than style
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
+
+  # YAML formatting
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: "v3.9.8"
+    hooks:
+      - id: prettier
+        types_or: [yaml]

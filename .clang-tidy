@@ -17,10 +17,10 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-exception-escape,
   -performance-unnecessary-value-param
-WarningsAsErrors: ''
-HeaderFilterRegex: '^(libs|include|src|tests)/'
+WarningsAsErrors: ""
+HeaderFilterRegex: "^(libs|include|src|tests)/"
 FormatStyle: file
 CheckOptions:
   - key: bugprone-branch-clone.MinComplexity
-    value: '20'
+    value: "20"
 ...

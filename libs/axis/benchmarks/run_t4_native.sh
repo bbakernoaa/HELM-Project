@@ -3,7 +3,7 @@
 # Uses the axis-benchmark-env conda env and the build-macos axis_py .so
 # (copied into python/axis/). Sources the fixed CCW-winding MPAS generator.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 export PYTHONPATH=python
 ENVBIN=/opt/homebrew/Caskroom/miniforge/base/envs/axis-benchmark-env/bin
 PY=$ENVBIN/python

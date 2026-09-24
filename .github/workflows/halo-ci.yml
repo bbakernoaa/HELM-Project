@@ -157,7 +157,7 @@ jobs:
       # this step once Spack is available in the container or on the runner.
       # (Requirements 6.1, 6.2, 6.3)
       - name: "Stage 7: Spack build smoke test (planned)"
-        if: false  # Enable when Spack is installed in the CI container
+        if: false # Enable when Spack is installed in the CI container
         run: |
           docker compose exec -T helm-dev bash -lc '
             set -e
